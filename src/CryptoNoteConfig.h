@@ -71,7 +71,7 @@ const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json"
 
 // ame of our currency
 const char     CRYPTONOTE_NAME[]                             = "qwertycoin";
-const char     GENESIS_COINBASE_TX_HEX[]					 = "";
+const char     GENESIS_COINBASE_TX_HEX[]					 = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101ae4b3c58e793e8a30e1a0d0e9d5c5ed5432490353f87b0b21d5da32fe55d623b";
 
 const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
@@ -103,6 +103,9 @@ const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "xjtdfn6zb7nvcmc7
 const std::initializer_list<const char*> SEED_NODES = {
   "node-00.qwertycoin.org:10044",
   "node-01.qwertycoin.org:10044",
+  "node-02.qwertycoin.org:10044",
+  "node-03.qwertycoin.org:10044",
+  "node-04.qwertycoin.org:10044",
 };
 
 struct CheckpointData {
