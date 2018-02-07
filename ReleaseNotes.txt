@@ -1,0 +1,3 @@
+Release notes 2.0.0
+
+Qwertycoin2 project is moved to GitHub
