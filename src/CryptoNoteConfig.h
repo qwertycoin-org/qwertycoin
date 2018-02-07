@@ -71,7 +71,7 @@ const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json"
 
 // ame of our currency
 const char     CRYPTONOTE_NAME[]                             = "qwertycoin";
-const char     GENESIS_COINBASE_TX_HEX[]					 = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101ae4b3c58e793e8a30e1a0d0e9d5c5ed5432490353f87b0b21d5da32fe55d623b";
+const char     GENESIS_COINBASE_TX_HEX[]					= "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101ae4b3c58e793e8a30e1a0d0e9d5c5ed5432490353f87b0b21d5da32fe55d623b";
 
 const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
