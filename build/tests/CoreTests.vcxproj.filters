@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\BlockReward.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\BlockValidation.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\ChainSplit1.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\ChainSwitch1.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\Chaingen.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\Chaingen001.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\ChaingenMain.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\DoubleSpend.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\IntegerOverflow.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\RandomOuts.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\RingSignature.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\TransactionBuilder.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\TransactionTests.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\tests\CoreTests\TransactionValidation.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\AccountBoostSerialization.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\BlockReward.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\BlockValidation.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\BoostSerializationHelper.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\ChainSplit1.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\ChainSwitch1.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\Chaingen.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\Chaingen001.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\CryptoNoteBoostSerialization.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\DoubleSpend.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\IntegerOverflow.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\RandomOuts.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\RingSignature.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\TestGenerator.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\TransactionBuilder.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\TransactionTests.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\TransactionValidation.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\UnorderedContainersBoostSerialization.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\tests\CoreTests\double_spend.inl" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

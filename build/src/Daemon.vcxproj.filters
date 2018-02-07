@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Daemon\Daemon.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Daemon\DaemonCommandsHandler.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Daemon\DaemonCommandsHandler.h" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

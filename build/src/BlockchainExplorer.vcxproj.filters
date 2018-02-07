@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\BlockchainExplorer\BlockchainExplorer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\BlockchainExplorer\BlockchainExplorerDataBuilder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\BlockchainExplorer\BlockchainExplorerErrors.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\BlockchainExplorer\BlockchainExplorer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\BlockchainExplorer\BlockchainExplorerDataBuilder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\BlockchainExplorer\BlockchainExplorerErrors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4B2E5FF2-E34E-3E1F-85D4-646FE42C0108}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{F13512B6-1B19-3CD4-9022-CCB17A929771}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

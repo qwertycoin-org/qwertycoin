@@ -1,0 +1,232 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{71973195-29E2-308B-9298-42A4D3F9849E}</ProjectGuid>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <Keyword>Win32Proj</Keyword>
+    <Platform>x64</Platform>
+    <ProjectName>Common</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Programming\github\qwertycoin\build\src\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Common.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Common</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Programming\github\qwertycoin\build\src\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Common.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Common</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Programming\github\qwertycoin\build\src\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Common.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Common</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions>
+      <AssemblerListingLocation>Debug/</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4996;4345</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0600;WIN32_LEAN_AND_MEAN;GTEST_HAS_TR1_TUPLE=0;_VARIADIC_MAX=8;__SSE4_1__;STATICLIB;CMAKE_INTDIR="Debug";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0600;WIN32_LEAN_AND_MEAN;GTEST_HAS_TR1_TUPLE=0;_VARIADIC_MAX=8;__SSE4_1__;STATICLIB;CMAKE_INTDIR=\"Debug\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions>
+      <AssemblerListingLocation>RelWithDebInfo/</AssemblerListingLocation>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4996;4345</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0600;WIN32_LEAN_AND_MEAN;GTEST_HAS_TR1_TUPLE=0;_VARIADIC_MAX=8;__SSE4_1__;STATICLIB;CMAKE_INTDIR="RelWithDebInfo";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0600;WIN32_LEAN_AND_MEAN;GTEST_HAS_TR1_TUPLE=0;_VARIADIC_MAX=8;__SSE4_1__;STATICLIB;CMAKE_INTDIR=\"RelWithDebInfo\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions>
+      <AssemblerListingLocation>Release/</AssemblerListingLocation>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <DisableSpecificWarnings>4996;4345</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0600;WIN32_LEAN_AND_MEAN;GTEST_HAS_TR1_TUPLE=0;_VARIADIC_MAX=8;__SSE4_1__;STATICLIB;CMAKE_INTDIR="Release";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat></DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0600;WIN32_LEAN_AND_MEAN;GTEST_HAS_TR1_TUPLE=0;_VARIADIC_MAX=8;__SSE4_1__;STATICLIB;CMAKE_INTDIR=\"Release\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Programming\github\qwertycoin\include;C:\Programming\github\qwertycoin\src;C:\Programming\github\qwertycoin\external;C:\Programming\github\qwertycoin\build\version;C:\Programming\github\qwertycoin\src\Platform\Windows;C:\Programming\github\qwertycoin\src\platform\msc;C:\local\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ArrayRef.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ArrayView.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\Base58.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Base58.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\BlockingQueue.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\BlockingQueue.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\CommandLine.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\CommandLine.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\ConsoleHandler.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ConsoleHandler.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\ConsoleTools.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ConsoleTools.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\IInputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\IInputStream.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\IOutputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\IOutputStream.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\JsonValue.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\JsonValue.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\Math.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Math.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\MemoryInputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\MemoryInputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ObserverManager.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\PathTools.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\PathTools.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\ScopeExit.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ScopeExit.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ShuffleGenerator.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\SignalHandler.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\SignalHandler.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StdInputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StdInputStream.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StdOutputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StdOutputStream.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StreamTools.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StreamTools.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringBuffer.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringInputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringInputStream.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringOutputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringOutputStream.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringTools.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringTools.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringView.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringView.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\Util.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Util.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Varint.h" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\VectorOutputStream.cpp"  />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\VectorOutputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\int-util.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\pod-class.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\static_assert.h" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

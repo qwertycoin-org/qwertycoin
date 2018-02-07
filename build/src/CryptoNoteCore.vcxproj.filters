@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Account.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\BlockIndex.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Blockchain.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\BlockchainIndices.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\BlockchainMessages.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Checkpoints.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Core.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CoreConfig.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteBasic.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteBasicImpl.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteFormatUtils.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteSerialization.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteTools.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Currency.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Difficulty.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\IBlock.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\ITimeProvider.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Miner.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\MinerConfig.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\SwappedMap.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\SwappedVector.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Transaction.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionExtra.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionPool.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionPrefixImpl.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionUtils.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Account.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\BlockIndex.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Blockchain.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\BlockchainIndices.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\BlockchainMessages.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Checkpoints.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Core.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CoreConfig.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteBasic.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteBasicImpl.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteFormatUtils.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteSerialization.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteStatInfo.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\CryptoNoteTools.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Currency.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Difficulty.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\IBlock.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\IBlockchainStorageObserver.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\ICore.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\ICoreObserver.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\IMinerHandler.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\ITimeProvider.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\ITransactionValidator.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\ITxPoolObserver.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\IntrusiveLinkedList.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\MessageQueue.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\Miner.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\MinerConfig.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\OnceInInterval.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\SwappedMap.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\SwappedVector.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionApi.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionApiExtra.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionExtra.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionPool.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\TransactionUtils.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteCore\VerificationContext.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteConfig.h" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

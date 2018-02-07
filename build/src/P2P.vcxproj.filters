@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\CryptoNoteProtocol\CryptoNoteProtocolHandler.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\IP2pNodeInternal.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\LevinProtocol.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\NetNode.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\NetNodeConfig.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\P2pConnectionProxy.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\P2pContext.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\P2pContextOwner.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\P2pInterfaces.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\P2pNode.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\P2pNodeConfig.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\P2p\PeerListManager.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteProtocol\CryptoNoteProtocolDefinitions.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteProtocol\CryptoNoteProtocolHandler.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteProtocol\CryptoNoteProtocolHandlerCommon.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteProtocol\ICryptoNoteProtocolObserver.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\CryptoNoteProtocol\ICryptoNoteProtocolQuery.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\ConnectionContext.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\IP2pNodeInternal.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\LevinProtocol.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\NetNode.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\NetNodeCommon.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\NetNodeConfig.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pConnectionProxy.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pContext.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pContextOwner.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pInterfaces.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pNetworks.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pNode.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pNodeConfig.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pProtocolDefinitions.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\P2pProtocolTypes.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\P2p\PeerListManager.h" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

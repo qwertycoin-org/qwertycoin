@@ -1,0 +1,67 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\Base58.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\BlockingQueue.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\CommandLine.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\ConsoleHandler.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\ConsoleTools.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\IInputStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\IOutputStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\JsonValue.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\Math.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\MemoryInputStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\PathTools.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\ScopeExit.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\SignalHandler.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StdInputStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StdOutputStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StreamTools.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringInputStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringOutputStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringTools.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\StringView.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\Util.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Common\VectorOutputStream.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ArrayRef.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ArrayView.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Base58.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\BlockingQueue.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\CommandLine.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ConsoleHandler.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ConsoleTools.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\IInputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\IOutputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\JsonValue.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Math.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\MemoryInputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ObserverManager.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\PathTools.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ScopeExit.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\ShuffleGenerator.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\SignalHandler.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StdInputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StdOutputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StreamTools.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringBuffer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringInputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringOutputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringTools.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\StringView.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Util.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\Varint.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\VectorOutputStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\int-util.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\pod-class.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Common\static_assert.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{F13512B6-1B19-3CD4-9022-CCB17A929771}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

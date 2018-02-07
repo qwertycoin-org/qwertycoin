@@ -1,0 +1,38 @@
+Determining if the include file pthread.h exists failed with the following output:
+Change Dir: C:/Programming/github/qwertycoin/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"C:/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe" "cmTC_de6af.vcxproj" "/p:Configuration=Debug" "/p:VisualStudioVersion=15.0"
+Microsoft (R)-Buildmodul, Version 15.5.180.51428 für .NET Framework
+Copyright (C) Microsoft Corporation. Alle Rechte vorbehalten.
+
+Der Buildvorgang wurde am 07.02.2018 12:32:34 gestartet.
+Projekt "C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\cmTC_de6af.vcxproj" auf Knoten "1" (Standardziele).
+PrepareForBuild:
+  Das Verzeichnis "cmTC_de6af.dir\Debug\" wird erstellt.
+  Das Verzeichnis "C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\Debug\" wird erstellt.
+  Das Verzeichnis "cmTC_de6af.dir\Debug\cmTC_de6af.tlog\" wird erstellt.
+InitializeBuildStatus:
+  "cmTC_de6af.dir\Debug\cmTC_de6af.tlog\unsuccessfulbuild" wird erstellt, da "AlwaysCreate" angegeben wurde.
+ClCompile:
+  C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC\Tools\MSVC\14.12.25827\bin\HostX86\x64\CL.exe /c /Zi /W3 /WX- /diagnostics:classic /Od /Ob0 /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\"Debug\"" /D _MBCS /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_de6af.dir\Debug\\" /Fd"cmTC_de6af.dir\Debug\vc141.pdb" /Gd /TC /errorReport:queue C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\CheckIncludeFile.c
+  Microsoft (R) C/C++-Optimierungscompiler Version 19.12.25835 für x64
+  Copyright (C) Microsoft Corporation. Alle Rechte vorbehalten.
+  
+  cl /c /Zi /W3 /WX- /diagnostics:classic /Od /Ob0 /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\"Debug\"" /D _MBCS /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_de6af.dir\Debug\\" /Fd"cmTC_de6af.dir\Debug\vc141.pdb" /Gd /TC /errorReport:queue C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\CheckIncludeFile.c
+  CheckIncludeFile.c
+  
+C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\CheckIncludeFile.c(1): fatal error C1083: Datei (Include) kann nicht geöffnet werden: "pthread.h": No such file or directory [C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\cmTC_de6af.vcxproj]
+Die Erstellung des Projekts "C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\cmTC_de6af.vcxproj" ist abgeschlossen (Standardziele) -- FEHLER.
+
+Fehler beim Buildvorgang.
+
+"C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\cmTC_de6af.vcxproj" (Standardziel) (1) ->
+(ClCompile Ziel) -> 
+  C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\CheckIncludeFile.c(1): fatal error C1083: Datei (Include) kann nicht geöffnet werden: "pthread.h": No such file or directory [C:\Programming\github\qwertycoin\build\CMakeFiles\CMakeTmp\cmTC_de6af.vcxproj]
+
+    0 Warnung(en)
+    1 Fehler
+
+Verstrichene Zeit 00:00:00.64
+
+

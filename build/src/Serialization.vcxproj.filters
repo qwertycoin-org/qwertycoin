@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\BinaryInputStreamSerializer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\BinaryOutputStreamSerializer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\JsonInputStreamSerializer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\JsonInputValueSerializer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\JsonOutputStreamSerializer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\KVBinaryInputStreamSerializer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\KVBinaryOutputStreamSerializer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\MemoryStream.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\Serialization\SerializationOverloads.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\BinaryInputStreamSerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\BinaryOutputStreamSerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\BinarySerializationTools.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\ISerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\IStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\JsonInputStreamSerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\JsonInputValueSerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\JsonOutputStreamSerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\KVBinaryCommon.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\KVBinaryInputStreamSerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\KVBinaryOutputStreamSerializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\MemoryStream.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\SerializationOverloads.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\Serialization\SerializationTools.h" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

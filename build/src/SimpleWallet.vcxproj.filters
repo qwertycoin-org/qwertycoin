@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\SimpleWallet\PasswordContainer.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\SimpleWallet\SimpleWallet.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\SimpleWallet\PasswordContainer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\SimpleWallet\SimpleWallet.h" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

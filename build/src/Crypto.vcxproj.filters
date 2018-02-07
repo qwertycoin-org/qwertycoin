@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\blake256.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\chacha8.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\crypto-ops-data.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\crypto-ops.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\crypto.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\groestl.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\hash-extra-blake.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\hash-extra-groestl.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\hash-extra-jh.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\hash-extra-skein.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\hash.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\jh.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\keccak.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\oaes_lib.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\random.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\skein.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\slow-hash.c" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\slow-hash.cpp" />
+    <ClCompile Include="C:\Programming\github\qwertycoin\src\crypto\tree-hash.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\aesb.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\blake256.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\chacha8.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\crypto-ops.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\crypto.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\generic-ops.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\groestl.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\groestl_tables.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\hash-ops.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\hash.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\initializer.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\jh.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\keccak.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\oaes_config.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\oaes_lib.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\random.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\skein.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\skein_port.h" />
+    <ClInclude Include="C:\Programming\github\qwertycoin\src\crypto\slow-hash.inl" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

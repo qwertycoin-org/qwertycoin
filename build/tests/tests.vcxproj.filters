@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Programming\github\qwertycoin\build\CMakeFiles\058a9684e2548afecc9248bc0710b4d3\tests.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Programming\github\qwertycoin\build\tests\CMakeFiles\tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{F29A4378-FA45-300A-8D53-377240328CC5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
