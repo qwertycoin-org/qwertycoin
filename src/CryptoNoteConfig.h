@@ -71,7 +71,7 @@ const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json"
 
 // ame of our currency
 const char     CRYPTONOTE_NAME[]                             = "qwertycoin";
-const char     GENESIS_COINBASE_TX_HEX[]					= "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101ae4b3c58e793e8a30e1a0d0e9d5c5ed5432490353f87b0b21d5da32fe55d623b";
+const char     GENESIS_COINBASE_TX_HEX[]					 = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
 
 const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
@@ -84,8 +84,8 @@ const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         =  1000;
 const int      P2P_DEFAULT_PORT                              = 10044;
 const int      RPC_DEFAULT_PORT                              = 10045;
 
-const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                =  1000;
-const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
+const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                =  8070;
+const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  8071;
 
 const size_t   P2P_CONNECTION_MAX_WRITE_BUFFER_SIZE          = 32 * 1024 * 1024; // 16 MB
 const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 8;
@@ -97,15 +97,15 @@ const uint32_t P2P_DEFAULT_CONNECTION_TIMEOUT                = 5000;          //
 const uint32_t P2P_DEFAULT_PING_CONNECTION_TIMEOUT           = 2000;          // 2 seconds
 const uint64_t P2P_DEFAULT_INVOKE_TIMEOUT                    = 60 * 2 * 1000; // 2 minutes
 const size_t   P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT          = 5000;          // 5 seconds
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "xjtdfn6zb7nvcmc783yhew2zh4xc3qvkz25beveeqvv464nv27jdeu5c6akuw25j";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "8f80f9a2a434a9f1510d1337228debqwert9c918ce505efe225d894d045fa115";
 
 // Our primary network seed nodes
 const std::initializer_list<const char*> SEED_NODES = {
-  "node-00.qwertycoin.org:10044",
-  "node-01.qwertycoin.org:10044",
-  "node-02.qwertycoin.org:10044",
-  "node-03.qwertycoin.org:10044",
-  "node-04.qwertycoin.org:10044",
+  "node-00.qwertycoin.org:8070",
+  "node-01.qwertycoin.org:8070",
+  "node-02.qwertycoin.org:8070",
+  "node-03.qwertycoin.org:8070",
+  "node-04.qwertycoin.org:8070",
 };
 
 struct CheckpointData {
