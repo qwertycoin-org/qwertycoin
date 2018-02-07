@@ -31,7 +31,7 @@ const unsigned EMISSION_SPEED_FACTOR                         = 19;
 static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
 
 const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW               = 100;
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE     = 100000; //size of block (bytes) after which reward for block calculated using block size
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE     = 10000; //size of block (bytes) after which reward for block calculated using block size
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 8;
 const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000);
@@ -102,10 +102,7 @@ const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "8f80f9a2a434a9f1
 // Our primary network seed nodes
 const std::initializer_list<const char*> SEED_NODES = {
   "node-00.qwertycoin.org:8070",
-  "node-01.qwertycoin.org:8070",
-  "node-02.qwertycoin.org:8070",
-  "node-03.qwertycoin.org:8070",
-  "node-04.qwertycoin.org:8070",
+  "node-01.qwertycoin.org:8070"
 };
 
 struct CheckpointData {
