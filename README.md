@@ -1,11 +1,11 @@
 # Qwertycoin
 
 Copyright (c) 2017-2018, The Qwertycoin Developers.   
-Portions Copyright (c) 2012-2017, The CryptoNote Developers, The Bytecoin Developers.
+Portions Copyright (c) 2012-2017, The CryptoNote Developers, The Bytecoin Developers, The Karbowanec Developers.
 
 ## Introduction
 
-Qwertycoin is a private, secure, untraceable, decentralised digital currency. You are your bank, you control your funds, and nobody can trace your transfers unless you allow them to do so.
+Qwertycoin is a private, secure, untraceable, decentralised digital currency. You are your bank, you control your funds, and nobody can trace your transfers unless you allow them to do so
 
 **Privacy:** Qwertycoin uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has). This ensures that your purchases, receipts, and all transfers remain absolutely private by default.
 
@@ -55,7 +55,7 @@ To build, change to a directory where this file is located, and run theas comman
 ```
 mkdir build
 cd build
-cmake -G "Visual Studio 12 Win64" ..
+cmake -G "Visual Studio 15 2017 Win64" ..
 ```
 
 And then do Build.

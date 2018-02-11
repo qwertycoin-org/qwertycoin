@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
@@ -74,7 +87,8 @@ namespace CryptoNote {
       const CryptoNote::Currency& currency, 
       CryptoNote::ITransactionValidator& validator,
       CryptoNote::ITimeProvider& timeProvider,
-      Logging::ILogger& log);
+      Logging::ILogger& log,
+      bool blockchainIndexesEnabled);
 
     bool addObserver(ITxPoolObserver* observer);
     bool removeObserver(ITxPoolObserver* observer);
@@ -102,6 +116,7 @@ namespace CryptoNote {
     void get_difference(const std::vector<Crypto::Hash>& known_tx_ids, std::vector<Crypto::Hash>& new_tx_ids, std::vector<Crypto::Hash>& deleted_tx_ids) const;
     size_t get_transactions_count() const;
     std::string print_pool(bool short_format) const;
+	
     void on_idle();
 
     bool getTransactionIdsByPaymentId(const Crypto::Hash& paymentId, std::vector<Crypto::Hash>& transactionIds);
@@ -136,6 +151,9 @@ namespace CryptoNote {
       bool keptByBlock;
       time_t receiveTime;
     };
+
+	void getMemoryPool(std::list<CryptoNote::tx_memory_pool::TransactionDetails> txs) const;
+	std::list<CryptoNote::tx_memory_pool::TransactionDetails> getMemoryPool() const;
 
   private:
 

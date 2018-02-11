@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PaymentGateService.h"
 
@@ -15,8 +28,8 @@
 #include "CryptoNoteCore/Core.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
 #include "P2p/NetNode.h"
-#include "PaymentGate/WalletFactory.h"
 #include <System/Context.h>
+#include "Wallet/WalletGreen.h"
 
 #ifdef ERROR
 #undef ERROR
@@ -40,12 +53,26 @@ void stopSignalHandler(PaymentGateService* pg) {
   pg->stop();
 }
 
+PaymentGateService::PaymentGateService() :
+  dispatcher(nullptr),
+  stopEvent(nullptr),
+  config(),
+  service(nullptr),
+  logger(),
+  currencyBuilder(logger),
+  fileLogger(Logging::TRACE),
+  consoleLogger(Logging::INFO) {
+  consoleLogger.setPattern("%D %T %L ");
+  fileLogger.setPattern("%D %T %L ");
+}
+
 bool PaymentGateService::init(int argc, char** argv) {
   if (!config.init(argc, argv)) {
     return false;
   }
 
   logger.setMaxLevel(static_cast<Logging::Level>(config.gateConfiguration.logLevel));
+  logger.setPattern("%D %T %L ");
   logger.addLogger(consoleLogger);
 
   Logging::LoggerRef log(logger, "main");
@@ -108,7 +135,7 @@ void PaymentGateService::run() {
 void PaymentGateService::stop() {
   Logging::LoggerRef log(logger, "stop");
 
-  log(Logging::INFO) << "Stop signal caught";
+  log(Logging::INFO, Logging::BRIGHT_WHITE) << "Stop signal caught";
 
   if (dispatcher != nullptr) {
     dispatcher->remoteSpawn([&]() {
@@ -133,7 +160,7 @@ void PaymentGateService::runInProcess(Logging::LoggerRef& log) {
   log(Logging::INFO) << "Starting Payment Gate with local node";
 
   CryptoNote::Currency currency = currencyBuilder.currency();
-  CryptoNote::core core(currency, NULL, logger);
+  CryptoNote::core core(currency, NULL, logger, false);
 
   CryptoNote::CryptoNoteProtocolHandler protocol(currency, *dispatcher, core, NULL, logger);
   CryptoNote::NodeServer p2pNode(*dispatcher, protocol, logger);
@@ -208,9 +235,9 @@ void PaymentGateService::runWalletService(const CryptoNote::Currency& currency, 
     config.gateConfiguration.containerPassword
   };
 
-  std::unique_ptr<CryptoNote::IWallet> wallet (WalletFactory::createWallet(currency, node, *dispatcher));
+  std::unique_ptr<CryptoNote::WalletGreen> wallet(new CryptoNote::WalletGreen(*dispatcher, currency, node, logger));
 
-  service = new PaymentService::WalletService(currency, *dispatcher, node, *wallet, walletConfiguration, logger);
+  service = new PaymentService::WalletService(currency, *dispatcher, node, *wallet, *wallet, walletConfiguration, logger);
   std::unique_ptr<PaymentService::WalletService> serviceGuard(service);
   try {
     service->init();
@@ -229,6 +256,8 @@ void PaymentGateService::runWalletService(const CryptoNote::Currency& currency, 
   } else {
     PaymentService::PaymentServiceJsonRpcServer rpcServer(*dispatcher, *stopEvent, *service, logger);
     rpcServer.start(config.gateConfiguration.bindAddress, config.gateConfiguration.bindPort);
+
+    Logging::LoggerRef(logger, "PaymentGateService")(Logging::INFO, Logging::BRIGHT_WHITE) << "JSON-RPC server stopped, stopping wallet service...";
 
     try {
       service->saveWallet();

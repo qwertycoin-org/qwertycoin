@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Karbowanec developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "NetNode.h"
 
@@ -210,7 +223,7 @@ namespace CryptoNote
     s(version, "version");
     
     if (version != 1) {
-      return;
+      throw std::runtime_error("Unsupported version");
     }
 
     s(m_peerlist, "peerlist");
@@ -282,7 +295,8 @@ namespace CryptoNote
           CryptoNote::serialize(*this, a);
           loaded = true;
         }
-      } catch (std::exception&) {
+      } catch (const std::exception& e) {
+        logger(ERROR, BRIGHT_RED) << "Failed to load config from file '" << state_file_path << "': " << e.what();
       }
 
       if (!loaded) {
@@ -300,7 +314,7 @@ namespace CryptoNote
 
       m_first_connection_maker_call = true;
     } catch (const std::exception& e) {
-      logger(ERROR) << "init_config failed: " << e.what();
+      logger(ERROR, BRIGHT_RED) << "init_config failed: " << e.what();
       return false;
     }
     return true;
@@ -325,6 +339,7 @@ namespace CryptoNote
   bool NodeServer::make_default_config()
   {
     m_config.m_peer_id  = Crypto::rand<uint64_t>();
+    logger(INFO, BRIGHT_WHITE) << "Generated new peer ID: " << m_config.m_peer_id;
     return true;
   }
   
@@ -459,6 +474,8 @@ namespace CryptoNote
     // m_net_server.get_config_object().m_pcommands_handler = this;
     // m_net_server.get_config_object().m_invoke_timeout = CryptoNote::P2P_DEFAULT_INVOKE_TIMEOUT;
 
+	logger(INFO) << "Network: " << m_network_id;
+
     //try to bind
     logger(INFO) << "Binding on " << m_bind_ip << ":" << m_port;
     m_listeningPort = Common::fromString<uint16_t>(m_port);
@@ -534,7 +551,7 @@ namespace CryptoNote
       CryptoNote::serialize(*this, a);
       return true;
     } catch (const std::exception& e) {
-      logger(WARNING) << "store_config failed: " << e.what();
+      logger(TRACE) << "store_config failed: " << e.what();
     }
 
     return false;
@@ -728,7 +745,7 @@ namespace CryptoNote
         });
 
         if (!handshakeContext.get()) {
-          logger(WARNING) << "Failed to HANDSHAKE with peer " << na;
+          logger(TRACE) << "Failed to HANDSHAKE with peer " << na;
           return false;
         }
       } catch (System::InterruptedException&) {
@@ -1269,7 +1286,7 @@ namespace CryptoNote
   }
 
   void NodeServer::acceptLoop() {
-    for (;;) {
+    while(!m_stop) {
       try {
         P2pConnectionContext ctx(m_dispatcher, logger.getLogger(), m_listener.accept());
         ctx.m_connection_id = boost::uuids::random_generator()();
@@ -1289,7 +1306,7 @@ namespace CryptoNote
         logger(DEBUGGING) << "acceptLoop() is interrupted";
         break;
       } catch (const std::exception& e) {
-        logger(WARNING) << "Exception in acceptLoop: " << e.what();
+        logger(TRACE) << "Exception in acceptLoop: " << e.what();
       }
     }
 
@@ -1308,7 +1325,7 @@ namespace CryptoNote
     } catch (System::InterruptedException&) {
       logger(DEBUGGING) << "onIdle() is interrupted";
     } catch (std::exception& e) {
-      logger(WARNING) << "Exception in onIdle: " << e.what();
+      logger(TRACE) << "Exception in onIdle: " << e.what();
     }
 
     logger(DEBUGGING) << "onIdle finished";
@@ -1323,7 +1340,7 @@ namespace CryptoNote
         for (auto& kv : m_connections) {
           auto& ctx = kv.second;
           if (ctx.writeDuration(now) > P2P_DEFAULT_INVOKE_TIMEOUT) {
-            logger(WARNING) << ctx << "write operation timed out, stopping connection";
+            logger(TRACE) << ctx << "write operation timed out, stopping connection";
             ctx.interrupt();
           }
         }
@@ -1331,7 +1348,7 @@ namespace CryptoNote
     } catch (System::InterruptedException&) {
       logger(DEBUGGING) << "timeoutLoop() is interrupted";
     } catch (std::exception& e) {
-      logger(WARNING) << "Exception in timeoutLoop: " << e.what();
+      logger(TRACE) << "Exception in timeoutLoop: " << e.what();
     }
   }
 
@@ -1344,7 +1361,7 @@ namespace CryptoNote
     } catch (System::InterruptedException&) {
       logger(DEBUGGING) << "timedSyncLoop() is interrupted";
     } catch (std::exception& e) {
-      logger(WARNING) << "Exception in timedSyncLoop: " << e.what();
+      logger(TRACE) << "Exception in timedSyncLoop: " << e.what();
     }
 
     logger(DEBUGGING) << "timedSyncLoop finished";
@@ -1395,7 +1412,7 @@ namespace CryptoNote
       } catch (System::InterruptedException&) {
         logger(DEBUGGING) << ctx << "connectionHandler() inner context is interrupted";
       } catch (std::exception& e) {
-        logger(WARNING) << ctx << "Exception in connectionHandler: " << e.what();
+        logger(TRACE) << ctx << "Exception in connectionHandler: " << e.what();
       }
 
       ctx.interrupt();
@@ -1448,7 +1465,7 @@ namespace CryptoNote
       // connection stopped
       logger(DEBUGGING) << ctx << "writeHandler() is interrupted";
     } catch (std::exception& e) {
-      logger(WARNING) << ctx << "error during write: " << e.what();
+      logger(TRACE) << ctx << "error during write: " << e.what();
       ctx.interrupt(); // stop connection on write error
     }
 

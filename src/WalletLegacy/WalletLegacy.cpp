@@ -1,16 +1,49 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2017-2018, Karbo developers
+// 
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without modification, are
+// permitted provided that the following conditions are met:
+// 
+// 1. Redistributions of source code must retain the above copyright notice, this list of
+//    conditions and the following disclaimer.
+// 
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list
+//    of conditions and the following disclaimer in the documentation and/or other
+//    materials provided with the distribution.
+// 
+// 3. Neither the name of the copyright holder nor the names of its contributors may be
+//    used to endorse or promote products derived from this software without specific
+//    prior written permission.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+// THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "WalletLegacy.h"
 
 #include <string.h>
 #include <time.h>
 
+#include "Logging/ConsoleLogger.h"
 #include "WalletLegacy/WalletHelper.h"
 #include "WalletLegacy/WalletLegacySerialization.h"
 #include "WalletLegacy/WalletLegacySerializer.h"
 #include "WalletLegacy/WalletUtils.h"
+#include "mnemonics/electrum-words.h"
+
+extern "C"
+{
+#include "crypto/keccak.h"
+#include "crypto/crypto-ops.h"
+}
 
 using namespace Crypto;
 
@@ -90,15 +123,16 @@ public:
   BlockchainSynchronizer& m_sync;
 };
 
-WalletLegacy::WalletLegacy(const CryptoNote::Currency& currency, INode& node) :
+WalletLegacy::WalletLegacy(const CryptoNote::Currency& currency, INode& node, Logging::ILogger& loggerGroup) :
   m_state(NOT_INITIALIZED),
   m_currency(currency),
   m_node(node),
+  m_loggerGroup(loggerGroup),
   m_isStopping(false),
   m_lastNotifiedActualBalance(0),
   m_lastNotifiedPendingBalance(0),
-  m_blockchainSync(node, currency.genesisBlockHash()),
-  m_transfersSync(currency, m_blockchainSync, node),
+  m_blockchainSync(node, m_loggerGroup, currency.genesisBlockHash()),
+  m_transfersSync(currency, m_loggerGroup, m_blockchainSync, node),
   m_transferDetails(nullptr),
   m_transactionsCache(m_currency.mempoolTxLiveTime()),
   m_sender(nullptr),
@@ -121,7 +155,7 @@ WalletLegacy::~WalletLegacy() {
   m_blockchainSync.removeObserver(this);
   m_blockchainSync.stop();
   m_asyncContextCounter.waitAsyncContextsFinish();
-  m_sender.release();
+  m_sender.reset();
 }
 
 void WalletLegacy::addObserver(IWalletLegacyObserver* observer) {
@@ -141,6 +175,7 @@ void WalletLegacy::initAndGenerate(const std::string& password) {
     }
 
     m_account.generate();
+	//m_account.generateDeterministic();
     m_password = password;
 
     initSync();
@@ -148,6 +183,40 @@ void WalletLegacy::initAndGenerate(const std::string& password) {
 
   m_observerManager.notify(&IWalletLegacyObserver::initCompleted, std::error_code());
 }
+
+void WalletLegacy::initAndGenerateDeterministic(const std::string& password) {
+  {
+    std::unique_lock<std::mutex> stateLock(m_cacheMutex);
+
+    if (m_state != NOT_INITIALIZED) {
+      throw std::system_error(make_error_code(error::ALREADY_INITIALIZED));
+    }
+
+    m_account.generateDeterministic();
+    m_password = password;
+
+    initSync();
+  }
+
+  m_observerManager.notify(&IWalletLegacyObserver::initCompleted, std::error_code());
+}
+
+Crypto::SecretKey WalletLegacy::generateKey(const std::string& password, const Crypto::SecretKey& recovery_param, bool recover, bool two_random) {
+  std::unique_lock<std::mutex> stateLock(m_cacheMutex);
+
+  if (m_state != NOT_INITIALIZED) {
+    throw std::system_error(make_error_code(error::ALREADY_INITIALIZED));
+  }
+
+  Crypto::SecretKey retval = m_account.generate_key(recovery_param, recover, two_random);
+  m_password = password;
+
+  initSync();
+
+  m_observerManager.notify(&IWalletLegacyObserver::initCompleted, std::error_code());
+  return retval;
+}
+
 
 void WalletLegacy::initWithKeys(const AccountKeys& accountKeys, const std::string& password) {
   {
@@ -250,7 +319,7 @@ void WalletLegacy::shutdown() {
   m_blockchainSync.stop();
   m_asyncContextCounter.waitAsyncContextsFinish();
 
-  m_sender.release();
+  m_sender.reset();
    
   {
     std::unique_lock<std::mutex> lock(m_cacheMutex);
@@ -359,6 +428,19 @@ std::error_code WalletLegacy::changePassword(const std::string& oldPassword, con
   m_password = newPassword;
 
   return std::error_code();
+}
+
+bool WalletLegacy::getSeed(std::string& electrum_words)
+{
+	std::string lang = "English";
+	Crypto::ElectrumWords::bytes_to_words(m_account.getAccountKeys().spendSecretKey, electrum_words, lang);
+
+	Crypto::SecretKey second;
+	keccak((uint8_t *)&m_account.getAccountKeys().spendSecretKey, sizeof(Crypto::SecretKey), (uint8_t *)&second, sizeof(Crypto::SecretKey));
+
+	sc_reduce32((uint8_t *)&second);
+
+	return memcmp(second.data, m_account.getAccountKeys().viewSecretKey.data, sizeof(Crypto::SecretKey)) == 0;
 }
 
 std::string WalletLegacy::getAddress() {

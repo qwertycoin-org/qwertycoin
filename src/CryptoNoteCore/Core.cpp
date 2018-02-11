@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Karbowanec developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "Core.h"
 
@@ -51,11 +64,11 @@ private:
   friend class core;
 };
 
-core::core(const Currency& currency, i_cryptonote_protocol* pprotocol, Logging::ILogger& logger) :
+core::core(const Currency& currency, i_cryptonote_protocol* pprotocol, Logging::ILogger& logger, bool blockchainIndexesEnabled) :
 m_currency(currency),
 logger(logger, "core"),
-m_mempool(currency, m_blockchain, m_timeProvider, logger),
-m_blockchain(currency, m_mempool, logger),
+m_mempool(currency, m_blockchain, m_timeProvider, logger, blockchainIndexesEnabled),
+m_blockchain(currency, m_mempool, logger, blockchainIndexesEnabled),
 m_miner(new miner(currency, *this, logger)),
 m_starter_message_showed(false) {
   set_cryptonote_protocol(pprotocol);
@@ -114,7 +127,7 @@ size_t core::get_alternative_blocks_count() {
   return m_blockchain.getAlternativeBlocksCount();
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::init(const CoreConfig& config, const MinerConfig& minerConfig, bool load_existing) {
+bool core::init(const CoreConfig& config, const MinerConfig& minerConfig, bool load_existing) {
     m_config_folder = config.configFolder;
     bool r = m_mempool.init(m_config_folder);
   if (!(r)) { logger(ERROR, BRIGHT_RED) << "Failed to initialize memory pool"; return false; }
@@ -263,11 +276,40 @@ bool core::check_tx_semantic(const Transaction& tx, bool keeped_by_block) {
 }
 
 bool core::check_tx_inputs_keyimages_diff(const Transaction& tx) {
+
+  // parameters used for the additional key_image check
+  static const Crypto::KeyImage Z = { { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+  static const Crypto::KeyImage I = { { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+  static const Crypto::KeyImage L = { { 0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 } };
+
   std::unordered_set<Crypto::KeyImage> ki;
-  for (const auto& in : tx.inputs) {
-    if (in.type() == typeid(KeyInput)) {
-      if (!ki.insert(boost::get<KeyInput>(in).keyImage).second)
+  std::set<std::pair<uint64_t, uint32_t>> outputsUsage;
+  for (const auto& input : tx.inputs) {
+    if (input.type() == typeid(KeyInput)) {
+      const KeyInput& in = boost::get<KeyInput>(input);
+      if (!ki.insert(in.keyImage).second) {
+        logger(ERROR) << "Transaction has identical key images";
+          return false;
+      }
+
+      if (in.outputIndexes.empty()) {
+        logger(ERROR) << "Transaction's input uses empty output";
         return false;
+      }
+
+	  // additional key_image check
+	  // Fix discovered by Monero Lab and suggested by "fluffypony" (bitcointalk.org)
+	  if (!(scalarmultKey(in.keyImage, L) == I)) {
+		  logger(ERROR) << "Transaction uses key image not in the valid domain";
+		  return false;
+	  }
+
+      // outputIndexes are packed here, first is absolute, others are offsets to previous,
+      // so first can be zero, others can't
+      if (std::find(++std::begin(in.outputIndexes), std::end(in.outputIndexes), 0) != std::end(in.outputIndexes)) {
+        logger(ERROR) << "Transaction has identical output indexes";
+        return false;
+      }
     }
   }
   return true;
@@ -314,8 +356,27 @@ bool core::get_block_template(Block& b, const AccountPublicAddress& adr, difficu
     }
 
     b = boost::value_initialized<Block>();
-    b.majorVersion = BLOCK_MAJOR_VERSION_1;
-    b.minorVersion = BLOCK_MINOR_VERSION_0;
+    b.majorVersion = m_blockchain.getBlockMajorVersionForHeight(height);
+
+    if (b.majorVersion == BLOCK_MAJOR_VERSION_1) {
+      b.minorVersion = m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_2) == UpgradeDetectorBase::UNDEF_HEIGHT ? BLOCK_MINOR_VERSION_1 : BLOCK_MINOR_VERSION_0;
+    } else if (b.majorVersion >= BLOCK_MAJOR_VERSION_2) {
+      if (m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_3) == UpgradeDetectorBase::UNDEF_HEIGHT) {
+        b.minorVersion = b.majorVersion == BLOCK_MAJOR_VERSION_2 ? BLOCK_MINOR_VERSION_1 : BLOCK_MINOR_VERSION_0;
+      } else {
+        b.minorVersion = BLOCK_MINOR_VERSION_0;
+      }
+
+      b.parentBlock.majorVersion = BLOCK_MAJOR_VERSION_1;
+      b.parentBlock.majorVersion = BLOCK_MINOR_VERSION_0;
+      b.parentBlock.transactionCount = 1;
+      TransactionExtraMergeMiningTag mm_tag = boost::value_initialized<decltype(mm_tag)>();
+
+      if (!appendMergeMiningTagToExtra(b.parentBlock.baseTransaction.extra, mm_tag)) {
+        logger(ERROR, BRIGHT_RED) << "Failed to append merge mining tag to extra of the parent block miner transaction";
+        return false;
+      }
+    }
 
     b.previousBlockHash = get_tail_id();
     b.timestamp = time(NULL);
@@ -336,7 +397,7 @@ bool core::get_block_template(Block& b, const AccountPublicAddress& adr, difficu
      block size, so first miner transaction generated with fake amount of money, and with phase we know think we know expected block size
      */
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob size
-  bool r = m_currency.constructMinerTx(height, median_size, already_generated_coins, txs_size, fee, adr, b.baseTransaction, ex_nonce, 11);
+  bool r = m_currency.constructMinerTx(b.majorVersion, height, median_size, already_generated_coins, txs_size, fee, adr, b.baseTransaction, ex_nonce, 11);
   if (!r) { 
     logger(ERROR, BRIGHT_RED) << "Failed to construct miner tx, first chance"; 
     return false; 
@@ -344,7 +405,7 @@ bool core::get_block_template(Block& b, const AccountPublicAddress& adr, difficu
 
   size_t cumulative_size = txs_size + getObjectBinarySize(b.baseTransaction);
   for (size_t try_count = 0; try_count != 10; ++try_count) {
-    r = m_currency.constructMinerTx(height, median_size, already_generated_coins, cumulative_size, fee, adr, b.baseTransaction, ex_nonce, 11);
+    r = m_currency.constructMinerTx(b.majorVersion, height, median_size, already_generated_coins, cumulative_size, fee, adr, b.baseTransaction, ex_nonce, 11);
 
     if (!(r)) { logger(ERROR, BRIGHT_RED) << "Failed to construct miner tx, second chance"; return false; }
     size_t coinbase_blob_size = getObjectBinarySize(b.baseTransaction);
@@ -372,6 +433,7 @@ bool core::get_block_template(Block& b, const AccountPublicAddress& adr, difficu
       }
     }
     if (!(cumulative_size == txs_size + getObjectBinarySize(b.baseTransaction))) { logger(ERROR, BRIGHT_RED) << "unexpected case: cumulative_size=" << cumulative_size << " is not equal txs_cumulative_size=" << txs_size << " + get_object_blobsize(b.baseTransaction)=" << getObjectBinarySize(b.baseTransaction); return false; }
+
     return true;
   }
 
@@ -556,6 +618,13 @@ std::vector<Transaction> core::getPoolTransactions() {
     result.emplace_back(std::move(tx));
   }
   return result;
+}
+
+std::list<CryptoNote::tx_memory_pool::TransactionDetails> core::getMemoryPool() const {
+  //std::list<CryptoNote::tx_memory_pool::TransactionDetails> txs;
+  //m_mempool.getMemoryPool(txs);
+  //return txs;
+	return m_mempool.getMemoryPool();
 }
 
 std::vector<Crypto::Hash> core::buildSparseChain() {
@@ -803,9 +872,9 @@ bool core::getAlreadyGeneratedCoins(const Crypto::Hash& hash, uint64_t& generate
   return m_blockchain.getAlreadyGeneratedCoins(hash, generatedCoins);
 }
 
-bool core::getBlockReward(size_t medianSize, size_t currentBlockSize, uint64_t alreadyGeneratedCoins, uint64_t fee,
+bool core::getBlockReward(uint8_t blockMajorVersion, size_t medianSize, size_t currentBlockSize, uint64_t alreadyGeneratedCoins, uint64_t fee,
                           uint64_t& reward, int64_t& emissionChange) {
-  return m_currency.getBlockReward(medianSize, currentBlockSize, alreadyGeneratedCoins, fee, reward, emissionChange);
+  return m_currency.getBlockReward(blockMajorVersion, medianSize, currentBlockSize, alreadyGeneratedCoins, fee, reward, emissionChange);
 }
 
 bool core::scanOutputkeysForIndices(const KeyInput& txInToKey, std::list<std::pair<Crypto::Hash, size_t>>& outputReferences) {
@@ -891,20 +960,25 @@ bool core::getPoolTransactionsByTimestamp(uint64_t timestampBegin, uint64_t time
 
 bool core::getTransactionsByPaymentId(const Crypto::Hash& paymentId, std::vector<Transaction>& transactions) {
   std::vector<Crypto::Hash> blockchainTransactionHashes;
-  if (!m_blockchain.getTransactionIdsByPaymentId(paymentId, blockchainTransactionHashes)) {
-    return false;
-  }
+  m_blockchain.getTransactionIdsByPaymentId(paymentId, blockchainTransactionHashes);
+
   std::vector<Crypto::Hash> poolTransactionHashes;
-  if (!m_mempool.getTransactionIdsByPaymentId(paymentId, poolTransactionHashes)) {
-    return false;
-  }
+  m_mempool.getTransactionIdsByPaymentId(paymentId, poolTransactionHashes);
+
   std::list<Transaction> txs;
   std::list<Crypto::Hash> missed_txs;
-  blockchainTransactionHashes.insert(blockchainTransactionHashes.end(), poolTransactionHashes.begin(), poolTransactionHashes.end());
+
+  if (!poolTransactionHashes.empty()) {
+    blockchainTransactionHashes.insert(blockchainTransactionHashes.end(), poolTransactionHashes.begin(), poolTransactionHashes.end());
+  }
+
+  if (blockchainTransactionHashes.empty()) {
+    return false;
+  }
 
   getTransactions(blockchainTransactionHashes, txs, missed_txs, true);
-  if (missed_txs.size() > 0) {
-    return false;
+    if (missed_txs.size() > 0) {
+      return false;
   }
 
   transactions.insert(transactions.end(), txs.begin(), txs.end());

@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "gtest/gtest.h"
 
@@ -75,7 +88,7 @@ public:
     {
       m_miners[i].generate();
 
-      if (!m_currency.constructMinerTx(0, 0, 0, 2, 0, m_miners[i].getAccountKeys().address, m_miner_txs[i])) {
+      if (!m_currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 0, 0, 0, 2, 0, m_miners[i].getAccountKeys().address, m_miner_txs[i])) {
         return false;
       }
 
@@ -167,7 +180,7 @@ namespace
     TimeProvider timeProvider;
 
     TestPool(const CryptoNote::Currency& currency, Logging::ILogger& logger) :
-      tx_memory_pool(currency, validator, timeProvider, logger) {}
+      tx_memory_pool(currency, validator, timeProvider, logger, false) {}
   };
 
   class TxTestBase {
@@ -175,7 +188,7 @@ namespace
     TxTestBase(size_t ringSize) :
       m_currency(CryptoNote::CurrencyBuilder(m_logger).currency()),
       txGenerator(m_currency, ringSize),
-      pool(m_currency, validator, m_time, m_logger)
+      pool(m_currency, validator, m_time, m_logger, false)
     {
       txGenerator.createSources();
     }
@@ -292,7 +305,7 @@ TEST_F(tx_pool, fillblock_same_fee)
   uint64_t median = 5000;
 
   ASSERT_TRUE(pool.fill_block_template(bl, median, textMaxCumulativeSize, 0, totalSize, txFee));
-  ASSERT_TRUE(totalSize <= 2 * median);
+  ASSERT_TRUE(totalSize*100 < median*125);
 
   // now, check that the block is opimally filled
   // if fee is fixed, transactions with smaller number of outputs should be included
@@ -352,7 +365,7 @@ TEST_F(tx_pool, fillblock_same_size)
   uint64_t median = 5000;
 
   ASSERT_TRUE(pool.fill_block_template(bl, median, textMaxCumulativeSize, 0, totalSize, txFee));
-  ASSERT_TRUE(totalSize <= 2 * median);
+  ASSERT_TRUE(totalSize * 100 < median * 125);
 
   // check that fill_block_template prefers transactions with double fee
 
@@ -534,7 +547,7 @@ TEST_F(tx_pool, RecentlyDeletedTransactionCanBeAddedToTxPoolIfItIsReceivedInBloc
 TEST_F(tx_pool, OldTransactionIsDeletedDuringTxPoolInitialization) {
   TransactionValidator validator;
   FakeTimeProvider timeProvider;
-  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger));
+  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
 
   uint64_t startTime = timeProvider.now();
@@ -552,7 +565,7 @@ TEST_F(tx_pool, OldTransactionIsDeletedDuringTxPoolInitialization) {
   uint64_t deleteTime = startTime + currency.mempoolTxLiveTime() + 1;
   timeProvider.timeNow = deleteTime;
 
-  pool.reset(new tx_memory_pool(currency, validator, timeProvider, logger));
+  pool.reset(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
   ASSERT_EQ(0, pool->get_transactions_count());
 }
@@ -560,7 +573,7 @@ TEST_F(tx_pool, OldTransactionIsDeletedDuringTxPoolInitialization) {
 TEST_F(tx_pool, TransactionThatWasDeletedLongAgoIsForgottenDuringTxPoolInitialization) {
   TransactionValidator validator;
   FakeTimeProvider timeProvider;
-  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger));
+  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
 
   uint64_t startTime = timeProvider.now();
@@ -583,7 +596,7 @@ TEST_F(tx_pool, TransactionThatWasDeletedLongAgoIsForgottenDuringTxPoolInitializ
   uint64_t forgetDeletedTxTime = deleteTime + currency.numberOfPeriodsToForgetTxDeletedFromPool() * currency.mempoolTxLiveTime() + 1;
   timeProvider.timeNow = forgetDeletedTxTime;
 
-  pool.reset(new tx_memory_pool(currency, validator, timeProvider, logger));
+  pool.reset(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
 
   // Try to add tx again
@@ -599,7 +612,7 @@ TEST_F(tx_pool, TransactionThatWasDeletedLongAgoIsForgottenDuringTxPoolInitializ
 TEST_F(tx_pool, RecentlyDeletedTxInfoIsSerializedAndDeserialized) {
   TransactionValidator validator;
   FakeTimeProvider timeProvider;
-  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger));
+  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
 
   uint64_t startTime = timeProvider.now();
@@ -618,7 +631,7 @@ TEST_F(tx_pool, RecentlyDeletedTxInfoIsSerializedAndDeserialized) {
 
   ASSERT_TRUE(pool->deinit());
 
-  pool.reset(new tx_memory_pool(currency, validator, timeProvider, logger));
+  pool.reset(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
 
   uint64_t timeBeforeCleanupDeletedTx = deleteTime + currency.numberOfPeriodsToForgetTxDeletedFromPool() * currency.mempoolTxLiveTime();
@@ -649,7 +662,7 @@ TEST_F(tx_pool, RecentlyDeletedTxInfoIsSerializedAndDeserialized) {
 TEST_F(tx_pool, TxPoolAcceptsValidFusionTransaction) {
   TransactionValidator validator;
   FakeTimeProvider timeProvider;
-  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger));
+  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
 
   FusionTransactionBuilder builder(currency, 10 * currency.defaultDustThreshold());
@@ -666,7 +679,7 @@ TEST_F(tx_pool, TxPoolAcceptsValidFusionTransaction) {
 TEST_F(tx_pool, TxPoolDoesNotAcceptInvalidFusionTransaction) {
   TransactionValidator validator;
   FakeTimeProvider timeProvider;
-  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger));
+  std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger, false));
   ASSERT_TRUE(pool->init(m_configDir.string()));
 
   FusionTransactionBuilder builder(currency, 10 * currency.defaultDustThreshold());
@@ -685,7 +698,7 @@ namespace {
 
 const size_t TEST_FUSION_TX_COUNT_PER_BLOCK = 3;
 const size_t TEST_TX_COUNT_UP_TO_MEDIAN = 10;
-const size_t TEST_MAX_TX_COUNT_PER_BLOCK = 2 * TEST_TX_COUNT_UP_TO_MEDIAN;
+const size_t TEST_MAX_TX_COUNT_PER_BLOCK = TEST_TX_COUNT_UP_TO_MEDIAN * 125 / 100;
 const size_t TEST_TRANSACTION_SIZE = 2000;
 const size_t TEST_FUSION_TX_MAX_SIZE = TEST_FUSION_TX_COUNT_PER_BLOCK * TEST_TRANSACTION_SIZE;
 const size_t TEST_MINER_TX_BLOB_RESERVED_SIZE = 600;
@@ -734,7 +747,7 @@ public:
   void doTest(size_t poolOrdinaryTxCount, size_t poolFusionTxCount, size_t expectedBlockOrdinaryTxCount, size_t expectedBlockFusionTxCount) {
     TransactionValidator validator;
     FakeTimeProvider timeProvider;
-    std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger));
+    std::unique_ptr<tx_memory_pool> pool(new tx_memory_pool(currency, validator, timeProvider, logger, false));
     ASSERT_TRUE(pool->init(m_configDir.string()));
 
     std::unordered_map<Crypto::Hash, Transaction> ordinaryTxs;

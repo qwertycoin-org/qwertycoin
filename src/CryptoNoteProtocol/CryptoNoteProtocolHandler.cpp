@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "CryptoNoteProtocolHandler.h"
 
@@ -235,7 +248,12 @@ int CryptoNoteProtocolHandler::handle_notify_new_block(int command, NOTIFY_NEW_B
 
   for (auto tx_blob_it = arg.b.txs.begin(); tx_blob_it != arg.b.txs.end(); tx_blob_it++) {
     CryptoNote::tx_verification_context tvc = boost::value_initialized<decltype(tvc)>();
-    m_core.handle_incoming_tx(asBinaryArray(*tx_blob_it), tvc, true);
+
+    auto transactionBinary = asBinaryArray(*tx_blob_it);
+    Crypto::Hash transactionHash = Crypto::cn_fast_hash(transactionBinary.data(), transactionBinary.size());
+    logger(DEBUGGING) << "transaction " << transactionHash << " came in NOTIFY_NEW_BLOCK";
+
+    m_core.handle_incoming_tx(transactionBinary, tvc, true);
     if (tvc.m_verifivation_failed) {
       logger(Logging::INFO) << context << "Block verification failed: transaction verification failed, dropping connection";
       context.m_state = CryptoNoteConnectionContext::state_shutdown;
@@ -276,8 +294,12 @@ int CryptoNoteProtocolHandler::handle_notify_new_transactions(int command, NOTIF
     return 1;
 
   for (auto tx_blob_it = arg.txs.begin(); tx_blob_it != arg.txs.end();) {
+    auto transactionBinary = asBinaryArray(*tx_blob_it);
+    Crypto::Hash transactionHash = Crypto::cn_fast_hash(transactionBinary.data(), transactionBinary.size());
+    logger(DEBUGGING) << "transaction " << transactionHash << " came in NOTIFY_NEW_TRANSACTIONS";
+
     CryptoNote::tx_verification_context tvc = boost::value_initialized<decltype(tvc)>();
-    m_core.handle_incoming_tx(asBinaryArray(*tx_blob_it), tvc, false);
+    m_core.handle_incoming_tx(transactionBinary, tvc, false);
     if (tvc.m_verifivation_failed) {
       logger(Logging::INFO) << context << "Tx verification failed";
     }
@@ -403,8 +425,12 @@ int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext& conte
 
     //process transactions
     for (auto& tx_blob : block_entry.txs) {
+      auto transactionBinary = asBinaryArray(tx_blob);
+      Crypto::Hash transactionHash = Crypto::cn_fast_hash(transactionBinary.data(), transactionBinary.size());
+      logger(DEBUGGING) << "transaction " << transactionHash << " came in processObjects";
+
       tx_verification_context tvc = boost::value_initialized<decltype(tvc)>();
-      m_core.handle_incoming_tx(asBinaryArray(tx_blob), tvc, true);
+      m_core.handle_incoming_tx(transactionBinary, tvc, true);
       if (tvc.m_verifivation_failed) {
         logger(Logging::ERROR) << context << "transaction verification failed on NOTIFY_RESPONSE_GET_OBJECTS, \r\ntx_id = "
           << Common::podToHex(getBinaryArrayHash(asBinaryArray(tx_blob))) << ", dropping connection";

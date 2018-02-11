@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
@@ -9,6 +22,10 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/param.h>
+
+#if defined(__ANDROID__)
+#include <byteswap.h>
+#endif
 
 #if defined(_MSC_VER)
 #include <stdlib.h>
@@ -113,15 +130,25 @@ static inline uint32_t div128_32(uint64_t dividend_hi, uint64_t dividend_lo, uin
 static inline uint32_t ident32(uint32_t x) { return x; }
 static inline uint64_t ident64(uint64_t x) { return x; }
 
+#ifndef __OpenBSD__
+#  if defined(__ANDROID__) && defined(__swap32) && !defined(swap32)
+#      define swap32 __swap32
+#  elif !defined(swap32)
 static inline uint32_t swap32(uint32_t x) {
-  x = ((x & 0x00ff00ff) << 8) | ((x & 0xff00ff00) >> 8);
-  return (x << 16) | (x >> 16);
+	x = ((x & 0x00ff00ff) << 8) | ((x & 0xff00ff00) >> 8);
+	return (x << 16) | (x >> 16);
 }
+#  endif
+#  if defined(__ANDROID__) && defined(__swap64) && !defined(swap64)
+#      define swap64 __swap64
+#  elif !defined(swap64)
 static inline uint64_t swap64(uint64_t x) {
-  x = ((x & 0x00ff00ff00ff00ff) <<  8) | ((x & 0xff00ff00ff00ff00) >>  8);
-  x = ((x & 0x0000ffff0000ffff) << 16) | ((x & 0xffff0000ffff0000) >> 16);
-  return (x << 32) | (x >> 32);
+	x = ((x & 0x00ff00ff00ff00ff) << 8) | ((x & 0xff00ff00ff00ff00) >> 8);
+	x = ((x & 0x0000ffff0000ffff) << 16) | ((x & 0xffff0000ffff0000) >> 16);
+	return (x << 32) | (x >> 32);
 }
+#  endif
+#endif /* __OpenBSD__ */
 
 #if defined(__GNUC__)
 #define UNUSED __attribute__((unused))

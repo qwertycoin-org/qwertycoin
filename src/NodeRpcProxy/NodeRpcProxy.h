@@ -1,6 +1,20 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2016-2017 The Karbowanec developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
@@ -50,6 +64,7 @@ public:
   virtual uint32_t getLocalBlockCount() const override;
   virtual uint32_t getKnownBlockCount() const override;
   virtual uint64_t getLastLocalBlockTimestamp() const override;
+  virtual BlockHeaderInfo getLastLocalBlockHeaderInfo() const override;
 
   virtual void relayTransaction(const CryptoNote::Transaction& transaction, const Callback& callback) override;
   virtual void getRandomOutsByAmounts(std::vector<uint64_t>&& amounts, uint64_t outsCount, std::vector<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::outs_for_amount>& result, const Callback& callback) override;
@@ -69,6 +84,9 @@ public:
 
   unsigned int rpcTimeout() const { return m_rpcTimeout; }
   void rpcTimeout(unsigned int val) { m_rpcTimeout = val; }
+
+  const std::string m_nodeHost;
+  const unsigned short m_nodePort;
 
 private:
   void resetInternalState();
@@ -110,7 +128,7 @@ private:
 
 private:
   State m_state = STATE_NOT_INITIALIZED;
-  std::mutex m_mutex;
+  mutable std::mutex m_mutex;
   std::condition_variable m_cv_initialized;
   std::thread m_workerThread;
   System::Dispatcher* m_dispatcher = nullptr;
@@ -118,8 +136,6 @@ private:
   Tools::ObserverManager<CryptoNote::INodeObserver> m_observerManager;
   Tools::ObserverManager<CryptoNote::INodeRpcProxyObserver> m_rpcProxyObserverManager;
 
-  const std::string m_nodeHost;
-  const unsigned short m_nodePort;
   unsigned int m_rpcTimeout;
   HttpClient* m_httpClient = nullptr;
   System::Event* m_httpEvent = nullptr;
@@ -129,12 +145,10 @@ private:
   // Internal state
   bool m_stop = false;
   std::atomic<size_t> m_peerCount;
-  std::atomic<uint32_t> m_nodeHeight;
   std::atomic<uint32_t> m_networkHeight;
 
+  BlockHeaderInfo lastLocalBlockHeaderInfo;
   //protect it with mutex if decided to add worker threads
-  Crypto::Hash m_lastKnowHash;
-  std::atomic<uint64_t> m_lastLocalBlockTimestamp;
   std::unordered_set<Crypto::Hash> m_knownTxs;
 
   bool m_connected;
