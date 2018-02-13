@@ -125,8 +125,12 @@ const std::initializer_list<const char*> SEED_NODES = {
   "node-01.qwertycoin.org:8196",
   "node-02.qwertycoin.org:8196",
   "node-03.qwertycoin.org:8196",
-  "node-04.qwertycoin.org:8196",
-  "node-05.qwertycoin.org:8196"
+  "78.47.87.215:8196",
+  "195.201.27.148:8196",
+  "35.203.2.216:8196",
+  "35.199.73.11:8196",
+  "35.227.61.106:8196",
+  "138.197.148.136:8196"
 };
 
 struct CheckpointData {
@@ -135,8 +139,8 @@ struct CheckpointData {
 };
 
 const std::initializer_list<CheckpointData> CHECKPOINTS = { 
-  { 8470, "0a385ff973d29ad00d45f4c383485405a23a12d42a67415645c45eb760effcaa" },
-  { 8473, "e131c96f6105604ea3f7dd2b55d73d430b28bed133112c9992a38c26b5239e14" }
+  { 8473, "e131c96f6105604ea3f7dd2b55d73d430b28bed133112c9992a38c26b5239e14" },
+  { 10000, "fb021fd69f78a60a365c16692777e7f699215404366545e072eba7dddbf1d61d" }
 };
 
 } // CryptoNote
