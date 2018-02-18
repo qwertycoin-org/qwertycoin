@@ -55,4 +55,4 @@ See the script for more installation details and please consider extending it fo
 The binaries will be in `./src` after compilation is complete.
 
 #### Thanks
-Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Project, QWertycoin Community
+Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Project, Qwertycoin Community
