@@ -40,8 +40,8 @@ static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED
 
 const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW               = 100;
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE     = 10000; //size of block (bytes) after which reward for block calculated using block size
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2  = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE; //TODO1000000;
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE; //TODO100000;
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2  = 1000000; //TODO1000000;
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = 100000; //TODO100000;
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 8;
@@ -71,7 +71,7 @@ const size_t   FUSION_TX_MAX_SIZE                            = CRYPTONOTE_BLOCK_
 const size_t   FUSION_TX_MIN_INPUT_COUNT                     = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO              = 4;
 
-const uint32_t UPGRADE_HEIGHT_V2                             = 4215125244;
+const uint32_t UPGRADE_HEIGHT_V2                             = 30000;
 const uint32_t UPGRADE_HEIGHT_V3                             = 4294967294;
 const unsigned UPGRADE_VOTING_THRESHOLD = 90;               // percent
 const uint32_t   UPGRADE_VOTING_WINDOW                       = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
