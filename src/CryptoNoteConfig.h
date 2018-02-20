@@ -121,18 +121,15 @@ const size_t   P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT          = 5000;          //
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "8f80f9a50434a9f1510d13336228debfed9c918ce505e1234567894e045fa115";
 
 const std::initializer_list<const char*> SEED_NODES = {
-  "node-00.qwertycoin.org:8196",
-  "node-01.qwertycoin.org:8196",
-  "node-02.qwertycoin.org:8196",
-  "node-03.qwertycoin.org:8196",
-  "46.38.242.66:8196",
-  "78.47.87.215:8196",
-  "195.201.27.148:8196",
-  "35.203.2.216:8196",
-  "35.199.73.11:8196",
-  "94.16.122.128:8196",
-  "35.227.61.106:8196",
-  "138.197.148.136:8196"
+  "node-00.qwertycoin.org:8196",  //
+  "195.201.25.118:8196",          //
+  "node-02.qwertycoin.org:8196",  //
+  "78.47.85.215:8196",  //
+  "46.38.242.66:8196",            //
+  "78.47.87.215:8196",            //
+  "195.201.27.148:8196",          //
+  "94.16.122.128:8196",           //
+  "138.197.148.136:8196"          //
 };
 
 struct CheckpointData {
@@ -141,8 +138,8 @@ struct CheckpointData {
 };
 
 const std::initializer_list<CheckpointData> CHECKPOINTS = { 
-  { 8473, "e131c96f6105604ea3f7dd2b55d73d430b28bed133112c9992a38c26b5239e14" },
-  { 10000, "fb021fd69f78a60a365c16692777e7f699215404366545e072eba7dddbf1d61d" }
+  { 8473,"e131c96f6105604ea3f7dd2b55d73d430b28bed133112c9992a38c26b5239e14"},
+  {15000,"fb8ad336e6518aa6a5f874a15276561249d36a35afd08f0f1fab78333d9e4149"}
 };
 
 } // CryptoNote
