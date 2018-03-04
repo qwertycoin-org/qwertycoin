@@ -93,10 +93,10 @@ const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffff
 
 const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
-const uint8_t  BLOCK_MAJOR_VERSION_2                         =  2; //2;
-const uint8_t  BLOCK_MAJOR_VERSION_3                         =  3; //3;
+const uint8_t  BLOCK_MAJOR_VERSION_2                         =  2;
+const uint8_t  BLOCK_MAJOR_VERSION_3                         =  3;
 const uint8_t  BLOCK_MINOR_VERSION_0                         =  0;
-const uint8_t  BLOCK_MINOR_VERSION_1                         =  1; //1;
+const uint8_t  BLOCK_MINOR_VERSION_1                         =  1;
 
 const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  10000;  //by default, blocks ids count in synchronizing
 const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  200;    //by default, blocks count in blocks downloading
@@ -144,12 +144,10 @@ struct CheckpointData {
 
 const std::initializer_list<CheckpointData> CHECKPOINTS = { 
   { 8473,"e131c96f6105604ea3f7dd2b55d73d430b28bed133112c9992a38c26b5239e14"},
-  {15000,"fb8ad336e6518aa6a5f874a15276561249d36a35afd08f0f1fab78333d9e4149"}
+  {10000,"fb021fd69f78a60a365c16692777e7f699215404366545e072eba7dddbf1d61d"},
+  {20000,"d32286163e2a5cfbbab35007438e7bf90564afee70c715930606710e96f2ce19"}
 };
 
 } // CryptoNote
 
 #define ALLOW_DEBUG_COMMANDS
-
-
-

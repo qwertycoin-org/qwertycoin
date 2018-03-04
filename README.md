@@ -13,6 +13,7 @@ On Ubuntu you will be asked for sudo rights to install software. The binaries wi
 This script can be used from inside the git repository to build the project from the checked out source, `./multi_installer.sh`
 
 See the script for more installation details and please consider extending it for your operating system and distribution!
+Otherwise: clone this Reposiory > create build folder, navigate to it > cmake .. && make 
 
 
 #### Windows 10

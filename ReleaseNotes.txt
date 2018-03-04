@@ -1,10 +1,12 @@
-Release notes 2.0.0
+Release Notes 2.0.0
 
-Qwertycoin2 project is moved to GitHub
+Qwertycoin project is moved to GitHub
 
-Release Nots 2.1.0
+Release Notes 2.1.0
 
 Qwertycoin has a Hardfork @ Block Height 8473
 -Snapshot as Height 8473
 -New Network Identifiers, New P2P Trust Key and new Set of Masternodes.
 
+Realse Notes
+Changed to Blocksize Increase on height 60,000 to 1,000,000 instead of 10,000 
