@@ -148,6 +148,6 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
   {20000,"d32286163e2a5cfbbab35007438e7bf90564afee70c715930606710e96f2ce19"}
 };
 
-} // CryptoNote
+} // Qwertycoin
 
 #define ALLOW_DEBUG_COMMANDS
