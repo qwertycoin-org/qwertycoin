@@ -13,8 +13,24 @@ On Ubuntu you will be asked for sudo rights to install software. The binaries wi
 This script can be used from inside the git repository to build the project from the checked out source, `./multi_installer.sh`
 
 See the script for more installation details and please consider extending it for your operating system and distribution!
-Otherwise: clone this Reposiory > create build folder, navigate to it > cmake .. && make 
 
+If the script doesn't work for you:
+
+#### Linux
+
+If you are using Arch Linux, there is an AUR precompiled package, `qwertycoin-bin`, or a build from source version, `qwertycoin-git`.
+
+##### Prerequisites
+
+- You will need the following packages: boost (1.55 or higher), cmake, git, gcc (4.9 or higher), g++ (4.9 or higher), make, and python. Most of these should already be installed on your system.
+- For example on ubuntu: `sudo apt-get install build-essential python-dev gcc g++ git cmake libboost-all-dev `
+- After this you can compile your Qwertycoin
+```
+mkdir build
+cmake ..
+make
+```
+or use makefile
 
 #### Windows 10
 
