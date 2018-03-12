@@ -1,19 +1,21 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright(c) 2014 - 2017 XDN - project developers
+// Copyright(c) 2018 The Karbo developers
 //
-// This file is part of Qwertycoin.
+// This file is part of Bytecoin.
 //
-// Qwertycoin is free software: you can redistribute it and/or modify
+// Bytecoin is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Qwertycoin is distributed in the hope that it will be useful,
+// Bytecoin is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "JsonRpcServer.h"
 
@@ -45,8 +47,8 @@ JsonRpcServer::JsonRpcServer(System::Dispatcher& sys, System::Event& stopEvent, 
 {
 }
 
-void JsonRpcServer::start(const std::string& bindAddress, uint16_t bindPort) {
-  HttpServer::start(bindAddress, bindPort);
+void JsonRpcServer::start(const std::string& bindAddress, uint16_t bindPort, const std::string& m_rpcUser, const std::string& m_rpcPassword) {
+  HttpServer::start(bindAddress, bindPort, m_rpcUser, m_rpcPassword);
   stopEvent.wait();
   HttpServer::stop();
 }

@@ -1,4 +1,22 @@
-Release Notes 2.0.0
+Release notes Qwertycoin 1.8.0
+
+- Android platform support
+- Added logging to blockchain synchronizer
+- Refactored mnemonics
+- Fixed memory leaks in mnemonics
+- Fixed memory leak in simplewallet
+- Fixed memory leak in cn_slow_hash
+- Minor optimization of JSON KV-serializer
+- LoggerMessage implementation is now platform-independent
+- Deterministic wallets and Mnemonic seed, courtesy of Monero Developers
+- Various build fixes
+- Transactions confirmations in RPC response for walletd
+- Log file location for simplewallet
+- New RPC methods
+- Support for solo GPU mining
+- Additional validation and attribution
+
+Release Notes 1.5.6
 
 Qwertycoin project is moved to GitHub
 

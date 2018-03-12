@@ -1880,15 +1880,20 @@ std::string simple_wallet::getFeeAddress() {
   HttpResponse res;
 
   req.setUrl("/feeaddress");
-  httpClient.request(req, res);
+  try {
+	  httpClient.request(req, res);
+  }
+  catch (const std::exception& e) {
+	  fail_msg_writer() << "Error connecting to the remote node: " << e.what();
+  }
 
   if (res.getStatus() != HttpResponse::STATUS_200) {
-    throw std::runtime_error("Remote server returned code " + std::to_string(res.getStatus()));
+	  fail_msg_writer() << "Remote node returned code " + std::to_string(res.getStatus());
   }
 
   std::string address;
   if (!processServerFeeAddressResponse(res.getBody(), address)) {
-    throw std::runtime_error("Failed to parse server response");
+	  fail_msg_writer() << "Failed to parse remote node response";
   }
 
   return address;
