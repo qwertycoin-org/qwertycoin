@@ -40,7 +40,7 @@ const unsigned EMISSION_SPEED_FACTOR                         = 19;
 static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
 
 const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW               = 100;
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE     = 10000; //size of block (bytes) after which reward 
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE     = 10000; //size of block (bytes) after which reward
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2  = 1000000; // for block calculated using block sizes
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
@@ -121,9 +121,9 @@ const uint64_t P2P_DEFAULT_INVOKE_TIMEOUT                    = 60 * 2 * 1000; //
 const size_t   P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT          = 5000;          // 5 seconds
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "8f80f9a50434a9f1510d13336228debfed9c918ce505e1234567894e045fa115";
 
-const char* const SEED_NODES[] = { 
+const char* const SEED_NODES[] = {
   "node-00.qwertycoin.org:8196",
-  "195.201.25.118:8196",  
+  "195.201.25.118:8196",
   "node-02.qwertycoin.org:8196",
   "78.47.85.215:8196",
   "46.38.242.66:8196",
@@ -144,7 +144,8 @@ const char* const SEED_NODES[] = {
   "134.249.148.200:8196",
   "64.15.188.42:8196",
   "66.155.94.172:8196",
-  "65.151.190:8196"
+  "65.151.190:8196",
+  "159.65.168.61:8196"
 };
 
 struct CheckpointData {
@@ -152,7 +153,7 @@ struct CheckpointData {
   const char* blockId;
 };
 
-const std::initializer_list<CheckpointData> CHECKPOINTS = { 
+const std::initializer_list<CheckpointData> CHECKPOINTS = {
   { 8473,"e131c96f6105604ea3f7dd2b55d73d430b28bed133112c9992a38c26b5239e14"},
   {10000,"fb021fd69f78a60a365c16692777e7f699215404366545e072eba7dddbf1d61d"},
   {20000,"d32286163e2a5cfbbab35007438e7bf90564afee70c715930606710e96f2ce19"},
@@ -162,6 +163,3 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
 } // CryptoNote
 
 #define ALLOW_DEBUG_COMMANDS
-
-
-
