@@ -13,7 +13,7 @@ matrix:
             sources:
             - ubuntu-toolchain-r-test
             packages:
-            - libboost-all-dev
+            - libboost1.60-all-dev
             - g++-4.9
             - cmake
       env:
@@ -23,8 +23,7 @@ matrix:
 before_install:
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade autoconf automake berkeley-db4 libtool miniupnpc openssl protobuf; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential python-dev gcc g++ git cmake libboost-all-dev -y; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export CC=clang CXX=clang++; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential python-dev gcc g++ cmake libboost-all-dev -y; fi
     
 script:
     - mkdir build && cd build
