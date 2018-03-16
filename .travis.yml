@@ -13,9 +13,8 @@ matrix:
             sources:
             - ubuntu-toolchain-r-test
             packages:
-            - libboost1.55-all-dev
             - g++-4.9
-            - cmake
+            - libboost1.55-all-dev
       env:
       - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9
     - os: osx
