@@ -1,11 +1,11 @@
-os: Visual Studio 2017
+os: Visual Studio 2015
 
 environment:
-    BOOST_ROOT: C:\local\boost_1_60_0
-    BOOST_LIBRARYDIR: C:\local\boost_1_60_0\lib64-msvc-14.0
+    BOOST_ROOT: C:\Libraries\boost_1_59_0
+    BOOST_LIBRARYDIR: C:\Libraries\boost_1_59_0\lib64-msvc-14
 
 build_script:
     - md build
     - cd build
-    - cmake -G "Visual Studio 15 2017 Win64" ..
-    - MSBuild Qwertycoin.sln /p:Configuration=Release /m
+    - cmake -G "Visual Studio 14 Win64" ..
+- MSBuild ByteCoin.sln /p:Configuration=Release /m
