@@ -1,5 +1,8 @@
 ![image](https://qwertycoin.org/files/qwc-github.jpg)
 
+[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=master)](https://travis-ci.org/qwertycoin-org/qwertycoin)
+[![Build status](https://ci.appveyor.com/api/projects/status/yhiqfap4nfdommsb?svg=true)](https://ci.appveyor.com/project/qwertycoin-org/qwertycoin)
+
 ### How To Compile
 
 #### Ubuntu 16.04+ and MacOS 10.10+
@@ -15,6 +18,8 @@ This script can be used from inside the git repository to build the project from
 See the script for more installation details and please consider extending it for your operating system and distribution!
 
 If the script doesn't work for you:
+"C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSBuild" Qwertycoin.sln /p:Configuration=Release /m
+
 
 #### Linux
 
