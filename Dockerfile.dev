@@ -23,8 +23,7 @@ RUN apt-get update && \
       gcc-4.9 \
       g++-4.9 \
       git cmake \
-      libboost1.58-all-dev \
-      librocksdb-dev && \
+      libboost-all-dev && \
     cd /src/qwertycoin && \
     mkdir build && \
     cd build && \
@@ -43,7 +42,7 @@ RUN apt-get update && \
     strip /usr/local/bin/connectivity_tool && \
     cd / && \
     rm -rf /src/qwertycoin && \
-    apt-get remove -y build-essential python-dev gcc-4.9 g++-4.9 git cmake libboost1.58-all-dev librocksdb-dev && \
+    apt-get remove -y build-essential python-dev gcc-4.9 g++-4.9 git cmake libboost-all-dev && \
     apt-get autoremove -y && \
     apt-get install -y  \
       libboost-system1.58.0 \
@@ -61,7 +60,7 @@ RUN useradd -r -s /usr/sbin/nologin -m -d /var/lib/qwertycoind qwertycoind && \
     useradd -s /bin/bash -m -d /home/qwertycoin qwertycoin && \
     mkdir -p /etc/services.d/qwertycoind/log && \
     mkdir -p /var/log/qwertycoind && \
-    echo "#!/usr/bin/execlineb" > /etc/services.d/qwertycoind/run && \
+    echo "#!/usr/bin/execlineb" > /etc/services.d/qwertycoind/run && \^F
     echo "fdmove -c 2 1" >> /etc/services.d/qwertycoind/run && \
     echo "cd /var/lib/qwertycoind" >> /etc/services.d/qwertycoind/run && \
     echo "export HOME /var/lib/qwertycoind" >> /etc/services.d/qwertycoind/run && \

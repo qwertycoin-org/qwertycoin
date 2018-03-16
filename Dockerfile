@@ -24,8 +24,7 @@ RUN apt-get update && \
       gcc-4.9 \
       g++-4.9 \
       git cmake \
-      libboost1.58-all-dev \
-      librocksdb-dev && \
+      libboost-all-dev && \
     git clone https://github.com/qwertycoin-org/qwertycoin.git /src/qwertycoin && \
     cd /src/qwertycoin && \
     git checkout $QWERTYCOIN_VERSION && \
@@ -46,7 +45,7 @@ RUN apt-get update && \
     strip /usr/local/bin/connectivity_tool && \
     cd / && \
     rm -rf /src/qwertycoin && \
-    apt-get remove -y build-essential python-dev gcc-4.9 g++-4.9 git cmake libboost1.58-all-dev librocksdb-dev && \
+    apt-get remove -y build-essential python-dev gcc-4.9 g++-4.9 git cmake libboost-all-dev && \
     apt-get autoremove -y && \
     apt-get install -y  \
       libboost-system1.58.0 \
