@@ -23,6 +23,9 @@ before_install:
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:ethcore/ethcore -y    ; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -q                            ; fi
     
+install:
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential python-dev gcc g++ git cmake libboost-all-dev -y            ; fi
+
 script:
     - mkdir build && cd build
     - cmake .. && make
