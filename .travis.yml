@@ -14,7 +14,7 @@ matrix:
             - ubuntu-toolchain-r-test
             packages:
             - g++-4.9
-            - libboost-all-dev
+            - libboost1.55-all-dev
       env:
       - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9
     - os: osx
@@ -24,7 +24,7 @@ before_install:
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -q                            ; fi
     
 install:
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential python-dev gcc g++ git cmake libboost-all-dev -y            ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential libboost-all-dev -y   ; fi
 
 script:
     - mkdir build && cd build
