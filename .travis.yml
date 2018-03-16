@@ -23,7 +23,7 @@ matrix:
 before_install:
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade autoconf automake berkeley-db4 libtool miniupnpc openssl protobuf; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libboost1.55-all-dev libboost-graph1.55-dev libboost-graph-parallel1.55-dev libboost-iostreams1.55-dev libboost-math1.55-dev libboost-program-options1.55-dev libboost-python1.55-dev libboost-signals1.55-dev libboost-wave1.55-dev -f; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libboost-all-dev -y; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export CC=clang CXX=clang++; fi
     
 script:
