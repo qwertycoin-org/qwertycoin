@@ -33,12 +33,12 @@ RUN apt-get update && \
     cmake -DCMAKE_CXX_FLAGS="-g0 -Os -fPIC -std=gnu++11" .. && \
     make -j$(nproc) && \
     mkdir -p /usr/local/bin && \
-    cp src/QwertyCoind /usr/local/bin/QwertyCoind && \
+    cp src/qwertycoind /usr/local/bin/qwertycoind && \
     cp src/walletd /usr/local/bin/walletd && \
     cp src/simplewallet /usr/local/bin/simplewallet && \
     cp src/miner /usr/local/bin/miner && \
     cp src/connectivity_tool /usr/local/bin/connectivity_tool && \
-    strip /usr/local/bin/QwertyCoind && \
+    strip /usr/local/bin/qwertycoind && \
     strip /usr/local/bin/walletd && \
     strip /usr/local/bin/simplewallet && \
     strip /usr/local/bin/miner && \
