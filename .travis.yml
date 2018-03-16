@@ -13,19 +13,23 @@ matrix:
             sources:
             - ubuntu-toolchain-r-test
             packages:
+            - libboost-all-dev
             - g++-4.9
-            - libboost1.55-all-dev
+            - cmake
       env:
       - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9
     - os: osx
 
 before_install:
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:ethcore/ethcore -y    ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -q                            ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade autoconf automake berkeley-db4 libtool miniupnpc openssl protobuf; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository -y ppa:boost-latest/ppa; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-mark hold riak postgresql-9.2 postgresql-contrib-9.2 postgresql-9.3 postgresql-contrib-9.3 postgresql-9.4 postgresql-contrib-9.4 postgresql-9.5 postgresql-contrib-9.5; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get clean; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libboost1.55-all-dev libboost-graph1.55-dev libboost-graph-parallel1.55-dev libboost-iostreams1.55-dev libboost-math1.55-dev libboost-program-options1.55-dev libboost-python1.55-dev libboost-signals1.55-dev libboost-wave1.55-dev -f; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export CC=clang CXX=clang++; fi
     
-install:
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential libboost-all-dev -y   ; fi
-
 script:
     - mkdir build && cd build
     - cmake .. && make
+    
