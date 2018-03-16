@@ -17,9 +17,7 @@ This script can be used from inside the git repository to build the project from
 
 See the script for more installation details and please consider extending it for your operating system and distribution!
 
-If the script doesn't work for you:
-"C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSBuild" Qwertycoin.sln /p:Configuration=Release /m
-
+If the script doesn't work for you: use `./easy-installer.sh` or with:
 
 #### Linux
 
@@ -31,9 +29,8 @@ If you are using Arch Linux, there is an AUR precompiled package, `qwertycoin-bi
 - For example on ubuntu: `sudo apt-get install build-essential python-dev gcc g++ git cmake libboost-all-dev `
 - After this you can compile your Qwertycoin
 ```
-mkdir build
-cmake ..
-make
+mkdir build && cd build
+cmake .. && make
 ```
 or use makefile
 
