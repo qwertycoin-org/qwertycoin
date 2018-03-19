@@ -355,13 +355,11 @@ namespace CryptoNote {
 			s.insert(0, m_numberOfDecimalPlaces + 1 - s.size(), '0');
 		}
 
-		int dot_pos = s.size() - m_numberOfDecimalPlaces
+		int dot_pos = s.size() - m_numberOfDecimalPlaces;
 		s.insert(dot_pos, ".");
 
 		for (int pos = dot_pos - 3; pos > 0; pos -= 3) {
-			if (s[pos - 1].isDigit()) {
-				s.insert(pos, ',');
-			}
+			s.insert(pos, ',');
 		}
 		return s;
 	}
