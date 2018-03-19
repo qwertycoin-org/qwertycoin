@@ -359,7 +359,7 @@ namespace CryptoNote {
 		s.insert(dot_pos, ".");
 
 		for (int pos = dot_pos - 3; pos > 0; pos -= 3) {
-			s.insert(pos, ',');
+			s.insert(pos, ",");
 		}
 		return s;
 	}
