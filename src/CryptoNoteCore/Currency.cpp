@@ -354,7 +354,13 @@ namespace CryptoNote {
 		if (s.size() < m_numberOfDecimalPlaces + 1) {
 			s.insert(0, m_numberOfDecimalPlaces + 1 - s.size(), '0');
 		}
-		s.insert(s.size() - m_numberOfDecimalPlaces, ".");
+
+		int dot_pos = s.size() - m_numberOfDecimalPlaces;
+		s.insert(dot_pos, ".");
+
+		for (int pos = dot_pos - 3; pos > 0; pos -= 3) {
+			s.insert(pos, ",");
+		}
 		return s;
 	}
 
