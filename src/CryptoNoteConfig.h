@@ -51,8 +51,9 @@ const uint64_t DEFAULT_DUST_THRESHOLD                        = MINIMUM_FEE;
 
 const uint64_t DIFFICULTY_TARGET                             = 120; // seconds
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY             = 24 * 60 * 60 / DIFFICULTY_TARGET;
-const size_t   DIFFICULTY_WINDOW                             = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // blocks
+const size_t   DIFFICULTY_WINDOW                             = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // 720 blocks
 const size_t   DIFFICULTY_WINDOW_V2                          = DIFFICULTY_WINDOW; // blocks
+const size_t   DIFFICULTY_WINDOW_V3                          = DIFFICULTY_WINDOW / 4; // 180 blocks
 const size_t   DIFFICULTY_CUT                                = 60;  // timestamps to cut after sorting
 const size_t   DIFFICULTY_LAG                                = 15;  // !!!
 static_assert(2 * DIFFICULTY_CUT <= DIFFICULTY_WINDOW - 2, "Bad DIFFICULTY_WINDOW or DIFFICULTY_CUT");
@@ -73,7 +74,7 @@ const size_t   FUSION_TX_MIN_INPUT_COUNT                     = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO              = 4;
 
 const uint32_t UPGRADE_HEIGHT_V2                             = 40000;
-const uint32_t UPGRADE_HEIGHT_V3                             = 4294967294;
+const uint32_t UPGRADE_HEIGHT_V3                             = 50000;
 const unsigned UPGRADE_VOTING_THRESHOLD = 90;               // percent
 const uint32_t   UPGRADE_VOTING_WINDOW                       = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
 const uint32_t   UPGRADE_WINDOW                              = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
@@ -136,7 +137,7 @@ const char* const SEED_NODES[] = {
   "183.111.224.59:8196",
   "35.200.77.106:8196",
   "52.151.26.180:8196",
-  "45.77.103.210:8196",
+  "207.154.235.99:8196",
   "128.199.85.138:8196",
   "188.127.231.69:8196",
   "185.51.247.44:8196",
@@ -144,8 +145,8 @@ const char* const SEED_NODES[] = {
   "134.249.148.200:8196",
   "64.15.188.42:8196",
   "66.155.94.172:8196",
-  "65.151.190.36:8196",
-  "78.224.243.40:8196"
+  "140.82.25.156:8196",
+  "65.151.190.36:8196"
 };
 
 struct CheckpointData {
@@ -158,7 +159,8 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
   {10000,"fb021fd69f78a60a365c16692777e7f699215404366545e072eba7dddbf1d61d"},
   {20000,"d32286163e2a5cfbbab35007438e7bf90564afee70c715930606710e96f2ce19"},
   {30000,"1d32bbca2149eeb27ff9e2c19d1b6ace4a160764839a4da7031328f7ea49e6f6"},
-  {35000,"173269a8b2ed188ef95a876acaf807cbbc4817191f036063ecf92112f46b5cbf"}
+  {35000,"173269a8b2ed188ef95a876acaf807cbbc4817191f036063ecf92112f46b5cbf"},
+  {40000,"60a9694b18cf470bcfd9f36f32ad01f86b5538fe1f88a3bd2717ca6ad1c7ce80"}
 };
 
 } // CryptoNote
