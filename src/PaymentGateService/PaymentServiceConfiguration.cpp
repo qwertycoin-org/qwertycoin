@@ -1,21 +1,21 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
 // Copyright(c) 2014 - 2017 XDN - project developers
 // Copyright(c) 2018 The Karbo developers
 //
-// This file is part of Bytecoin.
+// This file is part of Qwertycoin.
 //
-// Bytecoin is free software: you can redistribute it and/or modify
+// Qwertycoin is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Bytecoin is distributed in the hope that it will be useful,
+// Qwertycoin is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
+// along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PaymentServiceConfiguration.h"
 
@@ -46,7 +46,7 @@ Configuration::Configuration() {
 
 void Configuration::initOptions(boost::program_options::options_description& desc) {
   desc.add_options()
-      ("bind-address", po::value<std::string>()->default_value("0.0.0.0"), "payment service bind address")
+      ("bind-address", po::value<std::string>()->default_value("127.0.0.1"), "payment service bind address")
       ("bind-port", po::value<uint16_t>()->default_value(8070), "payment service bind port")
       ("rpc-user", po::value<std::string>(), "Username to use with the RPC server. If empty, no server authorization will be done")
       ("rpc-password", po::value<std::string>(), "Password to use with the RPC server. If empty, no server authorization will be done")
