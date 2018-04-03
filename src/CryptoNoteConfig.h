@@ -49,6 +49,7 @@ const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = CRYPTONOTE_BLOCK_
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 8;
+const uint64_t MAX_TX_MIXIN_SIZE                             = 50;
 const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000);
 const uint64_t DEFAULT_DUST_THRESHOLD                        = MINIMUM_FEE;
 
@@ -139,7 +140,7 @@ const char* const SEED_NODES[] = {
   "78.47.87.215:8196",
   "195.201.27.148:8196",
   "94.16.122.128:8196",
-  "138.197.148.136:8196",
+  "138.197.148.136:8196",//
   "77.55.237.152:8196",
   "95.165.174.199:8196",
   "183.111.224.59:8196",
@@ -155,7 +156,7 @@ const char* const SEED_NODES[] = {
   "66.155.94.172:8196",
   "140.82.25.156:8196",
   "65.151.190.36:8196",
-  "59.167.126.56::8196",
+  "59.167.126.56:8196",
   "212.237.33.202:8196",
   "qwcnode.ddns.net:8196"
 };
@@ -171,7 +172,9 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
   {20000,"d32286163e2a5cfbbab35007438e7bf90564afee70c715930606710e96f2ce19"},
   {30000,"1d32bbca2149eeb27ff9e2c19d1b6ace4a160764839a4da7031328f7ea49e6f6"},
   {35000,"173269a8b2ed188ef95a876acaf807cbbc4817191f036063ecf92112f46b5cbf"},
-  {40000,"60a9694b18cf470bcfd9f36f32ad01f86b5538fe1f88a3bd2717ca6ad1c7ce80"}
+  {40000,"60a9694b18cf470bcfd9f36f32ad01f86b5538fe1f88a3bd2717ca6ad1c7ce80"},
+  {45000,"0e504e82e6fe247b0b5dae9fc5bd3e82982e61610fd674d8e1f8ee3c85000c15"},
+  {45758,"18fb884f14d819f79021b6112ab8252e75543b15550dcae644f8ed276723766a"}
 };
 
 } // CryptoNote
