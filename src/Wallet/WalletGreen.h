@@ -44,7 +44,7 @@ public:
 
   virtual void initialize(const std::string& path, const std::string& password) override;
   virtual void initializeWithViewKey(const std::string& path, const std::string& password, const Crypto::SecretKey& viewSecretKey) override;
-  virtual void initializeWithViewKeyAndTimestamp(const std::string& path, const std::string& password, const Crypto::SecretKey& viewSecretKey, const uint64_t& creationTimestamp);
+  virtual void initializeWithViewKeyAndTimestamp(const std::string& path, const std::string& password, const Crypto::SecretKey& viewSecretKey, const uint64_t& creationTimestamp) override;
   virtual void load(const std::string& path, const std::string& password, std::string& extra) override;
   virtual void load(const std::string& path, const std::string& password) override;
   virtual void shutdown() override;
@@ -61,7 +61,7 @@ public:
   virtual std::string createAddress() override;
   virtual std::string createAddress(const Crypto::SecretKey& spendSecretKey, bool reset = true) override;
   virtual std::string createAddress(const Crypto::PublicKey& spendPublicKey) override;
-  virtual std::string createAddressWithTimestamp(const Crypto::SecretKey& spendSecretKey, const uint64_t& creationTimestamp);
+  virtual std::string createAddressWithTimestamp(const Crypto::SecretKey& spendSecretKey, const uint64_t& creationTimestamp) override;
   virtual void deleteAddress(const std::string& address) override;
 
   virtual uint64_t getActualBalance() const override;
