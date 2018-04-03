@@ -15,7 +15,7 @@ string(TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_LOWER)
 # target arch = host arch, binary is not portable. When ARCH is set to the
 # string 'default', no -march arg is passed, which creates a binary that is
 # portable across processors in the same family as host processor.  In cases
-# when ARCH is not set to an explicit identifier, cmake's builtin is usedrz
+# when ARCH is not set to an explicit identifier, cmake's builtin is used
 # to identify the target architecture, to direct logic in this cmake script.
 # Since ARCH is a cached variable, it will not be set on first cmake invocation.
 if (NOT ARCH OR ARCH STREQUAL "" OR ARCH STREQUAL "native" OR ARCH STREQUAL "default")
@@ -89,7 +89,7 @@ set(CMAKE_SKIP_PACKAGE_ALL_DEPENDENCY ON)
 set(CMAKE_SUPPRESS_REGENERATION ON)
 # enable_testing()
 # copy CTestCustom.cmake to build dir to disable long running tests in 'make test'
-# configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake ${CMAKE_CURRENT_BINARY_DIR})
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake ${CMAKE_CURRENT_BINARY_DIR})
 
 project(Qwertycoin)
 
