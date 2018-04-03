@@ -1,20 +1,20 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2016-2018  zawy12, The Karbowanec developers
 //
-// This file is part of Bytecoin.
+// This file is part of Qwertycoin.
 //
-// Bytecoin is free software: you can redistribute it and/or modify
+// Qwertycoin is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Bytecoin is distributed in the hope that it will be useful,
+// Qwertycoin is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
+// along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "Currency.h"
 #include <cctype>
@@ -531,7 +531,7 @@ namespace CryptoNote {
 		// N = int(45 * (600 / T) ^ 0.3));
 
 		const int64_t T = static_cast<int64_t>(m_difficultyTarget);
-		const size_t N = CryptoNote::parameters::DIFFICULTY_WINDOW_V3 - 1;
+		const size_t N = CryptoNote::parameters::DIFFICULTY_WINDOW_V3;
 
 		if (timestamps.size() > N + 1) {
 			timestamps.resize(N + 1);
@@ -539,7 +539,7 @@ namespace CryptoNote {
 		}
 		size_t n = timestamps.size();
 		assert(n == cumulativeDifficulties.size());
-		assert(n <= CryptoNote::parameters::DIFFICULTY_WINDOW_V3);
+		assert(n <= N+1);
 		if (n <= 1)
 			return 1;
 
@@ -555,7 +555,7 @@ namespace CryptoNote {
 		// Loop through N most recent blocks.
 		for (int64_t i = 1; i <= N; i++) {
 			solveTime = static_cast<int64_t>(timestamps[i]) - static_cast<int64_t>(timestamps[i - 1]);
-			solveTime = std::min<int64_t>((T * 7), std::max<int64_t>(solveTime, (-6 * T)));
+			solveTime = std::min<int64_t>((T * 7), std::max<int64_t>(solveTime, (-7 * T)));
 			difficulty = cumulativeDifficulties[i] - cumulativeDifficulties[i - 1];
 			LWMA += solveTime * i / k;
 			sum_inverse_D += 1 / static_cast<double_t>(difficulty);

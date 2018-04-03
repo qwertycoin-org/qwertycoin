@@ -56,7 +56,7 @@ const uint64_t DIFFICULTY_TARGET                             = 120; // seconds
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY             = 24 * 60 * 60 / DIFFICULTY_TARGET;
 const size_t   DIFFICULTY_WINDOW                             = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // 720 blocks
 const size_t   DIFFICULTY_WINDOW_V2                          = DIFFICULTY_WINDOW; // blocks
-const size_t   DIFFICULTY_WINDOW_V3                          = (DIFFICULTY_WINDOW / 4) + 1; // 180 +1 blocks
+const size_t   DIFFICULTY_WINDOW_V3                          = 70; // 70 blocks
 const size_t   DIFFICULTY_CUT                                = 60;  // timestamps to cut after sorting
 const size_t   DIFFICULTY_LAG                                = 15;  // !!!
 static_assert(2 * DIFFICULTY_CUT <= DIFFICULTY_WINDOW - 2, "Bad DIFFICULTY_WINDOW or DIFFICULTY_CUT");
@@ -139,7 +139,25 @@ const char* const SEED_NODES[] = {
   "78.47.87.215:8196",
   "195.201.27.148:8196",
   "94.16.122.128:8196",
-  "138.197.148.136:8196"
+  "138.197.148.136:8196",
+  "77.55.237.152:8196",
+  "95.165.174.199:8196",
+  "183.111.224.59:8196",
+  "35.200.77.106:8196",
+  "52.151.26.180:8196",
+  "207.154.235.99:8196",
+  "128.199.85.138:8196",
+  "188.127.231.69:8196",
+  "185.51.247.44:8196",
+  "35.184.146.57:8196",
+  "134.249.148.200:8196",
+  "64.15.188.42:8196",
+  "66.155.94.172:8196",
+  "140.82.25.156:8196",
+  "65.151.190.36:8196",
+  "59.167.126.56::8196",
+  "212.237.33.202:8196",
+  "qwcnode.ddns.net:8196"
 };
 
 struct CheckpointData {
