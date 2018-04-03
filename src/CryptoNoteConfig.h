@@ -158,7 +158,8 @@ const char* const SEED_NODES[] = {
   "65.151.190.36:8196",
   "59.167.126.56:8196",
   "212.237.33.202:8196",
-  "qwcnode.ddns.net:8196"
+  "qwcnode.ddns.net:8196",
+  "qwerty.phenom-networks.co.uk:8196"
 };
 
 struct CheckpointData {
