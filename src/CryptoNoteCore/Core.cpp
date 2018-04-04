@@ -1021,10 +1021,18 @@ bool core::handleIncomingTransaction(const Transaction& tx, const Crypto::Hash& 
     return false;
   }
 
-  if (!check_tx_mixin(tx)) {
-    logger(INFO) << "Transaction verification failed: mixin count for transaction " << txHash << " is too large, rejected";
-    tvc.m_verifivation_failed = true;
-    return false;
+// is in checkpoint zone
+  if (!m_blockchain.isInCheckpointZone(get_current_blockchain_height())) {
+    if (!check_tx_fee(tx, blobSize, tvc)) {
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
+
+    if (!check_tx_mixin(tx)) {
+      logger(INFO) << "Transaction verification failed: mixin count for transaction " << txHash << " is too large, rejected";
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
   }
 
   if (!check_tx_semantic(tx, keptByBlock)) {
