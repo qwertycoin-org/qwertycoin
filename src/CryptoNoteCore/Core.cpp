@@ -1015,9 +1015,9 @@ bool core::handleIncomingTransaction(const Transaction& tx, const Crypto::Hash& 
   bool r = add_new_tx(tx, txHash, blobSize, tvc, keptByBlock);
   if (tvc.m_verifivation_failed) {
     if (!tvc.m_tx_fee_too_small) {
-      logger(ERROR) << "Transaction verification failed: " << txHash;
+      logger(DEBUGGING) << "Transaction verification failed: " << txHash;
     } else {
-      logger(INFO) << "Transaction verification failed: " << txHash;
+      logger(DEBUGGING) << "Transaction verification failed: " << txHash;
     }
   } else if (tvc.m_verifivation_impossible) {
     logger(ERROR) << "Transaction verification impossible: " << txHash;
