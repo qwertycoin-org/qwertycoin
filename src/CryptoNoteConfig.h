@@ -49,7 +49,6 @@ const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = CRYPTONOTE_BLOCK_
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 8;
-const uint64_t MAX_TX_MIXIN_SIZE                             = 20;
 const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000);
 const uint64_t DEFAULT_DUST_THRESHOLD                        = MINIMUM_FEE;
 
@@ -140,25 +139,7 @@ const char* const SEED_NODES[] = {
   "78.47.87.215:8196",
   "195.201.27.148:8196",
   "94.16.122.128:8196",
-  "138.197.148.136:8196",//
-  "77.55.237.152:8196",
-  "95.165.174.199:8196",
-  "183.111.224.59:8196",
-  "35.200.77.106:8196",
-  "52.151.26.180:8196",
-  "207.154.235.99:8196",
-  "128.199.85.138:8196",
-  "188.127.231.69:8196",
-  "185.51.247.44:8196",
-  "35.184.146.57:8196",
-  "134.249.148.200:8196",
-  "64.15.188.42:8196",
-  "66.155.94.172:8196",
-  "140.82.25.156:8196",
-  "65.151.190.36:8196",
-  "59.167.126.56:8196",
-  "212.237.33.202:8196",
-  "qwcnode.ddns.net:8196"
+  "138.197.148.136:8196"//
 };
 
 struct CheckpointData {
