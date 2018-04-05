@@ -1896,6 +1896,7 @@ bool simple_wallet::fetch_dns_txt(const std::string domain, std::string &record)
 	map<ns_type, function<void(const ns_rr &rr)>> callbacks;
 
 	callbacks[ns_t_txt] = [&nsMsg,&record](const ns_rr &rr) -> void {
+    (void) nsMsg;
 		std::stringstream stream;
 		stream << ns_rr_rdata(rr) + 1 << endl;
 		record = stream.str();
@@ -2241,6 +2242,7 @@ int main(int argc, char* argv[]) {
     }
 
     Tools::SignalHandler::install([&wrpc, &wallet] {
+      (void) wallet;
       wrpc.send_stop_signal();
     });
 
