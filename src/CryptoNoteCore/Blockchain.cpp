@@ -2552,4 +2552,8 @@ bool Blockchain::isBlockInMainChain(const Crypto::Hash& blockId) {
   return m_blockIndex.hasBlock(blockId);
 }
 
+bool Blockchain::isInCheckpointZone(const uint32_t height) {
+  return m_checkpoints.is_in_checkpoint_zone(height);
+}
+
 }
