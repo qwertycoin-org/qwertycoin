@@ -1,4 +1,6 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Karbowanec developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -342,12 +344,12 @@ bool core::check_tx_inputs_keyimages_diff(const Transaction& tx) {
         return false;
       }
 
-	  // additional key_image check
-	  // Fix discovered by Monero Lab and suggested by "fluffypony" (bitcointalk.org)
-	  if (!(scalarmultKey(in.keyImage, L) == I)) {
-		  logger(ERROR) << "Transaction uses key image not in the valid domain";
-		  return false;
-	  }
+    // additional key_image check
+    // Fix discovered by Monero Lab and suggested by "fluffypony" (bitcointalk.org)
+    if (!(scalarmultKey(in.keyImage, L) == I)) {
+      logger(ERROR) << "Transaction uses key image not in the valid domain";
+      return false;
+    }
 
       // outputIndexes are packed here, first is absolute, others are offsets to previous,
       // so first can be zero, others can't
@@ -669,7 +671,7 @@ std::list<CryptoNote::tx_memory_pool::TransactionDetails> core::getMemoryPool() 
   //std::list<CryptoNote::tx_memory_pool::TransactionDetails> txs;
   //m_mempool.getMemoryPool(txs);
   //return txs;
-	return m_mempool.getMemoryPool();
+  return m_mempool.getMemoryPool();
 }
 
 std::vector<Crypto::Hash> core::buildSparseChain() {
@@ -1075,9 +1077,9 @@ bool core::handleIncomingTransaction(const Transaction& tx, const Crypto::Hash& 
   bool r = add_new_tx(tx, txHash, blobSize, tvc, keptByBlock);
   if (tvc.m_verifivation_failed) {
     if (!tvc.m_tx_fee_too_small) {
-      logger(DEBUGGING) << "Transaction verification failed: " << txHash;
+      logger(ERROR) << "Transaction verification failed: " << txHash;
     } else {
-      logger(DEBUGGING) << "Transaction verification failed: " << txHash;
+      logger(INFO) << "Transaction verification failed: " << txHash;
     }
   } else if (tvc.m_verifivation_impossible) {
     logger(ERROR) << "Transaction verification impossible: " << txHash;
