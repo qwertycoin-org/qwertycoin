@@ -26,12 +26,13 @@
 namespace CryptoNote {
 namespace parameters {
 
+const uint64_t DIFFICULTY_TARGET                             = 120; // seconds
 const uint64_t CRYPTONOTE_MAX_BLOCK_NUMBER                   = 500000000;
 const size_t   CRYPTONOTE_MAX_BLOCK_BLOB_SIZE                = 500000000;
 const size_t   CRYPTONOTE_MAX_TX_SIZE                        = 1000000000;
 const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX       = 0x14820c; // addresses start with "QWC"
 const size_t   CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW          = 60;
-const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT            = 60 * 60 * 2;
+const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT            = DIFFICULTY_TARGET * 60;
 
 const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW             = 60;
 
@@ -49,11 +50,10 @@ const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = CRYPTONOTE_BLOCK_
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 8;
-const uint64_t MAX_TX_MIXIN_SIZE                             = 50;
+const uint64_t MAX_TX_MIXIN_SIZE                             = 20;  // max mixin size
 const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000);
 const uint64_t DEFAULT_DUST_THRESHOLD                        = MINIMUM_FEE;
 
-const uint64_t DIFFICULTY_TARGET                             = 120; // seconds
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY             = 24 * 60 * 60 / DIFFICULTY_TARGET;
 const size_t   DIFFICULTY_WINDOW                             = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // 720 blocks
 const size_t   DIFFICULTY_WINDOW_V2                          = DIFFICULTY_WINDOW; // blocks
@@ -129,7 +129,7 @@ const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
 
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "8f80f9a50434a9f1510d13336228debfed9c918ce505e1234567894e045fa115";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "37ceebc436f3004d3739499c67ccb730cc4734950f414cdb332b24c5ce764317";
 
 const char* const SEED_NODES[] = { 
   "node-00.qwertycoin.org:8196",
@@ -140,25 +140,7 @@ const char* const SEED_NODES[] = {
   "78.47.87.215:8196",
   "195.201.27.148:8196",
   "94.16.122.128:8196",
-  "138.197.148.136:8196",//
-  "77.55.237.152:8196",
-  "95.165.174.199:8196",
-  "183.111.224.59:8196",
-  "35.200.77.106:8196",
-  "52.151.26.180:8196",
-  "207.154.235.99:8196",
-  "128.199.85.138:8196",
-  "188.127.231.69:8196",
-  "185.51.247.44:8196",
-  "35.184.146.57:8196",
-  "134.249.148.200:8196",
-  "64.15.188.42:8196",
-  "66.155.94.172:8196",
-  "140.82.25.156:8196",
-  "65.151.190.36:8196",
-  "59.167.126.56::8196",
-  "212.237.33.202:8196",
-  "qwcnode.ddns.net:8196"
+  "138.197.148.136:8196"//
 };
 
 struct CheckpointData {
