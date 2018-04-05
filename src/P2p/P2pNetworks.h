@@ -18,17 +18,26 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include "../Common/StringUtils.h"
 #include "../CryptoNoteConfig.h"
+#include "../version/version.h"
 
 #pragma once
 
+using namespace std;
+
 namespace CryptoNote
 {
+
 	namespace
-	{
+	{	
+		vector<string> versionSplit = Common::StringUtils::split(PROJECT_VERSION, ".");
+		vector<string> uIdStringList = {GENESIS_COINBASE_TX_HEX, versionSplit[0], versionSplit[1]};
+		string uID = Common::StringUtils::join(uIdStringList, ".");
+
 		boost::uuids::uuid name;
 		boost::uuids::name_generator gen(name);
-		boost::uuids::uuid u = gen(GENESIS_COINBASE_TX_HEX);
+		boost::uuids::uuid u = gen(uID);
 	}
 	const static boost::uuids::uuid QWERTYCOIN_NETWORK = u;
 }
