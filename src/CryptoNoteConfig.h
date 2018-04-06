@@ -85,12 +85,12 @@ const uint32_t   UPGRADE_WINDOW                              = EXPECTED_NUMBER_O
 static_assert(0 < UPGRADE_VOTING_THRESHOLD && UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
-const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.dat";
-const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.dat";
-const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.dat";
-const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "poolstate.bin";
-const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.bin";
-const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.dat";
+const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.bin";
+const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.bin";
+const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.bin";
+const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "poolstate.dat";
+const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.dat";
+const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.bin";
 const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json";
 } // parameters
 
@@ -157,7 +157,8 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
   {45000,"0e504e82e6fe247b0b5dae9fc5bd3e82982e61610fd674d8e1f8ee3c85000c15"},
   {45758,"18fb884f14d819f79021b6112ab8252e75543b15550dcae644f8ed276723766a"},
   {46000,"51e2f9e09278cb66b08efcecfdf3208053ee53030c6fc5a6a647565a6b318cd5"},
-  {46240,"0ff6bc1bfe6de184bc0afba48a6d41d482268b4434405554e333b88f809b5483"}
+  {46240,"0ff6bc1bfe6de184bc0afba48a6d41d482268b4434405554e333b88f809b5483"},
+  {46561,"96d6238ea56650dc4da27d144bc11a17cc2d75942eec027da25686fa846d6034"}
 };
 
 } // CryptoNote
