@@ -167,7 +167,7 @@ namespace CryptoNote {
 
     if (!inputsValid) {
       if (!keptByBlock) {
-        logger(INFO) << "tx used wrong inputs, rejected";
+        logger(DEBUGGING) << "tx used wrong inputs, rejected";
         tvc.m_verifivation_failed = true;
         return false;
       }
