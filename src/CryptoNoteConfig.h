@@ -132,14 +132,7 @@ const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "37ceebc436f3004d3739499c67ccb730cc4734950f414cdb332b24c5ce764317";
 
 const char* const SEED_NODES[] = { 
-  "seed1.karbowanec.com:32347",
-  "seed2.karbowanec.com:32347",
-  "seed.karbo.cloud:32347",
-  "seed.karbo.org:32347",
-  "seed.karbo.io:32347",
-  "95.46.98.64:32347",
-  "52.21.253.162:32347",
-  "46.149.182.151:32347"
+  "127.0.0.1:8196"
 };
 
 struct CheckpointData {
