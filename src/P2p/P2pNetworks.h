@@ -1,5 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Karbowanec developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
 //
@@ -19,26 +18,17 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include "../Common/StringUtils.h"
 #include "../CryptoNoteConfig.h"
-#include "../version/version.h"
 
 #pragma once
 
-using namespace std;
-
 namespace CryptoNote
 {
-
 	namespace
-	{	
-		vector<string> versionSplit = Common::StringUtils::split(PROJECT_VERSION, ".");
-		vector<string> uIdStringList = {GENESIS_COINBASE_TX_HEX, versionSplit[0], versionSplit[1]};
-		string uID = Common::StringUtils::join(uIdStringList, ".");
-
+	{
 		boost::uuids::uuid name;
 		boost::uuids::name_generator gen(name);
-		boost::uuids::uuid u = gen(uID);
+		boost::uuids::uuid u = gen(STARTTT_COINBASE_TX_HEX);
 	}
 	const static boost::uuids::uuid QWERTYCOIN_NETWORK = u;
 }

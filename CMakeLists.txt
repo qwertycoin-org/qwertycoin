@@ -221,7 +221,7 @@ if(MSVC)
   #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Dinline=__inline")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:10485760")
   if(STATIC)    
-  foreach(VAR CMAKE_C_FLAGS_DEBUG CMAKE_CXX_FLAGS_DEBUG CMAKE_C_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_C_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELEASE)
+	foreach(VAR CMAKE_C_FLAGS_DEBUG CMAKE_CXX_FLAGS_DEBUG CMAKE_C_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_C_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELEASE)
       string(REPLACE "/MD" "/MT" ${VAR} "${${VAR}}")
     endforeach()
   endif()
@@ -244,11 +244,11 @@ else()
   if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     # maybe remove
     set(WARNINGS "${WARNINGS} -Wno-error=mismatched-tags -Wno-error=null-conversion -Wno-overloaded-shift-op-parentheses -Wno-error=shift-count-overflow -Wno-error=tautological-constant-out-of-range-compare -Wno-error=unused-private-field -Wno-error=unneeded-internal-declaration -Wno-error=unused-function")
-  if(NOT APPLE) 
-    set(WARNINGS "${WARNINGS} -Wno-unused-lambda-capture")
-  endif()
-  # this ^
-  if(ARM)
+	if(NOT APPLE) 
+		set(WARNINGS "${WARNINGS} -Wno-unused-lambda-capture")
+	endif()
+	# this ^
+	if(ARM)
       set(WARNINGS "${WARNINGS} -Wno-error=inline-asm")
     endif()
   else()
@@ -257,12 +257,12 @@ else()
   if(MINGW)
     set(WARNINGS "${WARNINGS} -Wno-error=unused-value -Wno-error=unused-but-set-variable")
     set(MINGW_FLAG "-DWIN32_LEAN_AND_MEAN")
-  set(Boost_THREADAPI win32)
+	set(Boost_THREADAPI win32)
     include_directories(SYSTEM src/platform/mingw)
-  # mingw doesn't support LTO (multiple definition errors at link time)
+	# mingw doesn't support LTO (multiple definition errors at link time)
     set(USE_LTO_DEFAULT false)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,10485760")
-  if(NOT BUILD_64)
+	if(NOT BUILD_64)
       add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
     endif()
   else()
@@ -331,7 +331,7 @@ else()
     #Cortex-A5/9  -mfpu=neon-fp16
     #Cortex-A7/15 -mfpu=neon-vfpv4
     #Cortex-A8    -mfpu=neon
-    #ARMv8      -FP and SIMD on by default for all ARM8v-A series, NO -mfpu setting needed
+    #ARMv8  	  -FP and SIMD on by default for all ARM8v-A series, NO -mfpu setting needed
 
     #For custom -mtune, processor IDs for ARMv8-A series:
     #0xd04 - Cortex-A35
@@ -469,6 +469,8 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT ANDROID)
     set(CMAKE_EXE_LINKER_FLAGS "-pthread")
+	set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_STATIC_RUNTIME ON)
 endif()
 
 if (${BOOST_IGNORE_SYSTEM_PATHS} STREQUAL "ON")
