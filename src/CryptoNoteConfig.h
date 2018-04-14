@@ -51,7 +51,7 @@ const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BL
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 8;
 const uint64_t MAX_TX_MIXIN_SIZE                             = 20;  // max mixin size
-const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000);// 1000000 = 0.01
+const uint64_t MINIMUM_FEE                                   = UINT64_C(10000);// 1000000 = 0.01
 const uint64_t DEFAULT_DUST_THRESHOLD                        = UINT64_C(100000000);
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY             = 24 * 60 * 60 / DIFFICULTY_TARGET;
