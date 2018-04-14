@@ -119,7 +119,7 @@ const command_line::arg_descriptor<std::string> arg_change_password = { "change-
 const command_line::arg_descriptor<std::string> arg_mnemonic_seed = { "mnemonic-seed", "Specify mnemonic seed for wallet recovery/creation", "" };
 const command_line::arg_descriptor<bool> arg_restore_deterministic_wallet = { "restore-deterministic-wallet", "Recover wallet using electrum-style mnemonic", false };
 const command_line::arg_descriptor<bool> arg_non_deterministic = { "non-deterministic", "Creates non-deterministic (classic) view and spend keys", false };
-const command_line::arg_descriptor<uint16_t> arg_daemon_port = { "daemon-port", "Use daemon instance at port <arg> instead of 32348", 0 };
+const command_line::arg_descriptor<uint16_t> arg_daemon_port = { "daemon-port", "Use daemon instance at port <arg> instead of 8197", 0 };
 const command_line::arg_descriptor<std::string> arg_log_file = {"log-file", "Set the log file location", ""};
 const command_line::arg_descriptor<uint32_t> arg_log_level = { "log-level", "Set the log verbosity level", INFO, true };
 const command_line::arg_descriptor<bool> arg_testnet = { "testnet", "Used to deploy test nets. The daemon must be launched with --testnet flag", false };
@@ -527,8 +527,8 @@ bool processServerAliasResponse(const std::string& s, std::string& address) {
   try {
 
     // Courtesy of Monero Project
-    // make sure the txt record has "oa1:krb" and find it
-    auto pos = s.find("oa1:krb");
+    // make sure the txt record has "oa1:qwc" and find it
+    auto pos = s.find("oa1:qwc");
     if (pos == std::string::npos)
       return false;
     // search from there to find "recipient_address="
