@@ -51,8 +51,8 @@ const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BL
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 8;
 const uint64_t MAX_TX_MIXIN_SIZE                             = 20;  // max mixin size
-const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000);
-const uint64_t DEFAULT_DUST_THRESHOLD                        = MINIMUM_FEE;
+const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000);// 1000000 = 0.01
+const uint64_t DEFAULT_DUST_THRESHOLD                        = UINT64_C(100000000);
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY             = 24 * 60 * 60 / DIFFICULTY_TARGET;
 const size_t   DIFFICULTY_WINDOW                             = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // 720 blocks
@@ -105,7 +105,7 @@ const uint8_t  BLOCK_MINOR_VERSION_0                         =  0;
 const uint8_t  BLOCK_MINOR_VERSION_1                         =  1;
 
 const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  10000;  //by default, blocks ids count in synchronizing
-const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  200;    //by default, blocks count in blocks downloading
+const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  128;    //by default, blocks count in blocks downloading
 const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         =  1000;
 
 const int      P2P_DEFAULT_PORT                              =  8196;
@@ -160,7 +160,8 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
   {46240,"0ff6bc1bfe6de184bc0afba48a6d41d482268b4434405554e333b88f809b5483"},
   {46561,"96d6238ea56650dc4da27d144bc11a17cc2d75942eec027da25686fa846d6034"},
   {46864,"56d957a3683e91b497a74eca662c053b2af2d0e93fa751935ed4d45c0e2b4616"},
-  {47155,"18ac09e380f80588fc0119688bb26c767500558c2871854528680d3914e66af2"}
+  {47155,"18ac09e380f80588fc0119688bb26c767500558c2871854528680d3914e66af2"},
+  {50500,"16c29b2587ab3ee74ab0f7b7b537ed12f380d9a03bebc89c7a7fa440945004ea"}
 };
 
 } // CryptoNote

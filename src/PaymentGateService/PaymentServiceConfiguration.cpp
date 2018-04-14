@@ -1,6 +1,7 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright(c) 2014 - 2017 XDN - project developers
 // Copyright(c) 2018 The Karbo developers
+// Copyright(c) 2018 The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -24,6 +25,7 @@
 #include <boost/program_options.hpp>
 
 #include "Logging/ILogger.h"
+#include "SimpleWallet/PasswordContainer.cpp"
 
 namespace po = boost::program_options;
 
@@ -134,9 +136,15 @@ void Configuration::init(const boost::program_options::variables_map& options) {
   }
 
   if (!registerService && !unregisterService) {
-    if (containerFile.empty() || containerPassword.empty()) {
+    if (containerFile.empty() && containerPassword.empty()) {
       throw ConfigurationError("Both container-file and container-password parameters are required");
     }
+  if (containerPassword.empty()) {
+    if (pwd_container.read_password()) {
+      containerPassword = pwd_container.password();
+    }
+  }
+
   }
 }
 
