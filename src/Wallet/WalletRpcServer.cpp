@@ -1,7 +1,6 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
 // Copyright (c) 2014-2016, XDN developers
 // Copyright (c) 2016-2018, Karbo developers
-// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -330,7 +329,7 @@ bool wallet_rpc_server::on_get_transfers(const wallet_rpc::COMMAND_RPC_GET_TRANS
 		transfer.blockIndex		 = txInfo.blockHeight;
 		transfer.unlockTime		 = txInfo.unlockTime;
 		transfer.paymentId		 = "";
-		transfer.confirmations = bc_height - txInfo.blockHeight;
+		transfer.confirmations	 = (txInfo.blockHeight != UNCONFIRMED_TRANSACTION_GLOBAL_OUTPUT_INDEX ? bc_height - txInfo.blockHeight : 0);
 
 		std::vector<uint8_t> extraVec;
 		extraVec.reserve(txInfo.extra.size());
@@ -385,7 +384,7 @@ bool wallet_rpc_server::on_get_transaction(const wallet_rpc::COMMAND_RPC_GET_TRA
 			transfer.blockIndex = txInfo.blockHeight;
 			transfer.unlockTime = txInfo.unlockTime;
 			transfer.paymentId = "";
-			transfer.confirmations = bc_height - txInfo.blockHeight;
+			transfer.confirmations = (txInfo.blockHeight != UNCONFIRMED_TRANSACTION_GLOBAL_OUTPUT_INDEX ? bc_height - txInfo.blockHeight : 0);
 
 			std::vector<uint8_t> extraVec;
 			extraVec.reserve(txInfo.extra.size());

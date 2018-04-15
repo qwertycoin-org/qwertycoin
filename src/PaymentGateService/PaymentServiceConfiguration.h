@@ -29,7 +29,7 @@
 #include "SimpleWallet/PasswordContainer.h"
 
 namespace {
-  Tools::PasswordContainer pwd_container;
+	Tools::PasswordContainer pwd_container;
 }
 
 namespace PaymentService {

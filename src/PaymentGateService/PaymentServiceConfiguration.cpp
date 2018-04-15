@@ -139,11 +139,11 @@ void Configuration::init(const boost::program_options::variables_map& options) {
     if (containerFile.empty() && containerPassword.empty()) {
       throw ConfigurationError("Both container-file and container-password parameters are required");
     }
-  if (containerPassword.empty()) {
-    if (pwd_container.read_password()) {
-      containerPassword = pwd_container.password();
-    }
-  }
+	if (containerPassword.empty()) {
+		if (pwd_container.read_password()) {
+			containerPassword = pwd_container.password();
+		}
+	}
 
   }
 }

@@ -146,6 +146,7 @@ WalletGreen::WalletGreen(System::Dispatcher& dispatcher, const Currency& currenc
   m_pendingBalance(0),
   m_transactionSoftLockTime(transactionSoftLockTime)
 {
+  //m_upperTransactionSizeLimit = parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT / 4 - m_currency.minerTxBlobReservedSize();
   m_upperTransactionSizeLimit = parameters::CRYPTONOTE_MAX_TX_SIZE / 100 - m_currency.minerTxBlobReservedSize();
   m_readyEvent.set();
 }
@@ -1708,8 +1709,6 @@ bool WalletGreen::updateWalletTransactionInfo(size_t transactionId, const Crypto
 
   bool updated = false;
   bool r = txIdIndex.modify(it, [this, transactionId, &info, totalAmount, &updated](WalletTransaction& transaction) {
-    (void) this;
-    (void) transactionId;
     if (transaction.blockHeight != info.blockHeight) {
       transaction.blockHeight = info.blockHeight;
       updated = true;
@@ -1983,7 +1982,6 @@ bool WalletGreen::eraseForeignTransfers(size_t transactionId, size_t firstTransf
   bool eraseOutputTransfers) {
 
   return eraseTransfers(transactionId, firstTransferIdx, [this, &knownAddresses, eraseOutputTransfers](bool isOutput, const std::string& transferAddress) {
-    (void) this;
     return eraseOutputTransfers == isOutput && knownAddresses.count(transferAddress) == 0;
   });
 }
@@ -2697,7 +2695,6 @@ void WalletGreen::transactionDeleted(ITransfersSubscription* object, const Hash&
 
   bool updated = false;
   m_transactions.get<TransactionIndex>().modify(it, [this, &transactionHash, &updated](CryptoNote::WalletTransaction& tx) {
-    (void) this; (void) transactionHash;
     if (tx.state == WalletTransactionState::CREATED || tx.state == WalletTransactionState::SUCCEEDED) {
       tx.state = WalletTransactionState::CANCELLED;
       updated = true;
