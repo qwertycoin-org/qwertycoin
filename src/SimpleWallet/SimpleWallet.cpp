@@ -123,6 +123,7 @@ const command_line::arg_descriptor<uint16_t> arg_daemon_port = { "daemon-port", 
 const command_line::arg_descriptor<std::string> arg_log_file = {"log-file", "Set the log file location", ""};
 const command_line::arg_descriptor<uint32_t> arg_log_level = { "log-level", "Set the log verbosity level", INFO, true };
 const command_line::arg_descriptor<bool> arg_testnet = { "testnet", "Used to deploy test nets. The daemon must be launched with --testnet flag", false };
+const command_line::arg_descriptor<bool> arg_reset = { "reset", "Discard cache data and start synchronizing from scratch", false };
 const command_line::arg_descriptor< std::vector<std::string> > arg_command = { "command", "" };
 
 
@@ -1167,6 +1168,8 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
 			"**********************************************************************\n" <<
 			"Use \"help\" command to see the list of available commands.\n" <<
 			"**********************************************************************";
+      if (command_line::has_arg(vm, arg_reset))
+        reset({});
 	}
 
 	return true;
@@ -2132,6 +2135,7 @@ int main(int argc, char* argv[]) {
   command_line::add_arg(desc_params, arg_log_file);
   command_line::add_arg(desc_params, arg_log_level);
   command_line::add_arg(desc_params, arg_testnet);
+  command_line::add_arg(desc_params, arg_reset);
   Tools::wallet_rpc_server::init_options(desc_params);
 
   po::positional_options_description positional_options;
