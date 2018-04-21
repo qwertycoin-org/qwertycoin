@@ -1,4 +1,6 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers, The Karbowanec developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -245,34 +247,34 @@ bool core::check_tx_mixin(const Transaction& tx) {
 }
 
 bool core::check_tx_fee(const Transaction& tx, size_t blobSize, tx_verification_context& tvc) {
-	uint64_t inputs_amount = 0;
-	if (!get_inputs_money_amount(tx, inputs_amount)) {
-		tvc.m_verifivation_failed = true;
-		return false;
-	}
+  uint64_t inputs_amount = 0;
+  if (!get_inputs_money_amount(tx, inputs_amount)) {
+    tvc.m_verifivation_failed = true;
+    return false;
+  }
 
-	uint64_t outputs_amount = get_outs_money_amount(tx);
+  uint64_t outputs_amount = get_outs_money_amount(tx);
 
-	if (outputs_amount > inputs_amount) {
-		logger(DEBUGGING) << "transaction use more money then it has: use " << m_currency.formatAmount(outputs_amount) <<
-			", have " << m_currency.formatAmount(inputs_amount);
-		tvc.m_verifivation_failed = true;
-		return false;
-	}
+  if (outputs_amount > inputs_amount) {
+    logger(DEBUGGING) << "transaction use more money then it has: use " << m_currency.formatAmount(outputs_amount) <<
+      ", have " << m_currency.formatAmount(inputs_amount);
+    tvc.m_verifivation_failed = true;
+    return false;
+  }
 
-	Crypto::Hash h = NULL_HASH;
-	getObjectHash(tx, h, blobSize);
-	const uint64_t fee = inputs_amount - outputs_amount;
-	bool isFusionTransaction = fee == 0 && m_currency.isFusionTransaction(tx, blobSize);
-	if (!isFusionTransaction && fee < m_currency.minimumFee()) {
-		logger(DEBUGGING) << "transaction fee is not enough: " << m_currency.formatAmount(fee) <<
-			", minimum fee: " << m_currency.formatAmount(m_currency.minimumFee());
-		tvc.m_verifivation_failed = true;
-		tvc.m_tx_fee_too_small = true;
-		return false;
-	}
+  Crypto::Hash h = NULL_HASH;
+  getObjectHash(tx, h, blobSize);
+  const uint64_t fee = inputs_amount - outputs_amount;
+  bool isFusionTransaction = fee == 0 && m_currency.isFusionTransaction(tx, blobSize);
+  if (!isFusionTransaction && fee < m_currency.minimumFee()) {
+    logger(DEBUGGING) << "transaction fee is not enough: " << m_currency.formatAmount(fee) <<
+      ", minimum fee: " << m_currency.formatAmount(m_currency.minimumFee());
+    tvc.m_verifivation_failed = true;
+    tvc.m_tx_fee_too_small = true;
+    return false;
+  }
 
-	return true;
+  return true;
 }
 
 bool core::check_tx_semantic(const Transaction& tx, bool keeped_by_block) {
@@ -342,12 +344,12 @@ bool core::check_tx_inputs_keyimages_diff(const Transaction& tx) {
         return false;
       }
 
-	  // additional key_image check
-	  // Fix discovered by Monero Lab and suggested by "fluffypony" (bitcointalk.org)
-	  if (!(scalarmultKey(in.keyImage, L) == I)) {
-		  logger(ERROR) << "Transaction uses key image not in the valid domain";
-		  return false;
-	  }
+    // additional key_image check
+    // Fix discovered by Monero Lab and suggested by "fluffypony" (bitcointalk.org)
+    if (!(scalarmultKey(in.keyImage, L) == I)) {
+      logger(ERROR) << "Transaction uses key image not in the valid domain";
+      return false;
+    }
 
       // outputIndexes are packed here, first is absolute, others are offsets to previous,
       // so first can be zero, others can't
@@ -669,7 +671,7 @@ std::list<CryptoNote::tx_memory_pool::TransactionDetails> core::getMemoryPool() 
   //std::list<CryptoNote::tx_memory_pool::TransactionDetails> txs;
   //m_mempool.getMemoryPool(txs);
   //return txs;
-	return m_mempool.getMemoryPool();
+  return m_mempool.getMemoryPool();
 }
 
 std::vector<Crypto::Hash> core::buildSparseChain() {
@@ -1047,23 +1049,23 @@ uint64_t core::getTotalGeneratedAmount() {
 
 bool core::handleIncomingTransaction(const Transaction& tx, const Crypto::Hash& txHash, size_t blobSize, tx_verification_context& tvc, bool keptByBlock) {
   if (!check_tx_syntax(tx)) {
-    logger(INFO) << "WRONG TRANSACTION BLOB, Failed to check tx " << txHash << " syntax, rejected";
+    logger(DEBUGGING) << "WRONG TRANSACTION BLOB, Failed to check tx " << txHash << " syntax, rejected";
     tvc.m_verifivation_failed = true;
     return false;
   }
 
   // is in checkpoint zone
   if (!m_blockchain.isInCheckpointZone(get_current_blockchain_height())) {
-	  if (!check_tx_fee(tx, blobSize, tvc)) {
-		  tvc.m_verifivation_failed = true;
-		  return false;
-	  }
+    if (!check_tx_fee(tx, blobSize, tvc)) {
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
 
-	  if (!check_tx_mixin(tx)) {
-		  logger(INFO) << "Transaction verification failed: mixin count for transaction " << txHash << " is too large, rejected";
-		  tvc.m_verifivation_failed = true;
-		  return false;
-	  }
+    if (!check_tx_mixin(tx)) {
+      logger(DEBUGGING) << "Transaction verification failed: mixin count for transaction " << txHash << " is too large, rejected";
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
   }
 
   if (!check_tx_semantic(tx, keptByBlock)) {
@@ -1075,9 +1077,9 @@ bool core::handleIncomingTransaction(const Transaction& tx, const Crypto::Hash& 
   bool r = add_new_tx(tx, txHash, blobSize, tvc, keptByBlock);
   if (tvc.m_verifivation_failed) {
     if (!tvc.m_tx_fee_too_small) {
-      logger(ERROR) << "Transaction verification failed: " << txHash;
+      logger(DEBUGGING) << "Transaction verification failed: " << txHash;
     } else {
-      logger(INFO) << "Transaction verification failed: " << txHash;
+      logger(DEBUGGING) << "Transaction verification failed: " << txHash;
     }
   } else if (tvc.m_verifivation_impossible) {
     logger(ERROR) << "Transaction verification impossible: " << txHash;

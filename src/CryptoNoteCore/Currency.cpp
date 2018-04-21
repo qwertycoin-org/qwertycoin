@@ -1,6 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
-// Copyright (c) 2016-2018  zawy12
-// Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2016-2018  zawy12, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
 //
@@ -20,7 +19,6 @@
 #include "Currency.h"
 #include <cctype>
 #include <boost/algorithm/string/trim.hpp>
-#include <boost/math/special_functions/round.hpp>
 #include <boost/lexical_cast.hpp>
 #include "../Common/Base58.h"
 #include "../Common/int-util.h"
@@ -533,7 +531,7 @@ namespace CryptoNote {
 		// N = int(45 * (600 / T) ^ 0.3));
 
 		const int64_t T = static_cast<int64_t>(m_difficultyTarget);
-		const size_t N = CryptoNote::parameters::DIFFICULTY_WINDOW_V3 - 1;
+		const size_t N = CryptoNote::parameters::DIFFICULTY_WINDOW_V3;
 
 		if (timestamps.size() > N + 1) {
 			timestamps.resize(N + 1);
@@ -541,7 +539,7 @@ namespace CryptoNote {
 		}
 		size_t n = timestamps.size();
 		assert(n == cumulativeDifficulties.size());
-		assert(n <= CryptoNote::parameters::DIFFICULTY_WINDOW_V3);
+		assert(n <= N+1);
 		if (n <= 1)
 			return 1;
 
@@ -557,14 +555,14 @@ namespace CryptoNote {
 		// Loop through N most recent blocks.
 		for (int64_t i = 1; i <= N; i++) {
 			solveTime = static_cast<int64_t>(timestamps[i]) - static_cast<int64_t>(timestamps[i - 1]);
-			solveTime = std::min<int64_t>((T * 7), std::max<int64_t>(solveTime, (-6 * T)));
+			solveTime = std::min<int64_t>((T * 7), std::max<int64_t>(solveTime, (-7 * T)));
 			difficulty = cumulativeDifficulties[i] - cumulativeDifficulties[i - 1];
 			LWMA += solveTime * i / k;
 			sum_inverse_D += 1 / static_cast<double_t>(difficulty);
 		}
 
 		// Keep LWMA sane in case something unforeseen occurs.
-		if (static_cast<int64_t>(boost::math::round(LWMA)) < T / 20)
+		if (static_cast<int64_t>(std::round(LWMA)) < T / 20)
 			LWMA = static_cast<double_t>(T / 20);
 
 		harmonic_mean_D = N / sum_inverse_D * adjust;
