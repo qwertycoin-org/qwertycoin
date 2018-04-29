@@ -135,19 +135,6 @@ version/fast:
 .PHONY : version/fast
 
 #=============================================================================
-# Target rules for targets named rocksdb
-
-# Build rule for target.
-rocksdb: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 rocksdb
-.PHONY : rocksdb
-
-# fast build rule for target.
-rocksdb/fast:
-	$(MAKE) -f external/CMakeFiles/rocksdb.dir/build.make external/CMakeFiles/rocksdb.dir/build
-.PHONY : rocksdb/fast
-
-#=============================================================================
 # Target rules for targets named upnpc-static
 
 # Build rule for target.
@@ -677,7 +664,6 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... version"
-	@echo "... rocksdb"
 	@echo "... upnpc-static"
 	@echo "... gtest_main"
 	@echo "... gtest"
