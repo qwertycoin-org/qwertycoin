@@ -1695,7 +1695,11 @@ bool Blockchain::check_tx_input(const KeyInput& txin, const Crypto::Hash& tx_pre
     return true;
   }
 
-  return Crypto::check_ring_signature(tx_prefix_hash, txin.keyImage, output_keys, sig.data());
+  bool check_tx_ring_signature = Crypto::check_ring_signature(tx_prefix_hash, txin.keyImage, output_keys, sig.data());
+  if (!check_tx_ring_signature) {
+    logger(ERROR) << "Failed to check ring signature for keyImage: " << txin.keyImage;
+  }
+  return check_tx_ring_signature;
 }
 
 uint64_t Blockchain::get_adjusted_time() {
