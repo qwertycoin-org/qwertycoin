@@ -24,7 +24,7 @@
 #include "../CryptoNoteConfig.h"
 #include "../Common/CommandLine.h"
 #include "../Common/Util.h"
-#include "../Common/Math.h"
+//#include "../Common/Math.h"
 #include "../Common/StringTools.h"
 #include "../crypto/crypto.h"
 #include "../CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h"
@@ -429,6 +429,7 @@ bool core::get_block_template(Block& b, const AccountPublicAddress& adr, difficu
     b.previousBlockHash = get_tail_id();
     b.timestamp = time(NULL);
 
+    /*
     // Don't generate a block template with invalid timestamp
     // Fix by Jagerman
     // https://github.com/graft-project/GraftNetwork/pull/118/commits
@@ -442,7 +443,7 @@ bool core::get_block_template(Block& b, const AccountPublicAddress& adr, difficu
        if (b.timestamp < median_ts) {
           b.timestamp = median_ts;
       }
-    }
+    }*/
 
     median_size = m_blockchain.getCurrentCumulativeBlocksizeLimit() / 2;
     already_generated_coins = m_blockchain.getCoinsInCirculation();
