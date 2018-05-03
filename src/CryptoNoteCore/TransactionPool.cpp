@@ -179,7 +179,7 @@ namespace CryptoNote {
     if (!keptByBlock) {
       bool sizeValid = m_validator.checkTransactionSize(blobSize);
       if (!sizeValid) {
-        logger(INFO) << "tx too big, rejected";
+        logger(DEBUGGING) << "tx too big, rejected";
         tvc.m_verifivation_failed = true;
         return false;
       }
@@ -188,7 +188,7 @@ namespace CryptoNote {
     std::lock_guard<std::recursive_mutex> lock(m_transactions_lock);
 
     if (!keptByBlock && m_recentlyDeletedTransactions.find(id) != m_recentlyDeletedTransactions.end()) {
-      logger(INFO) << "Trying to add recently deleted transaction. Ignore: " << id;
+      logger(DEBUGGING) << "Trying to add recently deleted transaction. Ignore: " << id;
       tvc.m_verifivation_failed = false;
       tvc.m_should_be_relayed = false;
       tvc.m_added_to_pool = false;
