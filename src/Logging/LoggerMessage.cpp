@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2017-2018, Karbo developers
 // 
 // All rights reserved.
@@ -42,20 +43,7 @@ LoggerMessage::LoggerMessage(ILogger& logger, const std::string& category, Level
 	, m_bGotText(false)
 {}
 
-#ifndef __linux__
-LoggerMessage::LoggerMessage(LoggerMessage&& other)
-	: std::ostream(std::move(other))
-	, std::streambuf(std::move(other))
-	, m_logger(other.m_logger)
-	, m_sCategory(other.m_sCategory)
-	, m_nLogLevel(other.m_nLogLevel)
-	, m_sMessage(other.m_sMessage)
-	, m_tmTimeStamp(boost::posix_time::microsec_clock::local_time())
-	, m_bGotText(false)
-{
-	std::ostream::rdbuf(this);
-}
-#else
+#if defined __linux__ && !defined __ANDROID__
 LoggerMessage::LoggerMessage(LoggerMessage&& other)
   : std::ostream(nullptr)
   , std::streambuf()
@@ -101,6 +89,19 @@ LoggerMessage::LoggerMessage(LoggerMessage&& other)
     std::swap(_M_tie, other._M_tie);
   }
   _M_streambuf = this;
+}
+#else
+LoggerMessage::LoggerMessage(LoggerMessage&& other)
+	: std::ostream(std::move(other))
+	, std::streambuf(std::move(other))
+	, m_logger(other.m_logger)
+	, m_sCategory(other.m_sCategory)
+	, m_nLogLevel(other.m_nLogLevel)
+	, m_sMessage(other.m_sMessage)
+	, m_tmTimeStamp(boost::posix_time::microsec_clock::local_time())
+	, m_bGotText(false)
+{
+	std::ostream::rdbuf(this);
 }
 #endif
 

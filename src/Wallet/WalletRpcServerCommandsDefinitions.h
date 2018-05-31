@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2016-2018, Karbo developers
 //
 // This file is part of Qwertycoin.
@@ -70,6 +71,7 @@ using CryptoNote::ISerializer;
 			uint64_t mixin;
 			uint64_t unlock_time;
 			std::string payment_id;
+
 			request() :fee(0),
 					   mixin(0),
 					   unlock_time(0){}

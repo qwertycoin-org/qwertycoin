@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2014-2016, XDN developers
 // Copyright (c) 2016-2018, Karbo developers
 //
@@ -174,6 +175,11 @@ bool wallet_rpc_server::on_getbalance(const wallet_rpc::COMMAND_RPC_GET_BALANCE:
 bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::request& req,
 	wallet_rpc::COMMAND_RPC_TRANSFER::response& res)
 {
+
+	if (req.mixin < m_currency.minMixin() && req.mixin != 0) {
+		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_WRONG_MIXIN,
+			std::string("Requested mixin \"" + std::to_string(req.mixin) + "\" is too low"));
+	}
 	std::vector<CryptoNote::WalletLegacyTransfer> transfers;
 	for (auto it = req.destinations.begin(); it != req.destinations.end(); ++it)
 	{
@@ -210,7 +216,6 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 		CryptoNote::WalletHelper::SendCompleteResultObserver sent;
 		WalletHelper::IWalletRemoveObserverGuard removeGuard(m_wallet, sent);
 
-		//CryptoNote::TransactionId tx = m_wallet.sendTransaction(transfers, req.fee, extraString, req.mixin, req.unlock_time);
 		CryptoNote::TransactionId tx = m_wallet.sendTransaction(transfers, req.fee == 0 ? m_currency.minimumFee() : req.fee, extraString, req.mixin, req.unlock_time);
 		if (tx == WALLET_LEGACY_INVALID_TRANSACTION_ID)
 			throw std::runtime_error("Couldn't send transaction");

@@ -1,5 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2016-2018  zawy12, The Karbowanec developers
+// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2016-2018  zawy12
+// Copyright (c) 2016-2018, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
 //
@@ -19,6 +21,7 @@
 #include "Currency.h"
 #include <cctype>
 #include <boost/algorithm/string/trim.hpp>
+#include <boost/math/special_functions/round.hpp>
 #include <boost/lexical_cast.hpp>
 #include "../Common/Base58.h"
 #include "../Common/int-util.h"
@@ -73,13 +76,14 @@ namespace CryptoNote {
 		}
 
 		if (isTestnet()) {
-			m_upgradeHeightV2 = 0;
-			m_upgradeHeightV3 = static_cast<uint32_t>(-1);
+			m_upgradeHeightV2 = 10;
+			m_upgradeHeightV3 = 20;
+			m_upgradeHeightV4 = 30;
 			m_blocksFileName = "testnet_" + m_blocksFileName;
 			m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
 			m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
 			m_txPoolFileName = "testnet_" + m_txPoolFileName;
-			m_blockchinIndicesFileName = "testnet_" + m_blockchinIndicesFileName;
+			m_blockchainIndicesFileName = "testnet_" + m_blockchainIndicesFileName;
 		}
 
 		return true;
@@ -114,7 +118,10 @@ namespace CryptoNote {
 	}
 
 	size_t Currency::blockGrantedFullRewardZoneByBlockVersion(uint8_t blockMajorVersion) const {
-		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_3) {
+		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_4) {
+			return CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2;
+		}
+		else if (blockMajorVersion == BLOCK_MAJOR_VERSION_3) {
 			return m_blockGrantedFullRewardZone;
 		}
 		else if (blockMajorVersion == BLOCK_MAJOR_VERSION_2) {
@@ -126,7 +133,10 @@ namespace CryptoNote {
 	}
 
 	uint32_t Currency::upgradeHeight(uint8_t majorVersion) const {
-		if (majorVersion == BLOCK_MAJOR_VERSION_2) {
+		if (majorVersion == BLOCK_MAJOR_VERSION_4) {
+			return m_upgradeHeightV4;
+		}
+		else if (majorVersion == BLOCK_MAJOR_VERSION_2) {
 			return m_upgradeHeightV2;
 		}
 		else if (majorVersion == BLOCK_MAJOR_VERSION_3) {
@@ -406,7 +416,6 @@ namespace CryptoNote {
 
 	difficulty_type Currency::nextDifficulty(uint8_t blockMajorVersion, std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
-
 		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_3) {
 			return nextDifficultyV3(timestamps, cumulativeDifficulties);
 		}
@@ -510,7 +519,7 @@ namespace CryptoNote {
 		uint64_t nextDiffZ = low / timeSpan;
 
 		// minimum limit
-		if (nextDiffZ < 100000) {
+		if (!isTestnet() && nextDiffZ < 100000) {
 			nextDiffZ = 100000;
 		}
 
@@ -529,6 +538,7 @@ namespace CryptoNote {
 		// Do not use "if solvetime < 0 then solvetime = 1" which allows a catastrophic exploit.
 		// T= target_solvetime;
 		// N = int(45 * (600 / T) ^ 0.3));
+		// Adapted for Qwertycoin specific setting
 
 		const int64_t T = static_cast<int64_t>(m_difficultyTarget);
 		const size_t N = CryptoNote::parameters::DIFFICULTY_WINDOW_V3;
@@ -570,33 +580,34 @@ namespace CryptoNote {
 		next_difficulty = static_cast<uint64_t>(nextDifficulty);
 		
 		// minimum limit
-		if (next_difficulty < 100000) {
+		if (!isTestnet() && next_difficulty < 100000) {
 			next_difficulty = 100000;
 		}
 
 		return next_difficulty;
 	}
-
-	bool Currency::checkProofOfWorkV1(Crypto::cn_context& context, const Block& block, difficulty_type currentDiffic,
+	bool Currency::checkProofOfWorkV1(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
 		Crypto::Hash& proofOfWork) const {
+
 		if (BLOCK_MAJOR_VERSION_1 != block.majorVersion) {
 			return false;
 		}
 
-		if (!get_block_longhash(context, block, proofOfWork)) {
+		if (!get_block_longhash(hash_ctx, block, proofOfWork)) {
 			return false;
 		}
 
 		return check_hash(proofOfWork, currentDiffic);
 	}
 
-	bool Currency::checkProofOfWorkV2(Crypto::cn_context& context, const Block& block, difficulty_type currentDiffic,
-		Crypto::Hash& proofOfWork) const {
+	bool Currency::checkProofOfWorkV2(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
+ 		Crypto::Hash& proofOfWork) const {
+
 		if (block.majorVersion < BLOCK_MAJOR_VERSION_2) {
 			return false;
 		}
 
-		if (!get_block_longhash(context, block, proofOfWork)) {
+		if (!get_block_longhash(hash_ctx, block, proofOfWork)) {
 			return false;
 		}
 
@@ -631,15 +642,16 @@ namespace CryptoNote {
 		return true;
 	}
 
-	bool Currency::checkProofOfWork(Crypto::cn_context& context, const Block& block, difficulty_type currentDiffic, Crypto::Hash& proofOfWork) const {
+	bool Currency::checkProofOfWork(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, Crypto::Hash& proofOfWork) const { 
 		switch (block.majorVersion) {
 		case BLOCK_MAJOR_VERSION_1:
-			return checkProofOfWorkV1(context, block, currentDiffic, proofOfWork);
+			return checkProofOfWorkV1(hash_ctx, block, currentDiffic, proofOfWork); 
 
 		case BLOCK_MAJOR_VERSION_2:
 		case BLOCK_MAJOR_VERSION_3:
-			return checkProofOfWorkV2(context, block, currentDiffic, proofOfWork);
-		}
+		case BLOCK_MAJOR_VERSION_4:
+			return checkProofOfWorkV2(hash_ctx, block, currentDiffic, proofOfWork); 
+ 		}
 
 		logger(ERROR, BRIGHT_RED) << "Unknown block major version: " << block.majorVersion << "." << block.minorVersion;
 		return false;
@@ -674,9 +686,12 @@ namespace CryptoNote {
 		maxTxSize(parameters::CRYPTONOTE_MAX_TX_SIZE);
 		publicAddressBase58Prefix(parameters::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX);
 		minedMoneyUnlockWindow(parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW);
+		transactionSpendableAge(parameters::CRYPTONOTE_TX_SPENDABLE_AGE);
 
 		timestampCheckWindow(parameters::BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW);
+		timestampCheckWindow_v1(parameters::BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1); 
 		blockFutureTimeLimit(parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT);
+		blockFutureTimeLimit_v1(parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1); 
 
 		moneySupply(parameters::MONEY_SUPPLY);
 		emissionSpeedFactor(parameters::EMISSION_SPEED_FACTOR);
@@ -685,6 +700,10 @@ namespace CryptoNote {
 		rewardBlocksWindow(parameters::CRYPTONOTE_REWARD_BLOCKS_WINDOW);
 		blockGrantedFullRewardZone(parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE);
 		minerTxBlobReservedSize(parameters::CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE);
+		maxTransactionSizeLimit(parameters::MAX_TRANSACTION_SIZE_LIMIT);
+
+		minMixin(parameters::MIN_TX_MIXIN_SIZE);
+		maxMixin(parameters::MAX_TX_MIXIN_SIZE);
 
 		numberOfDecimalPlaces(parameters::CRYPTONOTE_DISPLAY_DECIMAL_POINT);
 
@@ -713,6 +732,7 @@ namespace CryptoNote {
 
 		upgradeHeightV2(parameters::UPGRADE_HEIGHT_V2);
 		upgradeHeightV3(parameters::UPGRADE_HEIGHT_V3);
+		upgradeHeightV4(parameters::UPGRADE_HEIGHT_V4);
 		upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
 		upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
 		upgradeWindow(parameters::UPGRADE_WINDOW);
@@ -721,7 +741,7 @@ namespace CryptoNote {
 		blocksCacheFileName(parameters::CRYPTONOTE_BLOCKSCACHE_FILENAME);
 		blockIndexesFileName(parameters::CRYPTONOTE_BLOCKINDEXES_FILENAME);
 		txPoolFileName(parameters::CRYPTONOTE_POOLDATA_FILENAME);
-		blockchinIndicesFileName(parameters::CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME);
+		blockchainIndicesFileName(parameters::CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME);
 
 		testnet(false);
 	}

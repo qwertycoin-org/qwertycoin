@@ -380,7 +380,7 @@ bool DaemonCommandsHandler::unban(const std::vector<std::string>& args)
   uint32_t ip;
   try {
     ip = Common::stringToIpAddress(addr);
-  } catch (const std::exception &e) {
+  }	catch (const std::exception &e) {
     return false;
   }
   return m_srv.unban_host(ip);

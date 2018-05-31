@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2014-2018, The Forknote project
 // Copyright (c) 2016-2018, The Karbowanec developers
 //
@@ -256,7 +257,7 @@ int CryptoNoteProtocolHandler::handle_notify_new_block(int command, NOTIFY_NEW_B
     logger(DEBUGGING) << "transaction " << transactionHash << " came in NOTIFY_NEW_BLOCK";
 
     m_core.handle_incoming_tx(transactionBinary, tvc, true);
-    if (tvc.m_verifivation_failed) {
+    if (tvc.m_verification_failed) {
       logger(Logging::INFO) << context << "Block verification failed: transaction verification failed, dropping connection";
       m_p2p->drop_connection(context, true);
       return 1;
@@ -265,7 +266,7 @@ int CryptoNoteProtocolHandler::handle_notify_new_block(int command, NOTIFY_NEW_B
 
   block_verification_context bvc = boost::value_initialized<block_verification_context>();
   m_core.handle_incoming_block_blob(asBinaryArray(arg.b.block), bvc, true, false);
-  if (bvc.m_verifivation_failed) {
+  if (bvc.m_verification_failed) {
     logger(Logging::DEBUGGING) << context << "Block verification failed, dropping connection";
     m_p2p->drop_connection(context, true);
     return 1;
@@ -302,10 +303,10 @@ int CryptoNoteProtocolHandler::handle_notify_new_transactions(int command, NOTIF
 
     CryptoNote::tx_verification_context tvc = boost::value_initialized<decltype(tvc)>();
     m_core.handle_incoming_tx(transactionBinary, tvc, false);
-    if (tvc.m_verifivation_failed) {
+    if (tvc.m_verification_failed) {
       logger(Logging::DEBUGGING) << context << "Tx verification failed";
     }
-    if (!tvc.m_verifivation_failed && tvc.m_should_be_relayed) {
+    if (!tvc.m_verification_failed && tvc.m_should_be_relayed) {
       ++tx_blob_it;
     } else {
       tx_blob_it = arg.txs.erase(tx_blob_it);
@@ -433,7 +434,7 @@ int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext& conte
 
       tx_verification_context tvc = boost::value_initialized<decltype(tvc)>();
       m_core.handle_incoming_tx(transactionBinary, tvc, true);
-      if (tvc.m_verifivation_failed) {
+      if (tvc.m_verification_failed) {
         logger(Logging::ERROR) << context << "transaction verification failed on NOTIFY_RESPONSE_GET_OBJECTS, \r\ntx_id = "
           << Common::podToHex(getBinaryArrayHash(asBinaryArray(tx_blob))) << ", dropping connection";
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
@@ -445,7 +446,7 @@ int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext& conte
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
     m_core.handle_incoming_block_blob(asBinaryArray(block_entry.block), bvc, false, false);
 
-    if (bvc.m_verifivation_failed) {
+    if (bvc.m_verification_failed) {
       logger(Logging::DEBUGGING) << context << "Block verification failed, dropping connection";
       context.m_state = CryptoNoteConnectionContext::state_shutdown;
       return 1;
@@ -547,7 +548,7 @@ bool CryptoNoteProtocolHandler::on_connection_synchronized() {
   bool val_expected = false;
   if (m_synchronized.compare_exchange_strong(val_expected, true)) {
     logger(Logging::INFO) << ENDL << "**********************************************************************" << ENDL
-      << "You are now synchronized with the network. You may now start simplewallet." << ENDL
+      << "You are now synchronized with the Qwertycoin network. You may now start simplewallet." << ENDL
       << ENDL
       << "Please note, that the blockchain will be saved only after you quit the daemon with \"exit\" command or if you use \"save\" command." << ENDL
       << "Otherwise, you will possibly need to synchronize the blockchain again." << ENDL

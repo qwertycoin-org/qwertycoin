@@ -1,5 +1,4 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2016-2018, The Karbowanec developers
 // Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -95,6 +94,7 @@ namespace CryptoNote {
      virtual bool removeMessageQueue(MessageQueue<BlockchainMessage>& messageQueue) override;
 
      uint32_t get_current_blockchain_height();
+     uint8_t getCurrentBlockMajorVersion();
      bool have_block(const Crypto::Hash& id) override;
      std::vector<Crypto::Hash> buildSparseChain() override;
      std::vector<Crypto::Hash> buildSparseChain(const Crypto::Hash& startBlockId) override;
@@ -142,7 +142,7 @@ namespace CryptoNote {
      void print_blockchain(uint32_t start_index, uint32_t end_index);
      void print_blockchain_index();
      std::string print_pool(bool short_format);
-     std::list<CryptoNote::tx_memory_pool::TransactionDetails> getMemoryPool() const;
+	 std::list<CryptoNote::tx_memory_pool::TransactionDetails> getMemoryPool() const;
      void print_blockchain_outs(const std::string& file);
      virtual bool getPoolChanges(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds,
                                  std::vector<Transaction>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) override;
@@ -153,6 +153,7 @@ namespace CryptoNote {
 
      uint64_t getNextBlockDifficulty();
      uint64_t getTotalGeneratedAmount();
+        bool f_getMixin(const Transaction& transaction, uint64_t& mixin);
 
    private:
      bool add_new_tx(const Transaction& tx, const Crypto::Hash& tx_hash, size_t blob_size, tx_verification_context& tvc, bool keeped_by_block);
@@ -166,7 +167,7 @@ namespace CryptoNote {
      //check if tx already in memory pool or in main blockchain
      bool check_tx_mixin(const Transaction& tx);
      //check if the mixin is not too large
-     bool check_tx_fee(const Transaction& tx, size_t blobSize, tx_verification_context& tvc);
+	 bool check_tx_fee(const Transaction& tx, size_t blobSize, tx_verification_context& tvc);
 
      bool is_key_image_spent(const Crypto::KeyImage& key_im);
 

@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2016, The Karbowanec developers
 // This file is part of Qwertycoin.
@@ -187,13 +188,20 @@ int main(int argc, char* argv[])
     // configure logging
     logManager.configure(buildLoggerConfiguration(cfgLogLevel, cfgLogFile));
 
-    logger(INFO) << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
+    logger(Logging::INFO, BRIGHT_GREEN) << "                         _                   _       " << ENDL;
+    logger(Logging::INFO, BRIGHT_GREEN) << "                        | |                 (_)      " << ENDL;
+    logger(Logging::INFO, BRIGHT_GREEN) << "  __ ___      _____ _ __| |_ _   _  ___ ___  _ _ __  " << ENDL;
+    logger(Logging::INFO, BRIGHT_GREEN) << " / _` \\ \\ /\\ / / _ \\ '__| __| | | |/ __/ _ \\| | '_ \\ " << ENDL;
+    logger(Logging::INFO, BRIGHT_GREEN) << "| (_| |\\ V  V /  __/ |  | |_| |_| | (_| (_) | | | | |" << ENDL;
+    logger(Logging::INFO, BRIGHT_GREEN) << " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|" << ENDL;
+    logger(Logging::INFO, BRIGHT_GREEN) << "    | |                       __/ |                  " << ENDL;
+    logger(Logging::INFO, BRIGHT_GREEN) << "    |_| v" << PROJECT_VERSION_LONG <<"  |___/                   "<< ENDL;
 
     if (command_line_preprocessor(vm, logger)) {
       return 0;
     }
 
-    logger(INFO) << "Module folder: " << argv[0];
+    //logger(INFO) << "Module folder: " << argv[0];
 
     bool testnet_mode = command_line::get_arg(vm, arg_testnet_on);
     if (testnet_mode) {

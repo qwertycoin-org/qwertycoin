@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2016, The Forknote developers
-// Copyright (c) 2017-2018, The Karbo developers
 // Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2016, The Forknote developers
+// Copyright (c) 2016-2018, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
 //
@@ -442,7 +442,7 @@ bool RpcServer::on_send_raw_tx(const COMMAND_RPC_SEND_RAW_TX::request& req, COMM
     return true;
   }
 
-  if (tvc.m_verifivation_failed)
+  if (tvc.m_verification_failed)
   {
     logger(INFO) << "[on_send_raw_tx]: tx verification failed";
     res.status = "Failed";
@@ -586,7 +586,7 @@ bool RpcServer::f_on_blocks_list_json(const F_COMMAND_RPC_GET_BLOCKS_LIST::reque
     block_short.hash = Common::podToHex(block_hash);
     block_short.cumul_size = blokBlobSize + tx_cumulative_block_size - minerTxBlobSize;
     block_short.tx_count = blk.transactionHashes.size() + 1;
-    block_short.difficulty = blockDiff;
+	block_short.difficulty = blockDiff;
 
     res.blocks.push_back(block_short);
 
