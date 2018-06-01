@@ -1,0 +1,22 @@
+[Unit]
+Description=Qwertycoin Full Node
+After=network.target
+
+[Service]
+User=qwertycoin
+Group=qwertycoin
+WorkingDirectory=~
+
+Type=forking
+ExecStart=/usr/bin/qwertycoind --config-file /etc/qwertycoind.conf --detach
+
+# This is necessary because qwertycoind does not yet support
+# writing a PID file, which means systemd tries to guess the PID
+# by default, but it guesses wrong (sometimes, depending on
+# random timing of events), because the daemon forks twice.
+# The ultimate fix is for the daemon to write a PID file, and
+# a workaround is to disable the guessing feature in systemd.
+GuessMainPID=no
+
+[Install]
+WantedBy=multi-user.target
