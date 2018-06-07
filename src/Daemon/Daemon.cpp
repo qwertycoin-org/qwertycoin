@@ -121,12 +121,12 @@ int main(int argc, char* argv[])
     command_line::add_arg(desc_cmd_sett, arg_log_file);
     command_line::add_arg(desc_cmd_sett, arg_log_level);
     command_line::add_arg(desc_cmd_sett, arg_console);
-	command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
+  command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
     command_line::add_arg(desc_cmd_sett, arg_testnet_on);
-	command_line::add_arg(desc_cmd_sett, arg_enable_cors);
-	command_line::add_arg(desc_cmd_sett, arg_set_fee_address);
-	command_line::add_arg(desc_cmd_sett, arg_enable_blockchain_indexes);
-	command_line::add_arg(desc_cmd_sett, arg_print_genesis_tx);
+  command_line::add_arg(desc_cmd_sett, arg_enable_cors);
+  command_line::add_arg(desc_cmd_sett, arg_set_fee_address);
+  command_line::add_arg(desc_cmd_sett, arg_enable_blockchain_indexes);
+  command_line::add_arg(desc_cmd_sett, arg_print_genesis_tx);
 
     RpcServerConfig::initOptions(desc_cmd_sett);
     CoreConfig::initOptions(desc_cmd_sett);
@@ -188,14 +188,33 @@ int main(int argc, char* argv[])
     // configure logging
     logManager.configure(buildLoggerConfiguration(cfgLogLevel, cfgLogFile));
 
-    logger(Logging::INFO, BRIGHT_GREEN) << "                         _                   _       " << ENDL;
-    logger(Logging::INFO, BRIGHT_GREEN) << "                        | |                 (_)      " << ENDL;
-    logger(Logging::INFO, BRIGHT_GREEN) << "  __ ___      _____ _ __| |_ _   _  ___ ___  _ _ __  " << ENDL;
-    logger(Logging::INFO, BRIGHT_GREEN) << " / _` \\ \\ /\\ / / _ \\ '__| __| | | |/ __/ _ \\| | '_ \\ " << ENDL;
-    logger(Logging::INFO, BRIGHT_GREEN) << "| (_| |\\ V  V /  __/ |  | |_| |_| | (_| (_) | | | | |" << ENDL;
-    logger(Logging::INFO, BRIGHT_GREEN) << " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|" << ENDL;
-    logger(Logging::INFO, BRIGHT_GREEN) << "    | |                       __/ |                  " << ENDL;
-    logger(Logging::INFO, BRIGHT_GREEN) << "    |_| v" << PROJECT_VERSION_LONG <<"  |___/                   "<< ENDL;
+
+
+    logger(INFO, BRIGHT_GREEN) <<
+
+      #ifdef _WIN32
+      "\n                                                              \n"
+      "                         _                   _                  \n"
+      "                        | |                 (_)                 \n"
+      "  __ ___      _____ _ __| |_ _   _  ___ ___  _ _ __             \n"
+      " / _` \\ \\ /\\ / / _ \\ '__| __| | | |/ __/ _ \\| | '_\\       \n"
+      "| (_| |\\ V  V /  __/ |  | |_| |_| | (_| (_) | | | | |          \n"
+      " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|   \n"
+      "    | |                       __/ |                             \n"
+      "    |_|                      |___/                              \n"
+      "                                                                \n"<< ENDL;
+      #else
+      "\n                                                                                 \n"
+      " ██████╗ ██╗    ██╗███████╗██████╗ ████████╗██╗   ██╗ ██████╗ ██████╗ ██╗███╗   ██╗\n"
+      "██╔═══██╗██║    ██║██╔════╝██╔══██╗╚══██╔══╝╚██╗ ██╔╝██╔════╝██╔═══██╗██║████╗  ██║\n"
+      "██║   ██║██║ █╗ ██║█████╗  ██████╔╝   ██║    ╚████╔╝ ██║     ██║   ██║██║██╔██╗ ██║\n"
+      "██║▄▄ ██║██║███╗██║██╔══╝  ██╔══██╗   ██║     ╚██╔╝  ██║     ██║   ██║██║██║╚██╗██║\n"
+      "╚██████╔╝╚███╔███╔╝███████╗██║  ██║   ██║      ██║   ╚██████╗╚██████╔╝██║██║ ╚████║\n"
+      " ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝   ╚═╝      ╚═╝    ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝\n"
+      "                                                                                   \n" << ENDL;
+      #endif
+
+    logger(INFO, BRIGHT_GREEN) << "Welcome to " << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
 
     if (command_line_preprocessor(vm, logger)) {
       return 0;
@@ -289,9 +308,9 @@ int main(int argc, char* argv[])
 
     logger(INFO) << "Starting core rpc server on address " << rpcConfig.getBindAddress();
     rpcServer.start(rpcConfig.bindIp, rpcConfig.bindPort);
-	rpcServer.restrictRPC(command_line::get_arg(vm, arg_restricted_rpc));
-	rpcServer.enableCors(command_line::get_arg(vm, arg_enable_cors));
-	rpcServer.setFeeAddress(command_line::get_arg(vm, arg_set_fee_address));
+  rpcServer.restrictRPC(command_line::get_arg(vm, arg_restricted_rpc));
+  rpcServer.enableCors(command_line::get_arg(vm, arg_enable_cors));
+  rpcServer.setFeeAddress(command_line::get_arg(vm, arg_set_fee_address));
     logger(INFO) << "Core rpc server started ok";
 
     Tools::SignalHandler::install([&dch, &p2psrv] {

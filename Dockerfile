@@ -1,7 +1,7 @@
 # daemon runs in the background
-# run something like tail /var/log/qwertycoind/current to see the status
+# run something like tail /var/log/Qwertycoind/current to see the status
 # be sure to run with volumes, ie:
-# docker run -v $(pwd)/qwertycoind:/var/lib/qwertycoind -v $(pwd)/wallet:/home/qwertycoin --rm -ti qwertycoin:0.2.2
+# docker run -v $(pwd)/Qwertycoind:/var/lib/Qwertycoind -v $(pwd)/wallet:/home/qwertycoin --rm -ti qwertycoin:0.2.2
 ARG base_image_version=0.10.0
 FROM phusion/baseimage:$base_image_version
 
@@ -33,12 +33,12 @@ RUN apt-get update && \
     cmake -DCMAKE_CXX_FLAGS="-g0 -Os -fPIC -std=gnu++11" .. && \
     make -j$(nproc) && \
     mkdir -p /usr/local/bin && \
-    cp src/qwertycoind /usr/local/bin/qwertycoind && \
+    cp src/Qwertycoind /usr/local/bin/Qwertycoind && \
     cp src/walletd /usr/local/bin/walletd && \
     cp src/simplewallet /usr/local/bin/simplewallet && \
     cp src/miner /usr/local/bin/miner && \
     cp src/connectivity_tool /usr/local/bin/connectivity_tool && \
-    strip /usr/local/bin/qwertycoind && \
+    strip /usr/local/bin/Qwertycoind && \
     strip /usr/local/bin/walletd && \
     strip /usr/local/bin/simplewallet && \
     strip /usr/local/bin/miner && \
@@ -58,27 +58,27 @@ RUN apt-get update && \
       libboost-program-options1.58.0 \
       libicu55
 
-# setup the qwertycoind service
-RUN useradd -r -s /usr/sbin/nologin -m -d /var/lib/qwertycoind qwertycoind && \
+# setup the Qwertycoind service
+RUN useradd -r -s /usr/sbin/nologin -m -d /var/lib/Qwertycoind Qwertycoind && \
     useradd -s /bin/bash -m -d /home/qwertycoin qwertycoin && \
-    mkdir -p /etc/services.d/qwertycoind/log && \
-    mkdir -p /var/log/qwertycoind && \
-    echo "#!/usr/bin/execlineb" > /etc/services.d/qwertycoind/run && \
-    echo "fdmove -c 2 1" >> /etc/services.d/qwertycoind/run && \
-    echo "cd /var/lib/qwertycoind" >> /etc/services.d/qwertycoind/run && \
-    echo "export HOME /var/lib/qwertycoind" >> /etc/services.d/qwertycoind/run && \
-    echo "s6-setuidgid qwertycoind /usr/local/bin/qwertycoind" >> /etc/services.d/qwertycoind/run && \
-    chmod +x /etc/services.d/qwertycoind/run && \
-    chown nobody:nogroup /var/log/qwertycoind && \
-    echo "#!/usr/bin/execlineb" > /etc/services.d/qwertycoind/log/run && \
-    echo "s6-setuidgid nobody" >> /etc/services.d/qwertycoind/log/run && \
-    echo "s6-log -bp -- n20 s1000000 /var/log/qwertycoind" >> /etc/services.d/qwertycoind/log/run && \
-    chmod +x /etc/services.d/qwertycoind/log/run && \
-    echo "/var/lib/qwertycoind true qwertycoind 0644 0755" > /etc/fix-attrs.d/qwertycoind-home && \
+    mkdir -p /etc/services.d/Qwertycoind/log && \
+    mkdir -p /var/log/Qwertycoind && \
+    echo "#!/usr/bin/execlineb" > /etc/services.d/Qwertycoind/run && \
+    echo "fdmove -c 2 1" >> /etc/services.d/Qwertycoind/run && \
+    echo "cd /var/lib/Qwertycoind" >> /etc/services.d/Qwertycoind/run && \
+    echo "export HOME /var/lib/Qwertycoind" >> /etc/services.d/Qwertycoind/run && \
+    echo "s6-setuidgid Qwertycoind /usr/local/bin/Qwertycoind" >> /etc/services.d/Qwertycoind/run && \
+    chmod +x /etc/services.d/Qwertycoind/run && \
+    chown nobody:nogroup /var/log/Qwertycoind && \
+    echo "#!/usr/bin/execlineb" > /etc/services.d/Qwertycoind/log/run && \
+    echo "s6-setuidgid nobody" >> /etc/services.d/Qwertycoind/log/run && \
+    echo "s6-log -bp -- n20 s1000000 /var/log/Qwertycoind" >> /etc/services.d/Qwertycoind/log/run && \
+    chmod +x /etc/services.d/Qwertycoind/log/run && \
+    echo "/var/lib/Qwertycoind true Qwertycoind 0644 0755" > /etc/fix-attrs.d/Qwertycoind-home && \
     echo "/home/qwertycoin true qwertycoin 0644 0755" > /etc/fix-attrs.d/qwertycoin-home && \
-    echo "/var/log/qwertycoind true nobody 0644 0755" > /etc/fix-attrs.d/qwertycoind-logs
+    echo "/var/log/Qwertycoind true nobody 0644 0755" > /etc/fix-attrs.d/Qwertycoind-logs
 
-VOLUME ["/var/lib/qwertycoind", "/home/qwertycoin","/var/log/qwertycoind"]
+VOLUME ["/var/lib/Qwertycoind", "/home/qwertycoin","/var/log/Qwertycoind"]
 
 ENTRYPOINT ["/init"]
 CMD ["/usr/bin/execlineb", "-P", "-c", "emptyenv cd /home/qwertycoin export HOME /home/qwertycoin s6-setuidgid qwertycoin /bin/bash"]

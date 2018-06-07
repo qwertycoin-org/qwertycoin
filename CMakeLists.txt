@@ -18,6 +18,8 @@ string(TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_LOWER)
 # when ARCH is not set to an explicit identifier, cmake's builtin is used
 # to identify the target architecture, to direct logic in this cmake script.
 # Since ARCH is a cached variable, it will not be set on first cmake invocation.
+# Fix for Visual Studio 2017 add ;msvcrtd.lib;msvcmrt.lib to linker libs
+
 if (NOT ARCH OR ARCH STREQUAL "" OR ARCH STREQUAL "native" OR ARCH STREQUAL "default")
   set(ARCH_ID "${CMAKE_SYSTEM_PROCESSOR}")
 else()
@@ -243,7 +245,11 @@ else()
   endif()
   if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     # maybe remove
-    set(WARNINGS "${WARNINGS} -Wno-error=mismatched-tags -Wno-error=null-conversion -Wno-overloaded-shift-op-parentheses -Wno-error=shift-count-overflow -Wno-error=tautological-constant-out-of-range-compare -Wno-error=unused-private-field -Wno-error=unneeded-internal-declaration -Wno-error=unused-function -Wno-unused-lambda-capture")
+    set(WARNINGS "${WARNINGS} -Wno-error=mismatched-tags -Wno-error=null-conversion -Wno-overloaded-shift-op-parentheses -Wno-error=shift-count-overflow -Wno-error=tautological-constant-out-of-range-compare -Wno-error=unused-private-field -Wno-error=unneeded-internal-declaration -Wno-error=unused-function")
+  if(NOT APPLE) 
+    set(WARNINGS "${WARNINGS} -Wno-unused-lambda-capture")
+  endif()
+  # this ^
   if(ARM)
       set(WARNINGS "${WARNINGS} -Wno-error=inline-asm")
     endif()

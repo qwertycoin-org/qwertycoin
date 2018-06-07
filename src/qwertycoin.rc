@@ -16,9 +16,9 @@ BEGIN
             VALUE "CompanyName", "The Qwertycoin Group"
             VALUE "FileDescription", "Qwertycoin network daemon"
             VALUE "FileVersion", "2.2.6.0"
-            VALUE "InternalName", "qwertycoind.exe"
+            VALUE "InternalName", "Qwertycoind.exe"
             VALUE "LegalCopyright", "Copyright (C) 2017-2018, The Qwertycoin Group"
-            VALUE "OriginalFilename", "qwertycoind.exe"
+            VALUE "OriginalFilename", "Qwertycoind.exe"
             VALUE "ProductName", "Qwertycoin"
             VALUE "ProductVersion", "2.2.6.0"
         END
