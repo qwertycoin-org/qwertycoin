@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <ctime>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 
@@ -92,6 +93,7 @@ namespace CryptoNote {
      
      virtual bool addMessageQueue(MessageQueue<BlockchainMessage>& messageQueue) override;
      virtual bool removeMessageQueue(MessageQueue<BlockchainMessage>& messageQueue) override;
+        virtual std::time_t getStartTime() const;
 
      uint32_t get_current_blockchain_height();
      uint8_t getCurrentBlockMajorVersion();
@@ -153,6 +155,7 @@ namespace CryptoNote {
 
      uint64_t getNextBlockDifficulty();
      uint64_t getTotalGeneratedAmount();
+        uint8_t getBlockMajorVersionForHeight(uint32_t height) const;
         bool f_getMixin(const Transaction& transaction, uint64_t& mixin);
 
    private:
@@ -196,5 +199,6 @@ namespace CryptoNote {
      friend class tx_validate_inputs;
      std::atomic<bool> m_starter_message_showed;
      Tools::ObserverManager<ICoreObserver> m_observerManager;
+     time_t start_time;
    };
 }
