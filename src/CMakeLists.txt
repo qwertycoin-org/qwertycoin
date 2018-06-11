@@ -104,7 +104,7 @@ add_dependencies(SimpleWallet version)
 add_dependencies(PaymentGateService version)
 add_dependencies(P2P version)
 
-#set_property(TARGET ConnectivityTool PROPERTY OUTPUT_NAME "connectivity_tool")
+set_property(TARGET ConnectivityTool PROPERTY OUTPUT_NAME "connectivity_tool")
 set_property(TARGET Daemon PROPERTY OUTPUT_NAME "Qwertycoind")
 set_property(TARGET SimpleWallet PROPERTY OUTPUT_NAME "simplewallet")
 set_property(TARGET PaymentGateService PROPERTY OUTPUT_NAME "walletd")
