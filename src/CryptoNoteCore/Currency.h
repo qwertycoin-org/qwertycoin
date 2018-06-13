@@ -242,8 +242,6 @@ private:
   std::string m_txPoolFileName;
   std::string m_blockchainIndicesFileName;
 
-  static const std::vector<uint64_t> PRETTY_AMOUNTS;
-
   bool m_testnet;
 
   Block m_genesisBlock;
