@@ -168,6 +168,8 @@ public:
 
   size_t getApproximateMaximumInputCount(size_t transactionSize, size_t outputCount, size_t mixinCount) const;
 
+  static const std::vector<uint64_t> PRETTY_AMOUNTS;
+
 private:
   Currency(Logging::ILogger& log) : logger(log, "currency") {
   }
