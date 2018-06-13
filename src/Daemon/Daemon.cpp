@@ -69,7 +69,7 @@ namespace
   const command_line::arg_descriptor<std::string> arg_set_fee_address = { "fee-address", "Sets fee address for light wallets to the daemon's RPC responses.", "" };
   const command_line::arg_descriptor<bool>        arg_testnet_on  = {"testnet", "Used to deploy test nets. Checkpoints and hardcoded seeds are ignored, "
     "network id is changed. Use it with --data-dir flag. The wallet must be launched with --testnet flag.", false};
-  const command_line::arg_descriptor<std::string> arg_load_checkpoints = { "load-checkpoints", "<filename> Load checkpoints from csv file.", "" };
+  const command_line::arg_descriptor<std::string> arg_load_checkpoints   = {"load-checkpoints", "<default|filename> Use builtin default checkpoints or checkpoint csv file for faster initial blockchain sync", ""};
 }
 
 bool command_line_preprocessor(const boost::program_options::variables_map& vm, LoggerRef& logger);
@@ -245,19 +245,23 @@ int main(int argc, char* argv[])
     CryptoNote::Currency currency = currencyBuilder.currency();
     CryptoNote::core ccore(currency, nullptr, logManager, command_line::get_arg(vm, arg_enable_blockchain_indexes));
 
-    CryptoNote::Checkpoints checkpoints(logManager);
-    for (const auto& cp : CryptoNote::CHECKPOINTS) {
-      checkpoints.add_checkpoint(cp.height, cp.blockId);
-    }
-
     bool use_checkpoints = !command_line::get_arg(vm, arg_load_checkpoints).empty();
 
+    CryptoNote::Checkpoints checkpoints(logManager);
     if (use_checkpoints && !testnet_mode) {
-      logger(INFO) << "Loading Checkpoints from file...";
+      logger(INFO) << "Loading Checkpoints for faster initial sync...";
       std::string checkpoints_file = command_line::get_arg(vm, arg_load_checkpoints);
-      bool results = checkpoints.load_checkpoints_from_file(checkpoints_file);
-      if (!results) {
-        throw std::runtime_error("Failed to load checkpoints");
+      if (checkpoints_file == "default") {
+        for (const auto& cp : CryptoNote::CHECKPOINTS) {
+          checkpoints.add_checkpoint(cp.height, cp.blockId);
+        }
+        logger(INFO) << "Loaded " << CryptoNote::CHECKPOINTS.size() << " default checkpoints";
+      }
+      else {
+        bool results = checkpoints.load_checkpoints_from_file(checkpoints_file);
+        if (!results) {
+          throw std::runtime_error("Failed to load checkpoints");
+        }
       }
     }
 
