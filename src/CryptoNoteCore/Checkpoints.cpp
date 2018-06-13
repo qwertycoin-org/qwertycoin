@@ -32,12 +32,12 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
   Crypto::Hash h = NULL_HASH;
 
   if (!Common::podFromHex(hash_str, h)) {
-    logger(ERROR) << "WRONG HASH IN CHECKPOINTS!!!";
+    logger(ERROR, BRIGHT_RED) << "INVALID HASH IN CHECKPOINTS!";
     return false;
   }
 
   if (!(0 == m_points.count(height))) {
-    logger(ERROR) << "WRONG HASH IN CHECKPOINTS!!!";
+    logger(ERROR, BRIGHT_RED) << "CHECKPOINT ALREADY EXISTS!";
     return false;
   }
 
@@ -47,6 +47,7 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
 //---------------------------------------------------------------------------
 const boost::regex linesregx("\\r\\n|\\n\\r|\\n|\\r");
 const boost::regex fieldsregx(",(?=(?:[^\"]*\"[^\"]*\")*(?![^\"]*\"))");
+
 bool Checkpoints::load_checkpoints_from_file(const std::string& fileName) {
   std::string buff;
   if (!Common::loadFileToString(fileName, buff)) {
