@@ -73,6 +73,14 @@ or use makefile
 
 The binaries will be in `./src` after compilation is complete.
 
+**Advanced options:**
+
+* Parallel build: run `make -j<number of threads>` instead of `make`.
+* Debug build: run `make build-debug`.
+* Test suite: run `make test-release` to run tests in addition to building. Running `make test-debug` will do the same to the debug version.
+* Building with Clang: it may be possible to use Clang instead of GCC, but this may not work everywhere. To build, run `export CC=clang CXX=clang++` before running `make`.
+
+
 ### Building for Android on Linux
 
 Set up the 32 bit toolchain
@@ -104,6 +112,13 @@ CC=clang CXX=clang++ cmake -D BUILD_TESTS=OFF -D ARCH="armv7-a" -ldl -D STATIC=O
 make SimpleWallet
 ```
 
+## Donate
+QWC: <br>QWC1K6XEhCC1WsZzT9RRVpc1MLXXdHVKt2BUGSrsmkkXAvqh52sVnNc1pYmoF2TEXsAvZnyPaZu8MW3S8EWHNfAh7X2xa63P7Y <br><br>
+BTC: <br>1DkocMNiqFkbjhCmG4sg9zYQbi4YuguFWw <br><br>
+ETH: <br>0xA660Fb28C06542258bd740973c17F2632dff2517 <br><br>
+BCH: <br>qz975ndvcechzywtz59xpkt2hhdzkzt3vvt8762yk9 <br><br>
+XMR: <br>47gmN4GMQ17Veur5YEpru7eCQc5A65DaWUThZa9z9bP6jNMYXPKAyjDcAW4RzNYbRChEwnKu1H3qt9FPW9CnpwZgNscKawX <br><br>
+ETN: <br>etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQp31GbG3M2DiVM3qRDSQ5Vwq <br><br>
 
 #### Thanks
 Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Project (Aiwe), Qwertycoin Community
