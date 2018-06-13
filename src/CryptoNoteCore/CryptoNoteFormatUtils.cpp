@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -464,6 +465,7 @@ bool get_block_hash(const Block& b, Hash& res) {
     return false;
   }
 
+  // The header of block version 1 differs from headers of blocks starting from v.2
   if (BLOCK_MAJOR_VERSION_2 <= b.majorVersion) {
     BinaryArray parent_blob;
     auto serializer = makeParentBlockSerializer(b, true, false);
@@ -491,7 +493,7 @@ bool get_aux_block_header_hash(const Block& b, Hash& res) {
   return getObjectHash(blob, res);
 }
 
-bool get_block_longhash(cn_context &context, const Block& b, Hash& res) {
+bool get_block_longhash(cn_pow_hash_v2 &ctx, const Block& b, Hash& res) {
   BinaryArray bd;
   if (b.majorVersion == BLOCK_MAJOR_VERSION_1) {
     if (!get_block_hashing_blob(b, bd)) {
@@ -504,7 +506,15 @@ bool get_block_longhash(cn_context &context, const Block& b, Hash& res) {
   } else {
     return false;
   }
-  cn_slow_hash(context, bd.data(), bd.size(), res);
+  //cn_slow_hash(context, bd.data(), bd.size(), res);
+  if (b.majorVersion < BLOCK_MAJOR_VERSION_4) {
+	  cn_pow_hash_v1 ctx_v1 = cn_pow_hash_v1::make_borrowed(ctx);
+	  ctx_v1.hash(bd.data(), bd.size(), res.data);
+  }
+  else {
+	  ctx.hash(bd.data(), bd.size(), res.data);
+  }
+
   return true;
 }
 

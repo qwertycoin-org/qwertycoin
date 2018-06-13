@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -159,8 +160,8 @@ bool test_generator::constructBlock(CryptoNote::Block& blk, uint32_t height, con
 
   // Nonce search...
   blk.nonce = 0;
-  Crypto::cn_context context;
-  while (!miner::find_nonce_for_given_block(context, blk, getTestDifficulty())) {
+  cn_pow_hash_v2 hash_ctx;
+  while (!miner::find_nonce_for_given_block(blk, getTestDifficulty())) {
     blk.timestamp++;
   }
 
@@ -292,8 +293,8 @@ bool test_generator::constructMaxSizeBlock(CryptoNote::Block& blk, const CryptoN
 
 void fillNonce(CryptoNote::Block& blk, const difficulty_type& diffic) {
   blk.nonce = 0;
-  Crypto::cn_context context;
-  while (!miner::find_nonce_for_given_block(context, blk, diffic)) {
+  cn_pow_hash_v2 hash_ctx;
+  while (!miner::find_nonce_for_given_block(blk, diffic)) {
     blk.timestamp++;
   }
 }

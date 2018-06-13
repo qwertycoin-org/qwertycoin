@@ -37,10 +37,10 @@ file(GLOB_RECURSE Miner Miner/*)
 
 source_group("" FILES $${Common} ${ConnectivityTool} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${Daemon} ${JsonRpcServer} ${Http} ${Logging} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${SimpleWallet} ${System} ${Transfers} ${Wallet} ${WalletLegacy} ${Mnemonics})
 
-add_library(BlockchainExplorer ${BlockchainExplorer})
 add_library(Common ${Common})
 add_library(Crypto ${Crypto})
 add_library(CryptoNoteCore ${CryptoNoteCore})
+add_library(BlockchainExplorer ${BlockchainExplorer})
 add_library(Http ${Http})
 add_library(InProcessNode ${InProcessNode})
 add_library(Logging ${Logging})
@@ -55,16 +55,37 @@ add_library(PaymentGate ${PaymentGate})
 add_library(JsonRpcServer ${JsonRpcServer})
 add_library(Mnemonics ${Mnemonics})
 
-add_executable(ConnectivityTool ${ConnectivityTool})
-add_executable(Daemon ${Daemon})
-add_executable(SimpleWallet ${SimpleWallet})
-add_executable(PaymentGateService ${PaymentGateService})
-add_executable(Miner ${Miner})
+if(MSVC)
+  set(DAEMON_SOURCES_OS
+    BinaryInfo/daemon.rc
+  )
+  set(SIMPLE_WALLET_SOURCES_OS
+    BinaryInfo/simplewallet.rc
+  )
+  set(MINER_SOURCES_OS
+    BinaryInfo/miner.rc
+  )
+  set(PG_SOURCES_OS
+    BinaryInfo/walletd.rc
+  )
+  set(CONNECTIVITY_TOOLS_SOURCES_OS
+    BinaryInfo/connectivity_tool.rc
+  )
+endif()
 
-if (MSVC)
+add_executable(Daemon ${Daemon} ${DAEMON_SOURCES_OS})
+add_executable(SimpleWallet ${SimpleWallet} ${SIMPLE_WALLET_SOURCES_OS})
+add_executable(PaymentGateService ${PaymentGateService} ${PG_SOURCES_OS})
+add_executable(ConnectivityTool ${ConnectivityTool} ${CONNECTIVITY_TOOLS_SOURCES_OS})
+add_executable(Miner ${Miner} ${MINER_SOURCES_OS})
+
+if(MSVC)
   target_link_libraries(System ws2_32)
+  target_link_libraries(Daemon Rpcrt4)
+  target_link_libraries(PaymentGateService Rpcrt4)
 endif ()
 
+# Add the dependencies we need
 target_link_libraries(ConnectivityTool CryptoNoteCore Logging Crypto P2P Rpc Http Serialization Common System ${Boost_LIBRARIES} ${EXTRA_LIBRARIES})
 target_link_libraries(Daemon CryptoNoteCore P2P Rpc System Http Logging Common Crypto upnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization ${EXTRA_LIBRARIES})
 target_link_libraries(SimpleWallet Wallet NodeRpcProxy Transfers Rpc Http CryptoNoteCore System Logging Common Crypto ${Boost_LIBRARIES} Serialization Mnemonics ${EXTRA_LIBRARIES})
@@ -84,7 +105,7 @@ add_dependencies(PaymentGateService version)
 add_dependencies(P2P version)
 
 set_property(TARGET ConnectivityTool PROPERTY OUTPUT_NAME "connectivity_tool")
-set_property(TARGET Daemon PROPERTY OUTPUT_NAME "qwertycoind")
+set_property(TARGET Daemon PROPERTY OUTPUT_NAME "Qwertycoind")
 set_property(TARGET SimpleWallet PROPERTY OUTPUT_NAME "simplewallet")
 set_property(TARGET PaymentGateService PROPERTY OUTPUT_NAME "walletd")
 set_property(TARGET Miner PROPERTY OUTPUT_NAME "miner")

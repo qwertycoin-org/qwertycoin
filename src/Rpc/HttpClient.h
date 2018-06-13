@@ -1,6 +1,4 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2016, The Forknote developers
-// Copyright (c) 2017-2018, The Karbo developers
 // Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -63,6 +61,7 @@ void invokeJsonCommand(HttpClient& client, const std::string& url, const Request
   HttpRequest hreq;
   HttpResponse hres;
 
+  hreq.addHeader("Content-Type", "application/json");
   hreq.setUrl(url);
   hreq.setBody(storeToJson(req));
   client.request(hreq, hres);

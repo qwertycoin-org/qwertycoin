@@ -2,7 +2,7 @@
 // Copyright (c) 2014-2016, XDN developers
 // Copyright (c) 2014-2017, The Forknote developers
 // Copyright (c) 2016-2018, Karbo developers
-// Copyright (c) 2018, Qwertycoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // All rights reserved.
 // 
@@ -217,6 +217,16 @@ struct TransferCommand {
       if (!Common::fromString(mixin_str, fake_outs_count)) {
         logger(ERROR, BRIGHT_RED) << "mixin_count should be non-negative integer, got " << mixin_str;
         return false;
+      }
+
+      if (fake_outs_count < m_currency.minMixin() && fake_outs_count != 0) {
+          logger(ERROR, BRIGHT_RED) << "mixIn should be equal to or bigger than " << m_currency.minMixin();
+          return false;
+      }
+
+      if (fake_outs_count > m_currency.maxMixin()) {
+          logger(ERROR, BRIGHT_RED) << "mixIn should be equal to or less than " << m_currency.maxMixin();
+          return false;
       }
 
       while (!ar.eof()) {
@@ -1168,8 +1178,9 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
 			"**********************************************************************\n" <<
 			"Use \"help\" command to see the list of available commands.\n" <<
 			"**********************************************************************";
-      if (command_line::has_arg(vm, arg_reset))
-        reset({});
+
+		if (command_line::has_arg(vm, arg_reset))
+			reset({});
 	}
 
 	return true;

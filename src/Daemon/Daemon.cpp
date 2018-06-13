@@ -1,6 +1,10 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2016, The Forknote developers
-// Copyright (c) 2016, The Karbowanec developers
+// Copyright (c) 2018, The TurtleCoin developers
+// Copyright (c) 2016-2018, The Karbo developers
+// Copyright (c) 2018, The Qwertycoin developers
+//
 // This file is part of Qwertycoin.
 //
 // Qwertycoin is free software: you can redistribute it and/or modify
@@ -32,6 +36,7 @@
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/MinerConfig.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
+#include "CryptoNoteProtocol/ICryptoNoteProtocolQuery.h"
 #include "P2p/NetNode.h"
 #include "P2p/NetNodeConfig.h"
 #include "Rpc/RpcServer.h"
@@ -64,6 +69,7 @@ namespace
   const command_line::arg_descriptor<std::string> arg_set_fee_address = { "fee-address", "Sets fee address for light wallets to the daemon's RPC responses.", "" };
   const command_line::arg_descriptor<bool>        arg_testnet_on  = {"testnet", "Used to deploy test nets. Checkpoints and hardcoded seeds are ignored, "
     "network id is changed. Use it with --data-dir flag. The wallet must be launched with --testnet flag.", false};
+  const command_line::arg_descriptor<std::string> arg_load_checkpoints = { "load-checkpoints", "<filename> Load checkpoints from csv file.", "" };
 }
 
 bool command_line_preprocessor(const boost::program_options::variables_map& vm, LoggerRef& logger);
@@ -120,12 +126,13 @@ int main(int argc, char* argv[])
     command_line::add_arg(desc_cmd_sett, arg_log_file);
     command_line::add_arg(desc_cmd_sett, arg_log_level);
     command_line::add_arg(desc_cmd_sett, arg_console);
-	command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
+    command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
     command_line::add_arg(desc_cmd_sett, arg_testnet_on);
-	command_line::add_arg(desc_cmd_sett, arg_enable_cors);
-	command_line::add_arg(desc_cmd_sett, arg_set_fee_address);
-	command_line::add_arg(desc_cmd_sett, arg_enable_blockchain_indexes);
-	command_line::add_arg(desc_cmd_sett, arg_print_genesis_tx);
+    command_line::add_arg(desc_cmd_sett, arg_enable_cors);
+    command_line::add_arg(desc_cmd_sett, arg_set_fee_address);
+    command_line::add_arg(desc_cmd_sett, arg_enable_blockchain_indexes);
+    command_line::add_arg(desc_cmd_sett, arg_print_genesis_tx);
+    command_line::add_arg(desc_cmd_sett, arg_load_checkpoints);
 
     RpcServerConfig::initOptions(desc_cmd_sett);
     CoreConfig::initOptions(desc_cmd_sett);
@@ -187,13 +194,39 @@ int main(int argc, char* argv[])
     // configure logging
     logManager.configure(buildLoggerConfiguration(cfgLogLevel, cfgLogFile));
 
-    logger(INFO) << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
+
+
+    logger(INFO, BRIGHT_GREEN) <<
+
+      #ifdef _WIN32
+      "\n                                                              \n"
+      "                         _                   _                  \n"
+      "                        | |                 (_)                 \n"
+      "  __ ___      _____ _ __| |_ _   _  ___ ___  _ _ __             \n"
+      " / _` \\ \\ /\\ / / _ \\ '__| __| | | |/ __/ _ \\| | '_\\       \n"
+      "| (_| |\\ V  V /  __/ |  | |_| |_| | (_| (_) | | | | |          \n"
+      " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|   \n"
+      "    | |                       __/ |                             \n"
+      "    |_|                      |___/                              \n"
+      "                                                                \n"<< ENDL;
+      #else
+      "\n                                                                                 \n"
+      " ██████╗ ██╗    ██╗███████╗██████╗ ████████╗██╗   ██╗ ██████╗ ██████╗ ██╗███╗   ██╗\n"
+      "██╔═══██╗██║    ██║██╔════╝██╔══██╗╚══██╔══╝╚██╗ ██╔╝██╔════╝██╔═══██╗██║████╗  ██║\n"
+      "██║   ██║██║ █╗ ██║█████╗  ██████╔╝   ██║    ╚████╔╝ ██║     ██║   ██║██║██╔██╗ ██║\n"
+      "██║▄▄ ██║██║███╗██║██╔══╝  ██╔══██╗   ██║     ╚██╔╝  ██║     ██║   ██║██║██║╚██╗██║\n"
+      "╚██████╔╝╚███╔███╔╝███████╗██║  ██║   ██║      ██║   ╚██████╗╚██████╔╝██║██║ ╚████║\n"
+      " ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝   ╚═╝      ╚═╝    ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝\n"
+      "                                                                                   \n" << ENDL;
+      #endif
+
+    logger(INFO, BRIGHT_GREEN) << "Welcome to " << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
 
     if (command_line_preprocessor(vm, logger)) {
       return 0;
     }
 
-    logger(INFO) << "Module folder: " << argv[0];
+    //logger(INFO) << "Module folder: " << argv[0];
 
     bool testnet_mode = command_line::get_arg(vm, arg_testnet_on);
     if (testnet_mode) {
@@ -215,6 +248,17 @@ int main(int argc, char* argv[])
     CryptoNote::Checkpoints checkpoints(logManager);
     for (const auto& cp : CryptoNote::CHECKPOINTS) {
       checkpoints.add_checkpoint(cp.height, cp.blockId);
+    }
+
+    bool use_checkpoints = !command_line::get_arg(vm, arg_load_checkpoints).empty();
+
+    if (use_checkpoints && !testnet_mode) {
+      logger(INFO) << "Loading Checkpoints from file...";
+      std::string checkpoints_file = command_line::get_arg(vm, arg_load_checkpoints);
+      bool results = checkpoints.load_checkpoints_from_file(checkpoints_file);
+      if (!results) {
+        throw std::runtime_error("Failed to load checkpoints");
+      }
     }
 
     if (!testnet_mode) {
@@ -249,7 +293,7 @@ int main(int argc, char* argv[])
 
     cprotocol.set_p2p_endpoint(&p2psrv);
     ccore.set_cryptonote_protocol(&cprotocol);
-    DaemonCommandsHandler dch(ccore, p2psrv, logManager);
+    DaemonCommandsHandler dch(ccore, p2psrv, logManager, cprotocol, &rpcServer);
 
     // initialize objects
     logger(INFO) << "Initializing p2p server...";
@@ -281,9 +325,9 @@ int main(int argc, char* argv[])
 
     logger(INFO) << "Starting core rpc server on address " << rpcConfig.getBindAddress();
     rpcServer.start(rpcConfig.bindIp, rpcConfig.bindPort);
-	rpcServer.restrictRPC(command_line::get_arg(vm, arg_restricted_rpc));
-	rpcServer.enableCors(command_line::get_arg(vm, arg_enable_cors));
-	rpcServer.setFeeAddress(command_line::get_arg(vm, arg_set_fee_address));
+  rpcServer.restrictRPC(command_line::get_arg(vm, arg_restricted_rpc));
+  rpcServer.enableCors(command_line::get_arg(vm, arg_enable_cors));
+  rpcServer.setFeeAddress(command_line::get_arg(vm, arg_set_fee_address));
     logger(INFO) << "Core rpc server started ok";
 
     Tools::SignalHandler::install([&dch, &p2psrv] {

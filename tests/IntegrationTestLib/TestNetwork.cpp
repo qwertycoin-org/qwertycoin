@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -65,10 +66,10 @@ void copyBlockchainFiles(bool testnet, const std::string& from, const std::strin
   boost::filesystem::path toPath(to);
 
   auto files = {
-    std::make_pair("blockindexes.bin", true),
-    std::make_pair("blocks.bin", true),
-    std::make_pair("blockscache.bin", false),
-    std::make_pair("blockchainindices.bin", false)
+    std::make_pair("blockindexes.dat", true),
+    std::make_pair("blocks.dat", true),
+    std::make_pair("blockscache.dat", false),
+    std::make_pair("blockchainindices.dat", false)
   };
 
   for (const auto& item : files) {

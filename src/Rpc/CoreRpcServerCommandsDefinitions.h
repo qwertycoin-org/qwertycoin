@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2017-2018, The Karbo developers
-// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -273,7 +273,7 @@ struct COMMAND_RPC_GET_INFO {
     std::string status;
     std::string version;
     uint64_t height;
-    std::string top_block_hash;
+	std::string top_block_hash;
     uint64_t difficulty;
     uint64_t tx_count;
     uint64_t tx_pool_size;
@@ -284,13 +284,14 @@ struct COMMAND_RPC_GET_INFO {
     uint64_t white_peerlist_size;
     uint64_t grey_peerlist_size;
     uint32_t last_known_block_index;
-	std::string fee_address;
+    uint64_t start_time;
+      std::string fee_address;
 
     void serialize(ISerializer &s) {
       KV_MEMBER(status)
       KV_MEMBER(version)
       KV_MEMBER(height)
-      KV_MEMBER(top_block_hash)
+	  KV_MEMBER(top_block_hash)
       KV_MEMBER(difficulty)
       KV_MEMBER(tx_count)
       KV_MEMBER(tx_pool_size)
@@ -301,7 +302,8 @@ struct COMMAND_RPC_GET_INFO {
       KV_MEMBER(white_peerlist_size)
       KV_MEMBER(grey_peerlist_size)
       KV_MEMBER(last_known_block_index)
-	  KV_MEMBER(fee_address)
+      KV_MEMBER(start_time)
+        KV_MEMBER(fee_address)
     }
   };
 };
@@ -383,7 +385,7 @@ struct COMMAND_RPC_GETBLOCKTEMPLATE {
     uint32_t height;
     uint64_t reserved_offset;
     std::string blocktemplate_blob;
-	std::string blockhashing_blob;
+    std::string blockhashing_blob;
     std::string status;
 
     void serialize(ISerializer &s) {
@@ -391,7 +393,7 @@ struct COMMAND_RPC_GETBLOCKTEMPLATE {
       KV_MEMBER(height)
       KV_MEMBER(reserved_offset)
       KV_MEMBER(blocktemplate_blob)
-	  KV_MEMBER(blockhashing_blob)
+      KV_MEMBER(blockhashing_blob)
       KV_MEMBER(status)
     }
   };

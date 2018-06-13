@@ -1,4 +1,5 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers, The Qwertycoin developers
+// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -70,7 +71,7 @@ int main(int argc, char** argv)
   TEST_PERFORMANCE0(test_derive_public_key);
   TEST_PERFORMANCE0(test_derive_secret_key);
 
-  TEST_PERFORMANCE0(test_cn_slow_hash);
+  //TEST_PERFORMANCE0(test_cn_slow_hash);
 
   std::cout << "Tests finished. Elapsed time: " << timer.elapsed_ms() / 1000 << " sec" << std::endl;
 
