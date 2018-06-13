@@ -1,9 +1,8 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2014-2018, The Monero project
 // Copyright (c) 2014-2018, The Forknote developers
-// Copyright (c) 2018, The TurtleCoin developers
-// Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2016-2018, The Karbo developers
+// Copyright (c) 2018, The TurtleCoin developers, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -112,7 +111,7 @@ bool DaemonCommandsHandler::help(const std::vector<std::string>& args) {
 
 //--------------------------------------------------------------------------------
 bool DaemonCommandsHandler::status(const std::vector<std::string>& args) {
-  uint32_t height = m_core.get_current_blockchain_height();
+  uint32_t height = m_core.get_current_blockchain_height() - 1;
   uint64_t difficulty = m_core.getNextBlockDifficulty();
   size_t tx_pool_size = m_core.get_pool_transactions_count();
   size_t alt_blocks_count = m_core.get_alternative_blocks_count();
@@ -129,8 +128,9 @@ bool DaemonCommandsHandler::status(const std::vector<std::string>& args) {
   bool synced = ((uint32_t)height == (uint32_t)last_known_block_index);
 
   std::cout << std::endl
-    << "Height: " << height << "/" << last_known_block_index << " (" << get_sync_percentage(height, last_known_block_index) << "%) "
-    << "on " << (m_core.currency().isTestnet() ? "testnet, " : "mainnet, ") << (synced ? "synced, " : "syncing, ")
+    << (synced ? "Synced " : "Syncing ") << height << "/" << last_known_block_index 
+    << " (" << get_sync_percentage(height, last_known_block_index) << "%) "
+    << "on " << (m_core.currency().isTestnet() ? "testnet, " : "mainnet, ")
     << "network hashrate: " << get_mining_speed(hashrate) << ", difficulty: " << difficulty << ", "
     << "block v. " << (int)majorVersion << ", "
     << outgoing_connections_count << " out. + " << incoming_connections_count << " inc. connections, "
