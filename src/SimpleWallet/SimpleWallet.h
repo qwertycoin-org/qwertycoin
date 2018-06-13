@@ -1,7 +1,8 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2014-2016, XDN developers
-// Copyright (c) 2016-2018, Karbo developers
+// Copyright (c) 2014-2017, The Forknote developers
+// Copyright (c) 2016-2018, The Karbo developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // All rights reserved.
 // 
@@ -97,15 +98,15 @@ namespace CryptoNote
     bool run_console_handler();
 
     bool new_wallet(const std::string &wallet_file, const std::string& password);
-	bool new_wallet(Crypto::SecretKey &secret_key, Crypto::SecretKey &view_key, const std::string &wallet_file, const std::string& password);
-	bool gen_wallet(const std::string &wallet_file, const std::string& password, const Crypto::SecretKey& recovery_key = Crypto::SecretKey(), bool recover = false, bool two_random = false);
+    bool new_wallet(Crypto::SecretKey &secret_key, Crypto::SecretKey &view_key, const std::string &wallet_file, const std::string& password);
+    bool gen_wallet(const std::string &wallet_file, const std::string& password, const Crypto::SecretKey& recovery_key = Crypto::SecretKey(), bool recover = false, bool two_random = false);
     bool new_wallet(AccountKeys &private_key, const std::string &wallet_file, const std::string& password);
     bool new_tracking_wallet(AccountKeys &tracking_key, const std::string &wallet_file, const std::string& password);
     bool open_wallet(const std::string &wallet_file, const std::string& password);
     bool close_wallet();
 
     bool help(const std::vector<std::string> &args = std::vector<std::string>());
-	bool seed(const std::vector<std::string> &args = std::vector<std::string>());
+    bool seed(const std::vector<std::string> &args = std::vector<std::string>());
     bool exit(const std::vector<std::string> &args);
     bool start_mining(const std::vector<std::string> &args);
     bool stop_mining(const std::vector<std::string> &args);
@@ -122,8 +123,9 @@ namespace CryptoNote
     bool save(const std::vector<std::string> &args);
     bool reset(const std::vector<std::string> &args);
     bool set_log(const std::vector<std::string> &args);
-	bool payment_id(const std::vector<std::string> &args);
-	bool change_password(const std::vector<std::string> &args);
+    bool payment_id(const std::vector<std::string> &args);
+    bool change_password(const std::vector<std::string> &args);
+    bool sweep_dust(const std::vector<std::string> &args);
 
 #ifndef __ANDROID__
 	std::string resolveAlias(const std::string& aliasUrl);

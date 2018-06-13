@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2016-2018, The Karbo developers
 // Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -101,6 +102,7 @@ public:
 
   virtual uint64_t actualBalance() = 0;
   virtual uint64_t pendingBalance() = 0;
+  virtual uint64_t dustBalance() = 0;
 
   virtual size_t getTransactionCount() = 0;
   virtual size_t getTransferCount() = 0;
@@ -112,6 +114,8 @@ public:
 
   virtual TransactionId sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
   virtual TransactionId sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
+  virtual TransactionId sendDustTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
+  virtual TransactionId sendDustTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
   virtual std::error_code cancelTransaction(size_t transferId) = 0;
 
   virtual void getAccountKeys(AccountKeys& keys) = 0;

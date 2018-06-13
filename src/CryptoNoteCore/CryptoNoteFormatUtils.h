@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2016-2018, The Karbo developers
 // Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -125,5 +126,6 @@ void decompose_amount_into_digits(uint64_t amount, uint64_t dust_threshold, cons
 void get_tx_tree_hash(const std::vector<Crypto::Hash>& tx_hashes, Crypto::Hash& h);
 Crypto::Hash get_tx_tree_hash(const std::vector<Crypto::Hash>& tx_hashes);
 Crypto::Hash get_tx_tree_hash(const Block& b);
+bool is_valid_decomposed_amount(uint64_t amount);
 
 }
