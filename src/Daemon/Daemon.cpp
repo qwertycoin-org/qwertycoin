@@ -30,6 +30,7 @@
 #include "Common/SignalHandler.h"
 #include "Common/PathTools.h"
 #include "crypto/hash.h"
+#include "CryptoNoteCheckpoints.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/Core.h"
 #include "CryptoNoteCore/CoreConfig.h"
@@ -245,9 +246,10 @@ int main(int argc, char* argv[])
     CryptoNote::Currency currency = currencyBuilder.currency();
     CryptoNote::core ccore(currency, nullptr, logManager, command_line::get_arg(vm, arg_enable_blockchain_indexes));
 
+    CryptoNote::Checkpoints checkpoints(logManager);
+
     bool use_checkpoints = !command_line::get_arg(vm, arg_load_checkpoints).empty();
 
-    CryptoNote::Checkpoints checkpoints(logManager);
     if (use_checkpoints && !testnet_mode) {
       logger(INFO) << "Loading Checkpoints for faster initial sync...";
       std::string checkpoints_file = command_line::get_arg(vm, arg_load_checkpoints);
@@ -262,6 +264,10 @@ int main(int argc, char* argv[])
         if (!results) {
           throw std::runtime_error("Failed to load checkpoints");
         }
+      }
+    } else if (!use_checkpoints && !testnet_mode) {
+      for (const auto& cp : CryptoNote::CHECKPOINTS) {
+        checkpoints.add_checkpoint(cp.height, cp.blockId);
       }
     }
 
