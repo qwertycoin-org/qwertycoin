@@ -10,8 +10,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 string(TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_LOWER)
 
-project(Qwertycoin)
-
 # ARCH defines the target architecture, either by an explicit identifier or
 # one of the following two keywords. By default, ARCH a value of 'native':
 # target arch = host arch, binary is not portable. When ARCH is set to the
@@ -20,7 +18,8 @@ project(Qwertycoin)
 # when ARCH is not set to an explicit identifier, cmake's builtin is used
 # to identify the target architecture, to direct logic in this cmake script.
 # Since ARCH is a cached variable, it will not be set on first cmake invocation.
-# Fix for Visual Studio 2017 add ;msvcrt.lib to linker libs for daemon and paymentgateservice
+# Fix for Visual Studio 2017 add ;msvcrt.lib to linker libs for Daemon and PaymentGateService
+
 if (NOT ARCH OR ARCH STREQUAL "" OR ARCH STREQUAL "native" OR ARCH STREQUAL "default")
   set(ARCH_ID "${CMAKE_SYSTEM_PROCESSOR}")
 else()
@@ -94,6 +93,7 @@ set(CMAKE_SUPPRESS_REGENERATION ON)
 # copy CTestCustom.cmake to build dir to disable long running tests in 'make test'
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake ${CMAKE_CURRENT_BINARY_DIR})
 
+project(Qwertycoin)
 include_directories(include src external "${CMAKE_CURRENT_BINARY_DIR}/version")  
 
 # Check whether we're on a 32-bit or 64-bit system
