@@ -56,7 +56,7 @@ const uint64_t MINIMUM_FEE                                   = UINT64_C(10000000
 const uint64_t DEFAULT_DUST_THRESHOLD                        = UINT64_C(100000);    // 0.001
 const uint64_t MIN_TX_MIXIN_SIZE                             = 1;
 const uint64_t MAX_TX_MIXIN_SIZE							 = 20;
-const uint64_t MAX_TRANSACTION_SIZE_LIMIT                    = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE / 4 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+const uint64_t MAX_TRANSACTION_SIZE_LIMIT                    = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 4 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY             = 24 * 60 * 60 / DIFFICULTY_TARGET;
 const size_t   DIFFICULTY_WINDOW                             = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // blocks
@@ -114,7 +114,7 @@ const uint8_t  BLOCK_MINOR_VERSION_0                         =  0;
 const uint8_t  BLOCK_MINOR_VERSION_1                         =  1;
 
 const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  10000;  //by default, blocks ids count in synchronizing
-const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  100;    //by default, blocks count in blocks downloading
+const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  128;    //by default, blocks count in blocks downloading
 const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         =  1000;
 
 const int      P2P_DEFAULT_PORT                              =  8196;
@@ -148,6 +148,7 @@ const char* const SEED_NODES[] = {
   "node-02.qwertycoin.org:8196",//02A
   "78.47.85.215:8196",          //03A
   "78.47.87.215:8196",          //04A
+  "139.99.192.106:8196"			//JOR
 };
 
 } // CryptoNote
