@@ -589,7 +589,7 @@ namespace CryptoNote {
 	bool Currency::checkProofOfWorkV1(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
 		Crypto::Hash& proofOfWork) const {
 
-		if (BLOCK_MAJOR_VERSION_1 != block.majorVersion) {
+		if (BLOCK_MAJOR_VERSION_2 == block.majorVersion || BLOCK_MAJOR_VERSION_3 == block.majorVersion) {
 			return false;
 		}
 
