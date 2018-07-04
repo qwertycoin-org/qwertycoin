@@ -1,4 +1,7 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The TurtleCoin Developers
+// Copyright (c) 2018, The Qwertycoin Developers
+//
 //
 // This file is part of Qwertycoin.
 //
@@ -49,6 +52,9 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
 { 80000,"02bdbd6cab951c0685796598b353524d450f947c58d8e1a8efbc05c334663ad7"},
 { 85000,"9b6d12df949ad48cb6dfa178c05eacba072c6e9379fd074dddf723728923fc4b"},
 { 90000,"96e00099a12e4e50a84d361942a05ff026f2e0f413f0f9afefc8af7085dde9da"},
-{ 91695,"c8722b5c2829c1836832d04fd1b69e063c0e0c0f9dec4b966dbeb67c7e2f90ee"}
+{ 95000,"aa464ea213efa3f41ab1196c54b5bb0e8341d6ee47668b342db55eeafc9e81d0"},
+{100000,"d5b20487d7a4b76d80dc2ae5e51da7feb9190a88264492ecc2f965e4f30b737d"},
+{105000,"b75bc59877f3e47e7fc6b1a019022391d627ed23e3930e5fef544a8176adbf4d"},
+{108156,"225fb3e2453244a74cf909b94b803da183d1ff995454489fd2eb48e76615e8d5"}
 };
 }
