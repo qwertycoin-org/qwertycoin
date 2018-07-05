@@ -511,6 +511,7 @@ bool get_block_longhash(cn_pow_hash_v2 &ctx, const Block& b, Hash& res) {
     return false;
   }
   //cn_slow_hash(context, bd.data(), bd.size(), res);
+  // heavy switch
   if (b.majorVersion < BLOCK_MAJOR_VERSION_4) {
 	  cn_pow_hash_v1 ctx_v1 = cn_pow_hash_v1::make_borrowed(ctx);
 	  ctx_v1.hash(bd.data(), bd.size(), res.data);
