@@ -30,6 +30,7 @@
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/Core.h"
+#include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/IBlock.h"
 #include "CryptoNoteCore/Miner.h"
 #include "CryptoNoteCore/TransactionExtra.h"
@@ -627,7 +628,7 @@ bool RpcServer::f_on_blocks_list_json(const F_COMMAND_RPC_GET_BLOCKS_LIST::reque
     block_short.hash = Common::podToHex(block_hash);
     block_short.cumul_size = blokBlobSize + tx_cumulative_block_size - minerTxBlobSize;
     block_short.tx_count = blk.transactionHashes.size() + 1;
-	block_short.difficulty = blockDiff;
+    block_short.difficulty = blockDiff;
 
     res.blocks.push_back(block_short);
 
@@ -874,13 +875,13 @@ bool RpcServer::f_on_mempool_json(const COMMAND_RPC_GET_MEMPOOL::request& req, C
     mempool_transaction.fee = txd.fee;
     mempool_transaction.amount_out = amount_out;
     mempool_transaction.size = txd.blobSize;
-	mempool_transaction.receiveTime = txd.receiveTime;
+    mempool_transaction.receiveTime = txd.receiveTime;
     mempool_transaction.keptByBlock = txd.keptByBlock;
     mempool_transaction.max_used_block_height = txd.maxUsedBlock.height;
     mempool_transaction.max_used_block_id = Common::podToHex(txd.maxUsedBlock.id);
     mempool_transaction.last_failed_height = txd.lastFailedBlock.height;
     mempool_transaction.last_failed_id = Common::podToHex(txd.lastFailedBlock.id);
-	res.mempool.push_back(mempool_transaction);
+    res.mempool.push_back(mempool_transaction);
   }
   res.status = CORE_RPC_STATUS_OK;
   return true;

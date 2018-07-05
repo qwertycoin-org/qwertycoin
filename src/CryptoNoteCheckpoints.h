@@ -30,6 +30,7 @@ struct CheckpointData {
 };
 
 const std::initializer_list<CheckpointData> CHECKPOINTS = {  
+/*
 {  5000,"f44ad7e79c4dc4b8cce6100460444f8fc61096a6cf4d9a53107abde0b8750b4f"},
 {  8473,"e131c96f6105604ea3f7dd2b55d73d430b28bed133112c9992a38c26b5239e14"},
 { 10000,"fb021fd69f78a60a365c16692777e7f699215404366545e072eba7dddbf1d61d"},
@@ -56,5 +57,6 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
 {100000,"d5b20487d7a4b76d80dc2ae5e51da7feb9190a88264492ecc2f965e4f30b737d"},
 {105000,"b75bc59877f3e47e7fc6b1a019022391d627ed23e3930e5fef544a8176adbf4d"},
 {108156,"225fb3e2453244a74cf909b94b803da183d1ff995454489fd2eb48e76615e8d5"}
+*/
 };
 }

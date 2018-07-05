@@ -81,9 +81,9 @@ const size_t   FUSION_TX_MAX_SIZE                             = CRYPTONOTE_BLOCK
 const size_t   FUSION_TX_MIN_INPUT_COUNT                      = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 
-const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
-const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
-const uint32_t UPGRADE_HEIGHT_V4                              = 4294967294;
+const uint32_t UPGRADE_HEIGHT_V2                              = 3;
+const uint32_t UPGRADE_HEIGHT_V3                              = 4;
+const uint32_t UPGRADE_HEIGHT_V4                              = 5;
 const uint32_t UPGRADE_HEIGHT_V5                              = 4294967295;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
@@ -103,7 +103,7 @@ const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json"
 
 const char     CRYPTONOTE_NAME[]                              = "qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
-const char     GENESIS_COINBASE_TX_FIX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.3.0";
+const char     GENESIS_COINBASE_TX_FIX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.4.0";
 
 const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
@@ -139,20 +139,12 @@ const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
 
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deadbeafbeef004d3739499c67ccb730cc4734950f414cdb332b24c5ce764317";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "1eadbeafbeef004d3739499c67ccb730cc4734950f414cdb332b24c5ce764317";
 
 const char* const SEED_NODES[] = { 
-  "node-00.qwertycoin.org:8196",//00P
-  "195.201.25.118:8196",        //01P
-  "198.147.30.116:8196",        //EXP
-  "198.147.30.115:8196",        //POO
-  "node-02.qwertycoin.org:8196",//02A
-  "78.47.85.215:8196",          //03A
-  "78.47.87.215:8196",          //04A
-  "139.99.192.106:8196",        //JOR
-  /* Community Nodes */
-  "92.63.106.237:8196",
-  "220.82.126.94:8196"
+  "95.216.155.51:8196",//00P
+  "95.216.138.246:8196",        //01P
+  "95.216.154.27:8196"
 };
 
 } // CryptoNote
