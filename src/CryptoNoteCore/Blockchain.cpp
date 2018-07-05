@@ -1752,6 +1752,10 @@ bool Blockchain::checkParentBlockSize(const Block& b, const Crypto::Hash& blockH
   return true;
 }
 
+/*
+ *
+ *
+ */
 bool Blockchain::checkCumulativeBlockSize(const Crypto::Hash& blockId, size_t cumulativeBlockSize, uint64_t height) {
   size_t maxBlockCumulativeSize = m_currency.maxBlockCumulativeSize(height);
   if (cumulativeBlockSize > maxBlockCumulativeSize) {
@@ -1778,12 +1782,18 @@ bool Blockchain::getBlockCumulativeSize(const Block& block, size_t& cumulativeSi
   return missedTxs.empty();
 }
 
-// Precondition: m_blockchain_lock is locked.
+/* Precondition: m_blockchain_lock is locked.
+ * B1 = v1 10
+ * B2 = v2 100
+ * B3 = v1
+ * B4 = v2
+ */
 bool Blockchain::update_next_comulative_size_limit() {
   uint8_t nextBlockMajorVersion = getBlockMajorVersionForHeight(static_cast<uint32_t>(m_blocks.size()));
   size_t nextBlockGrantedFullRewardZone = m_currency.blockGrantedFullRewardZoneByBlockVersion(nextBlockMajorVersion);
 
   std::vector<size_t> sz;
+  //                      x , 100
   get_last_n_blocks_sizes(sz, m_currency.rewardBlocksWindow());
 
   uint64_t median = Common::medianValue(sz);

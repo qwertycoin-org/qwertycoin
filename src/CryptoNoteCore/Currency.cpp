@@ -183,6 +183,10 @@ namespace CryptoNote {
 		return true;
 	}
 
+	/*	max blocksize formula
+	 *	X = current blockchain height
+	 *	maxSize = 20480 + ((X*102400) / 262800)
+	 */
 	size_t Currency::maxBlockCumulativeSize(uint64_t height) const {
 		assert(height <= std::numeric_limits<uint64_t>::max() / m_maxBlockSizeGrowthSpeedNumerator);
 		size_t maxSize = static_cast<size_t>(m_maxBlockSizeInitial +
