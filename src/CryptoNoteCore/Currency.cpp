@@ -608,6 +608,13 @@ namespace CryptoNote {
 		return next_difficulty;
 	}
 
+
+	template <typename T>
+	inline T clamp(T lo, T v, T hi)
+	{
+		return v < lo ? lo : v > hi ? hi : v;
+	}
+
 	difficulty_type Currency::nextDifficultyV4(uint8_t blockMajorVersion,
 		std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulativeDifficulties) const {
 
