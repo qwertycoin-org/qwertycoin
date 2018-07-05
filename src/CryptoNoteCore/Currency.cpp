@@ -76,9 +76,9 @@ namespace CryptoNote {
 		}
 
 		if (isTestnet()) {
-			m_upgradeHeightV2 = 10;
-			m_upgradeHeightV3 = 20;
-			m_upgradeHeightV4 = 30;
+			m_upgradeHeightV2 = 5;
+			m_upgradeHeightV3 = 8;
+			m_upgradeHeightV4 = 10;
 			m_blocksFileName = "testnet_" + m_blocksFileName;
 			m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
 			m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
@@ -469,8 +469,12 @@ namespace CryptoNote {
 		if (high != 0 || low + timeSpan - 1 < low) {
 			return 0;
 		}
+		if(!isTestnet()) {
+			return (low + timeSpan - 1) / timeSpan;			
+		} else {
+			return 10;
+		}
 
-		return (low + timeSpan - 1) / timeSpan;
 	}
 
 	difficulty_type Currency::nextDifficultyV2(std::vector<uint64_t> timestamps,
@@ -521,6 +525,9 @@ namespace CryptoNote {
 		// minimum limit
 		if (!isTestnet() && nextDiffZ < 100000) {
 			nextDiffZ = 100000;
+		}
+		if(isTestnet()) {
+			nextDiffZ = 100;
 		}
 
 		return nextDiffZ;
@@ -582,6 +589,9 @@ namespace CryptoNote {
 		// minimum limit
 		if (!isTestnet() && next_difficulty < 100000) {
 			next_difficulty = 100000;
+		}
+		if(isTestnet()) {
+			next_difficulty = 1000;
 		}
 
 		return next_difficulty;
@@ -645,11 +655,11 @@ namespace CryptoNote {
 	bool Currency::checkProofOfWork(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, Crypto::Hash& proofOfWork) const { 
 		switch (block.majorVersion) {
 		case BLOCK_MAJOR_VERSION_1:
+		case BLOCK_MAJOR_VERSION_4:
 			return checkProofOfWorkV1(hash_ctx, block, currentDiffic, proofOfWork); 
 
 		case BLOCK_MAJOR_VERSION_2:
 		case BLOCK_MAJOR_VERSION_3:
-		case BLOCK_MAJOR_VERSION_4:
 			return checkProofOfWorkV2(hash_ctx, block, currentDiffic, proofOfWork); 
  		}
 
