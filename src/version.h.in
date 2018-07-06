@@ -4,9 +4,9 @@
 #define PROJECT_NAME "Qwertycoin"
 #define PROJECT_SITE "https://www.qwertycoin.org"
 #define PROJECT_COPYRIGHT "Copyright 2018, The Qwertycoin Group"
-#define APP_VER_MAJOR 4
+#define APP_VER_MAJOR 3
 #define APP_VER_MINOR 0
-#define APP_VER_REV 0
+#define APP_VER_REV 1
 #define APP_VER_BUILD 2012
 
 #define BUILD_COMMIT_ID "HE4VY"
