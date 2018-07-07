@@ -30,6 +30,7 @@
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/Core.h"
+#include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/IBlock.h"
 #include "CryptoNoteCore/Miner.h"
 #include "CryptoNoteCore/TransactionExtra.h"
@@ -172,7 +173,8 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest& request, HttpResponse& 
       { "f_transaction_json", { makeMemberMethod(&RpcServer::f_on_transaction_json), false } },
 	  { "f_pool_json", { makeMemberMethod(&RpcServer::f_on_pool_json), false } },
 	  { "f_mempool_json", { makeMemberMethod(&RpcServer::f_on_mempool_json), false } },
-	  { "k_transactions_by_payment_id", { makeMemberMethod(&RpcServer::k_on_transactions_by_payment_id), false } }
+    { "k_transactions_by_payment_id", { makeMemberMethod(&RpcServer::k_on_transactions_by_payment_id), false } },
+    { "validateaddress", { makeMemberMethod(&RpcServer::on_validate_address), false } }
 
     };
 
@@ -627,7 +629,7 @@ bool RpcServer::f_on_blocks_list_json(const F_COMMAND_RPC_GET_BLOCKS_LIST::reque
     block_short.hash = Common::podToHex(block_hash);
     block_short.cumul_size = blokBlobSize + tx_cumulative_block_size - minerTxBlobSize;
     block_short.tx_count = blk.transactionHashes.size() + 1;
-	block_short.difficulty = blockDiff;
+    block_short.difficulty = blockDiff;
 
     res.blocks.push_back(block_short);
 
@@ -719,7 +721,7 @@ bool RpcServer::f_on_block_json(const F_COMMAND_RPC_GET_BLOCK_DETAILS::request& 
   uint64_t maxReward = 0;
   uint64_t currentReward = 0;
   int64_t emissionChange = 0;
-  size_t blockGrantedFullRewardZone =  CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
+  size_t blockGrantedFullRewardZone =  CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2;
   res.block.effectiveSizeMedian = std::max(res.block.sizeMedian, blockGrantedFullRewardZone);
 
   if (!m_core.getBlockReward(res.block.major_version, res.block.sizeMedian, 0, prevBlockGeneratedCoins, 0, maxReward, emissionChange)) {
@@ -874,13 +876,13 @@ bool RpcServer::f_on_mempool_json(const COMMAND_RPC_GET_MEMPOOL::request& req, C
     mempool_transaction.fee = txd.fee;
     mempool_transaction.amount_out = amount_out;
     mempool_transaction.size = txd.blobSize;
-	mempool_transaction.receiveTime = txd.receiveTime;
+    mempool_transaction.receiveTime = txd.receiveTime;
     mempool_transaction.keptByBlock = txd.keptByBlock;
     mempool_transaction.max_used_block_height = txd.maxUsedBlock.height;
     mempool_transaction.max_used_block_id = Common::podToHex(txd.maxUsedBlock.id);
     mempool_transaction.last_failed_height = txd.lastFailedBlock.height;
     mempool_transaction.last_failed_id = Common::podToHex(txd.lastFailedBlock.id);
-	res.mempool.push_back(mempool_transaction);
+    res.mempool.push_back(mempool_transaction);
   }
   res.status = CORE_RPC_STATUS_OK;
   return true;
@@ -1149,6 +1151,19 @@ bool RpcServer::on_get_block_header_by_height(const COMMAND_RPC_GET_BLOCK_HEADER
   Crypto::Hash tmp_hash = m_core.getBlockIdByHeight(req.height);
   bool is_orphaned = block_hash != tmp_hash;
   fill_block_header_response(blk, is_orphaned, req.height, block_hash, res.block_header);
+  res.status = CORE_RPC_STATUS_OK;
+  return true;
+}
+
+bool RpcServer::on_validate_address(const COMMAND_RPC_VALIDATE_ADDRESS::request& req, COMMAND_RPC_VALIDATE_ADDRESS::response& res) {
+  AccountPublicAddress acc = boost::value_initialized<AccountPublicAddress>();
+  bool r = m_core.currency().parseAccountAddressString(req.address, acc);
+  res.isvalid = r;
+  if (r) {
+    res.address = m_core.currency().accountAddressAsString(acc);
+    res.spendPublicKey = Common::podToHex(acc.spendPublicKey);
+    res.viewPublicKey = Common::podToHex(acc.viewPublicKey);
+  }
   res.status = CORE_RPC_STATUS_OK;
   return true;
 }

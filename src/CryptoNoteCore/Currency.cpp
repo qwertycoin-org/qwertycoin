@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2016-2018  zawy12
 // Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -76,9 +76,10 @@ namespace CryptoNote {
 		}
 
 		if (isTestnet()) {
-			m_upgradeHeightV2 = 10;
-			m_upgradeHeightV3 = 20;
-			m_upgradeHeightV4 = 30;
+			m_upgradeHeightV2 = 5;
+			m_upgradeHeightV3 = 8;
+			m_upgradeHeightV4 = 10;
+			m_upgradeHeightV5 = 12;
 			m_blocksFileName = "testnet_" + m_blocksFileName;
 			m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
 			m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
@@ -136,6 +137,9 @@ namespace CryptoNote {
 		if (majorVersion == BLOCK_MAJOR_VERSION_4) {
 			return m_upgradeHeightV4;
 		}
+		else if (majorVersion == BLOCK_MAJOR_VERSION_5) {
+			return m_upgradeHeightV5;
+		}
 		else if (majorVersion == BLOCK_MAJOR_VERSION_2) {
 			return m_upgradeHeightV2;
 		}
@@ -179,6 +183,10 @@ namespace CryptoNote {
 		return true;
 	}
 
+	/*	max blocksize formula
+	 *	X = current blockchain height
+	 *	maxSize = 20480 + ((X*102400) / 262800)
+	 */
 	size_t Currency::maxBlockCumulativeSize(uint64_t height) const {
 		assert(height <= std::numeric_limits<uint64_t>::max() / m_maxBlockSizeGrowthSpeedNumerator);
 		size_t maxSize = static_cast<size_t>(m_maxBlockSizeInitial +
@@ -469,8 +477,12 @@ namespace CryptoNote {
 		if (high != 0 || low + timeSpan - 1 < low) {
 			return 0;
 		}
+		if(!isTestnet()) {
+			return (low + timeSpan - 1) / timeSpan;			
+		} else {
+			return 10;
+		}
 
-		return (low + timeSpan - 1) / timeSpan;
 	}
 
 	difficulty_type Currency::nextDifficultyV2(std::vector<uint64_t> timestamps,
@@ -521,6 +533,9 @@ namespace CryptoNote {
 		// minimum limit
 		if (!isTestnet() && nextDiffZ < 100000) {
 			nextDiffZ = 100000;
+		}
+		if(isTestnet()) {
+			nextDiffZ = 100;
 		}
 
 		return nextDiffZ;
@@ -583,13 +598,59 @@ namespace CryptoNote {
 		if (!isTestnet() && next_difficulty < 100000) {
 			next_difficulty = 100000;
 		}
+		if(isTestnet()) {
+			next_difficulty = 1000;
+		}
 
 		return next_difficulty;
 	}
+
+
+	template <typename T>
+	inline T clamp(T lo, T v, T hi)
+	{
+		return v < lo ? lo : v > hi ? hi : v;
+	}
+
+	difficulty_type Currency::nextDifficultyV4(uint8_t blockMajorVersion,
+		std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulativeDifficulties) const {
+
+		// LWMA-2 difficulty algorithm 
+		// Copyright (c) 2017-2018 Zawy, MIT License
+		// https://github.com/zawy12/difficulty-algorithms/issues/3
+		// Forked from aivve by Karbowanec developers
+		// with modifications by Ryo Currency developers
+
+		const int64_t  T = static_cast<int64_t>(m_difficultyTarget);
+		int64_t  N = difficultyBlocksCount3();
+		int64_t  FTL = timestampCheckWindow(blockMajorVersion); // FTL=3xT
+		int64_t  L(0), ST, sum_3_ST(0);
+		uint64_t next_D, prev_D;
+
+		for (int64_t i = 1; i <= N; i++) {
+			ST = clamp(-FTL, int64_t(timestamps[i]) - int64_t(timestamps[i - 1]), 6 * T);
+			L += ST * i;
+			if (i > N - 3) { sum_3_ST += ST; }
+		}
+		int64_t clamp_increase = (T * N * (N + 1) * 99) / int64_t(100.0 * 2.0 * 2.5);
+		int64_t clamp_decrease = (T * N * (N + 1) * 99) / int64_t(100.0 * 2.0 * 0.2);
+		L = clamp(clamp_increase, L, clamp_decrease); // This guarantees positive L
+
+		next_D = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1)) / uint64_t(2 * L);
+		next_D = (next_D * 99ull) / 100ull;
+
+		prev_D = cumulativeDifficulties[N] - cumulativeDifficulties[N - 1];
+		next_D = std::max<uint64_t>((prev_D * 70ull) / 100ull, std::min<uint64_t>(next_D, (prev_D * 107ull) / 100ull));
+
+		if (sum_3_ST < (8 * T) / 10) { next_D = (prev_D * 110ull) / 100ull; }
+
+		return next_D;
+	}
+
 	bool Currency::checkProofOfWorkV1(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
 		Crypto::Hash& proofOfWork) const {
 
-		if (BLOCK_MAJOR_VERSION_1 != block.majorVersion) {
+		if (BLOCK_MAJOR_VERSION_2 == block.majorVersion || BLOCK_MAJOR_VERSION_3 == block.majorVersion) {
 			return false;
 		}
 
@@ -645,11 +706,12 @@ namespace CryptoNote {
 	bool Currency::checkProofOfWork(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, Crypto::Hash& proofOfWork) const { 
 		switch (block.majorVersion) {
 		case BLOCK_MAJOR_VERSION_1:
+		case BLOCK_MAJOR_VERSION_4:
 			return checkProofOfWorkV1(hash_ctx, block, currentDiffic, proofOfWork); 
 
 		case BLOCK_MAJOR_VERSION_2:
 		case BLOCK_MAJOR_VERSION_3:
-		case BLOCK_MAJOR_VERSION_4:
+		case BLOCK_MAJOR_VERSION_5:
 			return checkProofOfWorkV2(hash_ctx, block, currentDiffic, proofOfWork); 
  		}
 
@@ -733,6 +795,7 @@ namespace CryptoNote {
 		upgradeHeightV2(parameters::UPGRADE_HEIGHT_V2);
 		upgradeHeightV3(parameters::UPGRADE_HEIGHT_V3);
 		upgradeHeightV4(parameters::UPGRADE_HEIGHT_V4);
+		upgradeHeightV5(parameters::UPGRADE_HEIGHT_V5);
 		upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
 		upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
 		upgradeWindow(parameters::UPGRADE_WINDOW);
