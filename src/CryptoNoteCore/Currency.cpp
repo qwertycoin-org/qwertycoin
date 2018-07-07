@@ -644,6 +644,7 @@ namespace CryptoNote {
 
 		prev_D = cumulativeDifficulties[N] - cumulativeDifficulties[N - 1];
 		next_D = std::max<uint64_t>((prev_D * 70ull) / 100ull, std::min<uint64_t>(next_D, (prev_D * 107ull) / 100ull));
+
 		if (sum_3_ST < (8 * T) / 10) { next_D = (prev_D * 110ull) / 100ull; }
 
 		return next_D;
