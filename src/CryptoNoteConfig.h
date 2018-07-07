@@ -81,9 +81,9 @@ const size_t   FUSION_TX_MAX_SIZE                             = CRYPTONOTE_BLOCK
 const size_t   FUSION_TX_MIN_INPUT_COUNT                      = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 
-const uint32_t UPGRADE_HEIGHT_V2                              = 2;
-const uint32_t UPGRADE_HEIGHT_V3                              = 3;
-const uint32_t UPGRADE_HEIGHT_V4                              = 4;
+const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
+const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
+const uint32_t UPGRADE_HEIGHT_V4                              = 109534;
 const uint32_t UPGRADE_HEIGHT_V5                              = 4294967295;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
@@ -103,7 +103,7 @@ const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json"
 
 const char     CRYPTONOTE_NAME[]                              = "qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
-const char     GENESIS_COINBASE_TX_FIX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.4.0";
+const char     GENESIS_COINBASE_TX_FIX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.4.1";
 
 const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
