@@ -40,7 +40,7 @@ const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW              = 60;
 const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1           = 60; 
 
 const uint64_t MONEY_SUPPLY                                   = (uint64_t)(-1);
-const uint64_t TAIL_EMISSION_REWARD                           = 100000000;
+const uint64_t TAIL_EMISSION_REWARD                           = 100;
 const size_t CRYPTONOTE_COIN_VERSION                          = 1;
 const unsigned EMISSION_SPEED_FACTOR                          = 19;
 static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
@@ -83,7 +83,7 @@ const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 
 const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
 const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
-const uint32_t UPGRADE_HEIGHT_V4                              = 111111;
+const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
 const uint32_t UPGRADE_HEIGHT_V5                              = 4294967295;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
@@ -92,18 +92,17 @@ const uint32_t UPGRADE_WINDOW                                = EXPECTED_NUMBER_O
 static_assert(0 < UPGRADE_VOTING_THRESHOLD && UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
-const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.dat";
-const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.dat";
-const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.dat";
-const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "poolstate.bin";
-const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.bin";
-const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.dat";
+const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.bin";
+const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.bin";
+const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.bin";
+const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "poolstate.dat";
+const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.dat";
+const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.bin";
 const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json";
 } // parameters
 
-const char     CRYPTONOTE_NAME[]                              = "qwertycoin";
+const char     CRYPTONOTE_NAME[]                              = "Qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
-const char     GENESIS_COINBASE_TX_FIX[]                      = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.4.0";
 
 const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
@@ -139,7 +138,7 @@ const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
 
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef004d3739499c67ccb730cc4734950f414cdb332b24c5ce764317";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef004d3739499c67ccb730cc4734950f414cdb332b24c5ce764beaf";
 
 const char* const SEED_NODES[] = { 
   "node-00.qwertycoin.org:8196",//00P
@@ -148,9 +147,17 @@ const char* const SEED_NODES[] = {
   "198.147.30.115:8196",        //POO
   "node-02.qwertycoin.org:8196",//02A
   "78.47.85.215:8196",          //03A
-  "78.47.87.215:8196",          //04A
-  "139.99.192.106:8196"        //JOR
+  "139.99.192.106:8196",        //JOR
   /* Community Nodes */
+  "86.142.25.119:8196",
+  /* !known Nodes */
+  "185.240.249.2:8196",
+  "195.201.27.148:8196",
+  "195.201.29.64:8196",
+  "220.82.126.94:8196",
+  "77.55.237.152:8196",
+  "79.147.185.157:8196",
+  "94.130.187.117:8196"
 };
 
 } // CryptoNote
