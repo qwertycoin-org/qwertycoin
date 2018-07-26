@@ -168,13 +168,13 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest& request, HttpResponse& 
       { "getlastblockheader", { makeMemberMethod(&RpcServer::on_get_last_block_header), false } },
       { "getblockheaderbyhash", { makeMemberMethod(&RpcServer::on_get_block_header_by_hash), false } },
       { "getblockheaderbyheight", { makeMemberMethod(&RpcServer::on_get_block_header_by_height), false } },
-	  { "f_blocks_list_json", { makeMemberMethod(&RpcServer::f_on_blocks_list_json), false } },
+      { "f_blocks_list_json", { makeMemberMethod(&RpcServer::f_on_blocks_list_json), false } },
       { "f_block_json", { makeMemberMethod(&RpcServer::f_on_block_json), false } },
       { "f_transaction_json", { makeMemberMethod(&RpcServer::f_on_transaction_json), false } },
-	  { "f_pool_json", { makeMemberMethod(&RpcServer::f_on_pool_json), false } },
-	  { "f_mempool_json", { makeMemberMethod(&RpcServer::f_on_mempool_json), false } },
-    { "k_transactions_by_payment_id", { makeMemberMethod(&RpcServer::k_on_transactions_by_payment_id), false } },
-    { "validateaddress", { makeMemberMethod(&RpcServer::on_validate_address), false } }
+      { "f_pool_json", { makeMemberMethod(&RpcServer::f_on_pool_json), false } },
+      { "f_mempool_json", { makeMemberMethod(&RpcServer::f_on_mempool_json), false } },
+      { "k_transactions_by_payment_id", { makeMemberMethod(&RpcServer::k_on_transactions_by_payment_id), false } },
+      { "validateaddress", { makeMemberMethod(&RpcServer::on_validate_address), false } }
 
     };
 
