@@ -71,6 +71,7 @@ void findMyOutputs(
   std::unordered_set<Crypto::PublicKey> public_keys_seen;
 
   for (size_t idx = 0; idx < outputCount; ++idx) {
+
     auto outType = tx.getOutputType(size_t(idx));
 
     if (outType == TransactionTypes::OutputType::Key) {
@@ -92,7 +93,7 @@ void findMyOutputs(
       uint64_t amount;
       MultisignatureOutput out;
       tx.getOutput(idx, out, amount);
-
+      
       for (const auto& key : out.keys) {
         if (public_keys_seen.find(key) != public_keys_seen.end()) {
           throw std::runtime_error("The same transaction pubkey is present more than once");
@@ -225,8 +226,7 @@ bool TransfersConsumer::onNewBlocks(const CompleteBlock* blocks, uint32_t startH
   std::atomic<bool> stopProcessing(false);
 
   auto pushingThread = std::async(std::launch::async, [&] {
-    uint32_t i = 0;
-    for (uint32_t j = count - 1; j--; ) {
+    for( uint32_t i = 0; i < count && !stopProcessing; ++i) {
       const auto& block = blocks[i].block;
 
       if (!block.is_initialized()) {
@@ -254,7 +254,6 @@ bool TransfersConsumer::onNewBlocks(const CompleteBlock* blocks, uint32_t startH
         inputQueue.push(item);
         ++blockInfo.transactionIndex;
       }
-    i++;
     }
 
     inputQueue.close();
