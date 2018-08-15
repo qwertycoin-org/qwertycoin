@@ -428,7 +428,10 @@ namespace CryptoNote {
 
 	difficulty_type Currency::nextDifficulty(uint8_t blockMajorVersion, std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
-		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_3) {
+		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
+			return nextDifficultyV5(blockMajorVersion, timestamps, cumulativeDifficulties);
+		}
+		else if (blockMajorVersion == BLOCK_MAJOR_VERSION_3 || blockMajorVersion == BLOCK_MAJOR_VERSION_4) {
 			return nextDifficultyV3(timestamps, cumulativeDifficulties);
 		}
 		else if (blockMajorVersion == BLOCK_MAJOR_VERSION_2) {
@@ -616,37 +619,41 @@ namespace CryptoNote {
 		return v < lo ? lo : v > hi ? hi : v;
 	}
 
-	difficulty_type Currency::nextDifficultyV4(uint8_t blockMajorVersion,
+	difficulty_type Currency::nextDifficultyV5(uint8_t blockMajorVersion,
 		std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulativeDifficulties) const {
 
 		// LWMA-2 difficulty algorithm 
 		// Copyright (c) 2017-2018 Zawy, MIT License
 		// https://github.com/zawy12/difficulty-algorithms/issues/3
-		// Forked from aivve by Karbowanec developers
 		// with modifications by Ryo Currency developers
 
 		const int64_t  T = static_cast<int64_t>(m_difficultyTarget);
 		int64_t  N = difficultyBlocksCount3();
-		int64_t  FTL = timestampCheckWindow(blockMajorVersion); // FTL=3xT
 		int64_t  L(0), ST, sum_3_ST(0);
 		uint64_t next_D, prev_D;
 
+		assert(timestamps.size() == cumulativeDifficulties.size() && timestamps.size() <= static_cast<uint64_t>(N + 1));
+
 		for (int64_t i = 1; i <= N; i++) {
-			ST = clamp(-FTL, int64_t(timestamps[i]) - int64_t(timestamps[i - 1]), 6 * T);
+			ST = clamp(-6 * T, int64_t(timestamps[i]) - int64_t(timestamps[i - 1]), 6 * T);
 			L += ST * i;
 			if (i > N - 3) { sum_3_ST += ST; }
 		}
-		int64_t clamp_increase = (T * N * (N + 1) * 99) / int64_t(100.0 * 2.0 * 2.5);
-		int64_t clamp_decrease = (T * N * (N + 1) * 99) / int64_t(100.0 * 2.0 * 0.2);
-		L = clamp(clamp_increase, L, clamp_decrease); // This guarantees positive L
-
+		
 		next_D = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1)) / uint64_t(2 * L);
 		next_D = (next_D * 99ull) / 100ull;
 
 		prev_D = cumulativeDifficulties[N] - cumulativeDifficulties[N - 1];
-		next_D = std::max<uint64_t>((prev_D * 70ull) / 100ull, std::min<uint64_t>(next_D, (prev_D * 107ull) / 100ull));
+		next_D = clamp((uint64_t)(prev_D * 67ull / 100ull), next_D, (uint64_t)(prev_D * 150ull / 100ull));
+		if (sum_3_ST < (8 * T) / 10)
+		{
+			next_D = (prev_D * 110ull) / 100ull;
+		}
 
-		if (sum_3_ST < (8 * T) / 10) { next_D = (prev_D * 110ull) / 100ull; }
+		// minimum limit
+		if (next_D < 100000) {
+			next_D = 100000;
+		}
 
 		return next_D;
 	}
