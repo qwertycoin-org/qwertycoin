@@ -419,6 +419,9 @@ bool RpcServer::on_get_info(const COMMAND_RPC_GET_INFO::request& req, COMMAND_RP
   res.version = PROJECT_VERSION_LONG;
   res.fee_address = m_fee_address.empty() ? std::string() : m_fee_address;
   res.start_time = (uint64_t)m_core.getStartTime();
+  res.block_major_version = m_core.getCurrentBlockMajorVersion();
+  // that large uint64_t number is unsafe in JavaScript environment and therefore as a JSON value so we display it as a formatted string
+  res.already_generated_coins = m_core.currency().formatAmount(m_core.getTotalGeneratedAmount());
   res.status = CORE_RPC_STATUS_OK;
   return true;
 }
