@@ -94,6 +94,7 @@ set(CMAKE_SUPPRESS_REGENERATION ON)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake ${CMAKE_CURRENT_BINARY_DIR})
 
 project(Qwertycoin)
+
 include_directories(include src external "${CMAKE_CURRENT_BINARY_DIR}/version")  
 
 # Check whether we're on a 32-bit or 64-bit system
@@ -521,11 +522,9 @@ endif()
 
 list(APPEND EXTRA_LIBRARIES ${CMAKE_DL_LIBS})
 
-if(ANDROID)
+if(ANDROID AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
   set(ATOMIC ${BOOST_LIBRARYDIR}/libboost_atomic.a)
   set(THREAD ${BOOST_LIBRARYDIR}/libboost_thread.a)
-endif()
-if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND NOT IOS AND NOT FREEBSD AND NOT APPLE)
   find_library(THREAD thread)
   list(APPEND EXTRA_LIBRARIES ${THREAD})
   if(ARCH_WIDTH EQUAL "32")
@@ -552,6 +551,8 @@ option(BUILD_TESTS "Build tests." OFF)
 if(BUILD_TESTS)
   add_subdirectory(tests)
 endif()
+
+
 
 set(COMMIT_ID_IN_VERSION ON CACHE BOOL "Include commit ID in version")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/version")
