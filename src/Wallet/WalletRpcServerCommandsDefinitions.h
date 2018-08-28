@@ -88,10 +88,12 @@ using CryptoNote::ISerializer;
 		struct response
 		{
 			std::string tx_hash;
+			std::string tx_key;
 
 			void serialize(ISerializer& s)
 			{
 				KV_MEMBER(tx_hash)
+				KV_MEMBER(tx_key)
 			}
 		};
 	};
@@ -170,6 +172,7 @@ using CryptoNote::ISerializer;
 		uint64_t blockIndex;
 		uint64_t unlockTime;
 		uint64_t confirmations;
+		std::string txKey;
 
 		void serialize(ISerializer& s)
 		{
@@ -183,6 +186,7 @@ using CryptoNote::ISerializer;
 			KV_MEMBER(blockIndex)
 			KV_MEMBER(unlockTime)
 			KV_MEMBER(confirmations)
+			KV_MEMBER(txKey)
 		}
 	};
 
@@ -295,6 +299,27 @@ using CryptoNote::ISerializer;
 			void serialize(ISerializer& s)
 			{
 				KV_MEMBER(payment_id)
+			}
+		};
+	};
+
+/* Command: get_tx_key */
+	struct COMMAND_RPC_GET_TX_KEY
+	{
+		struct request
+		{
+			std::string tx_hash;
+			void serialize(ISerializer& s)
+			{
+				KV_MEMBER(tx_hash)
+			}
+		};
+		struct response
+		{
+			std::string tx_key;
+			void serialize(ISerializer& s)
+			{
+				KV_MEMBER(tx_key)
 			}
 		};
 	};

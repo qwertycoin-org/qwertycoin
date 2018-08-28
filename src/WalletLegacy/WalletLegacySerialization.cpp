@@ -19,6 +19,7 @@
 #include "WalletLegacySerialization.h"
 #include "WalletLegacy/WalletUnconfirmedTransactions.h"
 #include "IWalletLegacy.h"
+#include "WalletLegacy/WalletLegacySerializer.h" 
 
 #include "CryptoNoteCore/CryptoNoteSerialization.h"
 #include "Serialization/ISerializer.h"
@@ -36,6 +37,8 @@ void serialize(UnconfirmedTransferDetails& utd, CryptoNote::ISerializer& seriali
   uint64_t txId = static_cast<uint64_t>(utd.transactionId);
   serializer(txId, "transaction_id");
   utd.transactionId = static_cast<size_t>(txId);
+  if (CryptoNote::WALLET_LEGACY_SERIALIZATION_VERSION >= 2)
+    serializer(utd.secretKey, "secret_key");
 }
 
 void serialize(WalletLegacyTransaction& txi, CryptoNote::ISerializer& serializer) {
@@ -58,6 +61,12 @@ void serialize(WalletLegacyTransaction& txi, CryptoNote::ISerializer& serializer
   serializer(txi.timestamp, "timestamp");
   serializer(txi.unlockTime, "unlock_time");
   serializer(txi.extra, "extra");
+
+  if (CryptoNote::WALLET_LEGACY_SERIALIZATION_VERSION >= 2) {
+    Crypto::SecretKey secretKey = reinterpret_cast<const Crypto::SecretKey&>(txi.secretKey.get());
+    serializer(secretKey, "secret_key");
+    txi.secretKey = secretKey;
+  }
 
   //this field has been added later in the structure.
   //in order to not break backward binary compatibility
