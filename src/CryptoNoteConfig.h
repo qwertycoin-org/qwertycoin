@@ -69,7 +69,7 @@ static_assert(2 * DIFFICULTY_CUT <= DIFFICULTY_WINDOW - 2, "Bad DIFFICULTY_WINDO
 
 static constexpr uint64_t POISSON_CHECK_TRIGGER               = 10;   // Reorg size that triggers poisson timestamp check
 static constexpr uint64_t POISSON_CHECK_DEPTH                 = 60;   // Main-chain depth of the poisson check. The attacker will have to tamper 50% of those blocks
-static constexpr double POISSON_LOG_P_REJECT                  = -75.0;// Reject reorg if the probablity that the timestamps are genuine is below e^x, -75 = 10^-33
+static constexpr double   POISSON_LOG_P_REJECT                = -75.0;// Reject reorg if the probablity that the timestamps are genuine is below e^x, -75 = 10^-33
 
 const size_t   MAX_BLOCK_SIZE_INITIAL                         = 1000000;
 const uint64_t MAX_BLOCK_SIZE_GROWTH_SPEED_NUMERATOR          = 100 * 1024;
@@ -89,7 +89,7 @@ const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
 const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
 const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
-const uint32_t UPGRADE_HEIGHT_V5                              = 200000;
+const uint32_t UPGRADE_HEIGHT_V5                              = 300000;
 const uint32_t UPGRADE_HEIGHT_V6                              = 4294967295;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
