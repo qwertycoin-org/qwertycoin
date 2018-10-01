@@ -3,6 +3,17 @@
 [![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=stage_1)](https://travis-ci.org/qwertycoin-org/qwertycoin)
 [![Build status](https://ci.appveyor.com/api/projects/status/yhiqfap4nfdommsb?svg=true)](https://ci.appveyor.com/project/qwertycoin-org/qwertycoin)
 
+**HARDFORK 4 IS SET AT HEIGHT 110,520!!!**
+Pools operating **'cryptonote-forknote-pool'** or compatible software should update Node-Cryptonote-Util to this version: https://github.com/qwertycoin-org/node-cryptonote-util. The reference pool (qwertycoin.site) software is here: https://github.com/qwertycoin-org/qwertycoin-pool.
+Pools operating **'cryptonote-nodejs-pool'** should _change config on hardfork height_. The changes in config are:
+```
+"daemonType": "default",
+"cnAlgorithm": "cryptonight_heavy",
+"cnVariant": 0,
+"cnBlobType": 4,
+```
+The example of Qwertycoin config is here: https://github.com/dvandal/cryptonote-nodejs-pool/blob/master/config_examples/qwertycoin.json
+
 ### How To Compile
 
 #### Ubuntu 16.04+ and MacOS 10.10+

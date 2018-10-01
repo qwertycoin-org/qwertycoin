@@ -285,7 +285,9 @@ struct COMMAND_RPC_GET_INFO {
     uint64_t grey_peerlist_size;
     uint32_t last_known_block_index;
     uint64_t start_time;
-      std::string fee_address;
+    std::string fee_address;
+    uint8_t block_major_version;
+      std::string already_generated_coins;
 
     void serialize(ISerializer &s) {
       KV_MEMBER(status)
@@ -303,7 +305,9 @@ struct COMMAND_RPC_GET_INFO {
       KV_MEMBER(grey_peerlist_size)
       KV_MEMBER(last_known_block_index)
       KV_MEMBER(start_time)
-        KV_MEMBER(fee_address)
+      KV_MEMBER(fee_address)
+      KV_MEMBER(block_major_version)
+      KV_MEMBER(already_generated_coins)
     }
   };
 };
@@ -476,6 +480,7 @@ struct f_transaction_details_response {
   uint64_t mixin;
   uint64_t fee;
   uint64_t amount_out;
+  uint32_t confirmations = 0;
 
   void serialize(ISerializer &s) {
     KV_MEMBER(hash)
@@ -484,6 +489,7 @@ struct f_transaction_details_response {
     KV_MEMBER(mixin)
     KV_MEMBER(fee)
     KV_MEMBER(amount_out)
+    KV_MEMBER(confirmations)
   }
 };
 
@@ -788,6 +794,56 @@ struct COMMAND_RPC_GEN_PAYMENT_ID {
 	  void serialize(ISerializer &s) {
 		  KV_MEMBER(payment_id)
 	  }
+  };
+};
+
+//-----------------------------------------------
+struct K_COMMAND_RPC_CHECK_TX_KEY {
+  struct request {
+    std::string txid;
+    std::string txkey;
+    std::string address;
+    void serialize(ISerializer &s) {
+      KV_MEMBER(txid)
+      KV_MEMBER(txkey)
+      KV_MEMBER(address)
+    }
+  };
+  struct response {
+    uint64_t amount;
+    std::vector<TransactionOutput> outputs;
+    std::string status;
+    void serialize(ISerializer &s) {
+      KV_MEMBER(amount)
+      KV_MEMBER(outputs)
+      KV_MEMBER(status)
+    }
+  };
+};
+
+//-----------------------------------------------
+struct K_COMMAND_RPC_CHECK_TX_WITH_PRIVATE_VIEW_KEY {
+  struct request {
+    std::string txid;
+    std::string view_key;
+    std::string address;
+    void serialize(ISerializer &s) {
+      KV_MEMBER(txid)
+      KV_MEMBER(view_key)
+      KV_MEMBER(address)
+    }
+  };
+  struct response {
+    uint64_t amount;
+    std::vector<TransactionOutput> outputs;
+    uint32_t confirmations = 0;
+    std::string status;
+    void serialize(ISerializer &s) {
+      KV_MEMBER(amount)
+      KV_MEMBER(outputs)
+      KV_MEMBER(confirmations)
+      KV_MEMBER(status)
+    }
   };
 };
 

@@ -53,4 +53,5 @@ private:
   const uint32_t walletSerializationVersion;
 };
 
+extern uint32_t WALLET_LEGACY_SERIALIZATION_VERSION;
 } //namespace CryptoNote
