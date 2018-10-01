@@ -480,6 +480,7 @@ struct f_transaction_details_response {
   uint64_t mixin;
   uint64_t fee;
   uint64_t amount_out;
+  uint32_t confirmations = 0;
 
   void serialize(ISerializer &s) {
     KV_MEMBER(hash)
@@ -488,6 +489,7 @@ struct f_transaction_details_response {
     KV_MEMBER(mixin)
     KV_MEMBER(fee)
     KV_MEMBER(amount_out)
+    KV_MEMBER(confirmations)
   }
 };
 
@@ -827,18 +829,20 @@ struct K_COMMAND_RPC_CHECK_TX_WITH_PRIVATE_VIEW_KEY {
     std::string address;
     void serialize(ISerializer &s) {
       KV_MEMBER(txid)
-        KV_MEMBER(view_key)
-        KV_MEMBER(address)
+      KV_MEMBER(view_key)
+      KV_MEMBER(address)
     }
   };
   struct response {
     uint64_t amount;
     std::vector<TransactionOutput> outputs;
+    uint32_t confirmations = 0;
     std::string status;
     void serialize(ISerializer &s) {
       KV_MEMBER(amount)
-        KV_MEMBER(outputs)
-        KV_MEMBER(status)
+      KV_MEMBER(outputs)
+      KV_MEMBER(confirmations)
+      KV_MEMBER(status)
     }
   };
 };
