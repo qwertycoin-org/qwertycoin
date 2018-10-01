@@ -142,6 +142,7 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest& request, C
 			{ "reset"		   , makeMemberMethod(&wallet_rpc_server::on_reset)			  },
 			{ "get_paymentid"  , makeMemberMethod(&wallet_rpc_server::on_gen_paymentid)	  },
 			{ "get_tx_key"     , makeMemberMethod(&wallet_rpc_server::on_get_tx_key)	  },
+			{ "change_password", makeMemberMethod(&wallet_rpc_server::on_change_password) },
 		};
 
 		auto it = s_methods.find(jsonRequest.getMethod());
@@ -501,6 +502,21 @@ bool wallet_rpc_server::on_get_tx_key(const wallet_rpc::COMMAND_RPC_GET_TX_KEY::
 	}
 	else {
 		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, std::string("No tx key found for this txid"));
+	}
+	return true;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------
+bool wallet_rpc_server::on_change_password(const wallet_rpc::COMMAND_RPC_CHANGE_PASSWORD::request& req, wallet_rpc::COMMAND_RPC_CHANGE_PASSWORD::response& res)
+{
+	std::error_code ec = m_wallet.changePassword(req.old_password, req.new_password);
+	if (!ec)
+	{
+		res.password_changed = true; // Success.
+	}
+	else
+	{
+		res.password_changed = false; // Failure.
 	}
 	return true;
 }
