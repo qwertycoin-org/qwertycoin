@@ -21,7 +21,9 @@
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
+#ifdef __APPLE__
+  #include <iostream>
+#endif
 #include <list>
 #include <unordered_map>
 #include <string>
