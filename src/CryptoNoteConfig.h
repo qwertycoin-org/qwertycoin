@@ -149,7 +149,7 @@ const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
 
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "de4dde4db33f004d3739499c67ccb730cc4734950f414cdb332b24c5ce764beaf";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "1e4dde4db33f004d3739499c67ccb730cc4734950f414cdb332b24c5ce764beaf";
 
 const char* const SEED_NODES[] = { 
   "95.216.199.222:8196",
