@@ -456,18 +456,10 @@ void InProcessNode::updateLastLocalBlockHeaderInfo() {
   Crypto::Hash hash;
   Block block;
   uint64_t difficulty;
-  /*
   do {
     core.get_blockchain_top(height, hash);
   } while (!core.getBlockByHash(hash, block) || !core.getBlockDifficulty(height, difficulty));
-  */
-  try {
-    core.get_blockchain_top(height, hash);
-    core.getBlockByHash(hash, block);
-    difficulty = core.getBlockDifficulty(height, difficulty);
-  } catch (const std::exception&) {
-    return;
-  }
+
   lastLocalBlockHeaderInfo.index = height;
   lastLocalBlockHeaderInfo.majorVersion = block.majorVersion;
   lastLocalBlockHeaderInfo.minorVersion = block.minorVersion;
@@ -633,7 +625,7 @@ void InProcessNode::getBlocks(const std::vector<uint32_t>& blockHeights, std::ve
       static_cast<
         void(InProcessNode::*)(
         const std::vector<uint32_t>&,
-          std::vector<std::vector<BlockDetails>>&,
+          std::vector<std::vector<BlockDetails>>&, 
           const Callback&
         )
       >(&InProcessNode::getBlocksAsync),
@@ -716,8 +708,8 @@ void InProcessNode::getBlocks(const std::vector<Crypto::Hash>& blockHashes, std:
     std::bind(
       static_cast<
         void(InProcessNode::*)(
-          const std::vector<Crypto::Hash>&,
-          std::vector<BlockDetails>&,
+          const std::vector<Crypto::Hash>&, 
+          std::vector<BlockDetails>&, 
           const Callback&
         )
       >(&InProcessNode::getBlocksAsync),
@@ -734,7 +726,7 @@ void InProcessNode::getBlocksAsync(const std::vector<Crypto::Hash>& blockHashes,
     std::bind(
       static_cast<
         std::error_code(InProcessNode::*)(
-          const std::vector<Crypto::Hash>&,
+          const std::vector<Crypto::Hash>&, 
           std::vector<BlockDetails>&
         )
       >(&InProcessNode::doGetBlocks),
@@ -779,10 +771,10 @@ void InProcessNode::getBlocks(uint64_t timestampBegin, uint64_t timestampEnd, ui
     std::bind(
       static_cast<
         void(InProcessNode::*)(
-          uint64_t,
-          uint64_t,
+          uint64_t, 
+          uint64_t, 
           uint32_t,
-          std::vector<BlockDetails>&,
+          std::vector<BlockDetails>&, 
           uint32_t&,
           const Callback&
         )
@@ -855,8 +847,8 @@ void InProcessNode::getTransactions(const std::vector<Crypto::Hash>& transaction
     std::bind(
       static_cast<
         void(InProcessNode::*)(
-          const std::vector<Crypto::Hash>&,
-          std::vector<TransactionDetails>&,
+          const std::vector<Crypto::Hash>&, 
+          std::vector<TransactionDetails>&, 
           const Callback&
         )
       >(&InProcessNode::getTransactionsAsync),

@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, Karbo developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -36,18 +36,14 @@ using namespace Common;
 
 namespace CryptoNote {
 
-uint32_t WALLET_LEGACY_SERIALIZATION_VERSION = 2;
-
 WalletLegacySerializer::WalletLegacySerializer(CryptoNote::AccountBase& account, WalletUserTransactionsCache& transactionsCache) :
   account(account),
   transactionsCache(transactionsCache),
-  walletSerializationVersion(2)
+  walletSerializationVersion(1)
 {
 }
 
 void WalletLegacySerializer::serialize(std::ostream& stream, const std::string& password, bool saveDetailed, const std::string& cache) {
-  // set serialization version global variable
-  CryptoNote::WALLET_LEGACY_SERIALIZATION_VERSION = walletSerializationVersion;
   std::stringstream plainArchive;
   StdOutputStream plainStream(plainArchive);
   CryptoNote::BinaryOutputStreamSerializer serializer(plainStream);
@@ -112,8 +108,6 @@ void WalletLegacySerializer::deserialize(std::istream& stream, const std::string
 
   uint32_t version;
   serializerEncrypted(version, "version");
-  // set serialization version global variable
-  CryptoNote::WALLET_LEGACY_SERIALIZATION_VERSION = version;
 
   Crypto::chacha8_iv iv;
   serializerEncrypted(iv, "iv");

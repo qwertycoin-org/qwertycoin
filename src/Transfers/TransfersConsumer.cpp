@@ -1,19 +1,20 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
-// This file is part of Bytecoin.
+// This file is part of Qwertycoin.
 //
-// Bytecoin is free software: you can redistribute it and/or modify
+// Qwertycoin is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Bytecoin is distributed in the hope that it will be useful,
+// Qwertycoin is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
+// along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "TransfersConsumer.h"
 
@@ -32,7 +33,6 @@
 using namespace Crypto;
 using namespace Logging;
 using namespace Common;
-
 std::unordered_map<Hash, std::vector<PublicKey>> public_keys_seen;
 
 namespace {
@@ -83,12 +83,10 @@ void findMyOutputs(
       uint64_t amount;
       KeyOutput out;
       tx.getOutput(idx, out, amount);
-
-      if (public_keys_seen.find(out.key) != public_keys_seen.end())
-    {
+      if (public_keys_seen.find(out.key) != public_keys_seen.end()) {
         throw std::runtime_error("The same transaction pubkey is present more than once");
-    }
-    else {
+      }
+      else {
         public_keys_seen.insert(out.key);
         checkOutputKey(derivation, out.key, keyIndex, idx, spendKeys, outputs);
       }
@@ -99,13 +97,12 @@ void findMyOutputs(
       uint64_t amount;
       MultisignatureOutput out;
       tx.getOutput(idx, out, amount);
-
+      
       for (const auto& key : out.keys) {
-        if (public_keys_seen.find(key) != public_keys_seen.end())
-        {
+        if (public_keys_seen.find(key) != public_keys_seen.end()) {
           throw std::runtime_error("The same transaction pubkey is present more than once");
         }
-        else {
+        else{
           public_keys_seen.insert(key);
           checkOutputKey(derivation, key, idx, idx, spendKeys, outputs);
         }
@@ -433,17 +430,18 @@ std::error_code createTransfers(
 
       assert(out.key == reinterpret_cast<const PublicKey&>(in_ephemeral.publicKey));
 
-    std::unordered_map<Hash, std::vector<PublicKey>>::iterator it = public_keys_seen.find(tx.getTransactionHash());
-    if (it == public_keys_seen.end()) {
-      for (const std::pair<Hash, std::vector<PublicKey>>& kv : public_keys_seen) {
-        auto& keys = kv.second;
-        if (std::find(keys.begin(), keys.end(), out.key) != keys.end()) {
-          throw std::runtime_error("duplicate transaction output key is found");
-          return std::error_code();
+      std::unordered_map<Hash, std::vector<PublicKey>>::iterator it = public_keys_seen.find(tx.getTransactionHash());
+      if (it == public_keys_seen.end()) {
+        for (const std::pair<Hash, std::vector<PublicKey>>& kv : public_keys_seen) {
+          auto& keys = kv.second;
+          if (std::find(keys.begin(), keys.end(), out.key) != keys.end()) {
+            throw std::runtime_error("duplicate transaction output key is found");
+            return std::error_code();
+          }
         }
+      
+        temp_keys.push_back(out.key);
       }
-      temp_keys.push_back(out.key);
-    }
 
       info.amount = amount;
       info.outputKey = out.key;
@@ -453,29 +451,29 @@ std::error_code createTransfers(
       MultisignatureOutput out;
       tx.getOutput(idx, out, amount);
 
-    for (const auto& key : out.keys) {
-      std::unordered_map<Hash, std::vector<PublicKey>>::iterator it = public_keys_seen.find(tx.getTransactionHash());
-      if (it == public_keys_seen.end()) {
-        for (const std::pair<Hash, std::vector<PublicKey>>& kv : public_keys_seen) {
-          auto& keys = kv.second;
-          if (std::find(keys.begin(), keys.end(), key) != keys.end()) {
-            throw std::runtime_error("duplicate transaction output key is found");
-            return std::error_code();
+      for (const auto& key : out.keys) {
+        std::unordered_map<Hash, std::vector<PublicKey>>::iterator it = public_keys_seen.find(tx.getTransactionHash());
+        if (it == public_keys_seen.end()) {
+          for (const std::pair<Hash, std::vector<PublicKey>>& kv : public_keys_seen) {
+            auto& keys = kv.second;
+            if (std::find(keys.begin(), keys.end(), key) != keys.end()) {
+              throw std::runtime_error("duplicate transaction output key is found");
+              return std::error_code();
+            }
           }
+          std::vector<PublicKey> temp_keys;
+          temp_keys.push_back(key);
+          public_keys_seen.insert(std::make_pair(tx.getTransactionHash(), temp_keys));
         }
-
-        std::vector<PublicKey> temp_keys;
-        temp_keys.push_back(key);
-        public_keys_seen.insert(std::make_pair(tx.getTransactionHash(), temp_keys));
       }
-    }
+
       info.amount = amount;
       info.requiredSignatures = out.requiredSignatureCount;
     }
+    public_keys_seen.insert(std::make_pair(tx.getTransactionHash(), temp_keys));
 
     transfers.push_back(info);
   }
-  public_keys_seen.insert(std::make_pair(tx.getTransactionHash(), temp_keys));
 
   return std::error_code();
 }
@@ -507,16 +505,16 @@ std::error_code TransfersConsumer::preprocessOutputs(const TransactionBlockInfo&
     auto it = m_subscriptions.find(kv.first);
     if (it != m_subscriptions.end()) {
       auto& transfers = info.outputs[kv.first];
-    try {
-      errorCode = createTransfers(it->second->getKeys(), blockInfo, tx, kv.second, info.globalIdxs, transfers);
-      if (errorCode) {
-        return errorCode;
+      try {
+        errorCode = createTransfers(it->second->getKeys(), blockInfo, tx, kv.second, info.globalIdxs, transfers);
+        if (errorCode) {
+          return errorCode;
+        }
       }
-    }
-    catch (const std::exception& e) {
-      m_logger(ERROR, BRIGHT_RED) << "Failed to process transaction: " << e.what() << ", transaction hash " << Common::podToHex(tx.getTransactionHash());
-      return std::error_code();
-    }
+      catch (const std::exception& e) {
+        m_logger(ERROR, BRIGHT_RED) << "Failed to process transaction: " << e.what() << ", transaction hash " << Common::podToHex(tx.getTransactionHash());
+        return std::error_code();
+      }
     }
   }
 

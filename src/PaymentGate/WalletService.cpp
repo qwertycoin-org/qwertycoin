@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, Karbo developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -269,7 +269,7 @@ std::vector<PaymentService::TransactionHashesInBlockRpcInfo> convertTransactions
 }
 
 void validateMixin(const uint16_t& mixin, const CryptoNote::Currency& currency, Logging::LoggerRef logger) {
-    if (mixin < currency.minMixin() && mixin != 0) {
+    if (mixin < currency.minMixin()) {
         logger(Logging::WARNING, Logging::BRIGHT_YELLOW) << "Mixin must be equal or bigger to" << currency.minMixin();
         throw std::system_error(make_error_code(CryptoNote::error::MIXIN_COUNT_TOO_SMALL));
     }
@@ -781,7 +781,7 @@ std::error_code WalletService::getAddresses(std::vector<std::string>& addresses)
   return std::error_code();
 }
 
-std::error_code WalletService::sendTransaction(const SendTransaction::Request& request, std::string& transactionHash, std::string& transactionSecretKey) {
+std::error_code WalletService::sendTransaction(const SendTransaction::Request& request, std::string& transactionHash) {
   try {
     System::EventLock lk(readyEvent);
 
@@ -806,10 +806,8 @@ std::error_code WalletService::sendTransaction(const SendTransaction::Request& r
     sendParams.unlockTimestamp = request.unlockTime;
     sendParams.changeDestination = request.changeAddress;
 
-      Crypto::SecretKey tx_key;
-    size_t transactionId = wallet.transfer(sendParams, tx_key);
+    size_t transactionId = wallet.transfer(sendParams);
     transactionHash = Common::podToHex(wallet.getTransaction(transactionId).hash);
-      transactionSecretKey = Common::podToHex(tx_key);
 
     logger(Logging::DEBUGGING) << "Transaction " << transactionHash << " has been sent";
   } catch (std::system_error& x) {
@@ -993,9 +991,6 @@ std::error_code WalletService::validateAddress(const std::string& address, bool&
       _address = currency.accountAddressAsString(acc);
       spendPublicKey = Common::podToHex(acc.spendPublicKey);
       viewPublicKey = Common::podToHex(acc.viewPublicKey);
-    }
-    else {
-      isvalid = false;
     }
   }
   catch (std::system_error& x) {

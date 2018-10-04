@@ -1,5 +1,6 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, Karbo developers
+// Copyright (c) 2016-2018, The Karbo developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -23,11 +24,8 @@
 #include <ostream>
 #include <string>
 #include <system_error>
-#include <boost/optional.hpp> 
 #include "CryptoNote.h"
 #include "CryptoTypes.h"
-#include "crypto/crypto.h"
-#include "CryptoNoteCore/CryptoNoteBasic.h"
 
 namespace CryptoNote {
 
@@ -60,7 +58,6 @@ struct WalletLegacyTransaction {
   uint64_t         sentTime;
   uint64_t         unlockTime;
   Crypto::Hash     hash;
-  boost::optional<Crypto::SecretKey> secretKey = CryptoNote::NULL_SECRET_KEY;
   bool             isCoinbase;
   uint32_t         blockHeight;
   uint64_t         timestamp;
@@ -124,8 +121,6 @@ public:
 
   virtual void getAccountKeys(AccountKeys& keys) = 0;
   virtual bool getSeed(std::string& electrum_words) = 0;
-
-  virtual Crypto::SecretKey getTxKey(Crypto::Hash& txid) = 0;
 };
 
 }

@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, Karbo developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -18,20 +18,15 @@
 
 #include "WalletSerializationV1.h"
 
-#include <boost/optional.hpp>
-#include "crypto/crypto.h"
 #include "Common/MemoryInputStream.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
-#include "CryptoNoteCore/CryptoNoteBasic.h"
 #include "Wallet/WalletErrors.h"
 #include "Wallet/WalletUtils.h"
 #include "WalletLegacy/KeysStorage.h"
 #include "WalletLegacy/WalletLegacySerialization.h"
-#include "WalletLegacy/WalletLegacySerializer.h"
 
 using namespace Common;
 using namespace Crypto;
-using namespace CryptoNote;
 
 namespace {
 
@@ -80,8 +75,6 @@ struct WalletTransactionDto {
     creationTime = wallet.creationTime;
     unlockTime = wallet.unlockTime;
     extra = wallet.extra;
-    if (wallet.secretKey)
-      secretKey = reinterpret_cast<const Crypto::SecretKey&>(wallet.secretKey.get());
   }
 
   CryptoNote::WalletTransactionState state;
@@ -93,7 +86,6 @@ struct WalletTransactionDto {
   uint64_t creationTime;
   uint64_t unlockTime;
   std::string extra;
-  boost::optional<Crypto::SecretKey> secretKey = CryptoNote::NULL_SECRET_KEY;
 };
 
 //DO NOT CHANGE IT
@@ -154,10 +146,6 @@ void serialize(WalletTransactionDto& value, CryptoNote::ISerializer& serializer)
   serializer(value.creationTime, "creation_time");
   serializer(value.unlockTime, "unlock_time");
   serializer(value.extra, "extra");
-
-  Crypto::SecretKey secretKey = reinterpret_cast<const Crypto::SecretKey&>(value.secretKey.get());
-  serializer(secretKey, "secret_key");
-  value.secretKey = secretKey;
 }
 
 void serialize(WalletTransferDto& value, CryptoNote::ISerializer& serializer) {
@@ -213,8 +201,7 @@ CryptoNote::WalletTransaction convert(const CryptoNote::WalletLegacyTransaction&
   mtx.unlockTime = tx.unlockTime;
   mtx.extra = tx.extra;
   mtx.isBase = tx.isCoinbase;
-  if(tx.secretKey)
-    mtx.secretKey = reinterpret_cast<const Crypto::SecretKey&>(tx.secretKey.get());
+
   return mtx;
 }
 
@@ -272,11 +259,9 @@ void WalletSerializerV1::load(const Crypto::chacha8_key& key, Common::IInputStre
 
   uint32_t version = loadVersion(source);
 
-  CryptoNote::WALLET_LEGACY_SERIALIZATION_VERSION = version;
-
   if (version > SERIALIZATION_VERSION) {
     throw std::system_error(make_error_code(error::WRONG_VERSION));
-  } else if (version > 2) {
+  } else if (version != 1) {
     loadWallet(source, key, version);
   } else {
     loadWalletV1(source, key);
@@ -642,8 +627,6 @@ void WalletSerializerV1::loadTransactions(Common::IInputStream& source, CryptoCo
     tx.unlockTime = dto.unlockTime;
     tx.extra = dto.extra;
     tx.isBase = false;
-    if (dto.secretKey)
-      tx.secretKey = reinterpret_cast<const Crypto::SecretKey&>(dto.secretKey.get());
 
     m_transactions.get<RandomAccessIndex>().push_back(std::move(tx));
   }

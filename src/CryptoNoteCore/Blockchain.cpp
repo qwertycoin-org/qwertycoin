@@ -1,7 +1,6 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018, Ryo Currency Project 
-// Copyright (c) 2017-2018, The Qwertycoin developers
+// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -25,7 +24,6 @@
 #include <cmath>
 #include <boost/foreach.hpp>
 #include "Common/Math.h"
-#include "Common/int-util.h"
 #include "Common/ShuffleGenerator.h"
 #include "Common/StdInputStream.h"
 #include "Common/StdOutputStream.h"
@@ -328,7 +326,6 @@ m_upgradeDetectorV2(currency, m_blocks, BLOCK_MAJOR_VERSION_2, logger),
 m_upgradeDetectorV3(currency, m_blocks, BLOCK_MAJOR_VERSION_3, logger),
 m_upgradeDetectorV4(currency, m_blocks, BLOCK_MAJOR_VERSION_4, logger),
 m_upgradeDetectorV5(currency, m_blocks, BLOCK_MAJOR_VERSION_5, logger),
-m_upgradeDetectorV6(currency, m_blocks, BLOCK_MAJOR_VERSION_6, logger),
 m_checkpoints(logger),
 m_paymentIdIndex(blockchainIndexesEnabled),
 m_timestampIndex(blockchainIndexesEnabled),
@@ -479,7 +476,7 @@ bool Blockchain::init(const std::string& config_folder, bool load_existing) {
     rollbackBlockchainTo(lastValidCheckpointHeight);
   }
 
-  if (!m_upgradeDetectorV2.init() || !m_upgradeDetectorV3.init() || !m_upgradeDetectorV4.init() || !m_upgradeDetectorV5.init() || !m_upgradeDetectorV6.init()) {
+  if (!m_upgradeDetectorV2.init() || !m_upgradeDetectorV3.init() || !m_upgradeDetectorV4.init() || !m_upgradeDetectorV5.init()) {
     logger(ERROR, BRIGHT_RED) << "Failed to initialize upgrade detector";
     return false;
   }
@@ -514,15 +511,8 @@ bool Blockchain::init(const std::string& config_folder, bool load_existing) {
     rollbackBlockchainTo(upgradeHeight);
     reinitUpgradeDetectors = true;
   }
-  else if (!checkUpgradeHeight(m_upgradeDetectorV6)) {
-    uint32_t upgradeHeight = m_upgradeDetectorV6.upgradeHeight();
-    logger(WARNING, BRIGHT_YELLOW) << "Invalid block version at " << upgradeHeight + 1 << ": real=" << static_cast<int>(m_blocks[upgradeHeight + 1].bl.majorVersion) <<
-      " expected=" << static_cast<int>(m_upgradeDetectorV6.targetVersion()) << ". Rollback blockchain to height=" << upgradeHeight;
-    rollbackBlockchainTo(upgradeHeight);
-    reinitUpgradeDetectors = true;
-  }
 
-  if (reinitUpgradeDetectors && (!m_upgradeDetectorV2.init() || !m_upgradeDetectorV3.init() || !m_upgradeDetectorV4.init() || !m_upgradeDetectorV5.init() || !m_upgradeDetectorV6.init())) {
+  if (reinitUpgradeDetectors && (!m_upgradeDetectorV2.init() || !m_upgradeDetectorV3.init() || !m_upgradeDetectorV4.init() || !m_upgradeDetectorV5.init())) {
     logger(ERROR, BRIGHT_RED) << "Failed to initialize upgrade detector";
     return false;
   }
@@ -756,9 +746,6 @@ uint8_t Blockchain::getBlockMajorVersionForHeight(uint32_t height) const {
   else if (height > m_upgradeDetectorV5.upgradeHeight()) {
     return m_upgradeDetectorV5.targetVersion();
   }
-  else if (height > m_upgradeDetectorV6.upgradeHeight()) {
-    return m_upgradeDetectorV6.targetVersion();
-  }
   else if (height > m_upgradeDetectorV3.upgradeHeight()) {
     return m_upgradeDetectorV3.targetVersion();
   }
@@ -806,63 +793,6 @@ bool Blockchain::switch_to_alternative_blockchain(std::list<blocks_ext_by_hash::
   if (!(m_blocks.size() > split_height)) {
     logger(ERROR, BRIGHT_RED) << "switch_to_alternative_blockchain: blockchain size is lower than split height";
     return false;
-  }
-
-  // Poisson check, courtesy of ryo-project
-  // https://github.com/ryo-currency/ryo-writeups/blob/master/poisson-writeup.md
-  // For longer reorgs, check if the timestamps are probable - if they aren't the diff algo has failed
-  // This check is meant to detect an offline bypass of timestamp < time() + ftl check
-  // It doesn't need to be very strict as it synergises with the median check
-  if (alt_chain.size() >= CryptoNote::parameters::POISSON_CHECK_TRIGGER)
-  {
-    uint64_t alt_chain_size = alt_chain.size();
-    uint64_t high_timestamp = alt_chain.back()->second.bl.timestamp;
-    Crypto::Hash low_block = alt_chain.front()->second.bl.previousBlockHash;
-    //Make sure that the high_timestamp is really highest
-    for (const blocks_ext_by_hash::iterator &it : alt_chain)
-    {
-      if (high_timestamp < it->second.bl.timestamp)
-        high_timestamp = it->second.bl.timestamp;
-    }
-    uint64_t block_ftl = CryptoNote::parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1;
-    // This would fail later anyway
-    if (high_timestamp > get_adjusted_time() + block_ftl)
-    {
-      logger(ERROR, BRIGHT_RED) << "Attempting to move to an alternate chain, but it failed FTL check! Timestamp: " << high_timestamp << " limit: " << get_adjusted_time() + block_ftl;
-      return false;
-    }
-    logger(INFO) << "Poisson check triggered by reorg size of " << alt_chain_size;
-    uint64_t failed_checks = 0, i = 1;
-    constexpr Crypto::Hash zero_hash = { 0 };
-    for (; i <= CryptoNote::parameters::POISSON_CHECK_DEPTH; i++)
-    {
-      // This means we reached the genesis block
-      if (low_block == NULL_HASH)
-        break;
-      Block blk;
-      getBlockByHash(low_block, blk);
-      uint64_t low_timestamp = blk.timestamp;
-      low_block = blk.previousBlockHash;
-      if (low_timestamp >= high_timestamp)
-      {
-        logger(INFO) << "Skipping check at depth " << i << " due to tampered timestamp on main chain.";
-        failed_checks++;
-        continue;
-      }
-      double lam = double(high_timestamp - low_timestamp) / double(CryptoNote::parameters::DIFFICULTY_TARGET);
-      if (calc_poisson_ln(lam, alt_chain_size + i) < CryptoNote::parameters::POISSON_LOG_P_REJECT)
-      {
-        logger(INFO) << "Poisson check at depth " << i << " failed! delta_t: " << (high_timestamp - low_timestamp) << " size: " << alt_chain_size + i;
-        failed_checks++;
-      }
-    }
-    i--; //Convert to number of checks
-    logger(INFO) << "Poisson check result " << failed_checks << " fails out of " << i;
-    if (failed_checks > i / 2)
-    {
-      logger(ERROR, BRIGHT_RED) << "Attempting to move to an alternate chain, but it failed Poisson check! " << failed_checks << " fails out of " << i << " alt_chain_size: " << alt_chain_size;
-      return false;
-    }
   }
 
   //disconnecting old chain
@@ -1313,6 +1243,7 @@ bool Blockchain::handleGetObjects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTI
   rsp.current_blockchain_height = getCurrentBlockchainHeight();
   std::list<Block> blocks;
   getBlocks(arg.blocks, blocks, rsp.missed_ids);
+
   for (const auto& bl : blocks) {
     std::list<Crypto::Hash> missed_tx_id;
     std::list<Transaction> txs;
@@ -2092,7 +2023,6 @@ bool Blockchain::pushBlock(const Block& blockData, const std::vector<Transaction
   m_upgradeDetectorV3.blockPushed();
   m_upgradeDetectorV4.blockPushed();
   m_upgradeDetectorV5.blockPushed();
-  m_upgradeDetectorV6.blockPushed();
   update_next_comulative_size_limit();
 
   return true;
@@ -2131,7 +2061,6 @@ void Blockchain::popBlock() {
   m_upgradeDetectorV3.blockPopped();
   m_upgradeDetectorV4.blockPopped();
   m_upgradeDetectorV5.blockPopped();
-  m_upgradeDetectorV6.blockPopped();
 }
 
 bool Blockchain::pushTransaction(BlockEntry& block, const Crypto::Hash& transactionHash, TransactionIndex transactionIndex) {

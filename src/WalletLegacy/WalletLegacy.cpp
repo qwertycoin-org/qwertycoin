@@ -33,13 +33,11 @@
 #include <string.h>
 #include <time.h>
 
-#include <Common/Base58.h>
 #include "Logging/ConsoleLogger.h"
 #include "WalletLegacy/WalletHelper.h"
 #include "WalletLegacy/WalletLegacySerialization.h"
 #include "WalletLegacy/WalletLegacySerializer.h"
 #include "WalletLegacy/WalletUtils.h"
-#include "Common/StringTools.h" 
 #include "mnemonics/electrum-words.h"
 
 extern "C"
@@ -290,7 +288,6 @@ void WalletLegacy::doLoad(std::istream& source) {
     } catch (const std::exception&) {
       // ignore cache loading errors
     }
-
   } catch (std::system_error& e) {
     runAtomic(m_cacheMutex, [this] () {this->m_state = WalletLegacy::NOT_INITIALIZED;} );
     m_observerManager.notify(&IWalletLegacyObserver::initCompleted, e.code());
@@ -480,12 +477,12 @@ uint64_t WalletLegacy::dustBalance() {
   uint64_t money = 0;
 
   for (size_t i = 0; i < outputs.size(); ++i) {
-    const auto& out = outputs[i];
-    if (!m_transactionsCache.isUsed(out)) {
-      if (/*out.amount < m_currency.defaultDustThreshold() &&*/ !is_valid_decomposed_amount(out.amount)) {
-        money += out.amount;
-      }
-    }
+   const auto& out = outputs[i];
+   if (!m_transactionsCache.isUsed(out)) {
+     if (out.amount < m_currency.defaultDustThreshold() && !is_valid_decomposed_amount(out.amount)) {
+       money += out.amount;
+     }
+   }
   }
 
   return money;
@@ -733,17 +730,6 @@ void WalletLegacy::getAccountKeys(AccountKeys& keys) {
 std::vector<TransactionId> WalletLegacy::deleteOutdatedUnconfirmedTransactions() {
   std::lock_guard<std::mutex> lock(m_cacheMutex);
   return m_transactionsCache.deleteOutdatedTransactions();
-}
-
-Crypto::SecretKey WalletLegacy::getTxKey(Crypto::Hash& txid) {
-  TransactionId ti = m_transactionsCache.findTransactionByHash(txid);
-  WalletLegacyTransaction transaction;
-  getTransaction(ti, transaction);
-  if (transaction.secretKey) {
-     return reinterpret_cast<const Crypto::SecretKey&>(transaction.secretKey.get());
-  } else {
-     return NULL_SECRET_KEY;
-  }
 }
 
 } //namespace CryptoNote

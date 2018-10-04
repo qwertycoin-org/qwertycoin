@@ -20,7 +20,6 @@
 #include <cstdio>
 
 #include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
 
 #include "CryptoNoteConfig.h"
 
@@ -306,13 +305,9 @@ std::string get_nix_version_display_string()
     // Mac: ~/Library/Application Support/CRYPTONOTE_NAME
     // Unix: ~/.CRYPTONOTE_NAME
     std::string config_folder;
-
-#ifdef _WIN32
+#ifdef WIN32
     // Windows
     config_folder = get_special_folder_path(CSIDL_APPDATA, true) + "/" + CryptoNote::CRYPTONOTE_NAME + "-v4";
-#ifdef USE_LITE_WALLET
-    config_folder = "./";
-#endif
 #else
     std::string pathRet;
     char* pszHome = getenv("HOME");
@@ -320,29 +315,16 @@ std::string get_nix_version_display_string()
       pathRet = "/";
     else
       pathRet = pszHome;
-#ifdef __APPLE__
+#ifdef MAC_OSX
     // Mac
-    std::string old_config_folder = (pathRet + "/." + CryptoNote::CRYPTONOTE_NAME + "-v4");
-    std::string pathRet2 = (pathRet + "/" + "Library/Application Support");
-    config_folder =  (pathRet2 + "/" + CryptoNote::CRYPTONOTE_NAME + "-v4");
-    // move to correct location
-    boost::filesystem::path old_path(old_config_folder);
-    if (!boost::filesystem::exists(config_folder) && boost::filesystem::is_directory(old_path)) {
-      if (boost::filesystem::create_directory(config_folder)) {
-        for (const auto& entry : boost::filesystem::recursive_directory_iterator{old_path}) {
-          const auto& path = entry.path();
-          auto rel_path_str = path.string();
-          boost::replace_first(rel_path_str, old_path.string(), "");
-          boost::filesystem::copy(path, config_folder + boost::filesystem::path::preferred_separator + rel_path_str);
-        }
-        boost::filesystem::remove_all(old_path);
-      }
-    }
+    pathRet /= "Library/Application Support";
+    config_folder =  (pathRet + "/" + CryptoNote::CRYPTONOTE_NAME + "-v4");
 #else
     // Unix
     config_folder = (pathRet + "/." + CryptoNote::CRYPTONOTE_NAME + "-v4");
 #endif
 #endif
+
     return config_folder;
   }
 

@@ -133,17 +133,13 @@ namespace CryptoNote {
       std::lock_guard<std::recursive_mutex> lk(m_blockchain_lock);
 
       for (const auto& bl_id : block_ids) {
-        try {
-            uint32_t height = 0;
-            if (!m_blockIndex.getBlockHeight(bl_id, height)) {
-              missed_bs.push_back(bl_id);
-            } else {
-              if (!(height < m_blocks.size())) { logger(Logging::ERROR, Logging::BRIGHT_RED) << "Internal error: bl_id=" << Common::podToHex(bl_id)
-                << " have index record with offset=" << height << ", bigger then m_blocks.size()=" << m_blocks.size(); return false; }
-                blocks.push_back(m_blocks[height].bl);
-            }
-        } catch (const std::exception& e) {
-          return false;
+        uint32_t height = 0;
+        if (!m_blockIndex.getBlockHeight(bl_id, height)) {
+          missed_bs.push_back(bl_id);
+        } else {
+          if (!(height < m_blocks.size())) { logger(Logging::ERROR, Logging::BRIGHT_RED) << "Internal error: bl_id=" << Common::podToHex(bl_id)
+            << " have index record with offset=" << height << ", bigger then m_blocks.size()=" << m_blocks.size(); return false; }
+            blocks.push_back(m_blocks[height].bl);
         }
       }
 
@@ -274,7 +270,6 @@ namespace CryptoNote {
     UpgradeDetector m_upgradeDetectorV3;
     UpgradeDetector m_upgradeDetectorV4;
     UpgradeDetector m_upgradeDetectorV5;
-    UpgradeDetector m_upgradeDetectorV6;
 
     PaymentIdIndex m_paymentIdIndex;
     TimestampBlocksIndex m_timestampIndex;
