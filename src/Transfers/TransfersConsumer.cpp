@@ -1,19 +1,19 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 //
-// This file is part of Qwertycoin.
+// This file is part of Bytecoin.
 //
-// Qwertycoin is free software: you can redistribute it and/or modify
+// Bytecoin is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Qwertycoin is distributed in the hope that it will be useful,
+// Bytecoin is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "TransfersConsumer.h"
 
@@ -383,6 +383,17 @@ void TransfersConsumer::removeUnconfirmedTransaction(const Crypto::Hash& transac
     subscription.second->deleteUnconfirmedTransaction(transactionHash);
   }
   m_observerManager.notify(&IBlockchainConsumerObserver::onTransactionDeleteEnd, this, transactionHash);
+}
+
+void TransfersConsumer::addPublicKeysSeen(const Crypto::Hash& transactionHash, Crypto::PublicKey outputKey) {
+    std::unordered_map<Hash, std::vector<Crypto::PublicKey>>::iterator it = public_keys_seen.find(transactionHash);
+    if (it == public_keys_seen.end()) {
+        std::vector<Crypto::PublicKey> temp_keys;
+        temp_keys.push_back(outputKey);
+        public_keys_seen.insert(std::make_pair(transactionHash, temp_keys));
+    } else {
+        it->second.push_back(outputKey);
+    }
 }
 
 std::error_code createTransfers(
