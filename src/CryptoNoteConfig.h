@@ -89,11 +89,11 @@ const size_t   FUSION_TX_MAX_SIZE                             = CRYPTONOTE_BLOCK
 const size_t   FUSION_TX_MIN_INPUT_COUNT                      = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 
-const uint32_t UPGRADE_HEIGHT_V2                              = 3;
-const uint32_t UPGRADE_HEIGHT_V3                              = 4;
-const uint32_t UPGRADE_HEIGHT_V4                              = 5;
-const uint32_t UPGRADE_HEIGHT_V5                              = 6;
-const uint32_t UPGRADE_HEIGHT_V6                              = 100;
+const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
+const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
+const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
+const uint32_t UPGRADE_HEIGHT_V5                              = 4294967294;
+const uint32_t UPGRADE_HEIGHT_V6                              = 4294967295;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
 const uint32_t UPGRADE_VOTING_WINDOW                         = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
@@ -149,11 +149,26 @@ const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
 
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "1e4dde4db33f004d3739499c67ccb730cc4734950f414cdb332b24c5ce764beaf";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef004d3739499c67ccb730cc4734950f414cdb332b24c5ce764beaf";
 
 const char* const SEED_NODES[] = { 
-  "95.216.199.222:8196",
-  "95.216.200.127:8196"
+  "node-00.qwertycoin.org:8196",//00P
+  "195.201.25.118:8196",        //01P
+  "198.147.30.116:8196",        //EXP
+  "198.147.30.115:8196",        //POO
+  "node-02.qwertycoin.org:8196",//02A
+  "78.47.85.215:8196",          //03A
+  "139.99.192.106:8196",        //JOR
+  /* Community Nodes */
+  "86.142.25.119:8196",
+  /* !known Nodes */
+  "185.240.249.2:8196",
+  "195.201.27.148:8196",
+  "195.201.29.64:8196",
+  "220.82.126.94:8196",
+  "77.55.237.152:8196",
+  "79.147.185.157:8196",
+  "94.130.187.117:8196"
 };
 
 } // CryptoNote

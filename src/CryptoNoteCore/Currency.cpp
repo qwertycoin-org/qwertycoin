@@ -484,13 +484,12 @@ namespace CryptoNote {
 		if (high != 0 || low + timeSpan - 1 < low) {
 			return 0;
 		}
-		/*
 		if(!isTestnet()) {
 			return (low + timeSpan - 1) / timeSpan;			
-		} else {
+		}
+		else {
 			return 10;
-		}*/
-		return 10;
+		}
 
 	}
 
@@ -539,17 +538,14 @@ namespace CryptoNote {
 
 		uint64_t nextDiffZ = low / timeSpan;
 
-		/*
 		// minimum limit
 		if (!isTestnet() && nextDiffZ < 100000) {
 			nextDiffZ = 100000;
-		}
-		if(isTestnet()) {
+		} else {
 			nextDiffZ = 100;
 		}
 
-		return nextDiffZ;*/
-		return 100;
+		return nextDiffZ;
 	}
 
 	difficulty_type Currency::nextDifficultyV3(std::vector<uint64_t> timestamps,
@@ -605,17 +601,15 @@ namespace CryptoNote {
 		nextDifficulty = harmonic_mean_D * T / LWMA;
 		next_difficulty = static_cast<uint64_t>(nextDifficulty);
 		
-		/*
 		// minimum limit
 		if (!isTestnet() && next_difficulty < 100000) {
 			next_difficulty = 100000;
 		}
-		if(isTestnet()) {
+		else {
 			next_difficulty = 1000;
 		}
 
-		return next_difficulty;*/
-		return 1000;
+		return next_difficulty;
 	}
 
 
@@ -656,14 +650,17 @@ namespace CryptoNote {
 			next_D = (prev_D * 110ull) / 100ull;
 		}
 
-		/*
-		// minimum limit
-		if (next_D < 100000) {
-			next_D = 100000;
+		if(!isTestnet()) {
+			// minimum limit
+			if (next_D < 100000) {
+				next_D = 100000;
+			}
+		}
+		else {
+			next_D = 10000;
 		}
 
-		return next_D;*/
-		return 10000;
+		return next_D;
 	}
 
 	bool Currency::checkProofOfWorkV1(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
