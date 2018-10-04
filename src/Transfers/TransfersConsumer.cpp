@@ -1,20 +1,19 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Karbo developers
 //
-// This file is part of Qwertycoin.
+// This file is part of Bytecoin.
 //
-// Qwertycoin is free software: you can redistribute it and/or modify
+// Bytecoin is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Qwertycoin is distributed in the hope that it will be useful,
+// Bytecoin is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "TransfersConsumer.h"
 
@@ -395,6 +394,7 @@ std::error_code createTransfers(
   std::vector<TransactionOutputInformationIn>& transfers) {
 
   auto txPubKey = tx.getTransactionPublicKey();
+  std::vector<PublicKey> temp_keys;
 
   for (auto idx : outputs) {
 
@@ -442,10 +442,7 @@ std::error_code createTransfers(
           return std::error_code();
         }
       }
-    
-      std::vector<PublicKey> temp_keys;
       temp_keys.push_back(out.key);
-      public_keys_seen.insert(std::make_pair(tx.getTransactionHash(), temp_keys));
     }
 
       info.amount = amount;
@@ -478,6 +475,7 @@ std::error_code createTransfers(
 
     transfers.push_back(info);
   }
+  public_keys_seen.insert(std::make_pair(tx.getTransactionHash(), temp_keys));
 
   return std::error_code();
 }

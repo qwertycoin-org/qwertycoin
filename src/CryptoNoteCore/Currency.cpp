@@ -486,7 +486,8 @@ namespace CryptoNote {
 		}
 		if(!isTestnet()) {
 			return (low + timeSpan - 1) / timeSpan;			
-		} else {
+		}
+		else {
 			return 10;
 		}
 
@@ -540,8 +541,7 @@ namespace CryptoNote {
 		// minimum limit
 		if (!isTestnet() && nextDiffZ < 100000) {
 			nextDiffZ = 100000;
-		}
-		if(isTestnet()) {
+		} else {
 			nextDiffZ = 100;
 		}
 
@@ -605,7 +605,7 @@ namespace CryptoNote {
 		if (!isTestnet() && next_difficulty < 100000) {
 			next_difficulty = 100000;
 		}
-		if(isTestnet()) {
+		else {
 			next_difficulty = 1000;
 		}
 
@@ -650,9 +650,14 @@ namespace CryptoNote {
 			next_D = (prev_D * 110ull) / 100ull;
 		}
 
-		// minimum limit
-		if (next_D < 100000) {
-			next_D = 100000;
+		if(!isTestnet()) {
+			// minimum limit
+			if (next_D < 100000) {
+				next_D = 100000;
+			}
+		}
+		else {
+			next_D = 10000;
 		}
 
 		return next_D;

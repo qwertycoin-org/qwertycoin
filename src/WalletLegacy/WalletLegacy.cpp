@@ -290,6 +290,7 @@ void WalletLegacy::doLoad(std::istream& source) {
     } catch (const std::exception&) {
       // ignore cache loading errors
     }
+
   } catch (std::system_error& e) {
     runAtomic(m_cacheMutex, [this] () {this->m_state = WalletLegacy::NOT_INITIALIZED;} );
     m_observerManager.notify(&IWalletLegacyObserver::initCompleted, e.code());
