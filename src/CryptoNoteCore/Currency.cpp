@@ -605,7 +605,7 @@ namespace CryptoNote {
 		if (nextDiffV3V4 < 1000000) {
 			nextDiffV3V4 = 1000000;
 		}
-		else if (isTestnet()){
+		if (isTestnet()){
 			nextDiffV3V4 = 1000;
 		}
 
