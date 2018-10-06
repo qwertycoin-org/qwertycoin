@@ -24,6 +24,7 @@
 #include "Common/CommandLine.h"
 #include "Common/StringTools.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
+#include "CryptoNoteCore/CryptoNoteBasicImpl.h"
 #include "CryptoNoteCore/Account.h"
 #include "Rpc/JsonRpc.h"
 #include "WalletLegacy/WalletHelper.h"
@@ -140,6 +141,8 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest& request, C
 			{ "query_key"      , makeMemberMethod(&wallet_rpc_server::on_query_key)		  },
 			{ "reset"		   , makeMemberMethod(&wallet_rpc_server::on_reset)			  },
 			{ "get_paymentid"  , makeMemberMethod(&wallet_rpc_server::on_gen_paymentid)	  },
+			{ "get_tx_key"     , makeMemberMethod(&wallet_rpc_server::on_get_tx_key)	  },
+			{ "change_password", makeMemberMethod(&wallet_rpc_server::on_change_password) },
 		};
 
 		auto it = s_methods.find(jsonRequest.getMethod());
@@ -178,7 +181,7 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 
 	if (req.mixin < m_currency.minMixin() && req.mixin != 0) {
 		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_WRONG_MIXIN,
-			std::string("Requested mixin \"" + std::to_string(req.mixin) + "\" is too low"));
+			std::string("Requested mixin " + std::to_string(req.mixin) + " is too low"));
 	}
 	std::vector<CryptoNote::WalletLegacyTransfer> transfers;
 	for (auto it = req.destinations.begin(); it != req.destinations.end(); ++it)
@@ -197,7 +200,7 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 		if (!CryptoNote::parsePaymentId(payment_id_str, payment_id))
 		{
 			throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID, 
-				"Payment ID has invalid format: \"" + payment_id_str + "\", expected 64-character string");
+				"Payment ID has invalid format: " + payment_id_str + ", expected 64-character string");
 		}
 
 		BinaryArray extra_nonce;
@@ -205,7 +208,7 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 		if (!CryptoNote::addExtraNonceToTransactionExtra(extra, extra_nonce))
 		{
 			throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID,
-				"Something went wrong with payment_id. Please check its format: \"" + payment_id_str + "\", expected 64-character string");
+				"Something went wrong with payment_id. Please check its format: " + payment_id_str + ", expected 64-character string");
 		}
 	}
 
@@ -229,6 +232,7 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 		CryptoNote::WalletLegacyTransaction txInfo;
 		m_wallet.getTransaction(tx, txInfo);
 		res.tx_hash = Common::podToHex(txInfo.hash);
+		res.tx_key = Common::podToHex(txInfo.secretKey);
 
 	}
 	catch (const std::exception& e)
@@ -343,6 +347,7 @@ bool wallet_rpc_server::on_get_transfers(const wallet_rpc::COMMAND_RPC_GET_TRANS
 
 		Crypto::Hash paymentId;
 		transfer.paymentId = (getPaymentIdFromTxExtra(extraVec, paymentId) && paymentId != NULL_HASH ? Common::podToHex(paymentId) : "");
+		transfer.txKey = (txInfo.secretKey != NULL_SECRET_KEY ? Common::podToHex(txInfo.secretKey) : "");
 
 		res.transfers.push_back(transfer);
 	}
@@ -398,6 +403,7 @@ bool wallet_rpc_server::on_get_transaction(const wallet_rpc::COMMAND_RPC_GET_TRA
 
 			Crypto::Hash paymentId;
 			transfer.paymentId = (getPaymentIdFromTxExtra(extraVec, paymentId) && paymentId != NULL_HASH ? Common::podToHex(paymentId) : "");
+			transfer.txKey = (txInfo.secretKey != NULL_SECRET_KEY ? Common::podToHex(txInfo.secretKey) : "");
 
 			res.transaction_details = transfer;
 
@@ -463,6 +469,7 @@ bool wallet_rpc_server::on_stop_wallet(const wallet_rpc::COMMAND_RPC_STOP::reque
 		WalletHelper::storeWallet(m_wallet, m_walletFilename);
 	}
 	catch (std::exception& e) {
+		logger(ERROR) << "Couldn't save wallet: " << e.what();
 		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, std::string("Couldn't save wallet: ") + e.what());
 	}
 	wallet_rpc_server::send_stop_signal();
@@ -471,8 +478,8 @@ bool wallet_rpc_server::on_stop_wallet(const wallet_rpc::COMMAND_RPC_STOP::reque
 //------------------------------------------------------------------------------------------------------------------------------
 
 bool wallet_rpc_server::on_gen_paymentid(const wallet_rpc::COMMAND_RPC_GEN_PAYMENT_ID::request& req,
-	wallet_rpc::COMMAND_RPC_GEN_PAYMENT_ID::response& res)
-{
+	wallet_rpc::COMMAND_RPC_GEN_PAYMENT_ID::response& res) {
+
 	std::string pid;
 	try {
 		pid = Common::podToHex(Crypto::rand<Crypto::Hash>());
@@ -481,6 +488,38 @@ bool wallet_rpc_server::on_gen_paymentid(const wallet_rpc::COMMAND_RPC_GEN_PAYME
 		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, std::string("Internal error: can't generate Payment ID: ") + e.what());
 	}
 	res.payment_id = pid;
+	return true;
+}
+
+bool wallet_rpc_server::on_get_tx_key(const wallet_rpc::COMMAND_RPC_GET_TX_KEY::request& req,
+	wallet_rpc::COMMAND_RPC_GET_TX_KEY::response& res) {
+	Crypto::Hash txid;
+	if (!parse_hash256(req.tx_hash, txid)) {
+		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, std::string("Failed to parse txid"));
+	}
+	Crypto::SecretKey tx_key = m_wallet.getTxKey(txid);
+	if (tx_key != NULL_SECRET_KEY) {
+		res.tx_key = Common::podToHex(tx_key);
+	}
+	else {
+		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, std::string("No tx key found for this txid"));
+	}
+	return true;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------
+bool wallet_rpc_server::on_change_password(const wallet_rpc::COMMAND_RPC_CHANGE_PASSWORD::request& req, wallet_rpc::COMMAND_RPC_CHANGE_PASSWORD::response& res)
+{
+	try
+	{
+		m_wallet.changePassword(req.old_password, req.new_password);
+	}
+	catch (const std::exception& e) {
+		logger(ERROR) << "Could not change password: " << e.what();
+		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, std::string("Could not change password: ") + e.what());
+		res.password_changed = false;
+	}
+	logger(INFO) << "Password changed via RPC.";
 	return true;
 }
 

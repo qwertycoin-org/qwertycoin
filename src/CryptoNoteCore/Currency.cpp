@@ -80,6 +80,7 @@ namespace CryptoNote {
 			m_upgradeHeightV3 = 8;
 			m_upgradeHeightV4 = 10;
 			m_upgradeHeightV5 = 12;
+			m_upgradeHeightV6 = 14;
 			m_blocksFileName = "testnet_" + m_blocksFileName;
 			m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
 			m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
@@ -139,6 +140,9 @@ namespace CryptoNote {
 		}
 		else if (majorVersion == BLOCK_MAJOR_VERSION_5) {
 			return m_upgradeHeightV5;
+		}
+		else if (majorVersion == BLOCK_MAJOR_VERSION_6) {
+			return m_upgradeHeightV6;
 		}
 		else if (majorVersion == BLOCK_MAJOR_VERSION_2) {
 			return m_upgradeHeightV2;
@@ -424,7 +428,10 @@ namespace CryptoNote {
 
 	difficulty_type Currency::nextDifficulty(uint8_t blockMajorVersion, std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
-		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_3) {
+		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
+			return nextDifficultyV5(blockMajorVersion, timestamps, cumulativeDifficulties);
+		}
+		else if (blockMajorVersion == BLOCK_MAJOR_VERSION_3 || blockMajorVersion == BLOCK_MAJOR_VERSION_4) {
 			return nextDifficultyV3(timestamps, cumulativeDifficulties);
 		}
 		else if (blockMajorVersion == BLOCK_MAJOR_VERSION_2) {
@@ -477,12 +484,13 @@ namespace CryptoNote {
 		if (high != 0 || low + timeSpan - 1 < low) {
 			return 0;
 		}
-		if(!isTestnet()) {
-			return (low + timeSpan - 1) / timeSpan;			
-		} else {
-			return 10;
-		}
 
+		uint64_t nextDiffV1 = (low + timeSpan - 1) / timeSpan;	
+
+		if(isTestnet()) {
+			nextDiffV1 = 10;		
+		}
+		return nextDiffV1;
 	}
 
 	difficulty_type Currency::nextDifficultyV2(std::vector<uint64_t> timestamps,
@@ -519,7 +527,7 @@ namespace CryptoNote {
 		difficulty_type totalWork = cumulativeDifficulties.back() - cumulativeDifficulties.front();
 		assert(totalWork > 0);
 
-		// uint64_t nextDiffZ = totalWork * m_difficultyTarget / timeSpan; 
+		// uint64_t nextDiffV2 = totalWork * m_difficultyTarget / timeSpan; 
 
 		uint64_t low, high;
 		low = mul128(totalWork, m_difficultyTarget, &high);
@@ -528,17 +536,16 @@ namespace CryptoNote {
 			return 0;
 		}
 
-		uint64_t nextDiffZ = low / timeSpan;
+		uint64_t nextDiffV2 = low / timeSpan;
 
 		// minimum limit
-		if (!isTestnet() && nextDiffZ < 100000) {
-			nextDiffZ = 100000;
-		}
-		if(isTestnet()) {
-			nextDiffZ = 100;
+		if (nextDiffV2 < 100000) {
+			nextDiffV2 = 100000;
+		} else if (isTestnet()) {
+			nextDiffV2 = 100;
 		}
 
-		return nextDiffZ;
+		return nextDiffV2;
 	}
 
 	difficulty_type Currency::nextDifficultyV3(std::vector<uint64_t> timestamps,
@@ -575,7 +582,7 @@ namespace CryptoNote {
 
 		double_t LWMA(0), sum_inverse_D(0), harmonic_mean_D(0), nextDifficulty(0);
 		int64_t solveTime(0);
-		uint64_t difficulty(0), next_difficulty(0);
+		uint64_t difficulty(0), nextDiffV3V4(0);
 
 		// Loop through N most recent blocks.
 		for (int64_t i = 1; i <= N; i++) {
@@ -592,17 +599,17 @@ namespace CryptoNote {
 
 		harmonic_mean_D = N / sum_inverse_D * adjust;
 		nextDifficulty = harmonic_mean_D * T / LWMA;
-		next_difficulty = static_cast<uint64_t>(nextDifficulty);
+		nextDiffV3V4 = static_cast<uint64_t>(nextDifficulty);
 		
 		// minimum limit
-		if (!isTestnet() && next_difficulty < 100000) {
-			next_difficulty = 100000;
+		if (nextDiffV3V4 < 1000000) {
+			nextDiffV3V4 = 1000000;
 		}
-		if(isTestnet()) {
-			next_difficulty = 1000;
+		else if (isTestnet()){
+			nextDiffV3V4 = 1000;
 		}
 
-		return next_difficulty;
+		return nextDiffV3V4;
 	}
 
 
@@ -612,39 +619,47 @@ namespace CryptoNote {
 		return v < lo ? lo : v > hi ? hi : v;
 	}
 
-	difficulty_type Currency::nextDifficultyV4(uint8_t blockMajorVersion,
+	difficulty_type Currency::nextDifficultyV5(uint8_t blockMajorVersion,
 		std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulativeDifficulties) const {
 
 		// LWMA-2 difficulty algorithm 
 		// Copyright (c) 2017-2018 Zawy, MIT License
 		// https://github.com/zawy12/difficulty-algorithms/issues/3
-		// Forked from aivve by Karbowanec developers
 		// with modifications by Ryo Currency developers
+		// courtesy to aivve from Karbo
 
 		const int64_t  T = static_cast<int64_t>(m_difficultyTarget);
 		int64_t  N = difficultyBlocksCount3();
-		int64_t  FTL = timestampCheckWindow(blockMajorVersion); // FTL=3xT
 		int64_t  L(0), ST, sum_3_ST(0);
-		uint64_t next_D, prev_D;
+		uint64_t nextDiffV5, prev_D;
+
+		assert(timestamps.size() == cumulativeDifficulties.size() && timestamps.size() <= static_cast<uint64_t>(N + 1));
 
 		for (int64_t i = 1; i <= N; i++) {
-			ST = clamp(-FTL, int64_t(timestamps[i]) - int64_t(timestamps[i - 1]), 6 * T);
+			ST = clamp(-6 * T, int64_t(timestamps[i]) - int64_t(timestamps[i - 1]), 6 * T);
 			L += ST * i;
 			if (i > N - 3) { sum_3_ST += ST; }
 		}
-		int64_t clamp_increase = (T * N * (N + 1) * 99) / int64_t(100.0 * 2.0 * 2.5);
-		int64_t clamp_decrease = (T * N * (N + 1) * 99) / int64_t(100.0 * 2.0 * 0.2);
-		L = clamp(clamp_increase, L, clamp_decrease); // This guarantees positive L
-
-		next_D = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1)) / uint64_t(2 * L);
-		next_D = (next_D * 99ull) / 100ull;
+		
+		nextDiffV5 = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1)) / uint64_t(2 * L);
+		nextDiffV5 = (nextDiffV5 * 99ull) / 100ull;
 
 		prev_D = cumulativeDifficulties[N] - cumulativeDifficulties[N - 1];
-		next_D = std::max<uint64_t>((prev_D * 70ull) / 100ull, std::min<uint64_t>(next_D, (prev_D * 107ull) / 100ull));
+		nextDiffV5 = clamp((uint64_t)(prev_D * 67ull / 100ull), nextDiffV5, (uint64_t)(prev_D * 150ull / 100ull));
+		if (sum_3_ST < (8 * T) / 10)
+		{
+			nextDiffV5 = (prev_D * 110ull) / 100ull;
+		}
 
-		if (sum_3_ST < (8 * T) / 10) { next_D = (prev_D * 110ull) / 100ull; }
+		// minimum limit
+		if (nextDiffV5 < 10000000) {
+			nextDiffV5 = 10000000;
+		}
+		else if(isTestnet()){
+			nextDiffV5 = 10000;
+		}
 
-		return next_D;
+		return nextDiffV5;
 	}
 
 	bool Currency::checkProofOfWorkV1(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
@@ -707,11 +722,12 @@ namespace CryptoNote {
 		switch (block.majorVersion) {
 		case BLOCK_MAJOR_VERSION_1:
 		case BLOCK_MAJOR_VERSION_4:
+		case BLOCK_MAJOR_VERSION_5:
 			return checkProofOfWorkV1(hash_ctx, block, currentDiffic, proofOfWork); 
 
 		case BLOCK_MAJOR_VERSION_2:
 		case BLOCK_MAJOR_VERSION_3:
-		case BLOCK_MAJOR_VERSION_5:
+		case BLOCK_MAJOR_VERSION_6:
 			return checkProofOfWorkV2(hash_ctx, block, currentDiffic, proofOfWork); 
  		}
 
@@ -796,6 +812,7 @@ namespace CryptoNote {
 		upgradeHeightV3(parameters::UPGRADE_HEIGHT_V3);
 		upgradeHeightV4(parameters::UPGRADE_HEIGHT_V4);
 		upgradeHeightV5(parameters::UPGRADE_HEIGHT_V5);
+		upgradeHeightV6(parameters::UPGRADE_HEIGHT_V6);
 		upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
 		upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
 		upgradeWindow(parameters::UPGRADE_WINDOW);

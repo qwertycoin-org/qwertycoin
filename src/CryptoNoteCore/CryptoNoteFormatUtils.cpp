@@ -1,6 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018, Karbo developers
 //
 // This file is part of Qwertycoin.
 //
@@ -123,6 +122,7 @@ bool constructTransaction(
   std::vector<uint8_t> extra,
   Transaction& tx,
   uint64_t unlock_time,
+  Crypto::SecretKey &tx_key,
   Logging::ILogger& log) {
   LoggerRef logger(log, "construct_tx");
 
@@ -136,6 +136,8 @@ bool constructTransaction(
   tx.extra = extra;
   KeyPair txkey = generateKeyPair();
   addTransactionPublicKeyToExtra(tx.extra, txkey.publicKey);
+
+  tx_key = txkey.secretKey;
 
   struct input_generation_context_data {
     KeyPair in_ephemeral;
@@ -511,11 +513,12 @@ bool get_block_longhash(cn_pow_hash_v2 &ctx, const Block& b, Hash& res) {
     return false;
   }
   //cn_slow_hash(context, bd.data(), bd.size(), res);
-  // heavy switch
+  // heavy switch v4.0 || v5.0
   if (b.majorVersion < BLOCK_MAJOR_VERSION_4) {
 	  cn_pow_hash_v1 ctx_v1 = cn_pow_hash_v1::make_borrowed(ctx);
 	  ctx_v1.hash(bd.data(), bd.size(), res.data);
   }
+  // original 1.0||2.0||3.0
   else {
 	  ctx.hash(bd.data(), bd.size(), res.data);
   }
