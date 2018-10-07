@@ -484,13 +484,13 @@ namespace CryptoNote {
 		if (high != 0 || low + timeSpan - 1 < low) {
 			return 0;
 		}
-		if(!isTestnet()) {
-			return (low + timeSpan - 1) / timeSpan;			
-		}
-		else {
-			return 10;
-		}
 
+		uint64_t nextDiffV1 = (low + timeSpan - 1) / timeSpan;	
+
+		if(isTestnet()) {
+			nextDiffV1 = 10;		
+		}
+		return nextDiffV1;
 	}
 
 	difficulty_type Currency::nextDifficultyV2(std::vector<uint64_t> timestamps,
@@ -527,7 +527,7 @@ namespace CryptoNote {
 		difficulty_type totalWork = cumulativeDifficulties.back() - cumulativeDifficulties.front();
 		assert(totalWork > 0);
 
-		// uint64_t nextDiffZ = totalWork * m_difficultyTarget / timeSpan; 
+		// uint64_t nextDiffV2 = totalWork * m_difficultyTarget / timeSpan; 
 
 		uint64_t low, high;
 		low = mul128(totalWork, m_difficultyTarget, &high);
@@ -536,16 +536,16 @@ namespace CryptoNote {
 			return 0;
 		}
 
-		uint64_t nextDiffZ = low / timeSpan;
+		uint64_t nextDiffV2 = low / timeSpan;
 
 		// minimum limit
-		if (!isTestnet() && nextDiffZ < 100000) {
-			nextDiffZ = 100000;
-		} else {
-			nextDiffZ = 100;
+		if (nextDiffV2 < 100000) {
+			nextDiffV2 = 100000;
+		} else if (isTestnet()) {
+			nextDiffV2 = 100;
 		}
 
-		return nextDiffZ;
+		return nextDiffV2;
 	}
 
 	difficulty_type Currency::nextDifficultyV3(std::vector<uint64_t> timestamps,
@@ -582,7 +582,7 @@ namespace CryptoNote {
 
 		double_t LWMA(0), sum_inverse_D(0), harmonic_mean_D(0), nextDifficulty(0);
 		int64_t solveTime(0);
-		uint64_t difficulty(0), next_difficulty(0);
+		uint64_t difficulty(0), nextDiffV3V4(0);
 
 		// Loop through N most recent blocks.
 		for (int64_t i = 1; i <= N; i++) {
@@ -599,17 +599,17 @@ namespace CryptoNote {
 
 		harmonic_mean_D = N / sum_inverse_D * adjust;
 		nextDifficulty = harmonic_mean_D * T / LWMA;
-		next_difficulty = static_cast<uint64_t>(nextDifficulty);
+		nextDiffV3V4 = static_cast<uint64_t>(nextDifficulty);
 		
 		// minimum limit
-		if (!isTestnet() && next_difficulty < 100000) {
-			next_difficulty = 100000;
+		if (nextDiffV3V4 < 1000000) {
+			nextDiffV3V4 = 1000000;
 		}
-		else {
-			next_difficulty = 1000;
+		if (isTestnet()){
+			nextDiffV3V4 = 1000;
 		}
 
-		return next_difficulty;
+		return nextDiffV3V4;
 	}
 
 
@@ -626,11 +626,12 @@ namespace CryptoNote {
 		// Copyright (c) 2017-2018 Zawy, MIT License
 		// https://github.com/zawy12/difficulty-algorithms/issues/3
 		// with modifications by Ryo Currency developers
+		// courtesy to aivve from Karbo
 
 		const int64_t  T = static_cast<int64_t>(m_difficultyTarget);
 		int64_t  N = difficultyBlocksCount3();
 		int64_t  L(0), ST, sum_3_ST(0);
-		uint64_t next_D, prev_D;
+		uint64_t nextDiffV5, prev_D;
 
 		assert(timestamps.size() == cumulativeDifficulties.size() && timestamps.size() <= static_cast<uint64_t>(N + 1));
 
@@ -640,27 +641,25 @@ namespace CryptoNote {
 			if (i > N - 3) { sum_3_ST += ST; }
 		}
 		
-		next_D = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1)) / uint64_t(2 * L);
-		next_D = (next_D * 99ull) / 100ull;
+		nextDiffV5 = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1)) / uint64_t(2 * L);
+		nextDiffV5 = (nextDiffV5 * 99ull) / 100ull;
 
 		prev_D = cumulativeDifficulties[N] - cumulativeDifficulties[N - 1];
-		next_D = clamp((uint64_t)(prev_D * 67ull / 100ull), next_D, (uint64_t)(prev_D * 150ull / 100ull));
+		nextDiffV5 = clamp((uint64_t)(prev_D * 67ull / 100ull), nextDiffV5, (uint64_t)(prev_D * 150ull / 100ull));
 		if (sum_3_ST < (8 * T) / 10)
 		{
-			next_D = (prev_D * 110ull) / 100ull;
+			nextDiffV5 = (prev_D * 110ull) / 100ull;
 		}
 
-		if(!isTestnet()) {
-			// minimum limit
-			if (next_D < 100000) {
-				next_D = 100000;
-			}
+		// minimum limit
+		if (nextDiffV5 < 10000000) {
+			nextDiffV5 = 10000000;
 		}
-		else {
-			next_D = 10000;
+		else if(isTestnet()){
+			nextDiffV5 = 10000;
 		}
 
-		return next_D;
+		return nextDiffV5;
 	}
 
 	bool Currency::checkProofOfWorkV1(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 

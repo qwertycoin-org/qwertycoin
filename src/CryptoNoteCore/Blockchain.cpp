@@ -824,7 +824,7 @@ bool Blockchain::switch_to_alternative_blockchain(std::list<blocks_ext_by_hash::
       if (high_timestamp < it->second.bl.timestamp)
         high_timestamp = it->second.bl.timestamp;
     }
-    uint64_t block_ftl = CryptoNote::parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1;
+    uint64_t block_ftl = CryptoNote::parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT;
     // This would fail later anyway
     if (high_timestamp > get_adjusted_time() + block_ftl)
     {

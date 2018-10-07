@@ -90,13 +90,6 @@ ITransfersSubscription* TransfersSyncronizer::getSubscription(const AccountPubli
   return (it == m_consumers.end()) ? nullptr : it->second->getSubscription(acc);
 }
 
-void TransfersSyncronizer::addPublicKeysSeen(const AccountPublicAddress& acc, const Crypto::Hash& transactionHash, const::PublicKey outputKey) {
-  auto it = m_consumers.find(acc.viewPublicKey);
-  if (it != m_consumers.end()) {
-     it->second->addPublicKeysSeen(transactionHash, outputKey);
-  }
-}
-
 std::vector<Crypto::Hash> TransfersSyncronizer::getViewKeyKnownBlocks(const Crypto::PublicKey& publicViewKey) {
   auto it = m_consumers.find(publicViewKey);
   if (it == m_consumers.end()) {
