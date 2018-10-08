@@ -250,6 +250,9 @@ int main(int argc, char* argv[])
 
     CryptoNote::Checkpoints checkpoints(logManager);
 
+#ifndef __ANDROID__
+    checkpoints.load_checkpoints_from_dns();
+#endif
     bool use_checkpoints = !command_line::get_arg(vm, arg_load_checkpoints).empty();
 
     if (use_checkpoints && !testnet_mode) {
