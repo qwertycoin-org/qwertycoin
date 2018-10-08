@@ -27,12 +27,11 @@
 #include <sstream>
 #include <vector>
 #include <iterator>
-#include <boost/regex.hpp>
+#include <fstream>
 
 #include "Checkpoints.h"
 #include "Common/StringTools.h"
 #include "Common/DnsTools.h"
-#include <fstream>
 
 using namespace Logging;
 
