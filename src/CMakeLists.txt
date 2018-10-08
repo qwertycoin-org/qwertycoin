@@ -37,10 +37,10 @@ file(GLOB_RECURSE Miner Miner/*)
 
 source_group("" FILES $${Common} ${ConnectivityTool} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${Daemon} ${JsonRpcServer} ${Http} ${Logging} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${SimpleWallet} ${System} ${Transfers} ${Wallet} ${WalletLegacy} ${Mnemonics})
 
+add_library(BlockchainExplorer ${BlockchainExplorer})
 add_library(Common ${Common})
 add_library(Crypto ${Crypto})
 add_library(CryptoNoteCore ${CryptoNoteCore})
-add_library(BlockchainExplorer ${BlockchainExplorer})
 add_library(Http ${Http})
 add_library(InProcessNode ${InProcessNode})
 add_library(Logging ${Logging})

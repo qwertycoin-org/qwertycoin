@@ -18,6 +18,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cstdlib>
+#include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -27,7 +28,6 @@
 #include <sstream>
 #include <vector>
 #include <iterator>
-#include <fstream>
 
 #include "Checkpoints.h"
 #include "Common/StringTools.h"
