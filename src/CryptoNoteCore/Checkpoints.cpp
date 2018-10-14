@@ -48,7 +48,7 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
   }
 
   if (!m_points.insert({ height, h }).second) {
-    logger(WARNING) << "CHECKPOINT ALREADY EXISTS!";
+    logger(WARNING) << "CHECKPOINT ALREADY EXISTS! " << height;
     return false;
   }
 
