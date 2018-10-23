@@ -28,8 +28,8 @@ namespace CryptoNote {
 namespace parameters {
 
 const uint64_t DIFFICULTY_TARGET                              = 120;
-const uint64_t DIFFICULTY_TARGET_V2                           = 60;
-const uint64_t DIFFICULTY_TARGET_V3                           = 30;
+const uint64_t DIFFICULTY_TARGET_V2                           = 60;                     //5.0
+const uint64_t DIFFICULTY_TARGET_V3                           = 30;                     //6.0
 
 const uint64_t CRYPTONOTE_MAX_BLOCK_NUMBER                    = 500000000;
 const size_t   CRYPTONOTE_MAX_BLOCK_BLOB_SIZE                 = 500000000;
@@ -39,9 +39,9 @@ const size_t   CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW           = 60;
 const size_t   CRYPTONOTE_TX_SPENDABLE_AGE                    = 10;
 
 const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT             = DIFFICULTY_TARGET * 60;
-const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1          = DIFFICULTY_TARGET * 60;
+const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1          = DIFFICULTY_TARGET * 3;  //5.0
 const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW              = 60;
-const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1           = 60; 
+const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1           = 11;                     //5.0
 
 const uint64_t MONEY_SUPPLY                                   = (uint64_t)(-1);
 const uint64_t TAIL_EMISSION_REWARD                           = 100;
@@ -50,11 +50,11 @@ const unsigned EMISSION_SPEED_FACTOR                          = 19;
 static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
 
 const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW                = 100;
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE      = 10000;
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2   = 1000000;
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE      = 10000;                  //1.0;3.0
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2   = 1000000;                //2.0;4.0;5.0
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1   = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
-const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
+const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE         = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT               = 8;
 const uint64_t MINIMUM_FEE                                    = UINT64_C(100000000); // 1 QWC
 const uint64_t DEFAULT_DUST_THRESHOLD                         = UINT64_C(100000);    // 0.001
