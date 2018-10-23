@@ -80,7 +80,7 @@ namespace CryptoNote {
 			m_upgradeHeightV3 = 8;
 			m_upgradeHeightV4 = 10;
 			m_upgradeHeightV5 = 12;
-			m_upgradeHeightV6 = 14;
+			m_upgradeHeightV6 = 100;
 			m_blocksFileName = "testnet_" + m_blocksFileName;
 			m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
 			m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
@@ -543,7 +543,8 @@ namespace CryptoNote {
 		// minimum limit
 		if (nextDiffV2 < 100000) {
 			nextDiffV2 = 100000;
-		} else if (isTestnet()) {
+		}
+		if (isTestnet()) {
 			nextDiffV2 = 100;
 		}
 
@@ -670,7 +671,7 @@ namespace CryptoNote {
 		if (nextDiffV5 < 10000000) {
 			nextDiffV5 = 10000000;
 		}
-		else if(isTestnet()){
+		if(isTestnet()){
 			nextDiffV5 = 10000;
 		}
 
@@ -738,11 +739,11 @@ namespace CryptoNote {
 		case BLOCK_MAJOR_VERSION_1:
 		case BLOCK_MAJOR_VERSION_4:
 		case BLOCK_MAJOR_VERSION_5:
+		case BLOCK_MAJOR_VERSION_6:
 			return checkProofOfWorkV1(hash_ctx, block, currentDiffic, proofOfWork); 
 
 		case BLOCK_MAJOR_VERSION_2:
 		case BLOCK_MAJOR_VERSION_3:
-		case BLOCK_MAJOR_VERSION_6:
 			return checkProofOfWorkV2(hash_ctx, block, currentDiffic, proofOfWork); 
  		}
 
