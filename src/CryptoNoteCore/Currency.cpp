@@ -489,7 +489,7 @@ namespace CryptoNote {
 		uint64_t nextDiffV1 = (low + timeSpan - 1) / timeSpan;	
 
 		if(isTestnet()) {
-			nextDiffV1 = 10;		
+			nextDiffV1 = 1;		
 		}
 		return nextDiffV1;
 	}
@@ -545,7 +545,7 @@ namespace CryptoNote {
 			nextDiffV2 = 100000;
 		}
 		if (isTestnet()) {
-			nextDiffV2 = 100;
+			nextDiffV2 = 5;
 		}
 
 		return nextDiffV2;
@@ -610,7 +610,7 @@ namespace CryptoNote {
 			nextDiffV3V4 = 1000000;
 		}
 		if (isTestnet()){
-			nextDiffV3V4 = 1000;
+			nextDiffV3V4 = 10;
 		}
 
 		return nextDiffV3V4;
@@ -672,7 +672,7 @@ namespace CryptoNote {
 			nextDiffV5 = 10000000;
 		}
 		if(isTestnet()){
-			nextDiffV5 = 10000;
+			nextDiffV5 = 15;
 		}
 
 		return nextDiffV5;
