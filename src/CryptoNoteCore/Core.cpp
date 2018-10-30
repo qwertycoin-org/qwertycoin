@@ -214,7 +214,7 @@ bool core::handle_incoming_tx(const BinaryArray& tx_blob, tx_verification_contex
   tvc = boost::value_initialized<tx_verification_context>();
   //want to process all transactions sequentially
 
-  if (tx_blob.size() > m_currency.maxTransactionSizeLimit() && getCurrentBlockMajorVersion() >= BLOCK_MAJOR_VERSION_4) { 
+  if (tx_blob.size() > m_currency.maxTransactionSizeLimit() && getCurrentBlockMajorVersion() >= BLOCK_MAJOR_VERSION_5) { 
     logger(INFO) << "WRONG TRANSACTION BLOB, too big size " << tx_blob.size() << ", rejected";
     tvc.m_verification_failed = true;
     return false;
@@ -253,7 +253,7 @@ bool core::check_tx_mixin(const Transaction& tx) {
         logger(ERROR) << "Transaction " << getObjectHash(tx) << " has too large mixIn count, rejected";
         return false;
       }
-      if (getCurrentBlockMajorVersion() >= BLOCK_MAJOR_VERSION_4 && txMixin < m_currency.minMixin() && txMixin != 1) {
+      if (getCurrentBlockMajorVersion() >= BLOCK_MAJOR_VERSION_5 && txMixin < m_currency.minMixin() && txMixin != 1) {
         logger(ERROR) << "Transaction " << getObjectHash(tx) << " has mixIn count below the required minimum, rejected";
         return false;
       }
