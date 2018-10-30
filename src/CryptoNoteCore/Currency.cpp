@@ -672,7 +672,7 @@ namespace CryptoNote {
 			nextDiffV5 = 10000000;
 		}
 		if(isTestnet()){
-			nextDiffV5 = 15;
+			nextDiffV5 = 10000;
 		}
 
 		return nextDiffV5;
