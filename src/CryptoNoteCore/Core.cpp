@@ -42,7 +42,7 @@ using namespace Logging;
 
 using namespace  Common;
 
-#define BLOCK_HEIGHT_TX_MIN_FEE_MAX_MIXIN_VERIFICATION 60000
+#define BLOCK_HEIGHT_TX_MIN_FEE_MAX_MIXIN_VERIFICATION 227780
 
 namespace CryptoNote {
 
