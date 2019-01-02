@@ -92,7 +92,7 @@ const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
 const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
 const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
-const uint32_t UPGRADE_HEIGHT_V5                              = 4294967294;
+const uint32_t UPGRADE_HEIGHT_V5                              = 250720;
 const uint32_t UPGRADE_HEIGHT_V6                              = 4294967295;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
