@@ -512,15 +512,16 @@ bool get_block_longhash(cn_pow_hash_v2 &ctx, const Block& b, Hash& res) {
   else {
     return false;
   }
+  
   //cn_slow_hash(context, bd.data(), bd.size(), res);
-  // original 1.0||2.0||3.0
-  if (b.majorVersion < BLOCK_MAJOR_VERSION_4) {
-	  cn_pow_hash_v1 ctx_v1 = cn_pow_hash_v1::make_borrowed(ctx);
-	  ctx_v1.hash(bd.data(), bd.size(), res.data);
+  if(b.majorVersion == BLOCK_MAJOR_VERSION_4) {
+    // heavy 4.0
+    ctx.hash(bd.data(), bd.size(), res.data);
   }
-  // heavy switch 4.0||5.0
   else {
-	  ctx.hash(bd.data(), bd.size(), res.data);
+    // classic 1.0||2.0||3.0||5.0
+    cn_pow_hash_v1 ctx_v1 = cn_pow_hash_v1::make_borrowed(ctx);
+    ctx_v1.hash(bd.data(), bd.size(), res.data);
   }
 
   return true;
