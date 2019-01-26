@@ -475,6 +475,11 @@ if(STATIC)
   endif()
 endif()
 
+if (MSVC)
+  add_definitions(-DBOOST_ALL_NO_LIB)
+  add_definitions(-DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE)
+endif()
+
 hunter_add_package(Boost COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
 find_package(Boost QUIET REQUIRED COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
 
