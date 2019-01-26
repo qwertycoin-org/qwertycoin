@@ -1,11 +1,7 @@
 os: Visual Studio 2017
 
-environment:
-    BOOST_ROOT: C:\Libraries\boost_1_64_0
-    BOOST_LIBRARYDIR: C:\Libraries\boost_1_64_0\lib64-msvc-15
-
 build_script:
     - md build
     - cd build
     - cmake -G "Visual Studio 15 Win64" ..
-    - MSBuild Qwertycoin.sln /target:SimpleWallet
+    - cmake --build . --config Release --target SimpleWallet
