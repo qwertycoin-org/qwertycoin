@@ -26,6 +26,7 @@ cache:
         - $HOME/.hunter
 
 script:
-    - mkdir ./build && cd ./build
+    - mkdir ./build
+    - cd ./build
     - cmake ..
     - cmake --build . --config Release --target SimpleWallet -- -j4
