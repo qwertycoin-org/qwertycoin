@@ -6,13 +6,13 @@ matrix:
           dist: xenial
           sudo: required
           env:
-              - CMAKE_GENERATOR_NAME="CodeBlocks - Unix Makefiles"
-              - CMAKE_TOOLCHAIN_FILE_NAME=linux-gcc-x64.cmake
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
         - os: osx
           osx_image: xcode10.1
           env:
-              - CMAKE_GENERATOR_NAME="Xcode"
-              - CMAKE_TOOLCHAIN_FILE_NAME=osx-10-14-dep-10-10.cmake
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
 
 addons:
     apt: # Linux
@@ -34,5 +34,5 @@ cache:
 script:
     - mkdir ./build
     - cd ./build
-    - cmake -G $CMAKE_GENERATOR_NAME -DCMAKE_TOOLCHAIN_FILE=../cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
-    - cmake --build . --config Release --target SimpleWallet -- -j4
+    - cmake -G "$CMAKE_GENERATOR_NAME" -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME ..
+    - cmake --build . --config Release --target SimpleWallet
