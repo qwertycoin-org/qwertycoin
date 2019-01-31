@@ -35,4 +35,4 @@ script:
     - mkdir ./build
     - cd ./build
     - cmake -G "$CMAKE_GENERATOR_NAME" -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME ..
-    - cmake --build . --config Release --target SimpleWallet
+    - cmake --build . --config Release

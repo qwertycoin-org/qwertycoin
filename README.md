@@ -48,7 +48,7 @@ cd ./qwertycoin
 mkdir ./build
 cd ./build
 cmake ..
-cmake --build . -confir Release --target SimpleWallet
+cmake --build . -confir Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
 
@@ -70,7 +70,7 @@ cd qwertycoin
 md build
 cd build
 cmake -G "Visual Studio 15 2017 Win64" ..
-cmake --build . --config Release --target SimpleWallet
+cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `.\build\src\Release` directory.
 - Additionally, a `.sln` file will have been created in the `build` directory. If you wish to open the project in Visual Studio with this, you can.
