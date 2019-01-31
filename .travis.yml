@@ -1,30 +1,38 @@
-sudo: true
 language: cpp
-
-env:
-    - CXXFLAGS="-std=gnu++11"
 
 matrix:
     include:
-      addons:
-        apt:
-            sources:
-            - ubuntu-toolchain-r-test
-            packages:
-            - g++-4.9
-      env:
-      - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9
+        - os: linux
+          dist: xenial
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
+        - os: osx
+          osx_image: xcode10.1
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
 
-before_install:
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade autoconf automake berkeley-db4 libtool miniupnpc openssl protobuf; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential cmake gcc-4.9 g++-4.9 python-dev -y; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export CC=clang CXX=clang++; fi
+addons:
+    apt: # Linux
+        packages:
+            - build-essential
+            - cmake
+            - git
+        sources:
+          - ubuntu-toolchain-r-test
+    homebrew: # macOS
+        packages:
+            - cmake
+            - git
+
+cache:
+    directories:
+        - $HOME/.hunter
 
 script:
-    - mkdir build && cd build
-    - cmake ..
+    - mkdir ./build
+    - cd ./build
+    - cmake -G "$CMAKE_GENERATOR_NAME" -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME ..
     - cmake --build . --config Release
-
-os:
-    - osx

@@ -69,12 +69,13 @@ list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 
 # Enable Hunter (CMake driven cross-platform package manager for C/C++)
 # NOTE: Must be included before project(...) function call!
-include("cmake/HunterGate.cmake")
+include("cmake/hunter/HunterGate.cmake")
 set(HUNTER_CONFIGURATION_TYPES Release CACHE STRING "Build type of Hunter packages")
 set(HUNTER_JOBS_NUMBER 2 CACHE STRING "Number of parallel builds used by Hunter")
 HunterGate(
     URL "https://github.com/ruslo/hunter/archive/v0.23.6.tar.gz"
     SHA1 "951e8daf57a51708b0e6a00cab342a042db57a2f"
+    FILEPATH "${CMAKE_CURRENT_LIST_DIR}/cmake/hunter/HunterConfig.cmake"
 )
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
