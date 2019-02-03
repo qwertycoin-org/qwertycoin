@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright(c) 2014 - 2017 XDN - project developers
 // Copyright(c) 2018 The Karbo developers
 //
@@ -172,7 +172,7 @@ void PaymentGateService::runInProcess(Logging::LoggerRef& log) {
   for (const auto& cp : CryptoNote::CHECKPOINTS) {
     checkpoints.add_checkpoint(cp.height, cp.blockId);
   }
-
+  checkpoints.load_checkpoints_from_dns();
   if (!config.gateConfiguration.testnet) {
     core.set_checkpoints(std::move(checkpoints));
   }

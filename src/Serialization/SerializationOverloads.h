@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -248,7 +248,10 @@ void writeSequence(Iterator begin, Iterator end, Common::StringView name, ISeria
 template <typename Element, typename Iterator>
 void readSequence(Iterator outputIterator, Common::StringView name, ISerializer& s) {
   size_t size = 0;
-  s.beginArray(size, name);
+  // array of zero size is not written in KVBinaryOutputStreamSerializer
+  if (!s.beginArray(size, name)) {
+    return;
+  }
 
   while (size--) {
     Element e;

@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -203,7 +203,9 @@ void serialize(Transaction& tx, ISerializer& serializer) {
   //TODO: make arrays without sizes
 //  serializer.beginArray(sigSize, "signatures");
   
-  if (serializer.type() == ISerializer::INPUT) {
+  //if (serializer.type() == ISerializer::INPUT) {
+  // ignore base transaction
+  if (serializer.type() == ISerializer::INPUT && !(sigSize == 1 && tx.inputs[0].type() == typeid(BaseInput))) {
     tx.signatures.resize(sigSize);
   }
 

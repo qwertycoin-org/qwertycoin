@@ -3,14 +3,14 @@
 [![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=stage_1)](https://travis-ci.org/qwertycoin-org/qwertycoin)
 [![Build status](https://ci.appveyor.com/api/projects/status/yhiqfap4nfdommsb?svg=true)](https://ci.appveyor.com/project/qwertycoin-org/qwertycoin)
 
-**HARDFORK 4 IS SET AT HEIGHT 110,520!!!**
+**HARDFORK 5 IS SET AT HEIGHT 250720!!**
 Pools operating **'cryptonote-forknote-pool'** or compatible software should update Node-Cryptonote-Util to this version: https://github.com/qwertycoin-org/node-cryptonote-util. The reference pool (qwertycoin.site) software is here: https://github.com/qwertycoin-org/qwertycoin-pool.
 Pools operating **'cryptonote-nodejs-pool'** should _change config on hardfork height_. The changes in config are:
 ```
 "daemonType": "default",
-"cnAlgorithm": "cryptonight_heavy",
+"cnAlgorithm": "cryptonight",
 "cnVariant": 0,
-"cnBlobType": 4,
+"cnBlobType": 0,
 ```
 The example of Qwertycoin config is here: https://github.com/dvandal/cryptonote-nodejs-pool/blob/master/config_examples/qwertycoin.json
 
@@ -124,12 +124,25 @@ make SimpleWallet
 ```
 
 ## Donate
-QWC: <br>QWC1K6XEhCC1WsZzT9RRVpc1MLXXdHVKt2BUGSrsmkkXAvqh52sVnNc1pYmoF2TEXsAvZnyPaZu8MW3S8EWHNfAh7X2xa63P7Y <br><br>
-BTC: <br>1DkocMNiqFkbjhCmG4sg9zYQbi4YuguFWw <br><br>
-ETH: <br>0xA660Fb28C06542258bd740973c17F2632dff2517 <br><br>
-BCH: <br>qz975ndvcechzywtz59xpkt2hhdzkzt3vvt8762yk9 <br><br>
-XMR: <br>47gmN4GMQ17Veur5YEpru7eCQc5A65DaWUThZa9z9bP6jNMYXPKAyjDcAW4RzNYbRChEwnKu1H3qt9FPW9CnpwZgNscKawX <br><br>
-ETN: <br>etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQp31GbG3M2DiVM3qRDSQ5Vwq <br><br>
+Qwertycoin:
+```
+QWC1K6XEhCC1WsZzT9RRVpc1MLXXdHVKt2BUGSrsmkkXAvqh52sVnNc1pYmoF2TEXsAvZnyPaZu8MW3S8EWHNfAh7X2xa63P7Y
+```
+```
+BTC: 1DkocMNiqFkbjhCmG4sg9zYQbi4YuguFWw
+```
+```
+ETH: 0xA660Fb28C06542258bd740973c17F2632dff2517
+```
+```
+BCH: qz975ndvcechzywtz59xpkt2hhdzkzt3vvt8762yk9
+```
+```
+XMR: 47gmN4GMQ17Veur5YEpru7eCQc5A65DaWUThZa9z9bP6jNMYXPKAyjDcAW4RzNYbRChEwnKu1H3qt9FPW9CnpwZgNscKawX
+```
+```
+ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQp31GbG3M2DiVM3qRDSQ5Vwq
+```
 
 #### Thanks
-Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Project (Aiwe), Qwertycoin Community
+Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Project (aivve), Qwertycoin Community

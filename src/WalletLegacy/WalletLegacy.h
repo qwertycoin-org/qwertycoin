@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2017-2018, The Karbo developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2014-2016, The Monero Project
+// Copyright (c) 2017-2018, Karbo developers
 // 
 // All rights reserved.
 // 
@@ -36,6 +36,7 @@
 #include <memory>
 #include <mutex>
 
+#include "CryptoNote.h"
 #include "IWalletLegacy.h"
 #include "INode.h"
 #include "Wallet/WalletErrors.h"
@@ -57,9 +58,9 @@ namespace CryptoNote {
 
 class SyncStarter;
 
-class WalletLegacy : 
-  public IWalletLegacy, 
-  IBlockchainSynchronizerObserver,  
+class WalletLegacy :
+  public IWalletLegacy,
+  IBlockchainSynchronizerObserver,
   ITransfersObserver {
 
 public:
@@ -77,7 +78,7 @@ public:
   virtual void reset() override;
 
   virtual Crypto::SecretKey generateKey(const std::string& password, const Crypto::SecretKey& recovery_param = Crypto::SecretKey(), 
-	  bool recover = false, bool two_random = false) override;
+    bool recover = false, bool two_random = false) override;
 
   virtual void save(std::ostream& destination, bool saveDetailed = true, bool saveCache = true) override;
 
@@ -105,6 +106,9 @@ public:
 
   virtual void getAccountKeys(AccountKeys& keys) override;
   virtual bool getSeed(std::string& electrum_words) override;
+
+  virtual std::string sign_message(const std::string &data) override;
+  virtual bool verify_message(const std::string &data, const CryptoNote::AccountPublicAddress &address, const std::string &signature) override;
 
   virtual Crypto::SecretKey getTxKey(Crypto::Hash& txid) override;
 

@@ -26,6 +26,7 @@
 #include <boost/optional.hpp> 
 #include "CryptoNote.h"
 #include "CryptoTypes.h"
+#include "CryptoNote.h"
 #include "crypto/crypto.h"
 #include "CryptoNoteCore/CryptoNoteBasic.h"
 
@@ -126,6 +127,9 @@ public:
   virtual bool getSeed(std::string& electrum_words) = 0;
 
   virtual Crypto::SecretKey getTxKey(Crypto::Hash& txid) = 0;
+  virtual std::string sign_message(const std::string &data) = 0;
+  virtual bool verify_message(const std::string &data, const CryptoNote::AccountPublicAddress &address, const std::string &signature) = 0;
+
 };
 
 }

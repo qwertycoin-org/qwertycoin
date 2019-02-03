@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2017-2018, The Karbo developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2014-2016, The Monero Project
+// Copyright (c) 2017-2018, Karbo developers
 // 
 // All rights reserved.
 // 
@@ -39,7 +39,7 @@
 #include "WalletLegacy/WalletLegacySerialization.h"
 #include "WalletLegacy/WalletLegacySerializer.h"
 #include "WalletLegacy/WalletUtils.h"
-#include "Common/StringTools.h" 
+#include "Common/StringTools.h"
 #include "mnemonics/electrum-words.h"
 
 extern "C"
@@ -110,6 +110,8 @@ private:
 
 } //namespace
 
+using namespace Logging;
+
 namespace CryptoNote {
 
 class SyncStarter : public CryptoNote::IWalletLegacyObserver {
@@ -178,7 +180,7 @@ void WalletLegacy::initAndGenerate(const std::string& password) {
     }
 
     m_account.generate();
-	//m_account.generateDeterministic();
+  //m_account.generateDeterministic();
     m_password = password;
 
     initSync();
@@ -257,7 +259,6 @@ void WalletLegacy::initSync() {
   AccountSubscription sub;
   sub.keys = reinterpret_cast<const AccountKeys&>(m_account.getAccountKeys());
   sub.transactionSpendableAge = CryptoNote::parameters::CRYPTONOTE_TX_SPENDABLE_AGE;
-  sub.transactionSpendableAge = 1;
   sub.syncStart.height = 0;
   sub.syncStart.timestamp = m_account.get_createtime() - ACCOUNT_CREATE_TIME_ACCURACY;
   
@@ -289,6 +290,17 @@ void WalletLegacy::doLoad(std::istream& source) {
       }
     } catch (const std::exception&) {
       // ignore cache loading errors
+    }
+
+  // Read all output keys cache
+    std::vector<TransactionOutputInformation> allTransfers;
+    m_transferDetails->getOutputs(allTransfers, ITransfersContainer::IncludeAll);
+    auto message = "Loaded " + std::to_string(allTransfers.size()) + " known transfer(s)\r\n";
+    m_loggerGroup("WalletLegacy", INFO, boost::posix_time::second_clock::local_time(), message);
+    for (auto& o : allTransfers) {
+      if (o.type != TransactionTypes::OutputType::Invalid) {
+        m_transfersSync.addPublicKeysSeen(m_account.getAccountKeys().address, o.transactionHash, o.outputKey);
+      }
     }
 
   } catch (std::system_error& e) {
@@ -436,15 +448,15 @@ std::error_code WalletLegacy::changePassword(const std::string& oldPassword, con
 
 bool WalletLegacy::getSeed(std::string& electrum_words)
 {
-	std::string lang = "English";
-	Crypto::ElectrumWords::bytes_to_words(m_account.getAccountKeys().spendSecretKey, electrum_words, lang);
+  std::string lang = "English";
+  Crypto::ElectrumWords::bytes_to_words(m_account.getAccountKeys().spendSecretKey, electrum_words, lang);
 
-	Crypto::SecretKey second;
-	keccak((uint8_t *)&m_account.getAccountKeys().spendSecretKey, sizeof(Crypto::SecretKey), (uint8_t *)&second, sizeof(Crypto::SecretKey));
+  Crypto::SecretKey second;
+  keccak((uint8_t *)&m_account.getAccountKeys().spendSecretKey, sizeof(Crypto::SecretKey), (uint8_t *)&second, sizeof(Crypto::SecretKey));
 
-	sc_reduce32((uint8_t *)&second);
+  sc_reduce32((uint8_t *)&second);
 
-	return memcmp(second.data, m_account.getAccountKeys().viewSecretKey.data, sizeof(Crypto::SecretKey)) == 0;
+  return memcmp(second.data, m_account.getAccountKeys().viewSecretKey.data, sizeof(Crypto::SecretKey)) == 0;
 }
 
 std::string WalletLegacy::getAddress() {
@@ -452,6 +464,36 @@ std::string WalletLegacy::getAddress() {
   throwIfNotInitialised();
 
   return m_currency.accountAddressAsString(m_account);
+}
+
+std::string WalletLegacy::sign_message(const std::string &message) {
+  Crypto::Hash hash;
+  Crypto::cn_fast_hash(message.data(), message.size(), hash);
+  const CryptoNote::AccountKeys &keys = m_account.getAccountKeys();
+  Crypto::Signature signature;
+  Crypto::generate_signature(hash, keys.address.spendPublicKey, keys.spendSecretKey, signature);
+  return std::string("SigV1") + Tools::Base58::encode(std::string((const char *)&signature, sizeof(signature)));
+}
+bool WalletLegacy::verify_message(const std::string &message, const CryptoNote::AccountPublicAddress &address, const std::string &signature) {
+  const size_t header_len = strlen("SigV1");
+  if (signature.size() < header_len || signature.substr(0, header_len) != "SigV1") {
+    std::cout << "Signature header check error";
+    return false;
+  }
+  Crypto::Hash hash;
+  Crypto::cn_fast_hash(message.data(), message.size(), hash);
+  std::string decoded;
+  if (!Tools::Base58::decode(signature.substr(header_len), decoded)) {
+    std::cout <<"Signature decoding error";
+    return false;
+  }
+  Crypto::Signature s;
+  if (sizeof(s) != decoded.size()) {
+    std::cout << "Signature decoding error";
+    return false;
+  }
+  memcpy(&s, decoded.data(), sizeof(s));
+  return Crypto::check_signature(hash, address.spendPublicKey, s);
 }
 
 uint64_t WalletLegacy::actualBalance() {
@@ -478,7 +520,7 @@ uint64_t WalletLegacy::dustBalance() {
   m_transferDetails->getOutputs(outputs, ITransfersContainer::IncludeKeyUnlocked);
 
   uint64_t money = 0;
-
+  
   for (size_t i = 0; i < outputs.size(); ++i) {
     const auto& out = outputs[i];
     if (!m_transactionsCache.isUsed(out)) {
@@ -570,15 +612,15 @@ TransactionId WalletLegacy::sendDustTransaction(const std::vector<WalletLegacyTr
   throwIfNotInitialised();
 
   {
-   std::unique_lock<std::mutex> lock(m_cacheMutex);
-   request = m_sender->makeSendDustRequest(txId, events, transfers, fee, extra, mixIn, unlockTimestamp);
+    std::unique_lock<std::mutex> lock(m_cacheMutex);
+    request = m_sender->makeSendDustRequest(txId, events, transfers, fee, extra, mixIn, unlockTimestamp);
   }
 
   notifyClients(events);
 
   if (request) {
-   m_asyncContextCounter.addAsyncContext();
-   request->perform(m_node, std::bind(&WalletLegacy::sendTransactionCallback, this, std::placeholders::_1, std::placeholders::_2));
+    m_asyncContextCounter.addAsyncContext();
+    request->perform(m_node, std::bind(&WalletLegacy::sendTransactionCallback, this, std::placeholders::_1, std::placeholders::_2));
   }
 
   return txId;
@@ -720,6 +762,7 @@ void WalletLegacy::notifyIfBalanceChanged() {
   if (prevDust != dust) {
     m_observerManager.notify(&IWalletLegacyObserver::unmixableBalanceUpdated, dust);
   }
+
 }
 
 void WalletLegacy::getAccountKeys(AccountKeys& keys) {

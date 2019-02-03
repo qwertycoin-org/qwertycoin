@@ -37,10 +37,10 @@ file(GLOB_RECURSE Miner Miner/*)
 
 source_group("" FILES $${Common} ${ConnectivityTool} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${Daemon} ${JsonRpcServer} ${Http} ${Logging} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${SimpleWallet} ${System} ${Transfers} ${Wallet} ${WalletLegacy} ${Mnemonics})
 
+add_library(BlockchainExplorer ${BlockchainExplorer})
 add_library(Common ${Common})
 add_library(Crypto ${Crypto})
 add_library(CryptoNoteCore ${CryptoNoteCore})
-add_library(BlockchainExplorer ${BlockchainExplorer})
 add_library(Http ${Http})
 add_library(InProcessNode ${InProcessNode})
 add_library(Logging ${Logging})
@@ -55,34 +55,20 @@ add_library(PaymentGate ${PaymentGate})
 add_library(JsonRpcServer ${JsonRpcServer})
 add_library(Mnemonics ${Mnemonics})
 
-if(MSVC)
-  set(DAEMON_SOURCES_OS
-    BinaryInfo/daemon.rc
-  )
-  set(SIMPLE_WALLET_SOURCES_OS
-    BinaryInfo/simplewallet.rc
-  )
-  set(MINER_SOURCES_OS
-    BinaryInfo/miner.rc
-  )
-  set(PG_SOURCES_OS
-    BinaryInfo/walletd.rc
-  )
-  set(CONNECTIVITY_TOOLS_SOURCES_OS
-    BinaryInfo/connectivity_tool.rc
-  )
+if(WIN32)
+add_executable(Daemon ${Daemon} BinaryInfo/daemon.rc)
+add_executable(SimpleWallet ${SimpleWallet} BinaryInfo/simplewallet.rc)
+add_executable(PaymentGateService ${PaymentGateService} BinaryInfo/walletd.rc)
+else()
+add_executable(Daemon ${Daemon} )
+add_executable(SimpleWallet ${SimpleWallet} )
+add_executable(PaymentGateService ${PaymentGateService} )
 endif()
+add_executable(ConnectivityTool ${ConnectivityTool})
+add_executable(Miner ${Miner})
 
-add_executable(Daemon ${Daemon} ${DAEMON_SOURCES_OS})
-add_executable(SimpleWallet ${SimpleWallet} ${SIMPLE_WALLET_SOURCES_OS})
-add_executable(PaymentGateService ${PaymentGateService} ${PG_SOURCES_OS})
-add_executable(ConnectivityTool ${ConnectivityTool} ${CONNECTIVITY_TOOLS_SOURCES_OS})
-add_executable(Miner ${Miner} ${MINER_SOURCES_OS})
-
-if(MSVC)
+if (MSVC)
   target_link_libraries(System ws2_32)
-  target_link_libraries(Daemon Rpcrt4)
-  target_link_libraries(PaymentGateService Rpcrt4)
 endif ()
 
 # Add the dependencies we need

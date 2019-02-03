@@ -3,7 +3,7 @@
 // Copyright (c) 2014-2017, The Forknote developers
 // Copyright (c) 2014-2017, The Monero Project
 // Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // All rights reserved.
 // 
@@ -128,6 +128,8 @@ namespace CryptoNote
     bool change_password(const std::vector<std::string> &args);
     bool sweep_dust(const std::vector<std::string> &args);
     bool get_tx_key(const std::vector<std::string> &args);
+    bool sign_message(const std::vector<std::string> &args);
+    bool verify_message(const std::vector<std::string> &args);
 
 #ifndef __ANDROID__
 	std::string resolveAlias(const std::string& aliasUrl);

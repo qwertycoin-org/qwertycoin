@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
 // Copyright (c) 2014-2016 XDN developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -28,7 +28,7 @@ namespace {
 void throwIfNotGood(std::istream& stream) {
   if (!stream.good()) {
     if (stream.eof()) {
-      //throw std::system_error(make_error_code(CryptoNote::error::HttpParserErrorCodes::END_OF_STREAM));
+      // throw std::system_error(make_error_code(CryptoNote::error::HttpParserErrorCodes::END_OF_STREAM));
     } else {
       throw std::system_error(make_error_code(CryptoNote::error::HttpParserErrorCodes::STREAM_NOT_GOOD));
     }

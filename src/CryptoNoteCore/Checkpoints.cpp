@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018, The TurtleCoin developers, The Karbo developers 
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -18,6 +18,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cstdlib>
+#include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -27,12 +28,10 @@
 #include <sstream>
 #include <vector>
 #include <iterator>
-#include <boost/regex.hpp>
 
 #include "Checkpoints.h"
 #include "Common/StringTools.h"
 #include "Common/DnsTools.h"
-#include <fstream>
 
 using namespace Logging;
 
@@ -49,7 +48,7 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
   }
 
   if (!m_points.insert({ height, h }).second) {
-    logger(WARNING) << "CHECKPOINT ALREADY EXISTS!";
+    logger(WARNING) << "CHECKPOINT ALREADY EXISTS! " << height;
     return false;
   }
 

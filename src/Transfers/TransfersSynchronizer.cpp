@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -88,6 +88,13 @@ void TransfersSyncronizer::getSubscriptions(std::vector<AccountPublicAddress>& s
 ITransfersSubscription* TransfersSyncronizer::getSubscription(const AccountPublicAddress& acc) {
   auto it = m_consumers.find(acc.viewPublicKey);
   return (it == m_consumers.end()) ? nullptr : it->second->getSubscription(acc);
+}
+
+void TransfersSyncronizer::addPublicKeysSeen(const AccountPublicAddress& acc, const Crypto::Hash& transactionHash, const Crypto::PublicKey& outputKey) {
+  auto it = m_consumers.find(acc.viewPublicKey);
+  if (it != m_consumers.end()) {
+     it->second->addPublicKeysSeen(transactionHash, outputKey);
+  }
 }
 
 std::vector<Crypto::Hash> TransfersSyncronizer::getViewKeyKnownBlocks(const Crypto::PublicKey& publicViewKey) {

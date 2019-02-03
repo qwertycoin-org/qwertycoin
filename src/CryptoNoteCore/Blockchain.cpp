@@ -527,7 +527,7 @@ bool Blockchain::init(const std::string& config_folder, bool load_existing) {
     return false;
   }
 
-  update_next_comulative_size_limit();
+  update_next_cumulative_size_limit();
 
   uint64_t timestamp_diff = time(NULL) - m_blocks.back().bl.timestamp;
   if (!m_blocks.back().bl.timestamp) {
@@ -750,14 +750,14 @@ uint64_t Blockchain::getCoinsInCirculation() {
 }
 
 uint8_t Blockchain::getBlockMajorVersionForHeight(uint32_t height) const {
-  if (height > m_upgradeDetectorV4.upgradeHeight()) {
-    return m_upgradeDetectorV4.targetVersion();
+  if (height > m_upgradeDetectorV6.upgradeHeight()) {
+    return m_upgradeDetectorV6.targetVersion();
   }
   else if (height > m_upgradeDetectorV5.upgradeHeight()) {
     return m_upgradeDetectorV5.targetVersion();
   }
-  else if (height > m_upgradeDetectorV6.upgradeHeight()) {
-    return m_upgradeDetectorV6.targetVersion();
+  else if (height > m_upgradeDetectorV4.upgradeHeight()) {
+    return m_upgradeDetectorV4.targetVersion();
   }
   else if (height > m_upgradeDetectorV3.upgradeHeight()) {
     return m_upgradeDetectorV3.targetVersion();
@@ -1857,7 +1857,7 @@ bool Blockchain::getBlockCumulativeSize(const Block& block, size_t& cumulativeSi
  * B3 = v1
  * B4 = v2
  */
-bool Blockchain::update_next_comulative_size_limit() {
+bool Blockchain::update_next_cumulative_size_limit() {
   uint8_t nextBlockMajorVersion = getBlockMajorVersionForHeight(static_cast<uint32_t>(m_blocks.size()));
   size_t nextBlockGrantedFullRewardZone = m_currency.blockGrantedFullRewardZoneByBlockVersion(nextBlockMajorVersion);
 
@@ -2093,7 +2093,7 @@ bool Blockchain::pushBlock(const Block& blockData, const std::vector<Transaction
   m_upgradeDetectorV4.blockPushed();
   m_upgradeDetectorV5.blockPushed();
   m_upgradeDetectorV6.blockPushed();
-  update_next_comulative_size_limit();
+  update_next_cumulative_size_limit();
 
   return true;
 }

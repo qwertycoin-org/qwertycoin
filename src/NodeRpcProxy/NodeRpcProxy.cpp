@@ -1,5 +1,4 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -107,36 +106,15 @@ void NodeRpcProxy::init(const INode::Callback& callback) {
   m_state = STATE_INITIALIZING;
   resetInternalState();
   m_workerThread = std::thread([this, callback] {
-    workerThread(callback); 
+    workerThread(callback);
   });
 }
 
 bool NodeRpcProxy::shutdown() {
-  std::unique_lock<std::mutex> lock(m_mutex);
-
-  if (m_state == STATE_NOT_INITIALIZED) {
-    return true;
-  } else if (m_state == STATE_INITIALIZING) {
-    m_cv_initialized.wait(lock, [this] { return m_state != STATE_INITIALIZING; });
-    if (m_state == STATE_NOT_INITIALIZED) {
-      return true;
-    }
-  }
-
-  assert(m_state == STATE_INITIALIZED);
-  assert(m_dispatcher != nullptr);
-
-  m_dispatcher->remoteSpawn([this]() {
-    m_stop = true;
-    // Run all spawned contexts
-    m_dispatcher->yield();
-  });
-
   if (m_workerThread.joinable()) {
-    m_workerThread.join();
+    m_workerThread.detach();
   }
   m_state = STATE_NOT_INITIALIZED;
-
   return true;
 }
 

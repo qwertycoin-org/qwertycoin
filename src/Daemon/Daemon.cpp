@@ -1,9 +1,9 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2018, The TurtleCoin developers
 // Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -197,7 +197,9 @@ int main(int argc, char* argv[])
     // configure logging
     logManager.configure(buildLoggerConfiguration(cfgLogLevel, cfgLogFile));
 
-
+    if (command_line_preprocessor(vm, logger)) {
+      return 0;
+    }
 
     logger(INFO, BRIGHT_GREEN) <<
 
@@ -225,10 +227,6 @@ int main(int argc, char* argv[])
 
     logger(INFO, BRIGHT_GREEN) << "Welcome to " << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
 
-    if (command_line_preprocessor(vm, logger)) {
-      return 0;
-    }
-
     logger(INFO) << "Module folder: " << argv[0];
 
     bool testnet_mode = command_line::get_arg(vm, arg_testnet_on);
@@ -255,7 +253,7 @@ int main(int argc, char* argv[])
 #endif
     bool use_checkpoints = !command_line::get_arg(vm, arg_load_checkpoints).empty();
 
-    if (use_checkpoints && !testnet_mode) {
+    if (use_checkpoints && !testnet_mode) { 
       logger(INFO) << "Loading Checkpoints for faster initial sync...";
       std::string checkpoints_file = command_line::get_arg(vm, arg_load_checkpoints);
       if (checkpoints_file == "default") {

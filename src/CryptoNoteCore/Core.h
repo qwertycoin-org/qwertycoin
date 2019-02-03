@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -21,7 +21,8 @@
 #include <ctime>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
-
+#include "BlockchainExplorerData.h"
+#include "BlockchainExplorerData2.h"
 #include "P2p/NetNodeCommon.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandlerCommon.h"
 #include "Currency.h"
@@ -32,11 +33,9 @@
 #include "ICore.h"
 #include "ICoreObserver.h"
 #include "Common/ObserverManager.h"
-
 #include "System/Dispatcher.h"
 #include "CryptoNoteCore/MessageQueue.h"
 #include "CryptoNoteCore/BlockchainMessages.h"
-
 #include <Logging/LoggerMessage.h>
 
 namespace CryptoNote {
@@ -86,6 +85,7 @@ namespace CryptoNote {
      virtual bool getBlocksByTimestamp(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t blocksNumberLimit, std::vector<Block>& blocks, uint32_t& blocksNumberWithinTimestamps) override;
      virtual bool getPoolTransactionsByTimestamp(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t transactionsNumberLimit, std::vector<Transaction>& transactions, uint64_t& transactionsNumberWithinTimestamps) override;
      virtual bool getTransactionsByPaymentId(const Crypto::Hash& paymentId, std::vector<Transaction>& transactions) override;
+     virtual std::vector<Crypto::Hash> getTransactionHashesByPaymentId(const Crypto::Hash& paymentId) override;
      virtual bool getOutByMSigGIndex(uint64_t amount, uint64_t gindex, MultisignatureOutput& out) override;
      virtual std::unique_ptr<IBlock> getBlock(const Crypto::Hash& blocksId) override;
      virtual bool handleIncomingTransaction(const Transaction& tx, const Crypto::Hash& txHash, size_t blobSize, tx_verification_context& tvc, bool keptByBlock) override;
@@ -139,7 +139,7 @@ namespace CryptoNote {
      virtual bool get_random_outs_for_amounts(const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_request& req, COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response& res) override;
      void pause_mining() override;
      void update_block_template_and_resume_mining() override;
-     //Blockchain& get_blockchain_storage(){return m_blockchain;}
+     Blockchain& get_blockchain_storage(){return m_blockchain;}
      //debug functions
      void print_blockchain(uint32_t start_index, uint32_t end_index);
      void print_blockchain_index();
@@ -157,6 +157,11 @@ namespace CryptoNote {
      uint64_t getTotalGeneratedAmount();
      uint8_t getBlockMajorVersionForHeight(uint32_t height) const;
         bool f_getMixin(const Transaction& transaction, uint64_t& mixin);
+
+   bool fillBlockDetails(const CryptoNote::Block& block, BlockDetails2& blockDetails);
+   bool fillTransactionDetails(const Transaction &tx, TransactionDetails2& txRpcInfo, uint64_t timestamp = 0);
+
+   static bool getPaymentId(const Transaction& transaction, Crypto::Hash& paymentId);
 
    private:
      bool add_new_tx(const Transaction& tx, const Crypto::Hash& tx_hash, size_t blob_size, tx_verification_context& tvc, bool keeped_by_block);
@@ -186,6 +191,9 @@ namespace CryptoNote {
 
      bool findStartAndFullOffsets(const std::vector<Crypto::Hash>& knownBlockIds, uint64_t timestamp, uint32_t& startOffset, uint32_t& startFullOffset);
      std::vector<Crypto::Hash> findIdsForShortBlocks(uint32_t startOffset, uint32_t startFullOffset);
+
+      bool fillTxExtra(const std::vector<uint8_t>& rawExtra, TransactionExtraDetails& extraDetails);
+      size_t median(std::vector<size_t>& v);
 
      const Currency& m_currency;
      Logging::LoggerRef logger;

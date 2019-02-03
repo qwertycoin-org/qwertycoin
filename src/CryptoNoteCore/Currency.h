@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2016, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
@@ -45,7 +45,7 @@ public:
 
   size_t timestampCheckWindow() const { return m_timestampCheckWindow; }
   size_t timestampCheckWindow(uint8_t blockMajorVersion) const {
-    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_4) {
+    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
       return timestampCheckWindow_v1();
     }
     else {
@@ -55,7 +55,7 @@ public:
   size_t timestampCheckWindow_v1() const { return m_timestampCheckWindow_v1; }
   uint64_t blockFutureTimeLimit() const { return m_blockFutureTimeLimit; }
   uint64_t blockFutureTimeLimit(uint8_t blockMajorVersion) const {
-    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_4) {
+    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
       return blockFutureTimeLimit_v1();
     }
     else {

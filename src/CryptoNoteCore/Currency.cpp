@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2016-2018  zawy12
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -80,7 +80,7 @@ namespace CryptoNote {
 			m_upgradeHeightV3 = 8;
 			m_upgradeHeightV4 = 10;
 			m_upgradeHeightV5 = 12;
-			m_upgradeHeightV6 = 14;
+			m_upgradeHeightV6 = 100;
 			m_blocksFileName = "testnet_" + m_blocksFileName;
 			m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
 			m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
@@ -135,11 +135,11 @@ namespace CryptoNote {
 	}
 
 	uint32_t Currency::upgradeHeight(uint8_t majorVersion) const {
-		if (majorVersion == BLOCK_MAJOR_VERSION_4) {
-			return m_upgradeHeightV4;
-		}
-		else if (majorVersion == BLOCK_MAJOR_VERSION_5) {
+		if (majorVersion == BLOCK_MAJOR_VERSION_5) {
 			return m_upgradeHeightV5;
+		}
+		else if (majorVersion == BLOCK_MAJOR_VERSION_4) {
+			return m_upgradeHeightV4;
 		}
 		else if (majorVersion == BLOCK_MAJOR_VERSION_6) {
 			return m_upgradeHeightV6;
@@ -442,6 +442,7 @@ namespace CryptoNote {
 		}
 	}
 
+	// Difficulty for Block version 1.0 original diff
 	difficulty_type Currency::nextDifficultyV1(std::vector<uint64_t> timestamps,
 				std::vector<difficulty_type> cumulativeDifficulties) const {
 		assert(m_difficultyWindow >= 2);
@@ -488,11 +489,12 @@ namespace CryptoNote {
 		uint64_t nextDiffV1 = (low + timeSpan - 1) / timeSpan;	
 
 		if(isTestnet()) {
-			nextDiffV1 = 10;		
+			nextDiffV1 = 1;		
 		}
 		return nextDiffV1;
 	}
 
+	// Difficulty for Block version 2.0
 	difficulty_type Currency::nextDifficultyV2(std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
 
@@ -541,13 +543,15 @@ namespace CryptoNote {
 		// minimum limit
 		if (nextDiffV2 < 100000) {
 			nextDiffV2 = 100000;
-		} else if (isTestnet()) {
-			nextDiffV2 = 100;
+		}
+		if (isTestnet()) {
+			nextDiffV2 = 5;
 		}
 
 		return nextDiffV2;
 	}
 
+	// Difficulty for Block version 3.0 and 4.0
 	difficulty_type Currency::nextDifficultyV3(std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
 
@@ -606,7 +610,7 @@ namespace CryptoNote {
 			nextDiffV3V4 = 1000000;
 		}
 		if (isTestnet()){
-			nextDiffV3V4 = 1000;
+			nextDiffV3V4 = 10;
 		}
 
 		return nextDiffV3V4;
@@ -619,6 +623,7 @@ namespace CryptoNote {
 		return v < lo ? lo : v > hi ? hi : v;
 	}
 
+	// Difficulty for Block version 5.0
 	difficulty_type Currency::nextDifficultyV5(uint8_t blockMajorVersion,
 		std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulativeDifficulties) const {
 
@@ -635,12 +640,23 @@ namespace CryptoNote {
 
 		assert(timestamps.size() == cumulativeDifficulties.size() && timestamps.size() <= static_cast<uint64_t>(N + 1));
 
+		int64_t max_TS, prev_max_TS;
+		prev_max_TS = timestamps[0];
 		for (int64_t i = 1; i <= N; i++) {
-			ST = clamp(-6 * T, int64_t(timestamps[i]) - int64_t(timestamps[i - 1]), 6 * T);
+			if (static_cast<int64_t>(timestamps[i]) > prev_max_TS) {
+				max_TS = timestamps[i];
+			}
+			else {
+				max_TS = prev_max_TS + 1;
+			}
+			ST = std::min(6 * T, max_TS - prev_max_TS);
+			prev_max_TS = max_TS;
 			L += ST * i;
-			if (i > N - 3) { sum_3_ST += ST; }
+			if (i > N - 3) {
+				sum_3_ST += ST;
+			}
 		}
-		
+
 		nextDiffV5 = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1)) / uint64_t(2 * L);
 		nextDiffV5 = (nextDiffV5 * 99ull) / 100ull;
 
@@ -655,7 +671,7 @@ namespace CryptoNote {
 		if (nextDiffV5 < 10000000) {
 			nextDiffV5 = 10000000;
 		}
-		else if(isTestnet()){
+		if(isTestnet()){
 			nextDiffV5 = 10000;
 		}
 
@@ -723,11 +739,11 @@ namespace CryptoNote {
 		case BLOCK_MAJOR_VERSION_1:
 		case BLOCK_MAJOR_VERSION_4:
 		case BLOCK_MAJOR_VERSION_5:
+		case BLOCK_MAJOR_VERSION_6:
 			return checkProofOfWorkV1(hash_ctx, block, currentDiffic, proofOfWork); 
 
 		case BLOCK_MAJOR_VERSION_2:
 		case BLOCK_MAJOR_VERSION_3:
-		case BLOCK_MAJOR_VERSION_6:
 			return checkProofOfWorkV2(hash_ctx, block, currentDiffic, proofOfWork); 
  		}
 
