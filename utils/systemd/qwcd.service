@@ -1,0 +1,17 @@
+[Unit]
+Description=Qwertycoin QWC service
+After=network.target
+
+[Service]
+Type=oneshot
+User=qwertycoin
+Group=qwertycoin
+PermissionsStartOnly=true
+RemainAfterExit=yes
+ExecStartPre=-/bin/mkdir -p /var/run/qwertycoin
+ExecStartPre=/bin/chown -R qwertycoin:qwertycoin /var/run/qwertycoin/
+ExecStart=/usr/lib/qwertycoin/qwcd.sh --start
+ExecStop=/usr/lib/qwertycoin/qwcd.sh --stop
+
+[Install]
+WantedBy=multi-user.target

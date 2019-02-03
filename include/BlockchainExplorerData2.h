@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, The Karbo developers
 //
 // This file is part of Qwertycoin.
@@ -52,6 +53,12 @@ struct MultisignatureInputDetails {
 
 typedef boost::variant<BaseInputDetails, KeyInputDetails, MultisignatureInputDetails> transaction_input_details;
 
+struct TransactionExtraDetails2 {
+  Crypto::PublicKey publicKey;
+  BinaryArray nonce;
+  BinaryArray raw;
+};
+
 struct TransactionDetails2 {
   Crypto::Hash hash;
   uint64_t size = 0;
@@ -66,7 +73,7 @@ struct TransactionDetails2 {
   bool inBlockchain = false;
   Crypto::Hash blockHash;
   uint32_t blockHeight = 0;
-  TransactionExtraDetails extra;
+  TransactionExtraDetails2 extra;
   std::vector<std::vector<Crypto::Signature>> signatures;
   std::vector<transaction_input_details> inputs;
   std::vector<transaction_output_details> outputs;

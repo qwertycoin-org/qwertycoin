@@ -271,7 +271,7 @@ namespace
   }
   //--------------------------------------------------------------------------------------------------------------------
   const unsigned int testEmissionSpeedFactor = 4;
-  const size_t testGrantedFullRewardZone = CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2;
+  const size_t testGrantedFullRewardZone = CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1;
   const size_t testMedian = testGrantedFullRewardZone;
   const size_t testBlockSize = testMedian + testMedian * 8 / 10; // expected penalty 0.64 * reward
   const uint64_t testPenalty = 64; // percentage

@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2016-2018, The Karbowanec developers
@@ -202,6 +203,7 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest& request, HttpResponse& 
 	  { "get_blocks_hashes_by_timestamps", { makeMemberMethod(&RpcServer::onGetBlocksHashesByTimestamps), false } },
 	  { "check_tx_key", { makeMemberMethod(&RpcServer::k_on_check_tx_key), false } },
 	  { "check_tx_with_view_key", { makeMemberMethod(&RpcServer::k_on_check_tx_with_view_key), false } },
+      { "check_tx_proof", { makeMemberMethod(&RpcServer::k_on_check_tx_proof), false } },
       { "check_reserve_proof", { makeMemberMethod(&RpcServer::k_on_check_reserve_proof), false } },
 	  { "validateaddress", { makeMemberMethod(&RpcServer::on_validate_address), false } },
 	  { "verifymessage", { makeMemberMethod(&RpcServer::on_verify_message), false } }
@@ -279,6 +281,12 @@ bool RpcServer::masternode_check_incoming_tx(const BinaryArray& tx_blob) {
 	uint64_t inputs_amount = 0;
 	get_inputs_money_amount(tx, inputs_amount);
 	uint64_t outputs_amount = get_outs_money_amount(tx);
+
+	const uint64_t fee = inputs_amount - outputs_amount;
+	if (fee == 0 && m_core.currency().isFusionTransaction(tx, tx_blob.size(), m_core.get_current_blockchain_height() - 1)) {
+		logger(DEBUGGING) << "Masternode received fusion transaction, relaying with no fee check";
+		return true;
+	}
 
 	CryptoNote::TransactionPrefix transaction = *static_cast<const TransactionPrefix*>(&tx);
 
@@ -615,8 +623,8 @@ bool RpcServer::on_get_info(const COMMAND_RPC_GET_INFO::request& req, COMMAND_RP
   res.version = PROJECT_VERSION_LONG;
   res.fee_address = m_fee_address.empty() ? std::string() : m_fee_address;
   res.contact = m_contact_info.empty() ? std::string() : m_contact_info;
-  res.min_tx_fee = 100000000;
-  res.readable_tx_fee = 100000000;
+  res.min_tx_fee = m_core.getMinimalFee();
+  res.readable_tx_fee = m_core.currency().formatAmount(m_core.getMinimalFee());
   res.start_time = (uint64_t)m_core.getStartTime();
   // that large uint64_t number is unsafe in JavaScript environment and therefore as a JSON value so we display it as a formatted string
   res.already_generated_coins = m_core.currency().formatAmount(m_core.getTotalGeneratedAmount());
@@ -701,7 +709,7 @@ bool RpcServer::on_send_raw_tx(const COMMAND_RPC_SEND_RAW_TX::request& req, COMM
   logger(DEBUGGING) << "transaction " << transactionHash << " came in on_send_raw_tx";
 
   tx_verification_context tvc = boost::value_initialized<tx_verification_context>();
-  if (!m_core.handle_incoming_tx(tx_blob, tvc, false))
+  if (!m_core.handle_incoming_tx(tx_blob, tvc, false, false))
   {
     logger(INFO) << "[on_send_raw_tx]: Failed to process tx";
     res.status = "Failed";
@@ -860,7 +868,7 @@ bool RpcServer::f_on_blocks_list_json(const F_COMMAND_RPC_GET_BLOCKS_LIST::reque
     block_short.cumul_size = blokBlobSize + tx_cumulative_block_size - minerTxBlobSize;
     block_short.tx_count = blk.transactionHashes.size() + 1;
 	block_short.difficulty = blockDiff;
-	block_short.min_tx_fee = 100000000;
+	block_short.min_tx_fee = m_core.getMinimalFeeForHeight(i);
 
     res.blocks.push_back(block_short);
 
@@ -1073,6 +1081,23 @@ bool RpcServer::f_on_transaction_json(const F_COMMAND_RPC_GET_TRANSACTION_DETAIL
     res.txDetails.paymentId = Common::podToHex(paymentId);
   } else {
     res.txDetails.paymentId = "";
+  }
+
+  res.txDetails.extra.raw = res.tx.extra;
+
+  std::vector<CryptoNote::TransactionExtraField> txExtraFields;
+  parseTransactionExtra(res.tx.extra, txExtraFields);
+  for (const CryptoNote::TransactionExtraField& field : txExtraFields) {
+    if (typeid(CryptoNote::TransactionExtraPadding) == field.type()) {
+      res.txDetails.extra.padding.push_back(std::move(boost::get<CryptoNote::TransactionExtraPadding>(field).size));
+    }
+    else if (typeid(CryptoNote::TransactionExtraPublicKey) == field.type()) {
+      //res.txDetails.extra.publicKey = std::move(boost::get<CryptoNote::TransactionExtraPublicKey>(field).publicKey);
+      res.txDetails.extra.publicKey = CryptoNote::getTransactionPublicKeyFromExtra(res.tx.extra);
+    }
+    else if (typeid(CryptoNote::TransactionExtraNonce) == field.type()) {
+      res.txDetails.extra.nonce.push_back(Common::toHex(boost::get<CryptoNote::TransactionExtraNonce>(field).nonce.data(), boost::get<CryptoNote::TransactionExtraNonce>(field).nonce.size()));
+    }
   }
 
   res.status = CORE_RPC_STATUS_OK;
@@ -1558,6 +1583,120 @@ bool RpcServer::k_on_check_tx_with_view_key(const K_COMMAND_RPC_CHECK_TX_WITH_PR
 	return true;
 }
 
+bool RpcServer::k_on_check_tx_proof(const K_COMMAND_RPC_CHECK_TX_PROOF::request& req, K_COMMAND_RPC_CHECK_TX_PROOF::response& res) {
+	// parse txid
+	Crypto::Hash txid;
+	if (!parse_hash256(req.tx_id, txid)) {
+		throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM, "Failed to parse txid" };
+	}
+	// parse address
+	CryptoNote::AccountPublicAddress address;
+	if (!m_core.currency().parseAccountAddressString(req.dest_address, address)) {
+		throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM, "Failed to parse address " + req.dest_address + '.' };
+	}
+	// parse pubkey r*A & signature
+	const size_t header_len = strlen("ProofV1");
+	if (req.signature.size() < header_len || req.signature.substr(0, header_len) != "ProofV1") {
+		throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM, "Signature header check error" };
+	}
+	Crypto::PublicKey rA;
+	Crypto::Signature sig;
+	const size_t rA_len = Tools::Base58::encode(std::string((const char *)&rA, sizeof(Crypto::PublicKey))).size();
+	const size_t sig_len = Tools::Base58::encode(std::string((const char *)&sig, sizeof(Crypto::Signature))).size();
+	std::string rA_decoded;
+	std::string sig_decoded;
+	if (!Tools::Base58::decode(req.signature.substr(header_len, rA_len), rA_decoded)) {
+		throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM, "Signature decoding error" };
+	}
+	if (!Tools::Base58::decode(req.signature.substr(header_len + rA_len, sig_len), sig_decoded)) {
+		throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM, "Signature decoding error" };
+	}
+	if (sizeof(Crypto::PublicKey) != rA_decoded.size() || sizeof(Crypto::Signature) != sig_decoded.size()) {
+		throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM, "Signature decoding error" };
+	}
+	memcpy(&rA, rA_decoded.data(), sizeof(Crypto::PublicKey));
+	memcpy(&sig, sig_decoded.data(), sizeof(Crypto::Signature));
+
+	// fetch tx pubkey
+	Transaction tx;
+
+	std::vector<uint32_t> out;
+	std::vector<Crypto::Hash> tx_ids;
+	tx_ids.push_back(txid);
+	std::list<Crypto::Hash> missed_txs;
+	std::list<Transaction> txs;
+	m_core.getTransactions(tx_ids, txs, missed_txs, true);
+
+	if (1 == txs.size()) {
+		tx = txs.front();
+	}
+	else {
+		throw JsonRpc::JsonRpcError{
+			CORE_RPC_ERROR_CODE_WRONG_PARAM,
+			"transaction wasn't found. Hash = " + req.tx_id + '.' };
+	}
+	CryptoNote::TransactionPrefix transaction = *static_cast<const TransactionPrefix*>(&tx);
+
+	Crypto::PublicKey R = getTransactionPublicKeyFromExtra(transaction.extra);
+	if (R == NULL_PUBLIC_KEY)
+	{
+		throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, "Tx pubkey was not found" };
+	}
+
+	// check signature
+	bool r = Crypto::check_tx_proof(txid, R, address.viewPublicKey, rA, sig);
+	res.signature_valid = r;
+
+	if (r) {
+
+		// obtain key derivation by multiplying scalar 1 to the pubkey r*A included in the signature
+		Crypto::KeyDerivation derivation;
+		if (!Crypto::generate_key_derivation(rA, I, derivation)) {
+			throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, "Failed to generate key derivation" };
+		}
+
+		// get tx pub key
+		Crypto::PublicKey txPubKey = getTransactionPublicKeyFromExtra(transaction.extra);
+
+		// look for outputs
+		uint64_t received(0);
+		size_t keyIndex(0);
+		std::vector<TransactionOutput> outputs;
+		try {
+			for (const TransactionOutput& o : transaction.outputs) {
+				if (o.target.type() == typeid(KeyOutput)) {
+					const KeyOutput out_key = boost::get<KeyOutput>(o.target);
+					Crypto::PublicKey pubkey;
+					derive_public_key(derivation, keyIndex, address.spendPublicKey, pubkey);
+					if (pubkey == out_key.key) {
+						received += o.amount;
+						outputs.push_back(o);
+					}
+				}
+				++keyIndex;
+			}
+		}
+		catch (...)
+		{
+			throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, "Unknown error" };
+		}
+		res.received_amount = received;
+		res.outputs = outputs;
+
+		Crypto::Hash blockHash;
+		uint32_t blockHeight;
+		if (m_core.getBlockContainingTx(txid, blockHash, blockHeight)) {
+			res.confirmations = m_protocolQuery.getObservedHeight() - blockHeight;
+		}
+	}
+	else {
+		res.received_amount = 0;
+	}
+
+	res.status = CORE_RPC_STATUS_OK;
+	return true;
+}
+
 bool RpcServer::k_on_check_reserve_proof(const K_COMMAND_RPC_CHECK_RESERVE_PROOF::request& req, K_COMMAND_RPC_CHECK_RESERVE_PROOF::response& res) {
 
 	// parse address
@@ -1626,6 +1765,13 @@ bool RpcServer::k_on_check_reserve_proof(const K_COMMAND_RPC_CHECK_RESERVE_PROOF
 		// get tx pub key
 		Crypto::PublicKey txPubKey = getTransactionPublicKeyFromExtra(tx.extra);
 
+		// check singature for shared secret
+		if (!Crypto::check_tx_proof(prefix_hash, address.viewPublicKey, txPubKey, proof.shared_secret, proof.shared_secret_sig)) {
+			//throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, "Failed to check singature for shared secret" };
+			res.good = false;
+			return true;
+		}
+
 		// check signature for key image
 		const std::vector<const Crypto::PublicKey *>& pubs = { &out_key.key };
 		if (!Crypto::check_ring_signature(prefix_hash, proof.key_image, &pubs[0], 1, &proof.key_image_sig)) {
@@ -1646,10 +1792,9 @@ bool RpcServer::k_on_check_reserve_proof(const K_COMMAND_RPC_CHECK_RESERVE_PROOF
 				uint64_t amount = tx.outputs[proof.index_in_tx].amount;
 				res.total += amount;
 
-        /*
 				if (m_core.is_key_image_spent(proof.key_image)) {
 					res.spent += amount;
-				}*/
+				}
 			}
 		}
 		catch (...)

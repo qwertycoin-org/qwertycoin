@@ -105,7 +105,7 @@ public:
     case BAD_PAYMENT_ID:                return "Wrong payment id format";
     case BAD_TRANSACTION_EXTRA:         return "Wrong transaction extra format";
     case MIXIN_COUNT_TOO_SMALL:         return "MixIn count is below the required minimum";
-    case MIXIN_COUNT_TOO_LARGE:         return "MixIn count is over the maximum allowed";
+	case MIXIN_COUNT_TOO_LARGE:         return "MixIn count is over the maximum allowed";
     default:                            return "Unknown error";
     }
   }

@@ -338,7 +338,7 @@ std::error_code InProcessNode::doRelayTransaction(const CryptoNote::Transaction&
     CryptoNote::BinaryArray transactionBinaryArray = toBinaryArray(transaction);
     CryptoNote::tx_verification_context tvc = boost::value_initialized<CryptoNote::tx_verification_context>();
 
-    if (!core.handle_incoming_tx(transactionBinaryArray, tvc, false)) {
+    if (!core.handle_incoming_tx(transactionBinaryArray, tvc, false, false)) {
       return make_error_code(CryptoNote::error::REQUEST_ERROR);
     }
 
@@ -382,6 +382,10 @@ uint32_t InProcessNode::getLocalBlockCount() const {
   return lastLocalBlockHeaderInfo.index + 1;
 }
 
+uint32_t InProcessNode::getNodeHeight() const {
+  return getLocalBlockCount();
+}
+
 uint32_t InProcessNode::getKnownBlockCount() const {
   {
     std::unique_lock<std::mutex> lock(mutex);
@@ -420,6 +424,11 @@ uint64_t InProcessNode::getLastLocalBlockTimestamp() const {
   }
 
   return lastLocalBlockHeaderInfo.timestamp;
+}
+
+uint64_t InProcessNode::getMinimalFee() const {
+  std::unique_lock<std::mutex> lock(mutex);
+  return core.getMinimalFee();
 }
 
 BlockHeaderInfo InProcessNode::getLastLocalBlockHeaderInfo() const {
@@ -468,6 +477,7 @@ void InProcessNode::updateLastLocalBlockHeaderInfo() {
   } catch (const std::exception&) {
     return;
   }
+
   lastLocalBlockHeaderInfo.index = height;
   lastLocalBlockHeaderInfo.majorVersion = block.majorVersion;
   lastLocalBlockHeaderInfo.minorVersion = block.minorVersion;
@@ -803,8 +813,8 @@ void InProcessNode::getBlocksAsync(uint64_t timestampBegin, uint64_t timestampEn
     std::bind(
       static_cast<
         std::error_code(InProcessNode::*)(
-          uint64_t, 
-          uint64_t, 
+          uint64_t,
+          uint64_t,
           uint32_t,
           std::vector<BlockDetails>&,
           uint32_t&
@@ -873,7 +883,7 @@ void InProcessNode::getTransactionsAsync(const std::vector<Crypto::Hash>& transa
     std::bind(
       static_cast<
         std::error_code(InProcessNode::*)(
-          const std::vector<Crypto::Hash>&, 
+          const std::vector<Crypto::Hash>&,
           std::vector<TransactionDetails>&
         )
       >(&InProcessNode::doGetTransactions),

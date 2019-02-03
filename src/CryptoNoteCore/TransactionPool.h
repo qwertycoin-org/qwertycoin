@@ -43,6 +43,7 @@
 #include "CryptoNoteCore/ITxPoolObserver.h"
 #include "CryptoNoteCore/VerificationContext.h"
 #include "CryptoNoteCore/BlockchainIndices.h"
+#include "CryptoNoteCore/ICore.h"
 
 #include <Logging/LoggerRef.h>
 
@@ -85,8 +86,9 @@ namespace CryptoNote {
   class tx_memory_pool: boost::noncopyable {
   public:
     tx_memory_pool(
-      const CryptoNote::Currency& currency, 
+      const CryptoNote::Currency& currency,
       CryptoNote::ITransactionValidator& validator,
+      CryptoNote::ICore& core,
       CryptoNote::ITimeProvider& timeProvider,
       Logging::ILogger& log,
       bool blockchainIndexesEnabled);
@@ -204,6 +206,7 @@ namespace CryptoNote {
 
     Tools::ObserverManager<ITxPoolObserver> m_observerManager;
     const CryptoNote::Currency& m_currency;
+	CryptoNote::ICore& m_core;
     OnceInTimeInterval m_txCheckInterval;
     mutable std::recursive_mutex m_transactions_lock;
     key_images_container m_spent_key_images;

@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
 //
@@ -25,13 +25,12 @@
 
 namespace CryptoNote
 {
-
 	namespace
-	{	
+	{
 		boost::uuids::uuid name;
 		boost::uuids::name_generator gen(name);
 		boost::uuids::uuid u = gen(GENESIS_COINBASE_TX_HEX);
-
 	}
 	const static boost::uuids::uuid QWERTYCOIN_NETWORK = u;
 }
+

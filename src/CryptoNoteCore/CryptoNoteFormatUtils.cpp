@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, Karbo developers
 //
 // This file is part of Qwertycoin.
@@ -293,8 +294,10 @@ bool check_inputs_types_supported(const TransactionPrefix& tx) {
 }
 
 bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
+  std::unordered_set<PublicKey> keys_seen;
   for (const TransactionOutput& out : tx.outputs) {
     if (out.target.type() == typeid(KeyOutput)) {
+ 
       if (out.amount == 0) {
         if (error) {
           *error = "Zero amount ouput";
@@ -308,6 +311,14 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
         }
         return false;
       }
+
+      if (keys_seen.find(boost::get<KeyOutput>(out.target).key) != keys_seen.end()) {
+        if (error) {
+          *error = "The same output target is present more than once";
+        }
+        return false;
+      }
+      keys_seen.insert(boost::get<KeyOutput>(out.target).key);
     } else if (out.target.type() == typeid(MultisignatureOutput)) {
       const MultisignatureOutput& multisignatureOutput = ::boost::get<MultisignatureOutput>(out.target);
       if (multisignatureOutput.requiredSignatureCount > multisignatureOutput.keys.size()) {
@@ -323,6 +334,15 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
           }
           return false;
         }
+
+        if (keys_seen.find(key) != keys_seen.end()) {
+          if (error) {
+            *error = "The same multisignature output target is present more than once";
+          }
+          return false;
+        }
+		keys_seen.insert(key);
+
       }
     } else {
       if (error) {
@@ -497,33 +517,29 @@ bool get_aux_block_header_hash(const Block& b, Hash& res) {
   return getObjectHash(blob, res);
 }
 
-bool get_block_longhash(cn_pow_hash_v2 &ctx, const Block& b, Hash& res) {
+bool get_block_longhash(cn_context &context, const Block& b, Hash& res) {
   BinaryArray bd;
   if (b.majorVersion == BLOCK_MAJOR_VERSION_1 || b.majorVersion >= BLOCK_MAJOR_VERSION_4) {
     if (!get_block_hashing_blob(b, bd)) {
       return false;
     }
-  }
-  else if (b.majorVersion == BLOCK_MAJOR_VERSION_2 || b.majorVersion == BLOCK_MAJOR_VERSION_3) {
+  } else if (b.majorVersion == BLOCK_MAJOR_VERSION_2 || b.majorVersion == BLOCK_MAJOR_VERSION_3) {
     if (!get_parent_block_hashing_blob(b, bd)) {
       return false;
     }
-  }
-  else {
+  } else {
     return false;
   }
-  
+  cn_slow_hash(context, bd.data(), bd.size(), res);
   //cn_slow_hash(context, bd.data(), bd.size(), res);
   if(b.majorVersion == BLOCK_MAJOR_VERSION_4) {
     // heavy 4.0
-    ctx.hash(bd.data(), bd.size(), res.data);
+    cn_slow_hash(context, bd.data(), bd.size(), res);
   }
   else {
     // classic 1.0||2.0||3.0||5.0
-    cn_pow_hash_v1 ctx_v1 = cn_pow_hash_v1::make_borrowed(ctx);
-    ctx_v1.hash(bd.data(), bd.size(), res.data);
+    cn_slow_hash(context, bd.data(), bd.size(), res);
   }
-
   return true;
 }
 
@@ -569,7 +585,7 @@ Hash get_tx_tree_hash(const Block& b) {
 bool is_valid_decomposed_amount(uint64_t amount) {
   auto it = std::lower_bound(Currency::PRETTY_AMOUNTS.begin(), Currency::PRETTY_AMOUNTS.end(), amount);
   if (it == Currency::PRETTY_AMOUNTS.end() || amount != *it) {
-   return false;
+	  return false;
   }
   return true;
 }

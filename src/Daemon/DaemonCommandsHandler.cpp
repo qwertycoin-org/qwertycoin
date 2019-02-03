@@ -1,8 +1,9 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2014-2018, The Monero project
 // Copyright (c) 2014-2018, The Forknote developers
-// Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018, The TurtleCoin developers, The Qwertycoin developers
+// Copyright (c) 2018, The TurtleCoin developers
+// Copyright (c) 2016-2018, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
 //
@@ -39,8 +40,9 @@ namespace {
   }
 }
 
-DaemonCommandsHandler::DaemonCommandsHandler(CryptoNote::core& core, CryptoNote::NodeServer& srv, Logging::LoggerManager& log, const CryptoNote::ICryptoNoteProtocolQuery& protocol, CryptoNote::RpcServer* prpc_server) : 
-  m_core(core), m_srv(srv), logger(log, "daemon"), m_logManager(log), protocolQuery(protocol), m_prpc_server(prpc_server) { 
+
+DaemonCommandsHandler::DaemonCommandsHandler(CryptoNote::core& core, CryptoNote::NodeServer& srv, Logging::LoggerManager& log, const CryptoNote::ICryptoNoteProtocolQuery& protocol, CryptoNote::RpcServer* prpc_server) :
+  m_core(core), m_srv(srv), logger(log, "daemon"), m_logManager(log), protocolQuery(protocol), m_prpc_server(prpc_server) {
   m_consoleHandler.setHandler("exit", boost::bind(&DaemonCommandsHandler::exit, this, _1), "Shutdown the daemon");
   m_consoleHandler.setHandler("help", boost::bind(&DaemonCommandsHandler::help, this, _1), "Show this help");
   m_consoleHandler.setHandler("print_pl", boost::bind(&DaemonCommandsHandler::print_pl, this, _1), "Print peer list");
@@ -63,7 +65,7 @@ DaemonCommandsHandler::DaemonCommandsHandler(CryptoNote::core& core, CryptoNote:
   m_consoleHandler.setHandler("print_ban", boost::bind(&DaemonCommandsHandler::print_ban, this, _1), "Print banned nodes");
   m_consoleHandler.setHandler("ban", boost::bind(&DaemonCommandsHandler::ban, this, _1), "Ban a given <IP> for a given amount of <seconds>, ban <IP> [<seconds>]");
   m_consoleHandler.setHandler("unban", boost::bind(&DaemonCommandsHandler::unban, this, _1), "Unban a given <IP>, unban <IP>");
-  m_consoleHandler.setHandler("status", boost::bind(&DaemonCommandsHandler::status, this, _1), "Show daemon status"); 
+  m_consoleHandler.setHandler("status", boost::bind(&DaemonCommandsHandler::status, this, _1), "Show daemon status");
 }
 
 //--------------------------------------------------------------------------------
@@ -91,8 +93,8 @@ std::string DaemonCommandsHandler::get_mining_speed(uint32_t hr) {
 float DaemonCommandsHandler::get_sync_percentage(uint64_t height, uint64_t target_height) {
   target_height = target_height ? target_height < height ? height : target_height : height;
   float pc = 100.0f * height / target_height;
-  if (height < target_height && pc > 99.9f) {
-    return 99.9f; // to avoid 100% when not fully synced    
+  if (height < target_height && pc > 99.9f){
+    return 99.9f; // to avoid 100% when not fully synced
   }
     return pc;
 }
@@ -127,19 +129,20 @@ bool DaemonCommandsHandler::status(const std::vector<std::string>& args) {
   std::time_t uptime = std::time(nullptr) - m_core.getStartTime();
   uint8_t majorVersion = m_core.getBlockMajorVersionForHeight(height);
   bool synced = ((uint32_t)height == (uint32_t)last_known_block_index);
+  uint64_t alt_block_count = m_core.get_alternative_blocks_count();
 
   std::cout << std::endl
     << (synced ? "Synced " : "Syncing ") << height << "/" << last_known_block_index 
     << " (" << get_sync_percentage(height, last_known_block_index) << "%) "
     << "on " << (m_core.currency().isTestnet() ? "testnet, " : "mainnet, ")
-    << "network hashrate: " << get_mining_speed(hashrate) << ", difficulty: " << difficulty << ", "
-    << "block v. " << (int)majorVersion << ", "
-    << outgoing_connections_count << " out. + " << incoming_connections_count << " inc. connections, "
-    << rpc_conn <<  " rpc connections, "
+    << "network hashrate: " << get_mining_speed(hashrate) << ", next difficulty: " << difficulty << ", "
+    << "block v. " << (int)majorVersion << ", alt. blocks: " << alt_block_count << ", "
+    << outgoing_connections_count << " out. + " << incoming_connections_count << " inc. connection(s), "
+    << rpc_conn <<  " rpc connection(s), " << tx_pool_size << " transaction(s) in mempool, "
     << "uptime: " << (unsigned int)floor(uptime / 60.0 / 60.0 / 24.0) << "d " << (unsigned int)floor(fmod((uptime / 60.0 / 60.0), 24.0)) << "h "
     << (unsigned int)floor(fmod((uptime / 60.0), 60.0)) << "m " << (unsigned int)fmod(uptime, 60.0) << "s"
     << std::endl;
-
+  
   return true;
 }
 

@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, Karbo developers
 //
 // This file is part of Qwertycoin.
@@ -403,7 +404,6 @@ uint32_t WalletSerializerV1::loadVersion(Common::IInputStream& source) {
 
   uint32_t version = std::numeric_limits<uint32_t>::max();
   s(version, "version");
-
   return version;
 }
 

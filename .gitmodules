@@ -1,0 +1,3 @@
+[submodule "cmake/polly"]
+	path = cmake/polly
+	url = https://github.com/ruslo/polly.git

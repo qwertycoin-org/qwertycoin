@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2017-2018, The Karbo developers
 //
@@ -489,6 +490,20 @@ struct f_transaction_short_response {
   }
 };
 
+struct f_transaction_details_extra_response {
+  std::vector<size_t> padding;
+  Crypto::PublicKey publicKey; 
+  std::vector<std::string> nonce;
+  std::vector<uint8_t> raw;
+
+  void serialize(ISerializer &s) {
+    KV_MEMBER(padding)
+    KV_MEMBER(publicKey)
+    KV_MEMBER(nonce)
+    KV_MEMBER(raw)
+  }
+};
+
 struct f_transaction_details_response {
   std::string hash;
   size_t size;
@@ -497,6 +512,7 @@ struct f_transaction_details_response {
   uint64_t fee;
   uint64_t amount_out;
   uint32_t confirmations = 0;
+  f_transaction_details_extra_response extra;
 
   void serialize(ISerializer &s) {
     KV_MEMBER(hash)
@@ -506,6 +522,7 @@ struct f_transaction_details_response {
     KV_MEMBER(fee)
     KV_MEMBER(amount_out)
     KV_MEMBER(confirmations)
+    KV_MEMBER(extra)
   }
 };
 
@@ -1074,6 +1091,36 @@ struct reserve_proof {
 		KV_MEMBER(proofs)
 		KV_MEMBER(signature)
 	}
+};
+
+struct K_COMMAND_RPC_CHECK_TX_PROOF {
+    struct request {
+        std::string tx_id;
+        std::string dest_address;
+        std::string signature;
+
+        void serialize(ISerializer &s) {
+            KV_MEMBER(tx_id)
+            KV_MEMBER(dest_address)
+            KV_MEMBER(signature)
+        }
+    };
+
+    struct response {
+        bool signature_valid;
+        uint64_t received_amount;
+		std::vector<TransactionOutput> outputs;
+		uint32_t confirmations = 0;
+        std::string status;
+
+        void serialize(ISerializer &s) {
+            KV_MEMBER(signature_valid)
+            KV_MEMBER(received_amount)
+            KV_MEMBER(outputs)
+            KV_MEMBER(confirmations)
+            KV_MEMBER(status)
+        }
+    };
 };
 
 struct K_COMMAND_RPC_CHECK_RESERVE_PROOF {

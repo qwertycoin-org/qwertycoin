@@ -1,8 +1,8 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2014-2018, The Monero project
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -23,11 +23,10 @@
 
 #include <boost/format.hpp>
 #include "Common/ConsoleHandler.h"
-#include "CryptoNoteProtocol/ICryptoNoteProtocolQuery.h" 
-
+#include "CryptoNoteProtocol/ICryptoNoteProtocolQuery.h"
 #include <Logging/LoggerRef.h>
 #include <Logging/LoggerManager.h>
-#include "Rpc/RpcServer.h" 
+#include "Rpc/RpcServer.h"
 
 namespace CryptoNote {
 class core;
@@ -39,7 +38,7 @@ class DaemonCommandsHandler
 {
 public:
   DaemonCommandsHandler(CryptoNote::core& core, CryptoNote::NodeServer& srv, Logging::LoggerManager& log, const CryptoNote::ICryptoNoteProtocolQuery& protocol, CryptoNote::RpcServer* prpc_server);
-  
+
   bool start_handling() {
     m_consoleHandler.start();
     return true;
@@ -58,7 +57,7 @@ private:
   Logging::LoggerManager& m_logManager;
   const CryptoNote::ICryptoNoteProtocolQuery& protocolQuery;
   CryptoNote::RpcServer* m_prpc_server;
-
+  
   std::string get_commands_str();
   std::string get_mining_speed(uint32_t hr);
   float get_sync_percentage(uint64_t height, uint64_t target_height);

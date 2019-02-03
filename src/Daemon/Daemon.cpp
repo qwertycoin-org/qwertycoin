@@ -3,7 +3,6 @@
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2018, The TurtleCoin developers
 // Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -28,9 +27,9 @@
 #include "DaemonCommandsHandler.h"
 
 #include "Common/SignalHandler.h"
+#include "Common/StringTools.h"
 #include "Common/PathTools.h"
 #include "crypto/hash.h"
-#include "CryptoNoteCheckpoints.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/Core.h"
 #include "CryptoNoteCore/CoreConfig.h"
@@ -67,11 +66,14 @@ namespace
   const command_line::arg_descriptor<bool>        arg_enable_blockchain_indexes = { "enable-blockchain-indexes", "Enable blockchain indexes", false };
   const command_line::arg_descriptor<bool>        arg_print_genesis_tx = { "print-genesis-tx", "Prints genesis' block tx hex to insert it to config and exits" };
   const command_line::arg_descriptor<std::string> arg_enable_cors = { "enable-cors", "Adds header 'Access-Control-Allow-Origin' to the daemon's RPC responses. Uses the value as domain. Use * for all", "" };
-  const command_line::arg_descriptor<std::string> arg_set_fee_address = { "fee-address", "Sets fee address for light wallets to the daemon's RPC responses.", "QWC1K6XEhCC1WsZzT9RRVpc1MLXXdHVKt2BUGSrsmkkXAvqh52sVnNc1pYmoF2TEXsAvZnyPaZu8MW3S8EWHNfAh7X2xa63P7Y" };
+  const command_line::arg_descriptor<std::string> arg_set_fee_address = { "fee-address", "Sets fee address for light wallets to the daemon's RPC responses.", "" };
+  const command_line::arg_descriptor<std::string> arg_set_contact = { "contact", "Sets node admin contact", "" };
   const command_line::arg_descriptor<std::string> arg_set_view_key = { "view-key", "Sets private view key to check for masternode's fee.", "" };
   const command_line::arg_descriptor<bool>        arg_testnet_on  = {"testnet", "Used to deploy test nets. Checkpoints and hardcoded seeds are ignored, "
     "network id is changed. Use it with --data-dir flag. The wallet must be launched with --testnet flag.", false};
-  const command_line::arg_descriptor<std::string> arg_load_checkpoints   = {"load-checkpoints", "<default|filename> Use builtin default checkpoints or checkpoint csv file for faster initial blockchain sync", ""};
+  const command_line::arg_descriptor<std::string> arg_load_checkpoints = { "load-checkpoints", "<filename> Load checkpoints from csv file.", "" };
+  const command_line::arg_descriptor<bool>        arg_disable_checkpoints = { "without-checkpoints", "Synchronize without checkpoints" };
+  const command_line::arg_descriptor<std::string> arg_rollback = { "rollback", "Rollback blockchain to <height>" };
 }
 
 bool command_line_preprocessor(const boost::program_options::variables_map& vm, LoggerRef& logger);
@@ -128,14 +130,17 @@ int main(int argc, char* argv[])
     command_line::add_arg(desc_cmd_sett, arg_log_file);
     command_line::add_arg(desc_cmd_sett, arg_log_level);
     command_line::add_arg(desc_cmd_sett, arg_console);
-    command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
+	command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
     command_line::add_arg(desc_cmd_sett, arg_testnet_on);
-    command_line::add_arg(desc_cmd_sett, arg_enable_cors);
-    command_line::add_arg(desc_cmd_sett, arg_set_fee_address);
-    command_line::add_arg(desc_cmd_sett, arg_set_view_key);
-    command_line::add_arg(desc_cmd_sett, arg_enable_blockchain_indexes);
-    command_line::add_arg(desc_cmd_sett, arg_print_genesis_tx);
-    command_line::add_arg(desc_cmd_sett, arg_load_checkpoints);
+	command_line::add_arg(desc_cmd_sett, arg_enable_cors);
+	command_line::add_arg(desc_cmd_sett, arg_set_fee_address);
+	command_line::add_arg(desc_cmd_sett, arg_set_view_key);
+	command_line::add_arg(desc_cmd_sett, arg_enable_blockchain_indexes);
+	command_line::add_arg(desc_cmd_sett, arg_print_genesis_tx);
+	command_line::add_arg(desc_cmd_sett, arg_load_checkpoints);
+	command_line::add_arg(desc_cmd_sett, arg_disable_checkpoints);
+	command_line::add_arg(desc_cmd_sett, arg_rollback);
+	command_line::add_arg(desc_cmd_sett, arg_set_contact);
 
     RpcServerConfig::initOptions(desc_cmd_sett);
     CoreConfig::initOptions(desc_cmd_sett);
@@ -197,35 +202,40 @@ int main(int argc, char* argv[])
     // configure logging
     logManager.configure(buildLoggerConfiguration(cfgLogLevel, cfgLogFile));
 
+    logger(INFO) << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
+
     if (command_line_preprocessor(vm, logger)) {
       return 0;
     }
 
-    logger(INFO, BRIGHT_GREEN) <<
+    std::string contact_str = command_line::get_arg(vm, arg_set_contact);
+    if (!contact_str.empty() && contact_str.size() > 128) {
+      logger(ERROR, BRIGHT_RED) << "Too long contact info";
+      return 1;
+    }
 
-      #ifdef _WIN32
-      "\n                                                              \n"
-      "                         _                   _                  \n"
-      "                        | |                 (_)                 \n"
-      "  __ ___      _____ _ __| |_ _   _  ___ ___  _ _ __             \n"
-      " / _` \\ \\ /\\ / / _ \\ '__| __| | | |/ __/ _ \\| | '_\\       \n"
-      "| (_| |\\ V  V /  __/ |  | |_| |_| | (_| (_) | | | | |          \n"
-      " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|   \n"
-      "    | |                       __/ |                             \n"
-      "    |_|                      |___/                              \n"
-      "                                                                \n"<< ENDL;
-      #else
-      "\n                                                                                 \n"
-      " ██████╗ ██╗    ██╗███████╗██████╗ ████████╗██╗   ██╗ ██████╗ ██████╗ ██╗███╗   ██╗\n"
-      "██╔═══██╗██║    ██║██╔════╝██╔══██╗╚══██╔══╝╚██╗ ██╔╝██╔════╝██╔═══██╗██║████╗  ██║\n"
-      "██║   ██║██║ █╗ ██║█████╗  ██████╔╝   ██║    ╚████╔╝ ██║     ██║   ██║██║██╔██╗ ██║\n"
-      "██║▄▄ ██║██║███╗██║██╔══╝  ██╔══██╗   ██║     ╚██╔╝  ██║     ██║   ██║██║██║╚██╗██║\n"
-      "╚██████╔╝╚███╔███╔╝███████╗██║  ██║   ██║      ██║   ╚██████╗╚██████╔╝██║██║ ╚████║\n"
-      " ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝   ╚═╝      ╚═╝    ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝\n"
-      "                                                                                   \n" << ENDL;
-      #endif
-
-    logger(INFO, BRIGHT_GREEN) << "Welcome to " << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
+	std::cout <<
+#ifdef _WIN32
+  "\n                                                              \n"
+  "                         _                   _                  \n"
+  "                        | |                 (_)                 \n"
+  "  __ ___      _____ _ __| |_ _   _  ___ ___  _ _ __             \n"
+  " / _` \\ \\ /\\ / / _ \\ '__| __| | | |/ __/ _ \\| | '_\\       \n"
+  "| (_| |\\ V  V /  __/ |  | |_| |_| | (_| (_) | | | | |          \n"
+  " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|   \n"
+  "    | |                       __/ |                             \n"
+  "    |_|                      |___/                              \n"
+  "                                                                \n"<< ENDL;
+#else
+  "\n                                                                                 \n"
+  " ██████╗ ██╗    ██╗███████╗██████╗ ████████╗██╗   ██╗ ██████╗ ██████╗ ██╗███╗   ██╗\n"
+  "██╔═══██╗██║    ██║██╔════╝██╔══██╗╚══██╔══╝╚██╗ ██╔╝██╔════╝██╔═══██╗██║████╗  ██║\n"
+  "██║   ██║██║ █╗ ██║█████╗  ██████╔╝   ██║    ╚████╔╝ ██║     ██║   ██║██║██╔██╗ ██║\n"
+  "██║▄▄ ██║██║███╗██║██╔══╝  ██╔══██╗   ██║     ╚██╔╝  ██║     ██║   ██║██║██║╚██╗██║\n"
+  "╚██████╔╝╚███╔███╔╝███████╗██║  ██║   ██║      ██║   ╚██████╗╚██████╔╝██║██║ ╚████║\n"
+  " ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝   ╚═╝      ╚═╝    ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝\n"
+  "                                                                                   \n" << ENDL;
+#endif
 
     logger(INFO) << "Module folder: " << argv[0];
 
@@ -246,37 +256,34 @@ int main(int argc, char* argv[])
     CryptoNote::Currency currency = currencyBuilder.currency();
     CryptoNote::core ccore(currency, nullptr, logManager, command_line::get_arg(vm, arg_enable_blockchain_indexes));
 
-    CryptoNote::Checkpoints checkpoints(logManager);
+	bool disable_checkpoints = command_line::get_arg(vm, arg_disable_checkpoints);
+	if (!disable_checkpoints) {
+
+		CryptoNote::Checkpoints checkpoints(logManager);
+		for (const auto& cp : CryptoNote::CHECKPOINTS) {
+			checkpoints.add_checkpoint(cp.height, cp.blockId);
+		}
 
 #ifndef __ANDROID__
-    checkpoints.load_checkpoints_from_dns();
+		checkpoints.load_checkpoints_from_dns();
 #endif
-    bool use_checkpoints = !command_line::get_arg(vm, arg_load_checkpoints).empty();
 
-    if (use_checkpoints && !testnet_mode) { 
-      logger(INFO) << "Loading Checkpoints for faster initial sync...";
-      std::string checkpoints_file = command_line::get_arg(vm, arg_load_checkpoints);
-      if (checkpoints_file == "default") {
-        for (const auto& cp : CryptoNote::CHECKPOINTS) {
-          checkpoints.add_checkpoint(cp.height, cp.blockId);
-        }
-        logger(INFO) << "Loaded " << CryptoNote::CHECKPOINTS.size() << " default checkpoints";
-      }
-      else {
-        bool results = checkpoints.load_checkpoints_from_file(checkpoints_file);
-        if (!results) {
-          throw std::runtime_error("Failed to load checkpoints");
-        }
-      }
-    } else if (!use_checkpoints && !testnet_mode) {
-      for (const auto& cp : CryptoNote::CHECKPOINTS) {
-        checkpoints.add_checkpoint(cp.height, cp.blockId);
-      }
-    }
+		bool manual_checkpoints = !command_line::get_arg(vm, arg_load_checkpoints).empty();
 
-    if (!testnet_mode) {
-      ccore.set_checkpoints(std::move(checkpoints));
-    }
+		if (manual_checkpoints && !testnet_mode) {
+			logger(INFO) << "Loading checkpoints from file...";
+			std::string checkpoints_file = command_line::get_arg(vm, arg_load_checkpoints);
+			bool results = checkpoints.load_checkpoints_from_file(checkpoints_file);
+			if (!results) {
+				throw std::runtime_error("Failed to load checkpoints");
+			}
+		}
+
+		if (!testnet_mode) {
+			ccore.set_checkpoints(std::move(checkpoints));
+		}
+
+	}
 
     CoreConfig coreConfig;
     coreConfig.init(vm);
@@ -303,7 +310,7 @@ int main(int argc, char* argv[])
     CryptoNote::CryptoNoteProtocolHandler cprotocol(currency, dispatcher, ccore, nullptr, logManager);
     CryptoNote::NodeServer p2psrv(dispatcher, cprotocol, logManager);
     CryptoNote::RpcServer rpcServer(dispatcher, logManager, ccore, p2psrv, cprotocol);
-
+	
     cprotocol.set_p2p_endpoint(&p2psrv);
     ccore.set_cryptonote_protocol(&cprotocol);
     DaemonCommandsHandler dch(ccore, p2psrv, logManager, cprotocol, &rpcServer);
@@ -331,6 +338,19 @@ int main(int argc, char* argv[])
     }
     logger(INFO) << "Core initialized OK";
 
+    if (command_line::has_arg(vm, arg_rollback)) {
+      std::string rollback_str = command_line::get_arg(vm, arg_rollback);
+      if (!rollback_str.empty()) {
+        uint32_t _index = 0;
+        if (!Common::fromString(rollback_str, _index)) {
+          std::cout << "wrong block index parameter" << ENDL;
+          return false;
+        }
+        logger(INFO, BRIGHT_YELLOW) << "Rollback blockchain to height " << _index;
+        ccore.rollbackBlockchain(_index);
+      }
+    }
+
     // start components
     if (!command_line::has_arg(vm, arg_console)) {
       dch.start_handling();
@@ -340,21 +360,26 @@ int main(int argc, char* argv[])
     rpcServer.start(rpcConfig.bindIp, rpcConfig.bindPort);
     rpcServer.restrictRPC(command_line::get_arg(vm, arg_restricted_rpc));
     rpcServer.enableCors(command_line::get_arg(vm, arg_enable_cors));
-    if (command_line::has_arg(vm, arg_set_fee_address)) {
-      std::string addr_str = command_line::get_arg(vm, arg_set_fee_address);
-      if (!addr_str.empty()) {
-          AccountPublicAddress acc = boost::value_initialized<AccountPublicAddress>();
-          if (!currency.parseAccountAddressString(addr_str, acc)) {
-            logger(ERROR, BRIGHT_RED) << "Bad fee address: " << addr_str;
-            return 1;
-          }
-          rpcServer.setFeeAddress(addr_str, acc);
+	if (command_line::has_arg(vm, arg_set_fee_address)) {
+	  std::string addr_str = command_line::get_arg(vm, arg_set_fee_address);
+	  if (!addr_str.empty()) {
+        AccountPublicAddress acc = boost::value_initialized<AccountPublicAddress>();
+        if (!currency.parseAccountAddressString(addr_str, acc)) {
+          logger(ERROR, BRIGHT_RED) << "Bad fee address: " << addr_str;
+          return 1;
         }
-    }
+        rpcServer.setFeeAddress(addr_str, acc);
+      }
+	}
     if (command_line::has_arg(vm, arg_set_view_key)) {
       std::string vk_str = command_line::get_arg(vm, arg_set_view_key);
-    if (!vk_str.empty()) {
+	  if (!vk_str.empty()) {
         rpcServer.setViewKey(vk_str);
+      }
+    }
+    if (command_line::has_arg(vm, arg_set_contact)) {
+      if (!contact_str.empty()) {
+        rpcServer.setContactInfo(contact_str);
       }
     }
     logger(INFO) << "Core rpc server started ok";

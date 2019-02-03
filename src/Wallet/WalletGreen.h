@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, Karbo developers
 //
 // This file is part of Qwertycoin.
@@ -42,7 +43,6 @@ class WalletGreen : public IWallet,
                     public IFusionManager {
 public:
   WalletGreen(System::Dispatcher& dispatcher, const Currency& currency, INode& node, Logging::ILogger& logger, uint32_t transactionSoftLockTime = CryptoNote::parameters::CRYPTONOTE_TX_SPENDABLE_AGE);
-  //WalletGreen(System::Dispatcher& dispatcher, const Currency& currency, INode& node, Logging::ILogger& logger, uint32_t transactionSoftLockTime = 1);
   virtual ~WalletGreen();
 
   virtual void initialize(const std::string& path, const std::string& password) override;
@@ -58,6 +58,7 @@ public:
 
   virtual size_t getAddressCount() const override;
   virtual std::string getAddress(size_t index) const override;
+  virtual AccountPublicAddress getAccountPublicAddress(size_t index) const override;
   virtual KeyPair getAddressSpendKey(size_t index) const override;
   virtual KeyPair getAddressSpendKey(const std::string& address) const override;
   virtual KeyPair getViewKey() const override;
@@ -85,6 +86,7 @@ public:
   virtual uint32_t getBlockCount() const override;
   virtual std::vector<WalletTransactionWithTransfers> getUnconfirmedTransactions() const override;
   virtual std::vector<size_t> getDelayedTransactionIds() const override;
+  virtual std::vector<TransactionOutputInformation> getTransfers(size_t index, uint32_t flags) const override;
 
   virtual size_t transfer(const TransactionParameters& sendingTransaction, Crypto::SecretKey& txSecretKey) override;
 
@@ -228,7 +230,7 @@ protected:
     PreparedTransaction& preparedTransaction,
     Crypto::SecretKey& txSecretKey);
 
-    size_t doTransfer(const TransactionParameters& transactionParameters, Crypto::SecretKey& txSecretKey); 
+  size_t doTransfer(const TransactionParameters& transactionParameters, Crypto::SecretKey& txSecretKey);
 
   void checkIfEnoughMixins(std::vector<CryptoNote::COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::outs_for_amount>& mixinResult, uint64_t mixIn) const;
   std::vector<WalletTransfer> convertOrdersToTransfers(const std::vector<WalletOrder>& orders) const;

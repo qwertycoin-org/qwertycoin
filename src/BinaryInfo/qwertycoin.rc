@@ -1,8 +1,8 @@
 #include <windows.h>
 
 1 VERSIONINFO
- FILEVERSION 4,0,2,1
- PRODUCTVERSION 4,0,2,0
+ FILEVERSION 5,0,0,1
+ PRODUCTVERSION 5,0,0,0
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS 0x40004L
@@ -15,12 +15,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Qwertycoin Foundation"
             VALUE "FileDescription", "Qwertycoin network daemon"
-            VALUE "FileVersion", "4.0.2.1"
-            VALUE "InternalName", "Qwertycoind.exe"
-            VALUE "LegalCopyright", "Copyright (C) 2018, The Qwertycoin Group"
-            VALUE "OriginalFilename", "Qwertycoind.exe"
+            VALUE "FileVersion", "5.0.0.1"
+            VALUE "InternalName", "qwertycoind.exe"
+            VALUE "LegalCopyright", "Copyright (C) 2019, The Qwertycoin Group"
+            VALUE "OriginalFilename", "qwertycoind.exe"
             VALUE "ProductName", "Qwertycoin"
-            VALUE "ProductVersion", "4.0.2.0"
+            VALUE "ProductVersion", "5.0.0.0"
         END
     END
     BLOCK "VarFileInfo"
