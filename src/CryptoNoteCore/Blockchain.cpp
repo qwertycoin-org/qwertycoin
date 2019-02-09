@@ -809,7 +809,9 @@ uint64_t Blockchain::getCoinsInCirculation() {
 }
 
 uint8_t Blockchain::getBlockMajorVersionForHeight(uint32_t height) const {
-  if (height > m_upgradeDetectorV5.upgradeHeight()) {
+  if (height > m_upgradeDetectorV6.upgradeHeight()) {
+    return m_upgradeDetectorV6.targetVersion();
+  } else if (height > m_upgradeDetectorV5.upgradeHeight()) {
     return m_upgradeDetectorV5.targetVersion();
   } else if (height > m_upgradeDetectorV4.upgradeHeight()) {
     return m_upgradeDetectorV4.targetVersion();
@@ -2187,6 +2189,7 @@ bool Blockchain::pushBlock(const Block& blockData, const std::vector<Transaction
   m_upgradeDetectorV3.blockPushed();
   m_upgradeDetectorV4.blockPushed();
   m_upgradeDetectorV5.blockPushed();
+  m_upgradeDetectorV6.blockPushed();
 
   update_next_cumulative_size_limit();
 
@@ -2226,6 +2229,7 @@ void Blockchain::popBlock() {
   m_upgradeDetectorV3.blockPopped();
   m_upgradeDetectorV4.blockPopped();
   m_upgradeDetectorV5.blockPopped();
+  m_upgradeDetectorV6.blockPopped();
 }
 
 bool Blockchain::pushTransaction(BlockEntry& block, const Crypto::Hash& transactionHash, TransactionIndex transactionIndex) {

@@ -275,7 +275,7 @@ namespace CryptoNote {
     MultisignatureOutputsContainer m_multisignatureOutputs;
     UpgradeDetector m_upgradeDetectorV2;
     UpgradeDetector m_upgradeDetectorV3;
-  	UpgradeDetector m_upgradeDetectorV4;
+    UpgradeDetector m_upgradeDetectorV4;
     UpgradeDetector m_upgradeDetectorV5;
     UpgradeDetector m_upgradeDetectorV6;
 
