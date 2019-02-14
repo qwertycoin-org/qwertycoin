@@ -73,8 +73,8 @@ include("cmake/hunter/HunterGate.cmake")
 set(HUNTER_CONFIGURATION_TYPES Release CACHE STRING "Build type of Hunter packages")
 set(HUNTER_JOBS_NUMBER 2 CACHE STRING "Number of parallel builds used by Hunter")
 HunterGate(
-    URL "https://github.com/ruslo/hunter/archive/v0.23.6.tar.gz"
-    SHA1 "951e8daf57a51708b0e6a00cab342a042db57a2f"
+    URL "https://github.com/ruslo/hunter/archive/v0.23.105.tar.gz"
+    SHA1 "1c7aaffc90d4898f0b55d03b77deb890b2aa0a2b"
     FILEPATH "${CMAKE_CURRENT_LIST_DIR}/cmake/hunter/HunterConfig.cmake"
 )
 
