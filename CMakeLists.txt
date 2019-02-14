@@ -66,6 +66,7 @@ set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
+list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake/find")
 
 # Enable Hunter (CMake driven cross-platform package manager for C/C++)
 # NOTE: Must be included before project(...) function call!
@@ -490,15 +491,16 @@ if (EXISTS "${PRECOMPILED_BOOST_ROOT}")
   message(STATUS "Using pre-compiled version of Boost from ${PRECOMPILED_BOOST_ROOT}")
   message(STATUS "BOOST_ROOT is set to \"$ENV{BOOST_ROOT}\"")
   message(STATUS "BOOST_LIBRARYDIR is set to \"$ENV{BOOST_LIBRARYDIR}\"")
-  set(Boost_USE_MULTITHREADED OFF)
+  set(Boost_USE_MULTITHREADED ON)
   set(Boost_NO_SYSTEM_PATHS ON)
   set(Boost_USE_STATIC_LIBS ON)
-  set(Boost_USE_STATIC_RUNTIME ON)
+  set(Boost_USE_STATIC_RUNTIME OFF)
+  find_package(Boost QUIET REQUIRED COMPONENTS ${Boost_COMPONENTS})
 else()
   message(STATUS "Installing Boost using Hunter package manager...")
   hunter_add_package(Boost COMPONENTS ${Boost_COMPONENTS})
+  find_package(Boost QUIET REQUIRED COMPONENTS ${Boost_COMPONENTS})
 endif()
-find_package(Boost QUIET REQUIRED COMPONENTS ${Boost_COMPONENTS})
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${OLD_LIB_SUFFIXES})
 if(NOT Boost_FOUND)
@@ -561,8 +563,6 @@ option(BUILD_TESTS "Build tests." OFF)
 if(BUILD_TESTS)
   add_subdirectory(tests)
 endif()
-
-
 
 set(COMMIT_ID_IN_VERSION ON CACHE BOOL "Include commit ID in version")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/version")

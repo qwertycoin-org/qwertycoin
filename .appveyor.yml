@@ -1,6 +1,6 @@
 os: Visual Studio 2017
 
-clone_depth: 1
+clone_depth: 100
 
 cache:
     - C:\.hunter -> .appveyor.yml
@@ -8,7 +8,6 @@ cache:
 environment:
     BOOST_ROOT: C:\Libraries\boost_1_66_0
     BOOST_LIBRARYDIR: C:\Libraries\boost_1_66_0\lib64-msvc-14.1
-    PATH: "%PATH%;%BOOST_ROOT%;%BOOST_LIBRARYDIR%"
 
 install:
     - git submodule update --init --recursive
