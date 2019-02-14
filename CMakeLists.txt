@@ -481,8 +481,9 @@ if (MSVC)
   add_definitions(-DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE)
 endif()
 
-hunter_add_package(Boost COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
-find_package(Boost QUIET REQUIRED COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
+set(Boost_COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
+hunter_add_package(Boost COMPONENTS ${Boost_COMPONENTS})
+find_package(Boost QUIET REQUIRED COMPONENTS ${Boost_COMPONENTS})
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${OLD_LIB_SUFFIXES})
 if(NOT Boost_FOUND)
