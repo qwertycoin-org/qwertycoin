@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The TurtleCoin developers, The Karbo developers 
+// Copyright (c) 2018, The TurtleCoin developers, The Karbo developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -30,6 +30,7 @@
 #include <iterator>
 
 #include "Checkpoints.h"
+#include "../CryptoNoteConfig.h"
 #include "Common/StringTools.h"
 #include "Common/DnsTools.h"
 
@@ -43,12 +44,12 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
   Crypto::Hash h = NULL_HASH;
 
   if (!Common::podFromHex(hash_str, h)) {
-    logger(WARNING) << "WRONG HASH IN CHECKPOINT FOR HEIGHT " << height;
+    logger(WARNING) << "Wrong hash in checkpoint for height " << height;
     return false;
   }
 
   if (!m_points.insert({ height, h }).second) {
-    logger(WARNING) << "CHECKPOINT ALREADY EXISTS! " << height;
+    logger(WARNING) << "Checkpoint already exists.";
     return false;
   }
 
@@ -56,7 +57,6 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
   return true;
 }
 //---------------------------------------------------------------------------
-
 bool Checkpoints::load_checkpoints_from_file(const std::string& fileName) {
   std::ifstream file(fileName);
   if (!file) {
@@ -83,7 +83,6 @@ bool Checkpoints::load_checkpoints_from_file(const std::string& fileName) {
 }
 
 //---------------------------------------------------------------------------
-
 bool Checkpoints::is_in_checkpoint_zone(uint32_t  height) const {
   return !m_points.empty() && (height <= (--m_points.end())->first);
 }
@@ -117,6 +116,14 @@ bool Checkpoints::is_alternative_block_allowed(uint32_t  blockchain_height,
   if (0 == block_height)
     return false;
 
+  if (block_height < blockchain_height - CryptoNote::parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
+    && !is_in_checkpoint_zone(block_height)) {
+    logger(Logging::WARNING, Logging::WHITE) << "An attempt of too deep reorganization: "
+      << blockchain_height - block_height << ", BLOCK REJECTED";
+
+    return false;
+  }
+
   auto it = m_points.upper_bound(blockchain_height);
   // Is blockchain_height before the first checkpoint?
   if (it == m_points.begin())
@@ -136,13 +143,14 @@ std::vector<uint32_t> Checkpoints::getCheckpointHeights() const {
 
   return checkpointHeights;
 }
-
 #ifndef __ANDROID__
 //---------------------------------------------------------------------------
-bool Checkpoints::load_checkpoints_from_dns() {
-
-  std::string domain("checkpoints.qwertycoin.org");
+bool Checkpoints::load_checkpoints_from_dns()
+{
+  std::string domain("checkpoints.karbo.org");
   std::vector<std::string>records;
+
+  logger(Logging::DEBUGGING) << "Fetching DNS checkpoint records from " << domain;
 
   if (!Common::fetch_dns_txt(domain, records)) {
     logger(Logging::INFO) << "Failed to lookup DNS checkpoint records from " << domain;
@@ -152,11 +160,12 @@ bool Checkpoints::load_checkpoints_from_dns() {
     uint32_t height;
     Crypto::Hash hash = NULL_HASH;
     std::stringstream ss;
-    int del = record.find_first_of(':');
+    size_t del = record.find_first_of(':');
     std::string height_str = record.substr(0, del), hash_str = record.substr(del + 1, 64);
     ss.str(height_str);
     ss >> height;
     char c;
+    if (del == std::string::npos) continue;
     if ((ss.fail() || ss.get(c)) || !Common::podFromHex(hash_str, hash)) {
       logger(Logging::INFO) << "Failed to parse DNS checkpoint record: " << record;
       continue;
@@ -166,11 +175,11 @@ bool Checkpoints::load_checkpoints_from_dns() {
       logger(DEBUGGING) << "Checkpoint already exists for height: " << height << ". Ignoring DNS checkpoint.";
     } else {
       add_checkpoint(height, hash_str);
+    logger(DEBUGGING) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
     }
   }
 
   return true;
 }
 #endif
-
 }
