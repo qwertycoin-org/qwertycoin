@@ -1,4 +1,9 @@
-execute_process(COMMAND "${GIT}" describe --dirty --match "v*" RESULT_VARIABLE RET OUTPUT_VARIABLE DESCRIPTION OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process( # read version from git tag
+    COMMAND git describe --tags --dirty --match "v*"
+    RESULT_VARIABLE RET
+    OUTPUT_VARIABLE DESCRIPTION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 if(RET)
     message(WARNING "Cannot determine current revision. Make sure that you are building either from a Git working tree or from a source archive.")
     set(VERSION "${COMMIT}")

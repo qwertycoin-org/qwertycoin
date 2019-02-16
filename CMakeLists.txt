@@ -66,6 +66,7 @@ set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
+list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake/find")
 
 # Enable Hunter (CMake driven cross-platform package manager for C/C++)
 # NOTE: Must be included before project(...) function call!
@@ -73,8 +74,8 @@ include("cmake/hunter/HunterGate.cmake")
 set(HUNTER_CONFIGURATION_TYPES Release CACHE STRING "Build type of Hunter packages")
 set(HUNTER_JOBS_NUMBER 2 CACHE STRING "Number of parallel builds used by Hunter")
 HunterGate(
-    URL "https://github.com/ruslo/hunter/archive/v0.23.6.tar.gz"
-    SHA1 "951e8daf57a51708b0e6a00cab342a042db57a2f"
+    URL "https://github.com/ruslo/hunter/archive/v0.23.105.tar.gz"
+    SHA1 "1c7aaffc90d4898f0b55d03b77deb890b2aa0a2b"
     FILEPATH "${CMAKE_CURRENT_LIST_DIR}/cmake/hunter/HunterConfig.cmake"
 )
 
@@ -255,7 +256,7 @@ else()
     # mingw doesn't support LTO (multiple definition errors at link time)
     set(USE_LTO_DEFAULT false)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,10485760")
-  if(NOT BUILD_64)
+    if(NOT BUILD_64)
       add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
     endif()
   else()
@@ -481,8 +482,25 @@ if (MSVC)
   add_definitions(-DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE)
 endif()
 
-hunter_add_package(Boost COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
-find_package(Boost QUIET REQUIRED COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
+if(POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif()
+set(Boost_COMPONENTS system filesystem thread date_time chrono regex serialization program_options coroutine context atomic)
+set(PRECOMPILED_BOOST_ROOT "$ENV{BOOST_ROOT}")
+if (EXISTS "${PRECOMPILED_BOOST_ROOT}")
+  message(STATUS "Using pre-compiled version of Boost from ${PRECOMPILED_BOOST_ROOT}")
+  message(STATUS "BOOST_ROOT is set to \"$ENV{BOOST_ROOT}\"")
+  message(STATUS "BOOST_LIBRARYDIR is set to \"$ENV{BOOST_LIBRARYDIR}\"")
+  set(Boost_USE_MULTITHREADED ON)
+  set(Boost_NO_SYSTEM_PATHS ON)
+  set(Boost_USE_STATIC_LIBS ON)
+  set(Boost_USE_STATIC_RUNTIME OFF)
+  find_package(Boost QUIET REQUIRED COMPONENTS ${Boost_COMPONENTS})
+else()
+  message(STATUS "Installing Boost using Hunter package manager...")
+  hunter_add_package(Boost COMPONENTS ${Boost_COMPONENTS})
+  find_package(Boost QUIET REQUIRED COMPONENTS ${Boost_COMPONENTS})
+endif()
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${OLD_LIB_SUFFIXES})
 if(NOT Boost_FOUND)
@@ -517,8 +535,8 @@ endif()
 list(APPEND EXTRA_LIBRARIES ${CMAKE_DL_LIBS})
 
 if(ANDROID AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
-  set(ATOMIC ${BOOST_LIBRARYDIR}/libboost_atomic.a)
-  set(THREAD ${BOOST_LIBRARYDIR}/libboost_thread.a)
+  set(ATOMIC ${BOOST_ROOT}/lib/libboost_atomic-mt.a)
+  set(THREAD ${BOOST_ROOT}/lib/libboost_thread-mt.a)
   find_library(THREAD thread)
   list(APPEND EXTRA_LIBRARIES ${THREAD})
   if(ARCH_WIDTH EQUAL "32")
@@ -545,8 +563,6 @@ option(BUILD_TESTS "Build tests." OFF)
 if(BUILD_TESTS)
   add_subdirectory(tests)
 endif()
-
-
 
 set(COMMIT_ID_IN_VERSION ON CACHE BOOL "Include commit ID in version")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/version")
