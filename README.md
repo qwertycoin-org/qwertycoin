@@ -129,6 +129,22 @@ cmake --build . --config Release
 * Test suite: run `make test-release` to run tests in addition to building. Running `make test-debug` will do the same to the debug version;
 * Building with Clang: it may be possible to use Clang instead of GCC, but this may not work everywhere. To build, run `export CC=clang CXX=clang++` before running `make`.
 
+#### Cross Compiling
+
+It is also possible to cross-compile static binaries on Linux for Windows and macOS with the depends system.
+
+- `make depends target=x86_64-linux-gnu` for 64-bit linux binaries;
+- `make depends target=i686-linux-gnu` for 32-bit linux binaries. Requires: g++-multilib bc;
+- `make depends target=x86_64-apple-darwin11` for macOS binaries. Requires: cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools python-dev
+- `make depends target=x86_64-w64-mingw32` for 64-bit windows binaries. Requires: python3 g++-mingw-w64-x86-64 wine1.6 bc;
+- `make depends target=i686-w64-mingw32` for 32-bit windows binaries. Requires: python3 g++-mingw-w64-i686;
+- `make depends target=arm-linux-gnueabihf` for armv7 binaries. Requires: g++-arm-linux-gnueabihf;
+- `make depends target=aarch64-linux-gnu` for armv8 binaries. Requires: g++-aarch64-linux-gnu.
+
+The required packages are the names for each toolchain on apt. Depending on your distro, they may have different names.
+
+Using depends might also be easier to compile on Windows than using MSYS. Activate Windows Subsystem for Linux (WSL) with a distro (for example Ubuntu), install the apt build-essentials and follow the depends steps as depicted above.
+
 ## Donate
 
 ```
