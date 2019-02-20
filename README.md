@@ -27,7 +27,7 @@ If you are using Arch Linux, there is an AUR precompiled package, `qwertycoin-bi
 
 ##### Prerequisites
 
-- You will need the following packages: build-essential, cmake (3.10 or higher) and git;
+- You will need the following packages: build-essential, [cmake (3.10 or higher)](https://github.com/qwertycoin-org/qwertycoin/tree/master/docs/install_cmake) and git;
 - Most of these should already be installed on your system. For example on Ubuntu by running:
 ```
 sudo apt-get install build-essential cmake git
