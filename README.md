@@ -42,7 +42,7 @@ cd ./qwertycoin
 mkdir ./build
 cd ./build
 cmake ..
-cmake --build . -config Release
+cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
 
