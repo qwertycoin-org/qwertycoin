@@ -3,7 +3,7 @@
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2016-2018, The Karbo developers
 // Copyright (c) 2018, Ryo Currency Project 
-// Copyright (c) 2017-2018, The Qwertycoin developers
+// Copyright (c) 2017-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -135,7 +135,7 @@ const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                =  1000;
 const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
 
 const size_t   P2P_CONNECTION_MAX_WRITE_BUFFER_SIZE          = 64 * 1024 * 1024; // 64 MB
-const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 8;
+const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 16;
 const size_t   P2P_DEFAULT_WHITELIST_CONNECTIONS_PERCENT     = 70;
 const uint32_t P2P_DEFAULT_HANDSHAKE_INTERVAL                = 60;            // seconds
 const uint32_t P2P_DEFAULT_PACKET_MAX_SIZE                   = 50000000;      // 50000000 bytes maximum packet size
@@ -152,23 +152,26 @@ const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef004d3739499c67ccb730cc4734950f414cdb332b24c5ce764beaf";
 
 const char* const SEED_NODES[] = { 
-  "node-00.qwertycoin.org:8196",//00P
-  "195.201.25.118:8196",        //01P
-  "198.147.30.116:8196",        //EXP
-  "198.147.30.115:8196",        //POO
-  "node-02.qwertycoin.org:8196",//02A
-  "78.47.85.215:8196",          //03A
-  "139.99.192.106:8196",        //JOR
+  "node-00.qwertycoin.org:8196",
+  "node-02.qwertycoin.org:8196",
+  "node-03.qwertycoin.org:8196",
+  "node-01.qwertycoin.org:8196",
+  "node-02.qwertycoin.org:8196",
+  "loop.qwertycoin.org:8196",
+  "explorer.qwertycoin.org:8196",
+  "node-05.qwertycoin.org:8196",
   /* Community Nodes */
-  "86.142.25.119:8196",
-  /* !known Nodes */
-  "185.240.249.2:8196",
-  "195.201.27.148:8196",
-  "195.201.29.64:8196",
-  "220.82.126.94:8196",
   "77.55.237.152:8196",
-  "79.147.185.157:8196",
-  "94.130.187.117:8196"
+  "qwertycoin.spdns.org:8196",
+  "220.82.126.94:8196",
+  "91.194.90.163:8196",
+  "46.232.249.160:8196",
+  "198.147.30.116:8196",
+  "172.104.19.228:8196",
+  "198.147.30.115:8196",
+  "195.201.27.148:8196",
+  "78.47.85.215:8196",
+  "79.150.120.70:8196"
 };
 
 } // CryptoNote
