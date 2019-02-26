@@ -817,6 +817,34 @@ struct COMMAND_RPC_QUERY_BLOCKS_LITE {
     }
   };
 };
+// TODO
+struct COMMAND_RPC_QUERY_BLOCKS_DETAILED {
+  struct request {
+    std::vector<Crypto::Hash> block_ids; //*first 10 blocks id goes sequential, next goes in pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and the last one is always genesis block */
+    uint64_t timestamp;
+
+    void serialize(ISerializer &s) {
+      serializeAsBinary(block_ids, "block_ids", s);
+      KV_MEMBER(timestamp)
+    }
+  };
+
+  struct response {
+    std::string status;
+    uint64_t start_height;
+    uint64_t current_height;
+    uint64_t full_offset;
+    std::vector<BlockFullInfo> items;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(status)
+      KV_MEMBER(start_height)
+      KV_MEMBER(current_height)
+      KV_MEMBER(full_offset)
+      KV_MEMBER(items)
+    }
+  };
+};
 
 struct COMMAND_RPC_GEN_PAYMENT_ID {
   typedef EMPTY_STRUCT request;
