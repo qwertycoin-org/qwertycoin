@@ -68,7 +68,7 @@ const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE                              = MAX_TX_MIXIN_SIZE_V2;
 const uint32_t MIN_TX_MIXIN_V1_HEIGHT                         = 200000;
 const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 500000;
-const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2/2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY              = 24 * 60 * 60 / DIFFICULTY_TARGET;
 const size_t   DIFFICULTY_WINDOW                              = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // blocks
