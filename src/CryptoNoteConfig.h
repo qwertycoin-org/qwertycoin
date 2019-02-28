@@ -38,10 +38,10 @@ const size_t   CRYPTONOTE_TX_SPENDABLE_AGE                    = 10;
 const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT             = DIFFICULTY_TARGET * 60; // 7200
 const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1          = DIFFICULTY_TARGET * 6;  // 720 //5.0
 const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW              = 60;
-const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1           = 11;                     //5.0
+const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1           = 11; //5.0
 
 const uint64_t MONEY_SUPPLY                                   = (uint64_t)(-1);
-const uint64_t TAIL_EMISSION_REWARD                           = 100;
+const uint64_t TAIL_EMISSION_REWARD                           = 100000000;
 const uint64_t COIN                                           = TAIL_EMISSION_REWARD;
 const size_t CRYPTONOTE_COIN_VERSION                          = 1;
 const unsigned EMISSION_SPEED_FACTOR                          = 19;
@@ -67,7 +67,7 @@ const uint64_t MAX_TX_MIXIN_SIZE_V1                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE                              = MAX_TX_MIXIN_SIZE_V2;
 const uint32_t MIN_TX_MIXIN_V1_HEIGHT                         = 200000;
-const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 300000;
+const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 500000;
 const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY              = 24 * 60 * 60 / DIFFICULTY_TARGET;
