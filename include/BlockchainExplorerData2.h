@@ -43,7 +43,7 @@ struct BaseInputDetails {
 struct KeyInputDetails {
   KeyInput input;
   uint64_t mixin;
-  TransactionOutputReferenceDetails output;
+  std::vector<TransactionOutputReferenceDetails> outputs;
 };
 
 struct MultisignatureInputDetails {

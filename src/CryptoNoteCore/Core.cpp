@@ -1011,6 +1011,11 @@ bool core::getBlockDifficulty(uint32_t height, difficulty_type& difficulty) {
   return true;
 }
 
+bool core::getBlockCumulativeDifficulty(uint32_t height, difficulty_type& difficulty) {
+  difficulty = m_blockchain.blockCumulativeDifficulty(height);
+  return true;
+}
+
 bool core::getBlockContainingTx(const Crypto::Hash& txId, Crypto::Hash& blockId, uint32_t& blockHeight) {
   return m_blockchain.getBlockContainingTransaction(txId, blockId, blockHeight);
 }
@@ -1157,7 +1162,7 @@ bool core::fillTxExtra(const std::vector<uint8_t>& rawExtra, TransactionExtraDet
     if (typeid(TransactionExtraPublicKey) == field.type()) {
       extraDetails.publicKey = std::move(boost::get<TransactionExtraPublicKey>(field).publicKey);
     } else if (typeid(TransactionExtraNonce) == field.type()) {
-      extraDetails.nonce = Common::asBinaryArray(Common::toHex(boost::get<TransactionExtraNonce>(field).nonce.data(), boost::get<TransactionExtraNonce>(field).nonce.size()));
+      extraDetails.nonce = boost::get<TransactionExtraNonce>(field).nonce;
     }
   }
   return true;
@@ -1372,9 +1377,13 @@ bool core::fillTransactionDetails(const Transaction& transaction, TransactionDet
         return false;
       }
       txInToKeyDetails.mixin = txInToKey.outputIndexes.size();
-      txInToKeyDetails.output.number = outputReferences.back().second;
-      txInToKeyDetails.output.transactionHash = outputReferences.back().first;
-	  txInDetails = txInToKeyDetails;
+      for (const auto& r : outputReferences) {
+        TransactionOutputReferenceDetails d;
+        d.number = r.second;
+        d.transactionHash = r.first;
+        txInToKeyDetails.outputs.push_back(d);
+      }
+      txInDetails = txInToKeyDetails;
     } else if (txIn.type() == typeid(MultisignatureInput)) {
       MultisignatureInputDetails txInMultisigDetails;
       const MultisignatureInput& txInMultisig = boost::get<MultisignatureInput>(txIn);

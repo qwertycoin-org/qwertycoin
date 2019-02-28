@@ -58,7 +58,7 @@ const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT               = 8;
 const uint64_t MINIMUM_FEE_V1                                 = UINT64_C(100000000);
 const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(100000000000);
 const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 500000;
-const uint64_t MINIMUM_FEE                                    = MINIMUM_FEE_V2;
+const uint64_t MINIMUM_FEE                                    = MINIMUM_FEE_V1;
 const uint64_t MAXIMUM_FEE                                    = UINT64_C(100000000);
 
 const uint64_t DEFAULT_DUST_THRESHOLD                         = UINT64_C(100000);
