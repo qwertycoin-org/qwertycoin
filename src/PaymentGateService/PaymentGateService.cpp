@@ -173,7 +173,9 @@ void PaymentGateService::runInProcess(Logging::LoggerRef& log) {
   for (const auto& cp : CryptoNote::CHECKPOINTS) {
     checkpoints.add_checkpoint(cp.height, cp.blockId);
   }
+#ifndef __ANDROID__
   checkpoints.load_checkpoints_from_dns();
+#endif
   if (!config.gateConfiguration.testnet) {
     core.set_checkpoints(std::move(checkpoints));
   }
