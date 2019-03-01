@@ -299,7 +299,7 @@ bool RpcServer::masternode_check_incoming_tx(const BinaryArray& tx_blob) {
   }
 
   if (amount != 0) {
-    logger(INFO) << "Masternode received relayed transaction fee: " << m_core.currency().formatAmount(amount) << " KRB";
+    logger(INFO) << "Masternode received relayed transaction fee: " << m_core.currency().formatAmount(amount) << " QWC";
     return true;
   }
   return false;
