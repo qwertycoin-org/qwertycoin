@@ -820,6 +820,34 @@ struct COMMAND_RPC_QUERY_BLOCKS_LITE {
   };
 };
 
+struct COMMAND_RPC_QUERY_BLOCKS_DETAILED {
+  struct request {
+    std::vector<Crypto::Hash> blockIds;
+    uint64_t timestamp;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(blockIds);
+      KV_MEMBER(timestamp)
+    }
+  };
+
+  struct response {
+    std::string status;
+    uint64_t startHeight;
+    uint64_t currentHeight;
+    uint64_t fullOffset;
+    std::vector<BlockFullInfo> blocks;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(status)
+      KV_MEMBER(startHeight)
+      KV_MEMBER(currentHeight)
+      KV_MEMBER(fullOffset)
+      KV_MEMBER(blocks)
+    }
+  };
+};
+
 struct COMMAND_RPC_GEN_PAYMENT_ID {
   typedef EMPTY_STRUCT request;
   

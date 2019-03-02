@@ -80,14 +80,37 @@ public:
   virtual i_cryptonote_protocol* get_protocol() = 0;
   virtual bool handle_incoming_tx(const BinaryArray& tx_blob, tx_verification_context& tvc, bool keeped_by_block, bool loose_check) = 0; //Deprecated. Should be removed with CryptoNoteProtocolHandler.
   virtual std::vector<Transaction> getPoolTransactions() = 0;
-  virtual bool getPoolChanges(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds,
-                              std::vector<Transaction>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
-  virtual bool getPoolChangesLite(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds,
-                              std::vector<TransactionPrefixInfo>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
-  virtual void getPoolChanges(const std::vector<Crypto::Hash>& knownTxsIds, std::vector<Transaction>& addedTxs,
-                              std::vector<Crypto::Hash>& deletedTxsIds) = 0;
-  virtual bool queryBlocks(const std::vector<Crypto::Hash>& block_ids, uint64_t timestamp, uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<BlockFullInfo>& entries) = 0;
-  virtual bool queryBlocksLite(const std::vector<Crypto::Hash>& block_ids, uint64_t timestamp, uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<BlockShortInfo>& entries) = 0;
+  
+  virtual bool getPoolChanges(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds, std::vector<Transaction>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
+  virtual bool getPoolChangesLite(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds, std::vector<TransactionPrefixInfo>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
+  virtual void getPoolChanges(const std::vector<Crypto::Hash>& knownTxsIds, std::vector<Transaction>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
+  
+  virtual bool queryBlocks(
+    const std::vector<Crypto::Hash>& block_ids,
+    uint64_t timestamp,
+    uint32_t& start_height,
+    uint32_t& current_height,
+    uint32_t& full_offset,
+    std::vector<BlockFullInfo>& entries
+  ) = 0;
+  
+  virtual bool queryBlocksLite(
+    const std::vector<Crypto::Hash>& block_ids,
+    uint64_t timestamp,
+    uint32_t& start_height,
+    uint32_t& current_height,
+    uint32_t& full_offset,
+    std::vector<BlockShortInfo>& entries
+  ) = 0;
+  
+  virtual bool queryBlocksDetailed(
+    const std::vector<Crypto::Hash>& knownBlockHashes,
+    uint64_t timestamp,
+    uint32_t& startIndex,
+    uint32_t& currentIndex,
+    uint32_t& fullOffset,
+    std::vector<BlockFullInfo>& entries
+  ) = 0;
 
   virtual Crypto::Hash getBlockIdByHeight(uint32_t height) = 0;
   virtual bool getBlockByHash(const Crypto::Hash &h, Block &blk) = 0;

@@ -982,6 +982,66 @@ bool core::queryBlocksLite(
   return true;
 }
 
+bool core::queryBlocksDetailed(
+  const std::vector<Crypto::Hash>& knownBlockHashes,
+  uint64_t timestamp,
+  uint32_t& startIndex,
+  uint32_t& currentIndex,
+  uint32_t& fullOffset,
+  std::vector<BlockFullInfo>& entries) {
+
+  LockedBlockchainStorage lbs(m_blockchain);
+
+  uint32_t currentHeight = lbs->getCurrentBlockchainHeight();
+  uint32_t startOffset = 0;
+  uint32_t startFullOffset = 0;
+
+  fullOffset = startFullOffset;
+  std::vector<Crypto::Hash> blockIds = findIdsForShortBlocks(startOffset, startFullOffset);
+  entries.reserve(blockIds.size());
+
+  for (const auto& id : blockIds) {
+    entries.push_back(BlockFullInfo());
+    entries.back().block_id = id;
+  }
+
+  currentIndex = currentHeight;
+  startIndex = startOffset;
+
+  uint32_t blocksLeft = static_cast<uint32_t>(std::min(BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT - entries.size(), size_t(BLOCKS_SYNCHRONIZING_DEFAULT_COUNT)));
+
+  if (blocksLeft == 0) {
+    return true;
+  }
+
+  std::list<Block> blocks;
+  lbs->getBlocks(startFullOffset, blocksLeft, blocks);
+
+  for (auto& b : blocks) {
+    BlockFullInfo item;
+
+    item.block_id = get_block_hash(b);
+
+    if (b.timestamp >= timestamp) {
+      // query transactions
+      std::list<Transaction> txs;
+      std::list<Crypto::Hash> missedTxs;
+      lbs->getTransactions(b.transactionHashes, txs, missedTxs);
+
+      // fill data
+      block_complete_entry& completeEntry = item;
+      completeEntry.block = asString(toBinaryArray(b));
+      for (auto& tx : txs) {
+        completeEntry.txs.push_back(asString(toBinaryArray(tx)));
+      }
+    }
+
+    entries.push_back(std::move(item));
+  }
+
+  return true;
+}
+
 bool core::getBackwardBlocksSizes(uint32_t fromHeight, std::vector<size_t>& sizes, size_t count) {
   return m_blockchain.getBackwardBlocksSize(fromHeight, sizes, count);
 }
