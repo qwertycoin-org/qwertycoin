@@ -102,14 +102,6 @@ public:
     uint32_t& full_offset,
     std::vector<BlockShortInfo>& entries) = 0;
 
-  virtual bool queryBlocksDetailed(
-    const std::vector<Crypto::Hash>& block_ids,
-    uint64_t timestamp,
-    uint32_t& start_height,
-    uint32_t& current_height,
-    uint32_t& full_offset,
-    std::vector<BlockFullInfo>& entries) = 0;
-
   virtual Crypto::Hash getBlockIdByHeight(uint32_t height) = 0;
   virtual bool getBlockByHash(const Crypto::Hash &h, Block &blk) = 0;
   virtual bool getBlockHeight(const Crypto::Hash& blockId, uint32_t& blockHeight) = 0;

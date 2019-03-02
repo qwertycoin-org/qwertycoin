@@ -98,7 +98,6 @@ std::unordered_map<std::string, RpcServer::RpcHandler<RpcServer::HandlerFunction
   { "/getblocks.bin", { binMethod<COMMAND_RPC_GET_BLOCKS_FAST>(&RpcServer::on_get_blocks), false } },
   { "/queryblocks.bin", { binMethod<COMMAND_RPC_QUERY_BLOCKS>(&RpcServer::on_query_blocks), false } },
   { "/queryblockslite.bin", { binMethod<COMMAND_RPC_QUERY_BLOCKS_LITE>(&RpcServer::on_query_blocks_lite), false } },
-  { "/queryblocksdetailed.bin", { binMethod<COMMAND_RPC_QUERY_BLOCKS_DETAILED>(&RpcServer::on_query_blocks_detailed), false } },
   { "/get_o_indexes.bin", { binMethod<COMMAND_RPC_GET_TX_GLOBAL_OUTPUTS_INDEXES>(&RpcServer::on_get_indexes), false } },
   { "/getrandom_outs.bin", { binMethod<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS>(&RpcServer::on_get_random_outs), false } },
   { "/get_pool_changes.bin", { binMethod<COMMAND_RPC_GET_POOL_CHANGES>(&RpcServer::onGetPoolChanges), false } },
@@ -117,7 +116,6 @@ std::unordered_map<std::string, RpcServer::RpcHandler<RpcServer::HandlerFunction
   { "/getblocks", { jsonMethod<COMMAND_RPC_GET_BLOCKS_FAST>(&RpcServer::on_get_blocks), false } },
   { "/queryblocks", { jsonMethod<COMMAND_RPC_QUERY_BLOCKS>(&RpcServer::on_query_blocks), false } },
   { "/queryblockslite", { jsonMethod<COMMAND_RPC_QUERY_BLOCKS_LITE>(&RpcServer::on_query_blocks_lite), false } },
-  { "/queryblocksdetailed", { jsonMethod<COMMAND_RPC_QUERY_BLOCKS_DETAILED>(&RpcServer::on_query_blocks_detailed), false } },
   { "/get_o_indexes", { jsonMethod<COMMAND_RPC_GET_TX_GLOBAL_OUTPUTS_INDEXES>(&RpcServer::on_get_indexes), false } },
   { "/getrandom_outs", { jsonMethod<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS>(&RpcServer::on_get_random_outs), false } },
   { "/get_pool_changes", { jsonMethod<COMMAND_RPC_GET_POOL_CHANGES>(&RpcServer::onGetPoolChanges), false } },
@@ -299,7 +297,7 @@ bool RpcServer::masternode_check_incoming_tx(const BinaryArray& tx_blob) {
 	}
 
 	if (amount != 0) {
-		logger(INFO) << "Masternode received relayed transaction fee: " << m_core.currency().formatAmount(amount) << " KRB";
+		logger(INFO) << "Masternode received relayed transaction fee: " << m_core.currency().formatAmount(amount) << " QWC";
 		return true;
 	}
 	return false;
@@ -375,23 +373,6 @@ bool RpcServer::on_query_blocks_lite(const COMMAND_RPC_QUERY_BLOCKS_LITE::reques
   res.startHeight = startHeight;
   res.currentHeight = currentHeight;
   res.fullOffset = fullOffset;
-  res.status = CORE_RPC_STATUS_OK;
-  return true;
-}
-
-bool RpcServer::on_query_blocks_detailed(const COMMAND_RPC_QUERY_BLOCKS_DETAILED::request& req, COMMAND_RPC_QUERY_BLOCKS_DETAILED::response& res) {
-  uint32_t startHeight;
-  uint32_t currentHeight;
-  uint32_t fullOffset;
-
-  if (!m_core.queryBlocksDetailed(req.block_ids, req.timestamp, startHeight, currentHeight, fullOffset, res.items)) {
-    res.status = "Failed to perform query";
-    return false;
-  }
-
-  res.start_height = startHeight;
-  res.current_height = currentHeight;
-  res.full_offset = fullOffset;
   res.status = CORE_RPC_STATUS_OK;
   return true;
 }

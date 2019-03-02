@@ -139,15 +139,6 @@ namespace CryptoNote {
         std::vector<BlockShortInfo>& entries
     ) override;
 
-    virtual bool queryBlocksDetailed(
-        const std::vector<Crypto::Hash>& block_ids,
-        uint64_t timestamp,
-        uint32_t& start_height,
-        uint32_t& current_height,
-        uint32_t& full_offset,
-        std::vector<BlockFullInfo>& entries
-    );
-
      virtual Crypto::Hash getBlockIdByHeight(uint32_t height) override;
      void getTransactions(const std::vector<Crypto::Hash>& txs_ids, std::list<Transaction>& txs, std::list<Crypto::Hash>& missed_txs, bool checkTxPool = false) override;
      virtual bool getBlockByHash(const Crypto::Hash &h, Block &blk) override;
@@ -223,7 +214,6 @@ namespace CryptoNote {
      virtual void blockchainUpdated() override;
      virtual void txDeletedFromPool() override;
      void poolUpdated();
-     bool initialized;
 
      bool findStartAndFullOffsets(const std::vector<Crypto::Hash>& knownBlockIds, uint64_t timestamp, uint32_t& startOffset, uint32_t& startFullOffset);
      std::vector<Crypto::Hash> findIdsForShortBlocks(uint32_t startOffset, uint32_t startFullOffset);
@@ -244,6 +234,5 @@ namespace CryptoNote {
      Tools::ObserverManager<ICoreObserver> m_observerManager;
 	 time_t start_time;
 
-     void throwIfNotInitialized() const;
    };
 }
