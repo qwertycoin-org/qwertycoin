@@ -18,6 +18,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PaymentServiceJsonRpcServer.h"
+#include "version.h"
 
 #include <functional>
 
@@ -26,8 +27,6 @@
 
 #include "Serialization/JsonInputValueSerializer.h"
 #include "Serialization/JsonOutputStreamSerializer.h"
-
-//#include "version.h"
 
 namespace PaymentService {
 
