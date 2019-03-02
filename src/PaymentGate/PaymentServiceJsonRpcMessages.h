@@ -80,6 +80,7 @@ struct GetStatus {
     std::string lastBlockHash;
     uint32_t peerCount;
     uint64_t minimalFee;
+      std::string version;
 
     void serialize(CryptoNote::ISerializer& serializer);
   };
