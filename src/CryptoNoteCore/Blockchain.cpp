@@ -796,7 +796,9 @@ uint64_t Blockchain::getMinimalFee(uint32_t height) {
 	// historical reference moving average reward
 	uint64_t avgRewardHistorical = m_blocks[height].already_generated_coins / height;
 
-	return m_currency.getMinimalFee(avgDifficultyCurrent, avgRewardCurrent, avgDifficultyHistorical, avgRewardHistorical, height);
+  //TODO
+	//return m_currency.getMinimalFee(avgDifficultyCurrent, avgRewardCurrent, avgDifficultyHistorical, avgRewardHistorical, height);
+  return CryptoNote::parameters::MINIMUM_FEE_V1;
 }
 
 uint64_t Blockchain::getCoinsInCirculation() {

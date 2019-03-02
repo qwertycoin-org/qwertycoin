@@ -57,7 +57,7 @@ const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT               = 8;
 
 const uint64_t MINIMUM_FEE_V1                                 = UINT64_C(100000000);
 const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(100000000);
-const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 500000;
+const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 800000;
 const uint64_t MINIMUM_FEE                                    = MINIMUM_FEE_V2;
 const uint64_t MAXIMUM_FEE                                    = UINT64_C(100000000);
 
@@ -67,7 +67,7 @@ const uint64_t MAX_TX_MIXIN_SIZE_V1                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE                              = MAX_TX_MIXIN_SIZE_V2;
 const uint32_t MIN_TX_MIXIN_V1_HEIGHT                         = 200000;
-const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 600000;
+const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 800000;
 const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY              = 24 * 60 * 60 / DIFFICULTY_TARGET;
