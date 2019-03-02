@@ -27,7 +27,7 @@
 #include "Serialization/JsonInputValueSerializer.h"
 #include "Serialization/JsonOutputStreamSerializer.h"
 
-#include "version.h"
+//#include "version.h"
 
 namespace PaymentService {
 
