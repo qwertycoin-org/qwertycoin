@@ -23,6 +23,7 @@
 #include "CryptoNoteCore/Currency.h"
 
 #include "INode.h"
+#include "IWallet.h"
 #include "WalletLegacy/WalletSendTransactionContext.h"
 #include "WalletLegacy/WalletUserTransactionsCache.h"
 #include "WalletLegacy/WalletUnconfirmedTransactions.h"

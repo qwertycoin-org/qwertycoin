@@ -199,6 +199,51 @@ void WalletLegacy::initAndGenerate(const std::string& password) {
   m_observerManager.notify(&IWalletLegacyObserver::initCompleted, std::error_code());
 }
 
+void WalletLegacy::initWithKeys(const AccountKeys& accountKeys, const std::string& password) {
+  {
+    std::unique_lock<std::mutex> stateLock(m_cacheMutex);
+
+    if (m_state != NOT_INITIALIZED) {
+      throw std::system_error(make_error_code(cryptonote::error::ALREADY_INITIALIZED));
+    }
+
+    m_node.addObserver(m_autoRefresher.get());
+    addObserver(m_autoRefresher.get());
+
+    cryptonote::account_keys keys;
+
+    std::copy(accountKeys.spendPublicKey.begin(),
+        accountKeys.spendPublicKey.end(),
+        reinterpret_cast<uint8_t *>(&keys.m_account_address.m_spendPublicKey));
+
+    std::copy(accountKeys.viewPublicKey.begin(),
+        accountKeys.viewPublicKey.end(),
+        reinterpret_cast<uint8_t *>(&keys.m_account_address.m_viewPublicKey));
+
+    std::copy(accountKeys.spendSecretKey.begin(),
+        accountKeys.spendSecretKey.end(),
+        reinterpret_cast<uint8_t *>(&keys.m_spend_secret_key));
+
+    std::copy(accountKeys.viewSecretKey.begin(),
+        accountKeys.viewSecretKey.end(),
+        reinterpret_cast<uint8_t *>(&keys.m_view_secret_key));
+
+    m_account.set_keys(keys);
+    m_account.set_createtime(0);
+
+    m_password = password;
+
+    m_sender.init(m_account.get_keys());
+
+    storeGenesisBlock();
+
+    m_state = INITIALIZED;
+  }
+
+  m_observerManager.notify(&IWalletObserver::initCompleted, std::error_code());
+  refresh();
+}
+
 void WalletLegacy::initAndGenerateDeterministic(const std::string& password) {
   {
     std::unique_lock<std::mutex> stateLock(m_cacheMutex);
@@ -232,6 +277,7 @@ Crypto::SecretKey WalletLegacy::generateKey(const std::string& password, const C
   return retval;
 }
 
+//TODO
 void WalletLegacy::initWithKeys(const AccountKeys& accountKeys, const std::string& password) {
   {
     std::unique_lock<std::mutex> stateLock(m_cacheMutex);
@@ -312,6 +358,9 @@ void WalletLegacy::doLoad(std::istream& source) {
         m_transfersSync.addPublicKeysSeen(m_account.getAccountKeys().address, o.transactionHash, o.outputKey);
       }
     }
+
+    //TODO
+    m_unconfirmedTransactions.synchronizeTransactionIds(m_transactionsCache);
 
   } catch (std::system_error& e) {
     runAtomic(m_cacheMutex, [this] () {this->m_state = WalletLegacy::NOT_INITIALIZED;} );
@@ -679,15 +728,15 @@ std::list<TransactionOutputInformation> WalletLegacy::selectFusionTransfersToSen
   return selectedOutputs;
 }
 
-TransactionId WalletLegacy::sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp) {
+TransactionId WalletLegacy::sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp, const std::vector<TransactionMessage>& messages) {
   std::vector<WalletLegacyTransfer> transfers;
   transfers.push_back(transfer);
   throwIfNotInitialised();
 
-  return sendTransaction(transfers, fee, extra, mixIn, unlockTimestamp);
+  return sendTransaction(transfers, fee, extra, mixIn, unlockTimestamp, messages);
 }
 
-TransactionId WalletLegacy::sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp) {
+TransactionId WalletLegacy::sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp, const std::vector<TransactionMessage>& messages) {
   TransactionId txId = 0;
   std::shared_ptr<WalletRequest> request;
   std::deque<std::shared_ptr<WalletLegacyEvent>> events;
@@ -695,7 +744,7 @@ TransactionId WalletLegacy::sendTransaction(const std::vector<WalletLegacyTransf
 
   {
     std::unique_lock<std::mutex> lock(m_cacheMutex);
-    request = m_sender->makeSendRequest(txId, events, transfers, fee, extra, mixIn, unlockTimestamp);
+    request = m_sender->makeSendRequest(txId, events, transfers, fee, extra, mixIn, unlockTimestamp, messages);
   }
 
   notifyClients(events);
@@ -1085,6 +1134,28 @@ std::string WalletLegacy::getReserveProof(const uint64_t &reserve, const std::st
 	ret = "ReserveProofV1" + Tools::Base58::encode(ret);
 
 	return ret;
+}
+void WalletLegacy::getAccountKeys(AccountKeys& keys) {
+  if (m_state == NOT_INITIALIZED) {
+    throw std::system_error(make_error_code(cryptonote::error::NOT_INITIALIZED));
+  }
+
+  const cryptonote::account_keys& accountKeys = m_account.get_keys();
+  std::copy(reinterpret_cast<const uint8_t*>(&accountKeys.m_account_address.m_spendPublicKey),
+      reinterpret_cast<const uint8_t*>(&accountKeys.m_account_address.m_spendPublicKey) + sizeof(crypto::public_key),
+      keys.spendPublicKey.begin());
+
+  std::copy(reinterpret_cast<const uint8_t*>(&accountKeys.m_spend_secret_key),
+      reinterpret_cast<const uint8_t*>(&accountKeys.m_spend_secret_key) + sizeof(crypto::secret_key),
+      keys.spendSecretKey.begin());
+
+  std::copy(reinterpret_cast<const uint8_t*>(&accountKeys.m_account_address.m_viewPublicKey),
+      reinterpret_cast<const uint8_t*>(&accountKeys.m_account_address.m_viewPublicKey) + sizeof(crypto::public_key),
+      keys.viewPublicKey.begin());
+
+  std::copy(reinterpret_cast<const uint8_t*>(&accountKeys.m_view_secret_key),
+      reinterpret_cast<const uint8_t*>(&accountKeys.m_view_secret_key) + sizeof(crypto::secret_key),
+      keys.viewSecretKey.begin());
 }
 
 } //namespace CryptoNote

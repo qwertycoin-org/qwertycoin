@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "CryptoNoteCore/CryptoNoteBasic.h"
+#include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "IWalletLegacy.h"
 #include "ITransfersContainer.h"
 
@@ -47,6 +48,7 @@ struct SendTransactionContext
   TxDustPolicy dustPolicy;
   uint64_t mixIn;
   Crypto::SecretKey tx_key = NULL_SECRET_KEY;
+  std::vector<CryptoNote::TX_MESSAGE_ENTRY> messages;
 };
 
 } //namespace CryptoNote

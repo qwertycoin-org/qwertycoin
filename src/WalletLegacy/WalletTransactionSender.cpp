@@ -58,13 +58,13 @@ void createChangeDestinations(const AccountPublicAddress& address, uint64_t need
 }
 
 void constructTx(const AccountKeys keys, const std::vector<TransactionSourceEntry>& sources, const std::vector<TransactionDestinationEntry>& splittedDests,
-    const std::string& extra, uint64_t unlockTimestamp, uint64_t sizeLimit, Transaction& tx, Crypto::SecretKey& tx_key) {
+    const std::string& extra, uint64_t unlockTimestamp, uint64_t sizeLimit, Transaction& tx, Crypto::SecretKey& tx_key, const std::vector<CryptoNote::TX_MESSAGE_ENTRY>& messages) {
   std::vector<uint8_t> extraVec;
   extraVec.reserve(extra.size());
   std::for_each(extra.begin(), extra.end(), [&extraVec] (const char el) { extraVec.push_back(el);});
 
   Logging::LoggerGroup nullLog;
-  bool r = constructTransaction(keys, sources, splittedDests, extraVec, tx, unlockTimestamp, tx_key, nullLog);
+  bool r = constructTransaction(keys, sources, splittedDests, messages, extraVec, tx, unlockTimestamp, tx_key, nullLog);
 
   throwIf(!r, error::INTERNAL_WALLET_ERROR);
   throwIf(getObjectBinarySize(tx) >= sizeLimit, error::TRANSACTION_SIZE_TOO_BIG);
@@ -79,6 +79,7 @@ std::shared_ptr<WalletLegacyEvent> makeCompleteEvent(WalletUserTransactionsCache
 
 namespace CryptoNote {
 
+//pri
 WalletTransactionSender::WalletTransactionSender(const Currency& currency, WalletUserTransactionsCache& transactionsCache, AccountKeys keys, ITransfersContainer& transfersContainer) :
   m_currency(currency),
   m_transactionsCache(transactionsCache),
@@ -105,8 +106,9 @@ void WalletTransactionSender::validateTransfersAddresses(const std::vector<Walle
   }
 }
 
-std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendRequest(TransactionId& transactionId, std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
-    const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp) {
+std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendDustRequest(
+  TransactionId& transactionId, std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
+  const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp, const std::vector<TransactionMessage>& messages) {
 
   using namespace CryptoNote;
 
@@ -245,7 +247,7 @@ std::shared_ptr<WalletRequest> WalletTransactionSender::doSendTransaction(std::s
     splitDestinations(transaction.firstTransferId, transaction.transferCount, changeDts, context->dustPolicy, splittedDests);
 
     Transaction tx;
-    constructTx(m_keys, sources, splittedDests, transaction.extra, transaction.unlockTime, m_upperTransactionSizeLimit, tx, context->tx_key);
+    constructTx(m_keys, sources, splittedDests, transaction.extra, transaction.unlockTime, m_upperTransactionSizeLimit, tx, context->tx_key, context->messages);
 
     getObjectHash(tx, transaction.hash);
 
@@ -313,7 +315,6 @@ void WalletTransactionSender::digitSplitStrategy(TransferId firstTransferId, siz
     [&](uint64_t a_dust) { dust = a_dust; } );
 }
 
-
 void WalletTransactionSender::prepareInputs(
   const std::list<TransactionOutputInformation>& selectedTransfers,
   std::vector<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::outs_for_amount>& outs,
@@ -368,6 +369,31 @@ void WalletTransactionSender::notifyBalanceChanged(std::deque<std::shared_ptr<Wa
 
   events.push_back(std::make_shared<WalletActualBalanceUpdatedEvent>(actualBalance));
   events.push_back(std::make_shared<WalletPendingBalanceUpdatedEvent>(pendingBalance));
+}
+
+//TODO
+void WalletTransactionSender::markOutputsSpent(const std::list<crypto::key_image>& selectedTransfers) {
+  for (const crypto::key_image& ki: selectedTransfers) {
+    size_t idx;
+    bool found = m_transferDetails.getTransferDetailsIdxByKeyImage(ki, idx);
+    if (!found) {
+      throw std::runtime_error("The output is not found");
+    }
+    TransferDetails& td = m_transferDetails.getTransferDetails(idx);
+    td.spent = true;
+  }
+}
+
+void WalletTransactionSender::makeOutputsNotSpent(const std::list<crypto::key_image>& selectedTransfers) {
+  for (const crypto::key_image& ki: selectedTransfers) {
+    size_t idx;
+    bool found = m_transferDetails.getTransferDetailsIdxByKeyImage(ki, idx);
+    if (!found) {
+      continue; //what to do better?
+    }
+    TransferDetails& td = m_transferDetails.getTransferDetails(idx);
+    td.spent = false;
+  }
 }
 
 namespace {

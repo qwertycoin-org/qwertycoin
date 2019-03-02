@@ -99,13 +99,6 @@ struct WalletTransaction {
 typedef std::array<uint8_t, 32> PublicKey;
 typedef std::array<uint8_t, 32> SecretKey;
 
-struct AccountKeys {
-  PublicKey viewPublicKey;
-  SecretKey viewSecretKey;
-  PublicKey spendPublicKey;
-  SecretKey spendSecretKey;
-};
-
 enum class WalletTransferType : uint8_t {
   USUAL = 0,
   DONATION,

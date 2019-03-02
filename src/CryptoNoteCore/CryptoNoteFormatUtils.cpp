@@ -120,7 +120,7 @@ bool constructTransaction(
   const AccountKeys& sender_account_keys,
   const std::vector<TransactionSourceEntry>& sources,
   const std::vector<TransactionDestinationEntry>& destinations,
-  const std::vector<tx_message_entry>& messages,
+  const std::vector<TX_MESSAGE_ENTRY>& messages,
   std::vector<uint8_t> extra,
   uint64_t unlock_time,
   Crypto::SecretKey &tx_key,
@@ -235,16 +235,17 @@ bool constructTransaction(
   }
 
   for (size_t i = 0; i < messages.size(); i++) {
-    const tx_message_entry &msg = messages[i];
+    const TX_MESSAGE_ENTRY &msg = messages[i];
     tx_extra_message tag;
     if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
       return false;
     }
     std::ostringstream oss;
+    /*
     binary_archive<true> ar(oss);
     if (!::do_serialize(ar, tag)) {
       return false;
-    }
+    }*/
     std::string s = oss.str();
     tx.extra.push_back(TX_EXTRA_MESSAGE_TAG);
     tx.extra.insert(tx.extra.end(), s.begin(), s.end());
