@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018-2019, The Qwertycoin developers, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers, The Karbovanets developers
 // Copyright (c) 2014-2016, XDN developers
 // Copyright (c) 2014-2016, The Monero Project
 // Copyright (c) 2014-2017, The Forknote developers
@@ -343,8 +343,8 @@ struct TransferCommand {
           if (!remote_fee_address.empty()) {
             destination.address = remote_fee_address;
             int64_t remote_node_fee = static_cast<int64_t>(de.amount * 0.0025);
-            if (remote_node_fee > 10000000000)
-                remote_node_fee = 10000000000;
+            if (remote_node_fee > 10000000000000)
+                remote_node_fee = 10000000000000;
             destination.amount = remote_node_fee;
             dsts.push_back(destination);
           }
@@ -874,7 +874,7 @@ bool simple_wallet::get_reserve_proof(const std::vector<std::string> &args)
 		
 		//logger(INFO, BRIGHT_WHITE) << "\n\n" << sig_str << "\n\n" << std::endl;
 
-		const std::string filename = "reserve_proof_" + args[0] + "QWC.txt";
+		const std::string filename = "reserve_proof_" + args[0] + "KRB.txt";
 		boost::system::error_code ec;
 		if (boost::filesystem::exists(filename, ec)) {
 			boost::filesystem::remove(filename, ec);

@@ -86,10 +86,29 @@ public:
                               std::vector<TransactionPrefixInfo>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
   virtual void getPoolChanges(const std::vector<Crypto::Hash>& knownTxsIds, std::vector<Transaction>& addedTxs,
                               std::vector<Crypto::Hash>& deletedTxsIds) = 0;
-  virtual bool queryBlocks(const std::vector<Crypto::Hash>& block_ids, uint64_t timestamp,
-    uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<BlockFullInfo>& entries) = 0;
-  virtual bool queryBlocksLite(const std::vector<Crypto::Hash>& block_ids, uint64_t timestamp,
-    uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<BlockShortInfo>& entries) = 0;
+  virtual bool queryBlocks(
+    const std::vector<Crypto::Hash>& block_ids,
+    uint64_t timestamp,
+    uint32_t& start_height,
+    uint32_t& current_height,
+    uint32_t& full_offset,
+    std::vector<BlockFullInfo>& entries) = 0;
+
+  virtual bool queryBlocksLite(
+    const std::vector<Crypto::Hash>& block_ids,
+    uint64_t timestamp,
+    uint32_t& start_height,
+    uint32_t& current_height,
+    uint32_t& full_offset,
+    std::vector<BlockShortInfo>& entries) = 0;
+
+  virtual bool queryBlocksDetailed(
+    const std::vector<Crypto::Hash>& block_ids,
+    uint64_t timestamp,
+    uint32_t& start_height,
+    uint32_t& current_height,
+    uint32_t& full_offset,
+    std::vector<BlockFullInfo>& entries) = 0;
 
   virtual Crypto::Hash getBlockIdByHeight(uint32_t height) = 0;
   virtual bool getBlockByHash(const Crypto::Hash &h, Block &blk) = 0;
@@ -102,7 +121,6 @@ public:
                               uint64_t& reward, int64_t& emissionChange) = 0;
   virtual bool scanOutputkeysForIndices(const KeyInput& txInToKey, std::list<std::pair<Crypto::Hash, size_t>>& outputReferences) = 0;
   virtual bool getBlockDifficulty(uint32_t height, difficulty_type& difficulty) = 0;
-  virtual bool getBlockCumulativeDifficulty(uint32_t height, difficulty_type& difficulty) = 0;
   virtual bool getBlockContainingTx(const Crypto::Hash& txId, Crypto::Hash& blockId, uint32_t& blockHeight) = 0;
   virtual bool getMultisigOutputReference(const MultisignatureInput& txInMultisig, std::pair<Crypto::Hash, size_t>& outputReference) = 0;
 

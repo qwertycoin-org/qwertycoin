@@ -291,12 +291,8 @@ bool BlockchainExplorerDataBuilder::fillTransactionDetails(const Transaction& tr
       txInToKeyDetails.outputIndexes = txInToKey.outputIndexes;
       txInToKeyDetails.keyImage = txInToKey.keyImage;
       txInToKeyDetails.mixin = txInToKey.outputIndexes.size();
-      for (const auto& r : outputReferences) {
-        TransactionOutputReferenceDetails d;
-        d.number = r.second;
-        d.transactionHash = r.first;
-        txInToKeyDetails.outputs.push_back(d);
-      }
+      txInToKeyDetails.output.number = outputReferences.back().second;
+      txInToKeyDetails.output.transactionHash = outputReferences.back().first;
       txInDetails.input = txInToKeyDetails;
     } else if (txIn.type() == typeid(MultisignatureInput)) {
       TransactionInputMultisignatureDetails txInMultisigDetails;

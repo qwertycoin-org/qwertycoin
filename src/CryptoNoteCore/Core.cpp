@@ -71,7 +71,7 @@ private:
 
 core::core(const Currency& currency, i_cryptonote_protocol* pprotocol, Logging::ILogger& logger, bool blockchainIndexesEnabled) :
 m_currency(currency),
-logger(logger, "core"),
+logger(logger, "core"),initialized(false),
 m_mempool(currency, m_blockchain, *this, m_timeProvider, logger, blockchainIndexesEnabled),
 m_blockchain(currency, m_mempool, logger, blockchainIndexesEnabled),
 m_miner(new miner(currency, *this, logger)),
@@ -296,10 +296,10 @@ bool core::check_tx_fee(const Transaction& tx, size_t blobSize, tx_verification_
 	const uint64_t fee = inputs_amount - outputs_amount;
 	bool isFusionTransaction = fee == 0 && m_currency.isFusionTransaction(tx, blobSize, height);
 	if (!isFusionTransaction)
-		if (height < CryptoNote::parameters::MINIMUM_FEE_V2_HEIGHT ? fee < CryptoNote::parameters::MINIMUM_FEE_V1 : (getBlockMajorVersionForHeight(height) < BLOCK_MAJOR_VERSION_6 ? fee < m_currency.minimumFee() :
+		if (height < CryptoNote::parameters::MINIMUM_FEE_V2_HEIGHT ? fee < CryptoNote::parameters::MINIMUM_FEE_V1 : (getBlockMajorVersionForHeight(height) < BLOCK_MAJOR_VERSION_4 ? fee < m_currency.minimumFee() :
 		fee < getMinimalFeeForHeight(loose_check ? height - CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY : height))) {
 		logger(ERROR) << "[Core] Transaction fee is not enough: " << m_currency.formatAmount(fee) << ", minimum fee: " <<
-			m_currency.formatAmount(getBlockMajorVersionForHeight(height) < BLOCK_MAJOR_VERSION_6 ? m_currency.minimumFee() : 
+			m_currency.formatAmount(getBlockMajorVersionForHeight(height) < BLOCK_MAJOR_VERSION_4 ? m_currency.minimumFee() : 
 			getMinimalFeeForHeight(loose_check ? height - CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY : height));
 		tvc.m_verification_failed = true;
 		tvc.m_tx_fee_too_small = true;
@@ -823,8 +823,13 @@ void core::poolUpdated() {
   m_observerManager.notify(&ICoreObserver::poolUpdated);
 }
 
-bool core::queryBlocks(const std::vector<Crypto::Hash>& knownBlockIds, uint64_t timestamp,
-  uint32_t& resStartHeight, uint32_t& resCurrentHeight, uint32_t& resFullOffset, std::vector<BlockFullInfo>& entries) {
+bool core::queryBlocks(
+  const std::vector<Crypto::Hash>& knownBlockIds,
+  uint64_t timestamp,
+  uint32_t& resStartHeight,
+  uint32_t& resCurrentHeight,
+  uint32_t& resFullOffset,
+  std::vector<BlockFullInfo>& entries) {
 
   LockedBlockchainStorage lbs(m_blockchain);
 
@@ -916,8 +921,13 @@ std::vector<Crypto::Hash> core::findIdsForShortBlocks(uint32_t startOffset, uint
   return result;
 }
 
-bool core::queryBlocksLite(const std::vector<Crypto::Hash>& knownBlockIds, uint64_t timestamp, uint32_t& resStartHeight,
-  uint32_t& resCurrentHeight, uint32_t& resFullOffset, std::vector<BlockShortInfo>& entries) {
+bool core::queryBlocksLite(
+  const std::vector<Crypto::Hash>& knownBlockIds,
+  uint64_t timestamp,
+  uint32_t& resStartHeight,
+  uint32_t& resCurrentHeight,
+  uint32_t& resFullOffset,
+  std::vector<BlockShortInfo>& entries) {
   LockedBlockchainStorage lbs(m_blockchain);
 
   resCurrentHeight = lbs->getCurrentBlockchainHeight();
@@ -972,6 +982,70 @@ bool core::queryBlocksLite(const std::vector<Crypto::Hash>& knownBlockIds, uint6
   return true;
 }
 
+bool core::queryBlocksDetailed(
+  const std::vector<Crypto::Hash>& knownBlockIds,
+  uint64_t timestamp,
+  uint32_t& resStartHeight,
+  uint32_t& resCurrentHeight,
+  uint32_t& resFullOffset,
+  std::vector<BlockFullInfo>& entries) {
+
+  LockedBlockchainStorage lbs(m_blockchain);
+
+  uint32_t currentHeight = lbs->getCurrentBlockchainHeight();
+  uint32_t startOffset = 0;
+  uint32_t startFullOffset = 0;
+
+  if (!findStartAndFullOffsets(knownBlockIds, timestamp, startOffset, startFullOffset)) {
+    return false;
+  }
+
+  resFullOffset = startFullOffset;
+  std::vector<Crypto::Hash> blockIds = findIdsForShortBlocks(startOffset, startFullOffset);
+  entries.reserve(blockIds.size());
+
+  for (const auto& id : blockIds) {
+    entries.push_back(BlockFullInfo());
+    entries.back().block_id = id;
+  }
+
+  resCurrentHeight = currentHeight;
+  resStartHeight = startOffset;
+
+  uint32_t blocksLeft = static_cast<uint32_t>(std::min(BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT - entries.size(), size_t(BLOCKS_SYNCHRONIZING_DEFAULT_COUNT)));
+
+  if (blocksLeft == 0) {
+    return true;
+  }
+
+  std::list<Block> blocks;
+  lbs->getBlocks(startFullOffset, blocksLeft, blocks);
+
+  for (auto& b : blocks) {
+    BlockFullInfo item;
+
+    item.block_id = get_block_hash(b);
+
+    if (b.timestamp >= timestamp) {
+      // query transactions
+      std::list<Transaction> txs;
+      std::list<Crypto::Hash> missedTxs;
+      lbs->getTransactions(b.transactionHashes, txs, missedTxs);
+
+      // fill data
+      block_complete_entry& completeEntry = item;
+      completeEntry.block = asString(toBinaryArray(b));
+      for (auto& tx : txs) {
+        completeEntry.txs.push_back(asString(toBinaryArray(tx)));
+      }
+    }
+
+    entries.push_back(std::move(item));
+  }
+
+  return true;
+}
+
 bool core::getBackwardBlocksSizes(uint32_t fromHeight, std::vector<size_t>& sizes, size_t count) {
   return m_blockchain.getBackwardBlocksSize(fromHeight, sizes, count);
 }
@@ -1008,11 +1082,6 @@ bool core::scanOutputkeysForIndices(const KeyInput& txInToKey, std::list<std::pa
 
 bool core::getBlockDifficulty(uint32_t height, difficulty_type& difficulty) {
   difficulty = m_blockchain.blockDifficulty(height);
-  return true;
-}
-
-bool core::getBlockCumulativeDifficulty(uint32_t height, difficulty_type& difficulty) {
-  difficulty = m_blockchain.blockCumulativeDifficulty(height);
   return true;
 }
 
@@ -1162,7 +1231,7 @@ bool core::fillTxExtra(const std::vector<uint8_t>& rawExtra, TransactionExtraDet
     if (typeid(TransactionExtraPublicKey) == field.type()) {
       extraDetails.publicKey = std::move(boost::get<TransactionExtraPublicKey>(field).publicKey);
     } else if (typeid(TransactionExtraNonce) == field.type()) {
-      extraDetails.nonce = boost::get<TransactionExtraNonce>(field).nonce;
+      extraDetails.nonce = Common::asBinaryArray(Common::toHex(boost::get<TransactionExtraNonce>(field).nonce.data(), boost::get<TransactionExtraNonce>(field).nonce.size()));
     }
   }
   return true;
@@ -1377,13 +1446,9 @@ bool core::fillTransactionDetails(const Transaction& transaction, TransactionDet
         return false;
       }
       txInToKeyDetails.mixin = txInToKey.outputIndexes.size();
-      for (const auto& r : outputReferences) {
-        TransactionOutputReferenceDetails d;
-        d.number = r.second;
-        d.transactionHash = r.first;
-        txInToKeyDetails.outputs.push_back(d);
-      }
-      txInDetails = txInToKeyDetails;
+      txInToKeyDetails.output.number = outputReferences.back().second;
+      txInToKeyDetails.output.transactionHash = outputReferences.back().first;
+	  txInDetails = txInToKeyDetails;
     } else if (txIn.type() == typeid(MultisignatureInput)) {
       MultisignatureInputDetails txInMultisigDetails;
       const MultisignatureInput& txInMultisig = boost::get<MultisignatureInput>(txIn);
@@ -1503,6 +1568,12 @@ std::unique_ptr<IBlock> core::getBlock(const Crypto::Hash& blockId) {
   }
 
   return std::move(blockPtr);
+}
+
+void core::throwIfNotInitialized() const {
+  if (!initialized) {
+    logger(ERROR, BRIGHT_RED) << "error::CoreErrorCode::NOT_INITIALIZED)";
+  }
 }
 
 bool core::f_getMixin(const Transaction& transaction, uint64_t& mixin) {

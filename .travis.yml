@@ -1,60 +1,30 @@
+sudo: true
 language: cpp
+    
+env:
+    - CXXFLAGS="-std=gnu++11"
 
 matrix:
     include:
-        - os: linux # android
-          dist: xenial
-          sudo: required
-          env:
-              - CMAKE_GENERATOR_NAME="Unix Makefiles"
-              - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CMAKE_ARGS="-DBUILD_TESTS=OFF -DSTATIC=ON -DBUILD_64=OFF -DANDROID=true" # -DBUILD_TAG="android"
-        - os: linux
-          dist: xenial
-          sudo: required
-          env:
-              - CMAKE_GENERATOR_NAME="Unix Makefiles"
-              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CMAKE_ARGS=""
-        - os: osx
-          osx_image: xcode10.1
-          env:
-              - CMAKE_GENERATOR_NAME="Unix Makefiles"
-              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
-              - CMAKE_ARGS=""
-
-addons:
-    apt: # Linux
-        packages:
-            - build-essential
-            - cmake
-            - git
-            - unzip
-            - wget
-        sources:
+      addons:
+        apt:
+            sources:
             - ubuntu-toolchain-r-test
-    homebrew: # macOS
-        packages:
-            - cmake
-            - git
-
-cache:
-    directories:
-        - $HOME/.hunter
+            packages:
+            - g++-4.9
+            - libboost1.55-all-dev
+      env:
+      - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9
 
 before_install:
-    - |
-        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
-            echo "Installing Android NDK..."
-            mkdir -p "$HOME/.android"
-            wget -O "$HOME/.android/android-ndk-r18b-linux-x86_64.zip" "https://dl.google.com/android/repository/android-ndk-r18b-linux-x86_64.zip"
-            unzip -qq "$HOME/.android/android-ndk-r18b-linux-x86_64.zip" -d "$HOME/.android"
-            export ANDROID_NDK_r18b="$HOME/.android/android-ndk-r18b"
-            ls -la "$ANDROID_NDK_r18b"
-        fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade autoconf automake berkeley-db4 libtool miniupnpc openssl protobuf; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install build-essential python-dev gcc-4.9 g++-4.9 cmake libboost1.55-all-dev -y; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export CC=clang CXX=clang++; fi
 
 script:
-    - mkdir ./build
-    - cd ./build
-    - cmake -G "$CMAKE_GENERATOR_NAME" -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME $CMAKE_ARGS ..
-    - cmake --build . --config Release
+    - mkdir build && cd build
+    - cmake .. && make
+
+os:
+    - osx

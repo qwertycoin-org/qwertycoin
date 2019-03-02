@@ -65,7 +65,7 @@ struct TransactionInputToKeyDetails {
   std::vector<uint32_t> outputIndexes;
   Crypto::KeyImage keyImage;
   uint64_t mixin;
-  std::vector<TransactionOutputReferenceDetails> outputs;
+  TransactionOutputReferenceDetails output;
 };
 
 struct TransactionInputMultisignatureDetails {

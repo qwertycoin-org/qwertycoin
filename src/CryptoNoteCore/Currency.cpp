@@ -446,7 +446,7 @@ namespace CryptoNote {
 			return CryptoNote::parameters::MAXIMUM_FEE; // zero test 
 		minimumFee = static_cast<uint64_t>(minFee);
 
-		return CryptoNote::parameters::MINIMUM_FEE; //std::min<uint64_t>(CryptoNote::parameters::MAXIMUM_FEE, minimumFee);
+		return std::min<uint64_t>(CryptoNote::parameters::MAXIMUM_FEE, minimumFee);
 	}
 
 	uint64_t Currency::roundUpMinFee(uint64_t minimalFee, int digits) const {

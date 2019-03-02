@@ -370,10 +370,10 @@ void ICoreStub::setPoolChangesResult(bool result) {
 }
 
 uint64_t ICoreStub::getMinimalFeeForHeight(uint32_t height) {
-	return 100000000ULL;
+	return 10000000000ULL;
 };
 uint64_t ICoreStub::getMinimalFee() {
-	return 100000000ULL;
+	return 10000000000ULL;
 };
 uint8_t ICoreStub::getBlockMajorVersionForHeight(uint32_t height) {
 	return (uint8_t)4;

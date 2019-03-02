@@ -148,7 +148,7 @@ std::vector<uint32_t> Checkpoints::getCheckpointHeights() const {
 //---------------------------------------------------------------------------
 bool Checkpoints::load_checkpoints_from_dns()
 {
-  std::string domain("checkpoints.qwertycoin.org");
+  std::string domain("checkpoints.karbo.org");
   std::vector<std::string>records;
 
   logger(Logging::DEBUGGING) << "Fetching DNS checkpoint records from " << domain;

@@ -79,7 +79,6 @@ namespace CryptoNote {
                                  uint64_t& reward, int64_t& emissionChange) override;
      virtual bool scanOutputkeysForIndices(const KeyInput& txInToKey, std::list<std::pair<Crypto::Hash, size_t>>& outputReferences) override;
      virtual bool getBlockDifficulty(uint32_t height, difficulty_type& difficulty) override;
-     virtual bool getBlockCumulativeDifficulty(uint32_t height, difficulty_type& difficulty) override;
      virtual bool getBlockContainingTx(const Crypto::Hash& txId, Crypto::Hash& blockId, uint32_t& blockHeight) override;
      virtual bool getMultisigOutputReference(const MultisignatureInput& txInMultisig, std::pair<Crypto::Hash, size_t>& output_reference) override;
      virtual bool getGeneratedTransactionsNumber(uint32_t height, uint64_t& generatedTransactions) override;
@@ -122,10 +121,33 @@ namespace CryptoNote {
      {
        return m_blockchain.getBlocks(block_ids, blocks, missed_bs);
      }
-     virtual bool queryBlocks(const std::vector<Crypto::Hash>& block_ids, uint64_t timestamp,
-       uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<BlockFullInfo>& entries) override;
-     virtual bool queryBlocksLite(const std::vector<Crypto::Hash>& knownBlockIds, uint64_t timestamp,
-       uint32_t& resStartHeight, uint32_t& resCurrentHeight, uint32_t& resFullOffset, std::vector<BlockShortInfo>& entries) override;
+    virtual bool queryBlocks(
+        const std::vector<Crypto::Hash>& block_ids,
+        uint64_t timestamp,
+        uint32_t& start_height,
+        uint32_t& current_height,
+        uint32_t& full_offset,
+        std::vector<BlockFullInfo>& entries
+    ) override;
+
+    virtual bool queryBlocksLite(
+        const std::vector<Crypto::Hash>& knownBlockIds,
+        uint64_t timestamp,
+        uint32_t& resStartHeight,
+        uint32_t& resCurrentHeight,
+        uint32_t& resFullOffset,
+        std::vector<BlockShortInfo>& entries
+    ) override;
+
+    virtual bool queryBlocksDetailed(
+        const std::vector<Crypto::Hash>& block_ids,
+        uint64_t timestamp,
+        uint32_t& start_height,
+        uint32_t& current_height,
+        uint32_t& full_offset,
+        std::vector<BlockFullInfo>& entries
+    );
+
      virtual Crypto::Hash getBlockIdByHeight(uint32_t height) override;
      void getTransactions(const std::vector<Crypto::Hash>& txs_ids, std::list<Transaction>& txs, std::list<Crypto::Hash>& missed_txs, bool checkTxPool = false) override;
      virtual bool getBlockByHash(const Crypto::Hash &h, Block &blk) override;
@@ -201,6 +223,7 @@ namespace CryptoNote {
      virtual void blockchainUpdated() override;
      virtual void txDeletedFromPool() override;
      void poolUpdated();
+     bool initialized;
 
      bool findStartAndFullOffsets(const std::vector<Crypto::Hash>& knownBlockIds, uint64_t timestamp, uint32_t& startOffset, uint32_t& startFullOffset);
      std::vector<Crypto::Hash> findIdsForShortBlocks(uint32_t startOffset, uint32_t startFullOffset);
@@ -220,5 +243,7 @@ namespace CryptoNote {
      std::atomic<bool> m_starter_message_showed;
      Tools::ObserverManager<ICoreObserver> m_observerManager;
 	 time_t start_time;
+
+     void throwIfNotInitialized() const;
    };
 }

@@ -45,7 +45,7 @@ public:
 
   size_t timestampCheckWindow() const { return m_timestampCheckWindow; }
   size_t timestampCheckWindow(uint8_t blockMajorVersion) const {
-    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
+    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_4) {
       return timestampCheckWindow_v1();
     }
     else {
@@ -55,7 +55,7 @@ public:
   size_t timestampCheckWindow_v1() const { return m_timestampCheckWindow_v1; }
   uint64_t blockFutureTimeLimit() const { return m_blockFutureTimeLimit; }
   uint64_t blockFutureTimeLimit(uint8_t blockMajorVersion) const {
-    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
+    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_4) {
       return blockFutureTimeLimit_v1();
     }
     else {

@@ -2,12 +2,6 @@ set(UPNPC_BUILD_STATIC ON CACHE BOOL "Build static library")
 set(UPNPC_BUILD_SHARED OFF CACHE BOOL "Build shared library")
 set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Build test executables")
 
-if (STATIC AND MSVC)
-  foreach(VAR CMAKE_C_FLAGS_RELEASE)
-    string(REPLACE "/MD" "/MT" ${VAR} "${${VAR}}")
-  endforeach()
-endif()
-
 add_subdirectory(miniupnpc)
 add_subdirectory(gtest)
 
