@@ -57,7 +57,7 @@ const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT               = 8;
 
 const uint64_t MINIMUM_FEE_V1                                 = UINT64_C(100000000);
 const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(100000000);
-const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 216394;
+const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 500000;
 const uint64_t MINIMUM_FEE                                    = MINIMUM_FEE_V2;
 const uint64_t MAXIMUM_FEE                                    = UINT64_C(100000000);
 
@@ -67,8 +67,8 @@ const uint64_t MAX_TX_MIXIN_SIZE_V1                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE                              = MAX_TX_MIXIN_SIZE_V2;
 const uint32_t MIN_TX_MIXIN_V1_HEIGHT                         = 200000;
-const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 300000;
-const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 4 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 600000;
+const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY              = 24 * 60 * 60 / DIFFICULTY_TARGET;
 const size_t   DIFFICULTY_WINDOW                              = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // blocks
@@ -160,23 +160,20 @@ const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef004d3739499c67ccb730cc4734950f414cdb332b24c5ce764beaf";
 
 const char* const SEED_NODES[] = { 
-  "node-00.qwertycoin.org:8196",//00P
-  "195.201.25.118:8196",        //01P
-  "198.147.30.116:8196",        //EXP
-  "198.147.30.115:8196",        //POO
-  "node-02.qwertycoin.org:8196",//02A
-  "78.47.85.215:8196",          //03A
-  "139.99.192.106:8196",        //JOR
-  /* Community Nodes */
-  "86.142.25.119:8196",
-  /* !known Nodes */
-  "185.240.249.2:8196",
-  "195.201.27.148:8196",
-  "195.201.29.64:8196",
+  "node-00.qwertycoin.org:8196",
+  "node-01.qwertycoin.org:8196",
+  "node-02.qwertycoin.org:8196",
+  "node-03.qwertycoin.org:8196",
+  "node-04.qwertycoin.org:8196",
+  "node-05.qwertycoin.org:8196",
+  "qwertycoin.spdns.org:8196",
   "220.82.126.94:8196",
-  "77.55.237.152:8196",
-  "79.147.185.157:8196",
-  "94.130.187.117:8196"
+  "91.194.90.163:8196",
+  "198.147.30.116:8196",
+  "198.147.30.115:8196",
+  "195.201.27.148:8196",
+  "78.47.85.215:8196",
+  "79.150.120.70:8196"
 };
 
 struct CheckpointData {
@@ -212,7 +209,7 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
   {230000,"190891fd56763afbc9e7c609a3a90bcb801a504daf2e352060cf1f7dfb9f2896"},
   {240000,"522cbcb5341a1c4a804212923713227363671a2db3ea41f8957a15b6234b17f4"},
   {250721,"a119b644ec0a35c77f8cf7ed6a0ff4d37b7a279ac8fadfb660e83cc795ddb7de"},//5.0.0 was born
-  {253381,"f11e9b1b81f14feded484b6001795061bc4b72908344f2df19889fc4e536f97e"}
+  {272013,"725e1e43ec22be7ffc5e917c9e5d7fdc94d8571645dec3b46a898572fc36bf42"}
 };
 
 } // CryptoNote

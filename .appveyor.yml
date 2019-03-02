@@ -1,11 +1,19 @@
 os: Visual Studio 2017
 
+clone_depth: 100
+
+cache:
+    - C:\.hunter -> .appveyor.yml
+
 environment:
-    BOOST_ROOT: C:\Libraries\boost_1_64_0
-    BOOST_LIBRARYDIR: C:\Libraries\boost_1_64_0\lib64-msvc-15
+    BOOST_ROOT: C:\Libraries\boost_1_66_0
+    BOOST_LIBRARYDIR: C:\Libraries\boost_1_66_0\lib64-msvc-14.1
+
+install:
+    - git submodule update --init --recursive
 
 build_script:
     - md build
     - cd build
-    - cmake -G "Visual Studio 15 Win64" ..
-    - MSBuild Qwertycoin.sln /target:SimpleWallet
+    - cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_TOOLCHAIN_FILE=cmake/polly/vs-15-2017-win64.cmake ..
+    - cmake --build . --config Release
