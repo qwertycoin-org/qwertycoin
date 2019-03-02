@@ -37,6 +37,9 @@ namespace CryptoNote {
 
     const AccountKeys& getAccountKeys() const;
     void setAccountKeys(const AccountKeys& keys);
+    void set_keys(const AccountKeys& keys) {
+      m_keys = keys;
+    };
     uint64_t get_createtime() const { return m_creation_timestamp; }
     void set_createtime(uint64_t val) { m_creation_timestamp = val; }
     void serialize(ISerializer& s);

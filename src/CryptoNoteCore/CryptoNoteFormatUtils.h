@@ -53,12 +53,40 @@ struct TransactionDestinationEntry {
   TransactionDestinationEntry(uint64_t amount, const AccountPublicAddress &addr) : amount(amount), addr(addr) {}
 };
 
+struct tx_message_entry {
+  std::string message;
+  bool encrypt;
+  AccountPublicAddress addr;
+};
+
 
 bool constructTransaction(
   const AccountKeys& senderAccountKeys,
-  const std::vector<TransactionSourceEntry>& sources,
-  const std::vector<TransactionDestinationEntry>& destinations,
-  std::vector<uint8_t> extra, Transaction& transaction, uint64_t unlock_time, Crypto::SecretKey &tx_key, Logging::ILogger& log);
+  const std::vector<TransactionSourceEntry>&sources,
+  const std::vector<TransactionDestinationEntry>&destinations,
+  const std::vector<tx_message_entry> &messages
+  std::vector<uint8_t> extra,
+  uint64_t unlock_time,
+  Crypto::SecretKey &tx_key,
+  Transaction& transaction,
+  Logging::ILogger& log);
+
+inline bool constructTransaction(
+  const AccountKeys& senderAccountKeys,
+  const std::vector<TransactionSourceEntry>&sources,
+  const std::vector<TransactionDestinationEntry>&destinations,
+  std::vector<uint8_t> extra,
+  uint64_t unlock_time,
+  Crypto::SecretKey &tx_key,
+  Transaction& transaction,
+  Logging::ILogger& log) 
+{
+  return constructTransaction(
+    senderAccountKeys,
+    sources,
+    destinations,
+    std::vector<tx_message_entry>(), extra, unlock_time, tx_key, transaction, log);
+}
 
 
 bool is_out_to_acc(const AccountKeys& acc, const KeyOutput& out_key, const Crypto::PublicKey& tx_pub_key, size_t keyIndex);
@@ -126,6 +154,8 @@ void decompose_amount_into_digits(uint64_t amount, uint64_t dust_threshold, cons
 void get_tx_tree_hash(const std::vector<Crypto::Hash>& tx_hashes, Crypto::Hash& h);
 Crypto::Hash get_tx_tree_hash(const std::vector<Crypto::Hash>& tx_hashes);
 Crypto::Hash get_tx_tree_hash(const Block& b);
+std::vector<std::string> get_messages_from_extra(const std::vector<uint8_t> &extra, const Crypto::PublicKey &txkey, const AccountKeys *recipient);
+
 bool is_valid_decomposed_amount(uint64_t amount);
 
 }

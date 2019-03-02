@@ -28,8 +28,8 @@
 
 namespace CryptoNote {
 
-const size_t WALLET_INVALID_TRANSACTION_ID = std::numeric_limits<size_t>::max();
-const size_t WALLET_INVALID_TRANSFER_ID = std::numeric_limits<size_t>::max();
+const size_t WALLET_INVALID_TRANSACTION_ID = std::numeric_limits<size_t>::max();  //TransactionId
+const size_t WALLET_INVALID_TRANSFER_ID = std::numeric_limits<size_t>::max();     //TransferId
 const uint32_t WALLET_UNCONFIRMED_TRANSACTION_HEIGHT = std::numeric_limits<uint32_t>::max();
 
 enum class WalletTransactionState : uint8_t {
@@ -76,6 +76,11 @@ struct WalletEvent {
   };
 };
 
+struct TransactionMessage {
+  std::string message;
+  std::string address;
+};
+
 struct WalletTransaction {
   WalletTransactionState state;
   uint64_t timestamp;
@@ -87,7 +92,18 @@ struct WalletTransaction {
   uint64_t creationTime;
   uint64_t unlockTime;
   std::string extra;
-  bool isBase;
+  bool isBase;          //isCoinbase
+  std::vector<std::string> messages;
+};
+
+typedef std::array<uint8_t, 32> PublicKey;
+typedef std::array<uint8_t, 32> SecretKey;
+
+struct AccountKeys {
+  PublicKey viewPublicKey;
+  SecretKey viewSecretKey;
+  PublicKey spendPublicKey;
+  SecretKey spendSecretKey;
 };
 
 enum class WalletTransferType : uint8_t {
@@ -142,6 +158,7 @@ public:
   virtual void initializeWithViewKeyAndTimestamp(const std::string& path, const std::string& password, const Crypto::SecretKey& viewSecretKey, const uint64_t& creationTimestamp) = 0;
   virtual void load(const std::string& path, const std::string& password, std::string& extra) = 0;
   virtual void load(const std::string& path, const std::string& password) = 0;
+  virtual void initWithKeys(const AccountKeys& accountKeys, const std::string& password) = 0;
   virtual void shutdown() = 0;
 
   virtual void changePassword(const std::string& oldPassword, const std::string& newPassword) = 0;
@@ -191,6 +208,8 @@ public:
 
   //blocks until an event occurred
   virtual WalletEvent getEvent() = 0;
+
+  virtual void getAccountKeys(AccountKeys& keys) = 0;
 };
 
 }

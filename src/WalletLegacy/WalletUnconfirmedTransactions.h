@@ -49,6 +49,7 @@ struct hash<CryptoNote::TransactionOutputId> {
 
 namespace CryptoNote {
 
+class WalletUserTransactionsCache;
 
 struct UnconfirmedTransferDetails {
 
@@ -84,6 +85,9 @@ public:
   void reset();
 
   std::vector<TransactionId> deleteOutdatedTransactions();
+
+  //quirk. after wallet load transactions' ids may be changed, we need to resynchronize it
+  void synchronizeTransactionIds(const WalletUserTransactionsCache& transactionCache);
 
 private:
 

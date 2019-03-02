@@ -32,15 +32,15 @@
 
 namespace CryptoNote {
 
-class WalletTransactionSender
-{
+class WalletTransactionSender {
+  
 public:
   WalletTransactionSender(const Currency& currency, WalletUserTransactionsCache& transactionsCache, AccountKeys keys, ITransfersContainer& transfersContainer);
 
   void stop();
 
-  std::shared_ptr<WalletRequest> makeSendRequest(TransactionId& transactionId, std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
-    const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0);
+  std::shared_ptr<WalletRequest> makeSendRequest(TransactionId& transactionId, std::deque<std::shared_ptr<WalletLegacyEvent> >& events,
+    const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0, const std::vector<TransactionMessage>& messages = std::vector<TransactionMessage>());
 
   std::shared_ptr<WalletRequest> makeSendDustRequest(TransactionId& transactionId, std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
 	  const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0);
@@ -62,6 +62,8 @@ private:
   void relayTransactionCallback(std::shared_ptr<SendTransactionContext> context, std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
                                 boost::optional<std::shared_ptr<WalletRequest> >& nextRequest, std::error_code ec);
   void notifyBalanceChanged(std::deque<std::shared_ptr<WalletLegacyEvent>>& events);
+  void markOutputsSpent(const std::list<TransactionOutputInformation>& selectedTransfers);
+  void makeOutputsNotSpent(const std::list<TransactionOutputInformation>& selectedTransfers);
 
   void validateTransfersAddresses(const std::vector<WalletLegacyTransfer>& transfers);
   bool validateDestinationAddress(const std::string& address);
@@ -76,6 +78,8 @@ private:
 
   bool m_isStoping;
   ITransfersContainer& m_transferDetails;
+
+  void removeUnconfirmedTx(TransactionId txId);
 };
 
 } /* namespace CryptoNote */

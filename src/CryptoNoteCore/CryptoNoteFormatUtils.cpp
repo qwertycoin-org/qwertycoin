@@ -120,10 +120,11 @@ bool constructTransaction(
   const AccountKeys& sender_account_keys,
   const std::vector<TransactionSourceEntry>& sources,
   const std::vector<TransactionDestinationEntry>& destinations,
+  const std::vector<tx_message_entry>& messages,
   std::vector<uint8_t> extra,
-  Transaction& tx,
   uint64_t unlock_time,
   Crypto::SecretKey &tx_key,
+  Transaction& tx,
   Logging::ILogger& log) {
   LoggerRef logger(log, "construct_tx");
 
@@ -231,6 +232,22 @@ bool constructTransaction(
   if (summary_outs_money > summary_inputs_money) {
     logger(ERROR) << "Transaction inputs money (" << summary_inputs_money << ") less than outputs money (" << summary_outs_money << ")";
     return false;
+  }
+
+  for (size_t i = 0; i < messages.size(); i++) {
+    const tx_message_entry &msg = messages[i];
+    tx_extra_message tag;
+    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
+      return false;
+    }
+    std::ostringstream oss;
+    binary_archive<true> ar(oss);
+    if (!::do_serialize(ar, tag)) {
+      return false;
+    }
+    std::string s = oss.str();
+    tx.extra.push_back(TX_EXTRA_MESSAGE_TAG);
+    tx.extra.insert(tx.extra.end(), s.begin(), s.end());
   }
 
   //generate ring signatures
@@ -581,6 +598,26 @@ Hash get_tx_tree_hash(const Block& b) {
   }
   return get_tx_tree_hash(txs_ids);
 }
+
+std::vector<std::string> get_messages_from_extra(const std::vector<uint8_t> &extra, const Crypto::PublicKey &txkey, const AccountKeys *recipient) {
+    std::vector<tx_extra_field> tx_extra_fields;
+    std::vector<std::string> result;
+    if (!parse_tx_extra(extra, tx_extra_fields)) {
+      return result;
+    }
+    size_t i = 0;
+    for (const tx_extra_field &f: tx_extra_fields) {
+      if (f.type() != typeid(tx_extra_message)) {
+        continue;
+      }
+      std::string res;
+      if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recipient, res)) {
+        result.push_back(res);
+      }
+      ++i;
+    }
+    return result;
+  }
 
 bool is_valid_decomposed_amount(uint64_t amount) {
   auto it = std::lower_bound(Currency::PRETTY_AMOUNTS.begin(), Currency::PRETTY_AMOUNTS.end(), amount);

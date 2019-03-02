@@ -30,6 +30,7 @@
 #define TX_EXTRA_TAG_PUBKEY                 0x01
 #define TX_EXTRA_NONCE                      0x02
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
+#define TX_EXTRA_MESSAGE_TAG                0x04
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
 
@@ -52,12 +53,28 @@ struct TransactionExtraMergeMiningTag {
   Crypto::Hash merkleRoot;
 };
 
+struct AccountPublicAddress;
+struct KeyPair;
+struct account_keys;
+
+struct tx_extra_message {
+
+  std::string data;
+
+  bool encrypt(std::size_t index, const std::string &message, const AccountPublicAddress* recipient, const KeyPair &txkey);
+  bool decrypt(std::size_t index, const Crypto::PublicKey &txkey, const account_keys *recipient, std::string &message) const;
+
+  BEGIN_SERIALIZE()
+    FIELD(data)
+  END_SERIALIZE()
+};
+
 // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
 //   varint tag;
 //   varint size;
 //   varint data[];
 typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce, TransactionExtraMergeMiningTag> TransactionExtraField;
-
+typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce, TransactionExtraMergeMiningTag, tx_extra_message> TransactionExtraField;
 
 
 template<typename T>
