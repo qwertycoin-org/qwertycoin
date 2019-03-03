@@ -78,6 +78,12 @@ HunterGate(
     FILEPATH "${CMAKE_CURRENT_LIST_DIR}/cmake/hunter/HunterConfig.cmake"
 )
 
+option(WITH_LITE_WALLET "Lite wallet specific" OFF)
+
+if(WITH_LITE_WALLET)
+  add_definitions("-DUSE_LITE_WALLET")
+endif()
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_CONFIGURATION_TYPES Debug Release RelWithDebInfo CACHE TYPE INTERNAL)
 # enable_testing()
@@ -128,7 +134,7 @@ endif()
 
 #include_directories(include src contrib/epee/include external "${CMAKE_BINARY_DIR}/version")
 
-if(APPLE)
+if(APPLE OR FREEBSD)
   include_directories(SYSTEM /usr/include/malloc)
   if(POLICY CMP0042)
     cmake_policy(SET CMP0042 NEW)
@@ -146,6 +152,9 @@ if(MSVC)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Windows)
 elseif(APPLE)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/OSX)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Posix)
+elseif(FREEBSD)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/FreeBSD)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Posix)
 elseif(ANDROID)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Android)
@@ -255,7 +264,7 @@ else()
     # mingw doesn't support LTO (multiple definition errors at link time)
     set(USE_LTO_DEFAULT false)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,10485760")
-    if(NOT BUILD_64)
+  if(NOT BUILD_64)
       add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
     endif()
   else()
@@ -276,14 +285,14 @@ else()
   else()
     set(STATIC_ASSERT_CPP_FLAG "-Dstatic_assert=_Static_assert")
   endif()
-
+  
   # With GCC 6.1.1 the compiled binary malfunctions due to aliasing. Until that
   # is fixed in the code (Issue #847), force compiler to be conservative.
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
-
+  
   option(NO_AES "Explicitly disable AES support" ${NO_AES})
-
+  
   if(NOT NO_AES AND NOT ARM AND NOT PPC64LE)
     message(STATUS "AES support enabled")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -maes")
@@ -313,8 +322,6 @@ else()
   # is fixed in the code (Issue #847), force compiler to be conservative.
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
-
-
   if(ARM)
     message(STATUS "Setting FPU Flags for ARM Processors")
 
@@ -408,14 +415,14 @@ else()
   if(APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGTEST_HAS_TR1_TUPLE=0")
   endif()
-
+  
   set(DEBUG_FLAGS "-g3")
   if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT (CMAKE_C_COMPILER_VERSION VERSION_LESS 4.8))
     set(DEBUG_FLAGS "-g3 -Og")
   else()
     set(DEBUG_FLAGS "-g3 -O0")
   endif()
-
+  
   if(NOT DEFINED USE_LTO_DEFAULT)
     set(USE_LTO_DEFAULT false)
   endif()
@@ -464,7 +471,6 @@ else()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${STATIC_FLAGS} ")
   endif()
 endif()
-
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT ANDROID)
   set(CMAKE_EXE_LINKER_FLAGS "-pthread")
 endif()
