@@ -18,8 +18,6 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PaymentServiceJsonRpcServer.h"
-//#include "version.h"
-
 #include <functional>
 
 #include "PaymentServiceJsonRpcMessages.h"
@@ -189,7 +187,6 @@ std::error_code PaymentServiceJsonRpcServer::handleGetViewKey(const GetViewKey::
 }
 
 std::error_code PaymentServiceJsonRpcServer::handleGetStatus(const GetStatus::Request& request, GetStatus::Response& response) {
-  //response.version = PROJECT_VERSION_LONG;
   return service.getStatus(response.blockCount, response.knownBlockCount, response.localDaemonBlockCount, response.lastBlockHash, response.peerCount, response.minimalFee);
 }
 

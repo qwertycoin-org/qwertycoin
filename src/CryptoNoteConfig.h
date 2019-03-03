@@ -166,14 +166,12 @@ const char* const SEED_NODES[] = {
   "node-03.qwertycoin.org:8196",
   "node-04.qwertycoin.org:8196",
   "node-05.qwertycoin.org:8196",
+  "loop.qwertycoin.org:8196",
   "qwertycoin.spdns.org:8196",
+  "explorer.qwertycoin.org:8196",
   "220.82.126.94:8196",
   "91.194.90.163:8196",
-  "198.147.30.116:8196",
-  "198.147.30.115:8196",
-  "195.201.27.148:8196",
-  "78.47.85.215:8196",
-  "79.150.120.70:8196"
+  "77.55.237.152:8196"
 };
 
 struct CheckpointData {
@@ -209,7 +207,7 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
   {230000,"190891fd56763afbc9e7c609a3a90bcb801a504daf2e352060cf1f7dfb9f2896"},
   {240000,"522cbcb5341a1c4a804212923713227363671a2db3ea41f8957a15b6234b17f4"},
   {250721,"a119b644ec0a35c77f8cf7ed6a0ff4d37b7a279ac8fadfb660e83cc795ddb7de"},//5.0.0 was born
-  {272496,"993566b990561596f8d54073a9c51bf1d717bacc7c67a6edcf392cb0727d42ef"}
+  {272934,"0fbe196cdf46120a44f77596cd116b4ae8f5fe1e4d8835336402a0c05b3d420a"}
 };
 
 } // CryptoNote
