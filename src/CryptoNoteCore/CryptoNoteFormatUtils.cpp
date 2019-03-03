@@ -120,7 +120,8 @@ bool constructTransaction(
   const AccountKeys& sender_account_keys,
   const std::vector<TransactionSourceEntry>& sources,
   const std::vector<TransactionDestinationEntry>& destinations,
-  const std::vector<TX_MESSAGE_ENTRY>& messages,
+  const std::vector<TxMessageEntry>& messages,
+  uint64_t ttl,
   std::vector<uint8_t> extra,
   uint64_t unlock_time,
   Crypto::SecretKey &tx_key,
@@ -235,20 +236,19 @@ bool constructTransaction(
   }
 
   for (size_t i = 0; i < messages.size(); i++) {
-    const TX_MESSAGE_ENTRY &msg = messages[i];
-    tx_extra_message tag;
+    const TxMessageEntry &msg = messages[i];
+    TxExtraMessage tag;
     if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
       return false;
     }
-    std::ostringstream oss;
-    /*
-    binary_archive<true> ar(oss);
-    if (!::do_serialize(ar, tag)) {
+    
+    if (!appendMessageToExtra(tx.extra, tag)) {
       return false;
-    }*/
-    std::string s = oss.str();
-    tx.extra.push_back(TX_EXTRA_MESSAGE_TAG);
-    tx.extra.insert(tx.extra.end(), s.begin(), s.end());
+    }
+  }
+
+  if (ttl != 0) {
+    // TODO: Append TTL to Extra
   }
 
   //generate ring signatures
@@ -599,26 +599,6 @@ Hash get_tx_tree_hash(const Block& b) {
   }
   return get_tx_tree_hash(txs_ids);
 }
-
-std::vector<std::string> get_messages_from_extra(const std::vector<uint8_t> &extra, const Crypto::PublicKey &txkey, const AccountKeys *recipient) {
-    std::vector<tx_extra_field> tx_extra_fields;
-    std::vector<std::string> result;
-    if (!parse_tx_extra(extra, tx_extra_fields)) {
-      return result;
-    }
-    size_t i = 0;
-    for (const tx_extra_field &f: tx_extra_fields) {
-      if (f.type() != typeid(tx_extra_message)) {
-        continue;
-      }
-      std::string res;
-      if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recipient, res)) {
-        result.push_back(res);
-      }
-      ++i;
-    }
-    return result;
-  }
 
 bool is_valid_decomposed_amount(uint64_t amount) {
   auto it = std::lower_bound(Currency::PRETTY_AMOUNTS.begin(), Currency::PRETTY_AMOUNTS.end(), amount);

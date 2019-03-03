@@ -37,6 +37,7 @@
 #include "CryptoNoteFormatUtils.h"
 #include "CryptoNoteTools.h"
 #include "CryptoNoteConfig.h"
+#include "TransactionExtra.h"
 
 using namespace Logging;
 
@@ -142,6 +143,27 @@ namespace CryptoNote {
       return false;
     }
 
+    std::vector<TransactionExtraField> txExtraFields;
+    parseTransactionExtra(tx.extra, txExtraFields);
+    TransactionExtraTTL ttl;
+
+    if (!findTransactionExtraFieldByType(txExtraFields, ttl)) {
+      ttl.ttl = 0;
+    }
+
+    uint64_t now = static_cast<uint64_t>(time(nullptr));
+    if (ttl.ttl != 0) {
+      if (ttl.ttl <= now) {
+        logger(INFO, BRIGHT_WHITE) << "Transaction TTL has already expired: Tx = " << id << ", TTL = " <<  ttl.ttl;
+        tvc.m_verification_failed = true;
+        return false;
+      } else if (ttl.ttl - now > m_currency.mempoolTxLiveTime() + m_currency.blockFutureTimeLimit()) {
+        logger(INFO, BRIGHT_WHITE) << "Transaction TTL is out of range: Tx = " << id << ", TTL = " << ttl.ttl;
+        tvc.m_verification_failed = true;
+        return false;
+      }
+    }
+
     const uint64_t fee = inputs_amount - outputs_amount;
     bool isFusionTransaction = fee == 0 && m_currency.isFusionTransaction(tx, blobSize, m_core.get_current_blockchain_height());
 
@@ -180,6 +202,15 @@ namespace CryptoNote {
       }
     }
 
+    if (!keptByBlock && !isFusionTransaction && ttl.ttl == 0 && fee < m_currency.minimumFee()) {
+      logger(INFO, BRIGHT_WHITE) << "Transaction fee is not enough: " << m_currency.formatAmount(fee) 
+                                 << ", minimum fee: " << m_currency.formatAmount(m_currency.minimumFee());
+
+      tvc.m_verification_failed = true;
+      tvc.m_tx_fee_too_small = true;
+      return false;
+    }
+
     std::lock_guard<std::recursive_mutex> lock(m_transactions_lock);
 
     if (!keptByBlock && m_recentlyDeletedTransactions.find(id) != m_recentlyDeletedTransactions.end()) {
@@ -211,10 +242,14 @@ namespace CryptoNote {
       }
       m_paymentIdIndex.add(tx);
       m_timestampIndex.add(txd.receiveTime, txd.id);
+
+      if ( ttl.ttl != 0) {
+        m_ttlIndex.emplace(std::make_pair(id, ttl.ttl));
+      }
     }
 
     tvc.m_added_to_pool = true;
-    tvc.m_should_be_relayed = inputsValid && (fee > 0 || isFusionTransaction);
+    tvc.m_should_be_relayed = inputsValid && (fee > 0 || isFusionTransaction || ttl.ttl != 0);
     tvc.m_verification_failed = true;
 
     if (!addTransactionInputs(id, tx, keptByBlock))
@@ -224,7 +259,6 @@ namespace CryptoNote {
     //succeed
     return true;
   }
-
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_tx(const Transaction &tx, tx_verification_context& tvc, bool keeped_by_block) {
     Crypto::Hash h = NULL_HASH;
@@ -380,11 +414,19 @@ namespace CryptoNote {
         << "max_used_block_height: " << txd.maxUsedBlock.height << std::endl
         << "max_used_block_id: " << txd.maxUsedBlock.id << std::endl
         << "last_failed_height: " << txd.lastFailedBlock.height << std::endl
-		<< "last_failed_id: " << txd.lastFailedBlock.id << std::endl
-		<< "amount_out: " << get_outs_money_amount(txd.tx) << std::endl
+		    << "last_failed_id: " << txd.lastFailedBlock.id << std::endl
+		    << "amount_out: " << get_outs_money_amount(txd.tx) << std::endl
         << "fee_atomic_units: " << txd.fee << std::endl
         << "received_timestamp: " << txd.receiveTime << std::endl
-        << "received: " << std::ctime(&txd.receiveTime) << std::endl;
+        << "received: " << std::ctime(&txd.receiveTime);
+
+
+      auto ttlIt = m_ttlIndex.find(txd.id);
+      if (ttlIt != m_ttlIndex.end()) {
+        ss << "TTL: " << std::ctime (reinterpret_cast<const time_t*>(&ttlIt->second));
+      }
+
+      ss << std::endl  
     }
 
     return ss.str();
@@ -405,6 +447,10 @@ namespace CryptoNote {
     for (auto it = m_fee_index.rbegin(); it != m_fee_index.rend() && it->fee == 0; ++it) {
       const auto& txd = *it;
 
+      if (m_ttlIndex.count(txd.id) > 0) {
+        continue;
+      }
+
       if (m_currency.fusionTxMaxSize() < total_size + txd.blobSize) {
         continue;
       }
@@ -418,6 +464,10 @@ namespace CryptoNote {
 
     for (auto i = m_fee_index.begin(); i != m_fee_index.end(); ++i) {
       const auto& txd = *i;
+
+      if (m_ttlIndex.count(txd.id) > 0) {
+        continue;
+      }
 
       size_t blockSizeLimit = (txd.fee == 0) ? median_size : max_total_size;
       if (blockSizeLimit < total_size + txd.blobSize) {
@@ -497,6 +547,7 @@ namespace CryptoNote {
 
     m_paymentIdIndex.clear();
     m_timestampIndex.clear();
+    m_ttlIndex.clear();
     
     return true;
   }
