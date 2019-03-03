@@ -1,25 +1,11 @@
-![image](https://cdn.qwertycoin.org/images/press/other/qwc-github-2.png)
+![image](https://cdn.qwertycoin.org/images/press/other/qwc-github-3.png)
+#### Master Build Status
+[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=master)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/github/qwertycoin-org/qwertycoin?branch=master&svg=true)](https://ci.appveyor.com/project/qwertycoin-org/qwertycoin)
 
-[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=stage_1)](https://travis-ci.org/qwertycoin-org/qwertycoin)
-[![Build status](https://ci.appveyor.com/api/projects/status/yhiqfap4nfdommsb?svg=true)](https://ci.appveyor.com/project/qwertycoin-org/qwertycoin)
-
-**Qwertycoin is a decentralized peer-to-peer protocol for safe payments worldwide.**
+#### Development Build Status
+[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=dev)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/github/qwertycoin-org/qwertycoin?branch=dev&svg=true)](https://ci.appveyor.com/project/qwertycoin-org/qwertycoin)
 
 ### How To Compile
-
-#### Ubuntu 16.04+ and MacOS 10.10+
-
-There is a bash installation script for Ubuntu 16.04+ and MacOS 10.10+ which can be used to checkout and build the project from source:
-
-`$ curl -sL "https://github.com/qwertycoin-org/qwertycoin/blob/master/scripts/multi_installer.sh" | bash `
-
-On Ubuntu you will be asked for sudo rights to install software. The binaries will be in `./src` after compilation is complete.
-
-This script can be used from inside the git repository to build the project from the checked out source, `./multi_installer.sh`
-
-See the script for more installation details and please consider extending it for your operating system and distribution!
-
-If the script doesn't work for you: use `./easy-installer.sh` or with:
 
 #### Linux
 
@@ -27,7 +13,7 @@ If you are using Arch Linux, there is an AUR precompiled package, `qwertycoin-bi
 
 ##### Prerequisites
 
-- You will need the following packages: build-essential, [cmake (3.10 or higher)](https://github.com/qwertycoin-org/qwertycoin/tree/master/docs/install_cmake) and git;
+- You will need the following packages: build-essential, [cmake (3.10 or higher)](https://github.com/qwertycoin-org/qwertycoin/wiki/E01.-Install-Cmake-3.10) and git;
 - Most of these should already be installed on your system. For example on Ubuntu by running:
 ```
 sudo apt-get install build-essential cmake git
@@ -37,7 +23,7 @@ sudo apt-get install build-essential cmake git
 
 - After installing dependencies run simple script:
 ```
-git clone https://github.com/qwertycoin-org/qwertycoin
+git clone --recurse-submodules https://github.com/qwertycoin-org/qwertycoin
 cd ./qwertycoin
 mkdir ./build
 cd ./build
@@ -152,4 +138,4 @@ ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQ
 
 #### Thanks
 
-Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Project (aivve), Qwertycoin Community
+Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Developers, Qwertycoin Community
