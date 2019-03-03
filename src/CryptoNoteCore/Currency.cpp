@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2016-2018  zawy12
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -76,10 +76,10 @@ namespace CryptoNote {
 		}
 
 		if (isTestnet()) {
-			m_upgradeHeightV2 = 5;
-			m_upgradeHeightV3 = 8;
-			m_upgradeHeightV4 = 10;
-			m_upgradeHeightV5 = 12;
+			m_upgradeHeightV2 = 10;
+			m_upgradeHeightV3 = 60;
+			m_upgradeHeightV4 = 70;
+			m_upgradeHeightV5 = 80;
 			m_upgradeHeightV6 = 100;
 			m_blocksFileName = "testnet_" + m_blocksFileName;
 			m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
@@ -135,14 +135,14 @@ namespace CryptoNote {
 	}
 
 	uint32_t Currency::upgradeHeight(uint8_t majorVersion) const {
-		if (majorVersion == BLOCK_MAJOR_VERSION_5) {
+		if (majorVersion == BLOCK_MAJOR_VERSION_6) {
+			return m_upgradeHeightV6;
+		}
+		else if (majorVersion == BLOCK_MAJOR_VERSION_5) {
 			return m_upgradeHeightV5;
 		}
 		else if (majorVersion == BLOCK_MAJOR_VERSION_4) {
 			return m_upgradeHeightV4;
-		}
-		else if (majorVersion == BLOCK_MAJOR_VERSION_6) {
-			return m_upgradeHeightV6;
 		}
 		else if (majorVersion == BLOCK_MAJOR_VERSION_2) {
 			return m_upgradeHeightV2;
@@ -187,10 +187,6 @@ namespace CryptoNote {
 		return true;
 	}
 
-	/*	max blocksize formula
-	 *	X = current blockchain height
-	 *	maxSize = 20480 + ((X*102400) / 262800)
-	 */
 	size_t Currency::maxBlockCumulativeSize(uint64_t height) const {
 		assert(height <= std::numeric_limits<uint64_t>::max() / m_maxBlockSizeGrowthSpeedNumerator);
 		size_t maxSize = static_cast<size_t>(m_maxBlockSizeInitial +
@@ -225,7 +221,7 @@ namespace CryptoNote {
 		}
 
 		std::vector<uint64_t> outAmounts;
-		decompose_amount_into_digits(blockReward, m_defaultDustThreshold,
+		decompose_amount_into_digits(blockReward, UINT64_C(0),
 			[&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
 			[&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
 
@@ -280,37 +276,47 @@ namespace CryptoNote {
 		return true;
 	}
 
-	bool Currency::isFusionTransaction(const std::vector<uint64_t>& inputsAmounts, const std::vector<uint64_t>& outputsAmounts, size_t size) const {
-		if (size > fusionTxMaxSize()) {
+	bool Currency::isFusionTransaction(const std::vector<uint64_t>& inputsAmounts, const std::vector<uint64_t>& outputsAmounts, size_t size, uint32_t height) const {
+		if (height <= CryptoNote::parameters::UPGRADE_HEIGHT_V3 ? size > CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT * 30 / 100 : size > fusionTxMaxSize()) {
+			logger(ERROR) << "Fusion transaction verification failed: size exceeded max allowed size.";
 			return false;
 		}
 
 		if (inputsAmounts.size() < fusionTxMinInputCount()) {
+			logger(ERROR) << "Fusion transaction verification failed: inputs count is less than minimum.";
 			return false;
 		}
 
 		if (inputsAmounts.size() < outputsAmounts.size() * fusionTxMinInOutCountRatio()) {
+			logger(ERROR) << "Fusion transaction verification failed: inputs to outputs count ratio is less than minimum.";
 			return false;
 		}
 
 		uint64_t inputAmount = 0;
 		for (auto amount : inputsAmounts) {
-			if (amount < defaultDustThreshold()) {
-				return false;
-			}
-
+			if (height < CryptoNote::parameters::UPGRADE_HEIGHT_V4)
+				if (amount < defaultDustThreshold()) {
+					logger(ERROR) << "Fusion transaction verification failed: amount " << amount << " is less than dust threshold.";
+					return false;
+				}
 			inputAmount += amount;
 		}
 
 		std::vector<uint64_t> expectedOutputsAmounts;
 		expectedOutputsAmounts.reserve(outputsAmounts.size());
-		decomposeAmount(inputAmount, defaultDustThreshold(), expectedOutputsAmounts);
+		decomposeAmount(inputAmount, height < CryptoNote::parameters::UPGRADE_HEIGHT_V4 ? defaultDustThreshold() : UINT64_C(0), expectedOutputsAmounts);
 		std::sort(expectedOutputsAmounts.begin(), expectedOutputsAmounts.end());
 
-		return expectedOutputsAmounts == outputsAmounts;
+		bool decompose = expectedOutputsAmounts == outputsAmounts;
+		if (!decompose) {
+			logger(ERROR) << "Fusion transaction verification failed: decomposed output amounts do not match expected.";
+			return false;
+		}
+
+		return true;
 	}
 
-	bool Currency::isFusionTransaction(const Transaction& transaction, size_t size) const {
+	bool Currency::isFusionTransaction(const Transaction& transaction, size_t size, uint32_t height) const {
 		assert(getObjectBinarySize(transaction) == size);
 
 		std::vector<uint64_t> outputsAmounts;
@@ -319,24 +325,24 @@ namespace CryptoNote {
 			outputsAmounts.push_back(output.amount);
 		}
 
-		return isFusionTransaction(getInputsAmounts(transaction), outputsAmounts, size);
+		return isFusionTransaction(getInputsAmounts(transaction), outputsAmounts, size, height);
 	}
 
-	bool Currency::isFusionTransaction(const Transaction& transaction) const {
-		return isFusionTransaction(transaction, getObjectBinarySize(transaction));
+	bool Currency::isFusionTransaction(const Transaction& transaction, uint32_t height) const {
+		return isFusionTransaction(transaction, getObjectBinarySize(transaction), height);
 	}
 
-	bool Currency::isAmountApplicableInFusionTransactionInput(uint64_t amount, uint64_t threshold) const {
+	bool Currency::isAmountApplicableInFusionTransactionInput(uint64_t amount, uint64_t threshold, uint32_t height) const {
 		uint8_t ignore;
-		return isAmountApplicableInFusionTransactionInput(amount, threshold, ignore);
+		return isAmountApplicableInFusionTransactionInput(amount, threshold, ignore, height);
 	}
 
-	bool Currency::isAmountApplicableInFusionTransactionInput(uint64_t amount, uint64_t threshold, uint8_t& amountPowerOfTen) const {
+	bool Currency::isAmountApplicableInFusionTransactionInput(uint64_t amount, uint64_t threshold, uint8_t& amountPowerOfTen, uint32_t height) const {
 		if (amount >= threshold) {
 			return false;
 		}
 
-		if (amount < defaultDustThreshold()) {
+		if (height < CryptoNote::parameters::UPGRADE_HEIGHT_V4 && amount < defaultDustThreshold()) {
 			return false;
 		}
 
@@ -426,7 +432,40 @@ namespace CryptoNote {
 		return Common::fromString(strAmount, amount);
 	}
 
-	difficulty_type Currency::nextDifficulty(uint8_t blockMajorVersion, std::vector<uint64_t> timestamps,
+	// Copyright (c) 2017-2018 Zawy 
+	// http://zawy1.blogspot.com/2017/12/using-difficulty-to-get-constant-value.html
+	// Moore's law application by Sergey Kozlov
+	uint64_t Currency::getMinimalFee(uint64_t dailyDifficulty, uint64_t reward, uint64_t avgHistoricalDifficulty, uint64_t medianHistoricalReward, uint32_t height) const {
+		const uint64_t blocksInTwoYears = CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY * 365 * 2;
+		const double gauge = double(0.25);
+		uint64_t minimumFee(0);
+		double dailyDifficultyMoore = dailyDifficulty / pow(2, static_cast<double>(height) / static_cast<double>(blocksInTwoYears));
+		double minFee = gauge * CryptoNote::parameters::COIN * static_cast<double>(avgHistoricalDifficulty) 
+			/ dailyDifficultyMoore * static_cast<double>(reward)
+			/ static_cast<double>(medianHistoricalReward);
+		if (minFee == 0 || !std::isfinite(minFee))
+			return CryptoNote::parameters::MAXIMUM_FEE; // zero test 
+		minimumFee = static_cast<uint64_t>(minFee);
+
+		//TODO
+		//return std::min<uint64_t>(CryptoNote::parameters::MAXIMUM_FEE, minimumFee);
+		return CryptoNote::parameters::MINIMUM_FEE_V1;
+	}
+
+	uint64_t Currency::roundUpMinFee(uint64_t minimalFee, int digits) const {
+		uint64_t ret(0);
+		std::string minFeeString = formatAmount(minimalFee);
+		double minFee = boost::lexical_cast<double>(minFeeString);
+		double scale = pow(10., floor(log10(fabs(minFee))) + (1 - digits));
+		double roundedFee = ceil(minFee / scale) * scale;
+		std::stringstream ss;
+		ss << std::fixed << std::setprecision(12) << roundedFee;
+		std::string roundedFeeString = ss.str();
+		parseAmount(roundedFeeString, ret);
+		return ret;
+	}
+
+	difficulty_type Currency::nextDifficulty(uint32_t height, uint8_t blockMajorVersion, std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
 		if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
 			return nextDifficultyV5(blockMajorVersion, timestamps, cumulativeDifficulties);
@@ -439,10 +478,9 @@ namespace CryptoNote {
 		}
 		else {
 			return nextDifficultyV1(timestamps, cumulativeDifficulties);
-		}
+}
 	}
 
-	// Difficulty for Block version 1.0 original diff
 	difficulty_type Currency::nextDifficultyV1(std::vector<uint64_t> timestamps,
 				std::vector<difficulty_type> cumulativeDifficulties) const {
 		assert(m_difficultyWindow >= 2);
@@ -486,15 +524,9 @@ namespace CryptoNote {
 			return 0;
 		}
 
-		uint64_t nextDiffV1 = (low + timeSpan - 1) / timeSpan;	
-
-		if(isTestnet()) {
-			nextDiffV1 = 1;		
-		}
-		return nextDiffV1;
+		return (low + timeSpan - 1) / timeSpan;
 	}
 
-	// Difficulty for Block version 2.0
 	difficulty_type Currency::nextDifficultyV2(std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
 
@@ -529,7 +561,7 @@ namespace CryptoNote {
 		difficulty_type totalWork = cumulativeDifficulties.back() - cumulativeDifficulties.front();
 		assert(totalWork > 0);
 
-		// uint64_t nextDiffV2 = totalWork * m_difficultyTarget / timeSpan; 
+		// uint64_t nextDiffZ = totalWork * m_difficultyTarget / timeSpan; 
 
 		uint64_t low, high;
 		low = mul128(totalWork, m_difficultyTarget, &high);
@@ -538,20 +570,16 @@ namespace CryptoNote {
 			return 0;
 		}
 
-		uint64_t nextDiffV2 = low / timeSpan;
+		uint64_t nextDiffZ = low / timeSpan;
 
 		// minimum limit
-		if (nextDiffV2 < 100000) {
-			nextDiffV2 = 100000;
-		}
-		if (isTestnet()) {
-			nextDiffV2 = 5;
+		if (!isTestnet() && nextDiffZ < 100000) {
+			nextDiffZ = 100000;
 		}
 
-		return nextDiffV2;
+		return nextDiffZ;
 	}
 
-	// Difficulty for Block version 3.0 and 4.0
 	difficulty_type Currency::nextDifficultyV3(std::vector<uint64_t> timestamps,
 		std::vector<difficulty_type> cumulativeDifficulties) const {
 
@@ -564,58 +592,56 @@ namespace CryptoNote {
 		// Do not use "if solvetime < 0 then solvetime = 1" which allows a catastrophic exploit.
 		// T= target_solvetime;
 		// N = int(45 * (600 / T) ^ 0.3));
-		// Adapted for Qwertycoin specific setting
 
 		const int64_t T = static_cast<int64_t>(m_difficultyTarget);
-		const size_t N = CryptoNote::parameters::DIFFICULTY_WINDOW_V3;
+		size_t N = CryptoNote::parameters::DIFFICULTY_WINDOW_V3;
 
-		if (timestamps.size() > N + 1) {
-			timestamps.resize(N + 1);
-			cumulativeDifficulties.resize(N + 1);
-		}
-		size_t n = timestamps.size();
-		assert(n == cumulativeDifficulties.size());
-		assert(n <= N+1);
-		if (n <= 1)
+		// return a difficulty of 1 for first 3 blocks if it's the start of the chain
+		if (timestamps.size() < 4) {
 			return 1;
+		}
+		// otherwise, use a smaller N if the start of the chain is less than N+1
+		else if (timestamps.size() < N + 1) {
+			N = timestamps.size() - 1;
+		}
+		else if (timestamps.size() > N + 1) {
+			timestamps.erase(timestamps.begin(), timestamps.end() - N - 1);
+			cumulativeDifficulties.erase(cumulativeDifficulties.begin(), cumulativeDifficulties.end() - N - 1);
+		}
 
 		// To get an average solvetime to within +/- ~0.1%, use an adjustment factor.
-		const double_t adjust = 0.998;
+		const double adjust = 0.998;
 		// The divisor k normalizes LWMA.
-		const double_t k = N * (N + 1) / 2;
+		const double k = N * (N + 1) / 2;
 
-		double_t LWMA(0), sum_inverse_D(0), harmonic_mean_D(0), nextDifficulty(0);
+		double LWMA(0), sum_inverse_D(0), harmonic_mean_D(0), nextDifficulty(0);
 		int64_t solveTime(0);
-		uint64_t difficulty(0), nextDiffV3V4(0);
+		uint64_t difficulty(0), next_difficulty(0);
 
 		// Loop through N most recent blocks.
-		for (int64_t i = 1; i <= N; i++) {
+		for (size_t i = 1; i <= N; i++) {
 			solveTime = static_cast<int64_t>(timestamps[i]) - static_cast<int64_t>(timestamps[i - 1]);
-			solveTime = std::min<int64_t>((T * 7), std::max<int64_t>(solveTime, (-7 * T)));
+			solveTime = std::min<int64_t>((T * 7), std::max<int64_t>(solveTime, (-6 * T)));
 			difficulty = cumulativeDifficulties[i] - cumulativeDifficulties[i - 1];
-			LWMA += solveTime * i / k;
-			sum_inverse_D += 1 / static_cast<double_t>(difficulty);
+			LWMA += (int64_t)(solveTime * i) / k;
+			sum_inverse_D += 1 / static_cast<double>(difficulty);
 		}
 
 		// Keep LWMA sane in case something unforeseen occurs.
-		if (static_cast<int64_t>(std::round(LWMA)) < T / 20)
-			LWMA = static_cast<double_t>(T / 20);
+		if (static_cast<int64_t>(boost::math::round(LWMA)) < T / 20)
+			LWMA = static_cast<double>(T) / 20;
 
 		harmonic_mean_D = N / sum_inverse_D * adjust;
 		nextDifficulty = harmonic_mean_D * T / LWMA;
-		nextDiffV3V4 = static_cast<uint64_t>(nextDifficulty);
+		next_difficulty = static_cast<uint64_t>(nextDifficulty);
 		
 		// minimum limit
-		if (nextDiffV3V4 < 1000000) {
-			nextDiffV3V4 = 1000000;
-		}
-		if (isTestnet()){
-			nextDiffV3V4 = 10;
+		if (!isTestnet() && next_difficulty < 100000) {
+			next_difficulty = 100000;
 		}
 
-		return nextDiffV3V4;
+		return next_difficulty;
 	}
-
 
 	template <typename T>
 	inline T clamp(T lo, T v, T hi)
@@ -676,30 +702,28 @@ namespace CryptoNote {
 		}
 
 		return nextDiffV5;
-	}
+}
 
-	bool Currency::checkProofOfWorkV1(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
+	bool Currency::checkProofOfWorkV1(Crypto::cn_context& context, const Block& block, difficulty_type currentDiffic,
 		Crypto::Hash& proofOfWork) const {
-
 		if (BLOCK_MAJOR_VERSION_2 == block.majorVersion || BLOCK_MAJOR_VERSION_3 == block.majorVersion) {
 			return false;
 		}
 
-		if (!get_block_longhash(hash_ctx, block, proofOfWork)) {
+		if (!get_block_longhash(context, block, proofOfWork)) {
 			return false;
 		}
 
 		return check_hash(proofOfWork, currentDiffic);
 	}
 
-	bool Currency::checkProofOfWorkV2(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, 
- 		Crypto::Hash& proofOfWork) const {
-
+	bool Currency::checkProofOfWorkV2(Crypto::cn_context& context, const Block& block, difficulty_type currentDiffic,
+		Crypto::Hash& proofOfWork) const {
 		if (block.majorVersion < BLOCK_MAJOR_VERSION_2) {
 			return false;
 		}
 
-		if (!get_block_longhash(hash_ctx, block, proofOfWork)) {
+		if (!get_block_longhash(context, block, proofOfWork)) {
 			return false;
 		}
 
@@ -734,18 +758,18 @@ namespace CryptoNote {
 		return true;
 	}
 
-	bool Currency::checkProofOfWork(cn_pow_hash_v2& hash_ctx, const Block& block, difficulty_type currentDiffic, Crypto::Hash& proofOfWork) const { 
+	bool Currency::checkProofOfWork(Crypto::cn_context& context, const Block& block, difficulty_type currentDiffic, Crypto::Hash& proofOfWork) const {
 		switch (block.majorVersion) {
 		case BLOCK_MAJOR_VERSION_1:
 		case BLOCK_MAJOR_VERSION_4:
 		case BLOCK_MAJOR_VERSION_5:
 		case BLOCK_MAJOR_VERSION_6:
-			return checkProofOfWorkV1(hash_ctx, block, currentDiffic, proofOfWork); 
+			return checkProofOfWorkV1(context, block, currentDiffic, proofOfWork);
 
 		case BLOCK_MAJOR_VERSION_2:
 		case BLOCK_MAJOR_VERSION_3:
-			return checkProofOfWorkV2(hash_ctx, block, currentDiffic, proofOfWork); 
- 		}
+			return checkProofOfWorkV2(context, block, currentDiffic, proofOfWork);
+		}
 
 		logger(ERROR, BRIGHT_RED) << "Unknown block major version: " << block.majorVersion << "." << block.minorVersion;
 		return false;
@@ -781,11 +805,12 @@ namespace CryptoNote {
 		publicAddressBase58Prefix(parameters::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX);
 		minedMoneyUnlockWindow(parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW);
 		transactionSpendableAge(parameters::CRYPTONOTE_TX_SPENDABLE_AGE);
+		expectedNumberOfBlocksPerDay(parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY);
 
 		timestampCheckWindow(parameters::BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW);
-		timestampCheckWindow_v1(parameters::BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1); 
+		timestampCheckWindow_v1(parameters::BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1);
 		blockFutureTimeLimit(parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT);
-		blockFutureTimeLimit_v1(parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1); 
+		blockFutureTimeLimit_v1(parameters::CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1);
 
 		moneySupply(parameters::MONEY_SUPPLY);
 		emissionSpeedFactor(parameters::EMISSION_SPEED_FACTOR);

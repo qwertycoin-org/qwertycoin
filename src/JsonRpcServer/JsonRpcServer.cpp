@@ -1,8 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright(c) 2014 - 2017 XDN - project developers
-// Copyright(c) 2017 - 2018 The Karbo developers
-// Copyright(c) 2018 The Qwertycoin developers
+// Copyright(c) 2018 The Karbo developers
 //
 // This file is part of Qwertycoin.
 //
@@ -34,7 +33,6 @@
 #include <System/Ipv4Address.h>
 #include "HTTP/HttpParser.h"
 #include "HTTP/HttpResponse.h"
-
 #include "Rpc/JsonRpc.h"
 #include "Common/JsonValue.h"
 #include "Serialization/JsonInputValueSerializer.h"
@@ -110,7 +108,6 @@ void JsonRpcServer::makeErrorResponse(const std::error_code& ec, Common::JsonVal
   JsonValue error(JsonValue::OBJECT);
 
   JsonValue code;
-  code = static_cast<int64_t>(-32000); //Application specific error code
   code = static_cast<int64_t>(CryptoNote::JsonRpc::errParseError); //Application specific error code
 
   JsonValue message;
@@ -160,6 +157,7 @@ void JsonRpcServer::makeMethodNotFoundResponse(Common::JsonValue& resp) {
 
   JsonValue code;
   code = static_cast<int64_t>(CryptoNote::JsonRpc::errMethodNotFound); //ambigous declaration of JsonValue::operator= (between int and JsonValue)
+
   JsonValue message;
   message = "Method not found";
 

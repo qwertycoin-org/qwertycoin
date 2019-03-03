@@ -1,9 +1,9 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2014-2018, The Monero project
 // Copyright (c) 2014-2018, The Forknote developers
-// Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018, Ryo Currency Project 
-// Copyright (c) 2017-2019, The Qwertycoin developers
+// Copyright (c) 2018, Ryo Currency Project
+// Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -28,9 +28,6 @@ namespace CryptoNote {
 namespace parameters {
 
 const uint64_t DIFFICULTY_TARGET                              = 120;
-const uint64_t DIFFICULTY_TARGET_V2                           = 60;                     //5.0?
-const uint64_t DIFFICULTY_TARGET_V3                           = 30;                     //6.0
-
 const uint64_t CRYPTONOTE_MAX_BLOCK_NUMBER                    = 500000000;
 const size_t   CRYPTONOTE_MAX_BLOCK_BLOB_SIZE                 = 500000000;
 const size_t   CRYPTONOTE_MAX_TX_SIZE                         = 1000000000;
@@ -45,6 +42,7 @@ const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1           = 11;             
 
 const uint64_t MONEY_SUPPLY                                   = (uint64_t)(-1);
 const uint64_t TAIL_EMISSION_REWARD                           = 100;
+const uint64_t COIN                                           = TAIL_EMISSION_REWARD;
 const size_t CRYPTONOTE_COIN_VERSION                          = 1;
 const unsigned EMISSION_SPEED_FACTOR                          = 19;
 static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
@@ -56,16 +54,26 @@ const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1   = CRYPTONOTE_BLOCK
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE         = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT               = 8;
-const uint64_t MINIMUM_FEE                                    = UINT64_C(100000000); // 1 QWC
-const uint64_t DEFAULT_DUST_THRESHOLD                         = UINT64_C(100000);    // 0.001
+
+const uint64_t MINIMUM_FEE_V1                                 = UINT64_C(100000000);
+const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(100000000);
+const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 800000;
+const uint64_t MINIMUM_FEE                                    = MINIMUM_FEE_V2;
+const uint64_t MAXIMUM_FEE                                    = UINT64_C(100000000);
+
+const uint64_t DEFAULT_DUST_THRESHOLD                         = UINT64_C(100000);
 const uint64_t MIN_TX_MIXIN_SIZE                              = 2;
-const uint64_t MAX_TX_MIXIN_SIZE                              = 20;
-const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 4 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+const uint64_t MAX_TX_MIXIN_SIZE_V1                           = 20;
+const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
+const uint64_t MAX_TX_MIXIN_SIZE                              = MAX_TX_MIXIN_SIZE_V2;
+const uint32_t MIN_TX_MIXIN_V1_HEIGHT                         = 200000;
+const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 800000;
+const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY              = 24 * 60 * 60 / DIFFICULTY_TARGET;
-const size_t   DIFFICULTY_WINDOW                              = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;
-const size_t   DIFFICULTY_WINDOW_V2                           = DIFFICULTY_WINDOW;
-const size_t   DIFFICULTY_WINDOW_V3                           = 70;
+const size_t   DIFFICULTY_WINDOW                              = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY; // blocks
+const size_t   DIFFICULTY_WINDOW_V2                           = DIFFICULTY_WINDOW;  // blocks
+const size_t   DIFFICULTY_WINDOW_V3                           = 70;  // blocks
 const size_t   DIFFICULTY_CUT                                 = 60;  // timestamps to cut after sorting
 const size_t   DIFFICULTY_LAG                                 = 15;  // !!!
 static_assert(2 * DIFFICULTY_CUT <= DIFFICULTY_WINDOW - 2, "Bad DIFFICULTY_WINDOW or DIFFICULTY_CUT");
@@ -135,7 +143,7 @@ const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                =  1000;
 const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
 
 const size_t   P2P_CONNECTION_MAX_WRITE_BUFFER_SIZE          = 64 * 1024 * 1024; // 64 MB
-const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 16;
+const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 8;
 const size_t   P2P_DEFAULT_WHITELIST_CONNECTIONS_PERCENT     = 70;
 const uint32_t P2P_DEFAULT_HANDSHAKE_INTERVAL                = 60;            // seconds
 const uint32_t P2P_DEFAULT_PACKET_MAX_SIZE                   = 50000000;      // 50000000 bytes maximum packet size
@@ -153,23 +161,53 @@ const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef004d
 
 const char* const SEED_NODES[] = { 
   "node-00.qwertycoin.org:8196",
-  "node-02.qwertycoin.org:8196",
-  "node-03.qwertycoin.org:8196",
   "node-01.qwertycoin.org:8196",
   "node-02.qwertycoin.org:8196",
-  "loop.qwertycoin.org:8196",
-  "explorer.qwertycoin.org:8196",
+  "node-03.qwertycoin.org:8196",
+  "node-04.qwertycoin.org:8196",
   "node-05.qwertycoin.org:8196",
-  /* Community Nodes */
-  "77.55.237.152:8196",
+  "loop.qwertycoin.org:8196",
   "qwertycoin.spdns.org:8196",
+  "explorer.qwertycoin.org:8196",
   "220.82.126.94:8196",
   "91.194.90.163:8196",
-  "198.147.30.116:8196",
-  "198.147.30.115:8196",
-  "195.201.27.148:8196",
-  "78.47.85.215:8196",
-  "79.150.120.70:8196"
+  "77.55.237.152:8196"
+};
+
+struct CheckpointData {
+  uint32_t height;
+  const char* blockId;
+};
+
+const std::initializer_list<CheckpointData> CHECKPOINTS = { 
+  { 10000,"fb021fd69f78a60a365c16692777e7f699215404366545e072eba7dddbf1d61d"},
+  { 20000,"d32286163e2a5cfbbab35007438e7bf90564afee70c715930606710e96f2ce19"},
+  { 30000,"1d32bbca2149eeb27ff9e2c19d1b6ace4a160764839a4da7031328f7ea49e6f6"},
+  { 40000,"60a9694b18cf470bcfd9f36f32ad01f86b5538fe1f88a3bd2717ca6ad1c7ce80"},//2.0
+  { 46000,"51e2f9e09278cb66b08efcecfdf3208053ee53030c6fc5a6a647565a6b318cd5"},//3.0
+  { 50000,"5599ca3d8ac58f377187b5a43c00103496244ec95299e4ae3dff3be6016488bf"},
+  { 60000,"796e0037bed22ec317dc165bdfcc331322fe3fcc7ca162827ab374a7d17107f0"},
+  { 70000,"9b035668d72b17ceaabbd4b341089f090aa5ebad37f33513509d9f6e102c7c0c"},
+  { 80000,"02bdbd6cab951c0685796598b353524d450f947c58d8e1a8efbc05c334663ad7"},
+  { 90000,"96e00099a12e4e50a84d361942a05ff026f2e0f413f0f9afefc8af7085dde9da"},
+  {100000,"d5b20487d7a4b76d80dc2ae5e51da7feb9190a88264492ecc2f965e4f30b737d"},
+  {110520,"a2d08d171265aa0c4ee9e5e5baebd191940f86ccc7b01cd8ebfa2276db98736c"},//4.0
+  {120000,"b31f8f2284f51cecf8028876ddd6df7c812b7fbc274ff7bab303f1fcc3b3310b"},
+  {130000,"7c171f2a4d40a136ba9f309895cc695f957a783736f492a4bb9613905cd62256"},
+  {140000,"60c532ab429aaba8027528d39499fb935d00c53a0b73559a03434b2fc6b01c9f"},
+  {150000,"0d693d183d662d53101d9729a5e03f4fe87a378c4dacbb642842cdaf6a75c224"},
+  {160000,"d372a4f56bb020bbeef7dc3543ebde9076110bbc3390a70f302a4565743a2fcd"},
+  {170000,"b7df3e82d6798ab93bf56314ef619ae9709af1750530446e4981637c46c91f1f"},
+  {173136,"36a9ab5f39cf4a1d612c4e10c1a72b7d147ab88f92e511af84265b7d04804dc0"},//4.0.2
+  {180000,"f4b74b907bcf622b4b7353c22886b502fc0e3fdbd71ba6087b9248d80eddbdae"},
+  {190000,"40fce151760a333b81a66c1e41c91d0b804fc7efb7c06fc5f9ecb1e20c8323e7"},
+  {200000,"22d739a610c5cb7ca4a2debd19b4bac38c0e0df2393de67ab131eec0b6537ec2"},
+  {210000,"ced2e2f563172da1805522b443397e9c85ee7a5aa49d5674a2d61b491e0f7e4f"},
+  {220000,"2d7d54263c939bdaba1892946d9292b24cced789cbc5d14b6164ab8b57658f75"},
+  {230000,"190891fd56763afbc9e7c609a3a90bcb801a504daf2e352060cf1f7dfb9f2896"},
+  {240000,"522cbcb5341a1c4a804212923713227363671a2db3ea41f8957a15b6234b17f4"},
+  {250721,"a119b644ec0a35c77f8cf7ed6a0ff4d37b7a279ac8fadfb660e83cc795ddb7de"},//5.0.0 was born
+  {272934,"0fbe196cdf46120a44f77596cd116b4ae8f5fe1e4d8835336402a0c05b3d420a"}
 };
 
 } // CryptoNote

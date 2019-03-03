@@ -1,9 +1,9 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2014-2018, The Monero project
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2018, The TurtleCoin developers
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -39,6 +39,7 @@ namespace {
     return true;
   }
 }
+
 
 DaemonCommandsHandler::DaemonCommandsHandler(CryptoNote::core& core, CryptoNote::NodeServer& srv, Logging::LoggerManager& log, const CryptoNote::ICryptoNoteProtocolQuery& protocol, CryptoNote::RpcServer* prpc_server) :
   m_core(core), m_srv(srv), logger(log, "daemon"), m_logManager(log), protocolQuery(protocol), m_prpc_server(prpc_server) {
@@ -128,19 +129,20 @@ bool DaemonCommandsHandler::status(const std::vector<std::string>& args) {
   std::time_t uptime = std::time(nullptr) - m_core.getStartTime();
   uint8_t majorVersion = m_core.getBlockMajorVersionForHeight(height);
   bool synced = ((uint32_t)height == (uint32_t)last_known_block_index);
+  uint64_t alt_block_count = m_core.get_alternative_blocks_count();
 
   std::cout << std::endl
     << (synced ? "Synced " : "Syncing ") << height << "/" << last_known_block_index 
     << " (" << get_sync_percentage(height, last_known_block_index) << "%) "
     << "on " << (m_core.currency().isTestnet() ? "testnet, " : "mainnet, ")
     << "network hashrate: " << get_mining_speed(hashrate) << ", next difficulty: " << difficulty << ", "
-    << "block v. " << (int)majorVersion << ", "
+    << "block v. " << (int)majorVersion << ", alt. blocks: " << alt_block_count << ", "
     << outgoing_connections_count << " out. + " << incoming_connections_count << " inc. connection(s), "
     << rpc_conn <<  " rpc connection(s), " << tx_pool_size << " transaction(s) in mempool, "
     << "uptime: " << (unsigned int)floor(uptime / 60.0 / 60.0 / 24.0) << "d " << (unsigned int)floor(fmod((uptime / 60.0 / 60.0), 24.0)) << "h "
     << (unsigned int)floor(fmod((uptime / 60.0), 60.0)) << "m " << (unsigned int)fmod(uptime, 60.0) << "s"
     << std::endl;
-
+  
   return true;
 }
 
@@ -436,7 +438,7 @@ bool DaemonCommandsHandler::unban(const std::vector<std::string>& args)
   uint32_t ip;
   try {
     ip = Common::stringToIpAddress(addr);
-  } catch (const std::exception &e) {
+  }	catch (const std::exception &e) {
     return false;
   }
   return m_srv.unban_host(ip);

@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, Karbo developers
 //
 // This file is part of Qwertycoin.
@@ -48,6 +49,7 @@ WalletLegacySerializer::WalletLegacySerializer(CryptoNote::AccountBase& account,
 void WalletLegacySerializer::serialize(std::ostream& stream, const std::string& password, bool saveDetailed, const std::string& cache) {
   // set serialization version global variable
   CryptoNote::WALLET_LEGACY_SERIALIZATION_VERSION = walletSerializationVersion;
+
   std::stringstream plainArchive;
   StdOutputStream plainStream(plainArchive);
   CryptoNote::BinaryOutputStreamSerializer serializer(plainStream);
@@ -93,7 +95,8 @@ void WalletLegacySerializer::saveKeys(CryptoNote::ISerializer& serializer) {
 
 Crypto::chacha8_iv WalletLegacySerializer::encrypt(const std::string& plain, const std::string& password, std::string& cipher) {
   Crypto::chacha8_key key;
-  Crypto::generate_chacha8_key(password, key);
+  Crypto::cn_context context;
+  Crypto::generate_chacha8_key(context, password, key);
 
   cipher.resize(plain.size());
 
@@ -153,7 +156,8 @@ void WalletLegacySerializer::deserialize(std::istream& stream, const std::string
 
 void WalletLegacySerializer::decrypt(const std::string& cipher, std::string& plain, Crypto::chacha8_iv iv, const std::string& password) {
   Crypto::chacha8_key key;
-  Crypto::generate_chacha8_key(password, key);
+  Crypto::cn_context context;
+  Crypto::generate_chacha8_key(context, password, key);
 
   plain.resize(cipher.size());
 

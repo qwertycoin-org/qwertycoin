@@ -1,6 +1,7 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018, The TurtleCoin developers, The Karbo developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
+// Copyright (c) 2018, The TurtleCoin developers
+// Copyright (c) 2018, The Karbo developers
 //
 // This file is part of Qwertycoin.
 //
@@ -58,28 +59,28 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
 }
 //---------------------------------------------------------------------------
 bool Checkpoints::load_checkpoints_from_file(const std::string& fileName) {
-  std::ifstream file(fileName);
-  if (!file) {
-    logger(Logging::ERROR, BRIGHT_RED) << "Could not load checkpoints file: " << fileName;
-    return false;
-  }
-  std::string indexString;
-  std::string hash;
-  uint32_t height;
-  while (std::getline(file, indexString, ','), std::getline(file, hash)) {
-    try {
-      height = std::stoi(indexString);
-    } catch (const std::invalid_argument &) {
-      logger(ERROR, BRIGHT_RED) << "Invalid checkpoint file format - "
-        << "could not parse height as a number";
-      return false;
-    }
-    if (!add_checkpoint(height, hash)) {
-      return false;
-    }
-  }
-  logger(Logging::INFO) << "Loaded " << m_points.size() << " checkpoints from " << fileName;
-  return true;
+	std::ifstream file(fileName);
+	if (!file) {
+		logger(Logging::ERROR, BRIGHT_RED) << "Could not load checkpoints file: " << fileName;
+		return false;
+	}
+	std::string indexString;
+	std::string hash;
+	uint32_t height;
+	while (std::getline(file, indexString, ','), std::getline(file, hash)) {
+		try {
+			height = std::stoi(indexString);
+		} catch (const std::invalid_argument &)	{
+			logger(ERROR, BRIGHT_RED) << "Invalid checkpoint file format - "
+				<< "could not parse height as a number";
+			return false;
+		}
+		if (!add_checkpoint(height, hash)) {
+			return false;
+		}
+	}
+	logger(Logging::INFO) << "Loaded " << m_points.size() << " checkpoints from "	<< fileName;
+	return true;
 }
 
 //---------------------------------------------------------------------------
@@ -175,7 +176,7 @@ bool Checkpoints::load_checkpoints_from_dns()
       logger(DEBUGGING) << "Checkpoint already exists for height: " << height << ". Ignoring DNS checkpoint.";
     } else {
       add_checkpoint(height, hash_str);
-    logger(DEBUGGING) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
+	  logger(DEBUGGING) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
     }
   }
 

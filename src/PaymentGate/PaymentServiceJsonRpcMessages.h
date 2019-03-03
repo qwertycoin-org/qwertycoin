@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, Karbo developers
 //
 // This file is part of Qwertycoin.
@@ -75,28 +76,30 @@ struct GetStatus {
   struct Response {
     uint32_t blockCount;
     uint32_t knownBlockCount;
+	uint32_t localDaemonBlockCount;
     std::string lastBlockHash;
     uint32_t peerCount;
+    uint64_t minimalFee;
 
     void serialize(CryptoNote::ISerializer& serializer);
   };
 };
 
 struct ValidateAddress {
- struct Request {
-   std::string address;
-   
-   void serialize(CryptoNote::ISerializer& serializer);
- };
+	struct Request {
+		std::string address;
+		
+		void serialize(CryptoNote::ISerializer& serializer);
+	};
 
- struct Response {
-   bool isvalid;
-   std::string address;
-   std::string spendPublicKey;
-   std::string viewPublicKey;
+	struct Response {
+		bool isvalid;
+		std::string address;
+		std::string spendPublicKey;
+		std::string viewPublicKey;
 
-   void serialize(CryptoNote::ISerializer& serializer);
- };
+		void serialize(CryptoNote::ISerializer& serializer);
+	};
 };
 
 struct GetAddresses {
@@ -310,7 +313,7 @@ struct SendTransaction {
 
   struct Response {
     std::string transactionHash;
-      std::string transactionSecretKey;
+	std::string transactionSecretKey;
 
     void serialize(CryptoNote::ISerializer& serializer);
   };

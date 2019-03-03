@@ -7,10 +7,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef KECCAK_ROUNDS
 #define KECCAK_ROUNDS 24
 #endif
@@ -26,9 +22,5 @@ int keccak(const uint8_t *in, int inlen, uint8_t *md, int mdlen);
 void keccakf(uint64_t st[25], int norounds);
 
 void keccak1600(const uint8_t *in, int inlen, uint8_t *md);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

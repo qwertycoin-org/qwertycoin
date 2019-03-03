@@ -105,9 +105,9 @@ void HttpServer::acceptLoop() {
 
     m_connections.insert(&connection);
     BOOST_SCOPE_EXIT_ALL(this, &connection) { 
-      m_connections.erase(&connection);};
+      m_connections.erase(&connection); };
 
-  	workingContextGroup.spawn(std::bind(&HttpServer::acceptLoop, this));
+	workingContextGroup.spawn(std::bind(&HttpServer::acceptLoop, this));
 
 	//auto addr = connection.getPeerAddressAndPort();
 	auto addr = std::pair<System::Ipv4Address, uint16_t>(static_cast<System::Ipv4Address>(0), 0);
@@ -150,7 +150,7 @@ void HttpServer::acceptLoop() {
 
   } catch (System::InterruptedException&) {
   } catch (std::exception& e) {
-    logger(WARNING) << "Connection error: " << e.what();
+    logger(DEBUGGING) << "Connection error: " << e.what();
   }
 }
 
