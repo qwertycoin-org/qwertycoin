@@ -5,11 +5,15 @@
 #### Development Build Status
 [![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=dev)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/github/qwertycoin-org/qwertycoin?branch=dev&svg=true)](https://ci.appveyor.com/project/qwertycoin-org/qwertycoin)
 
+### Installing
+
+We offer binary images of the latest releases here: https://releases.qwertycoin.org
+
+If you would like to compile yourself, read on.
+
 ### How To Compile
 
 #### Linux
-
-If you are using Arch Linux, there is an AUR precompiled package, `qwertycoin-bin`, or a build from source version, `qwertycoin-git`.
 
 ##### Prerequisites
 
