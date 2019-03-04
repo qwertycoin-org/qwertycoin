@@ -1,113 +1,864 @@
-add_definitions(-DSTATICLIB)
+# Generate version.h header
+configure_file(
+    "${CMAKE_CURRENT_LIST_DIR}/version.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/version.h"
+    @ONLY)
+message(STATUS "Generated version.h header: ${CMAKE_CURRENT_BINARY_DIR}/version.h")
 
-file(GLOB_RECURSE BlockchainExplorer BlockchainExplorer/*)
-file(GLOB_RECURSE Common Common/*)
-file(GLOB_RECURSE ConnectivityTool ConnectivityTool/*)
-file(GLOB_RECURSE Crypto crypto/*)
-file(GLOB_RECURSE CryptoNoteCore CryptoNoteCore/* CryptoNoteConfig.h)
-file(GLOB_RECURSE CryptoNoteProtocol CryptoNoteProtocol/*)
-file(GLOB_RECURSE Daemon Daemon/*)
-file(GLOB_RECURSE Http HTTP/*)
-file(GLOB_RECURSE InProcessNode InProcessNode/*)
-file(GLOB_RECURSE Logging Logging/*)
-file(GLOB_RECURSE NodeRpcProxy NodeRpcProxy/*)
-file(GLOB_RECURSE P2p P2p/*)
-file(GLOB_RECURSE Rpc Rpc/*)
-file(GLOB_RECURSE Serialization Serialization/*)
-file(GLOB_RECURSE SimpleWallet SimpleWallet/*)
-file(GLOB_RECURSE Mnemonics mnemonics/*)
+set(Qwertycoin_INCLUDE_DIRS
+    "${Boost_INCLUDE_DIRS}"
+    "${MINIUPNP_INCLUDE_DIRS}"
+    "${SPARSEHASH_INCLUDE_DIRS}"
+    "${CMAKE_CURRENT_BINARY_DIR}"
+    "${CMAKE_CURRENT_LIST_DIR}"
+    "${CMAKE_CURRENT_LIST_DIR}/../include")
+
 if(MSVC)
-file(GLOB_RECURSE System System/* Platform/Windows/System/*)
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows")
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/msc")
 elseif(APPLE)
-file(GLOB_RECURSE System System/* Platform/OSX/System/* Platform/Posix/System/*)
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX")
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix")
 elseif(ANDROID)
-file(GLOB_RECURSE System System/* Platform/Android/System/* Platform/Posix/System/*)
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Android")
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix")
 else()
-file(GLOB_RECURSE System System/* Platform/Linux/System/* Platform/Posix/System/*)
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux")
+    list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix")
 endif()
-file(GLOB_RECURSE Transfers Transfers/*)
-file(GLOB_RECURSE Wallet Wallet/*)
-file(GLOB_RECURSE WalletLegacy WalletLegacy/*)
 
-file(GLOB_RECURSE JsonRpcServer JsonRpcServer/*)
+# Qwertycoin::BinaryInfo # NOTE: Ignore this. It's not a target.
 
-file(GLOB_RECURSE PaymentGate PaymentGate/*)
-file(GLOB_RECURSE PaymentGateService PaymentGateService/*)
-file(GLOB_RECURSE Miner Miner/*)
+# Qwertycoin::BlockchainExplorer
 
-source_group("" FILES $${Common} ${ConnectivityTool} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${Daemon} ${JsonRpcServer} ${Http} ${Logging} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${SimpleWallet} ${System} ${Transfers} ${Wallet} ${WalletLegacy} ${Mnemonics})
+set(QwertycoinBlockchainExplorer_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerDataBuilder.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerDataBuilder.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerErrors.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerErrors.h")
 
-add_library(BlockchainExplorer ${BlockchainExplorer})
-add_library(Common ${Common})
-add_library(Crypto ${Crypto})
-add_library(CryptoNoteCore ${CryptoNoteCore})
-add_library(Http ${Http})
-add_library(InProcessNode ${InProcessNode})
-add_library(Logging ${Logging})
-add_library(NodeRpcProxy ${NodeRpcProxy})
-add_library(Rpc ${Rpc})
-add_library(P2P ${CryptoNoteProtocol} ${P2p})
-add_library(Serialization ${Serialization})
-add_library(System ${System})
-add_library(Transfers ${Transfers})
-add_library(Wallet ${Wallet} ${WalletLegacy})
-add_library(PaymentGate ${PaymentGate})
-add_library(JsonRpcServer ${JsonRpcServer})
-add_library(Mnemonics ${Mnemonics})
+add_library(QwertycoinBlockchainExplorer STATIC ${QwertycoinBlockchainExplorer_SOURCES})
+add_library(Qwertycoin::BlockchainExplorer ALIAS QwertycoinBlockchainExplorer)
+target_include_directories(QwertycoinBlockchainExplorer PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::Common
+
+set(QwertycoinCommon_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ArrayRef.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ArrayView.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Base58.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Base58.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/BlockingQueue.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/BlockingQueue.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/CommandLine.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/CommandLine.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ConsoleHandler.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ConsoleHandler.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ConsoleTools.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ConsoleTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/DnsTools.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/DnsTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/FileMappedVector.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/FileMappedVector.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/IInputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/IInputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/IOutputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/IOutputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/JsonValue.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/JsonValue.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Lazy.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Math.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Math.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/MemoryInputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/MemoryInputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ObserverManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/PathTools.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/PathTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ScopeExit.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ScopeExit.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ShuffleGenerator.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/SignalHandler.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/SignalHandler.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StdInputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StdInputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StdOutputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StdOutputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StreamTools.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StreamTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringBuffer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringInputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringInputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringOutputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringOutputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringTools.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringUtils.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringUtils.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringView.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/StringView.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Util.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Util.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/Varint.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/VectorOutputStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/VectorOutputStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/VectorUtils.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/int-util.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/pod-class.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/static_assert.h")
+
+add_library(QwertycoinCommon STATIC ${QwertycoinCommon_SOURCES})
+add_library(Qwertycoin::Common ALIAS QwertycoinCommon)
+target_include_directories(QwertycoinCommon PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinCommon PRIVATE Threads::Threads)
+
+if (UNIX AND NOT ANDROID)
+    target_link_libraries(QwertycoinCommon PUBLIC -lresolv)
+endif()
+
+# Qwertycoin::ConnectivityTool
+
+set(QwertycoinConnectivityTool_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/ConnectivityTool/ConnectivityTool.cpp")
 
 if(WIN32)
-add_executable(Daemon ${Daemon} BinaryInfo/daemon.rc)
-add_executable(SimpleWallet ${SimpleWallet} BinaryInfo/simplewallet.rc)
-add_executable(PaymentGateService ${PaymentGateService} BinaryInfo/walletd.rc)
-else()
-add_executable(Daemon ${Daemon} )
-add_executable(SimpleWallet ${SimpleWallet} )
-add_executable(PaymentGateService ${PaymentGateService} )
+    list(APPEND QwertycoinConnectivityTool_SOURCES "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/connectivity_tool.rc")
 endif()
-add_executable(ConnectivityTool ${ConnectivityTool})
-add_executable(Miner ${Miner})
 
-if (MSVC)
-  target_link_libraries(System ws2_32)
-endif ()
+set(QwertycoinConnectivityTool_LIBS
+    Boost::program_options
+    Qwertycoin::Common
+    Qwertycoin::Crypto
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::Http
+    Qwertycoin::Logging
+    Qwertycoin::P2p
+    Qwertycoin::Rpc
+    Qwertycoin::Serialization
+    Qwertycoin::System)
 
-# Boost libraries
-set(Boost_LIBS
-  Boost::system
-  Boost::filesystem
-  Boost::thread
-  Boost::date_time
-  Boost::chrono
-  Boost::regex
-  Boost::serialization
-  Boost::program_options
-  Boost::coroutine
-  Boost::context
-  Boost::atomic)
+if(WIN32)
+    list(APPEND QwertycoinConnectivityTool_LIBS ws2_32)
+endif()
 
-# Add the dependencies we need
-target_link_libraries(ConnectivityTool CryptoNoteCore Logging Crypto P2P Rpc Http Serialization Common System ${Boost_LIBS} ${EXTRA_LIBRARIES})
-target_link_libraries(Daemon Rpc CryptoNoteCore P2P System Http Logging Common Crypto upnpc-static BlockchainExplorer ${Boost_LIBS} Serialization ${EXTRA_LIBRARIES})
-target_link_libraries(SimpleWallet Wallet NodeRpcProxy Transfers Rpc Http CryptoNoteCore System Logging Common Crypto ${Boost_LIBS} Serialization Mnemonics ${EXTRA_LIBRARIES})
-target_link_libraries(PaymentGateService PaymentGate JsonRpcServer Wallet NodeRpcProxy Transfers CryptoNoteCore Crypto P2P Rpc Http System Logging Common InProcessNode upnpc-static BlockchainExplorer ${Boost_LIBS} Serialization ${EXTRA_LIBRARIES})
-target_link_libraries(Miner CryptoNoteCore Rpc System Http Logging Common Crypto ${Boost_LIBS} Serialization ${EXTRA_LIBRARIES})
+add_executable(QwertycoinConnectivityTool ${QwertycoinConnectivityTool_SOURCES})
+add_executable(Qwertycoin::ConnectivityTool ALIAS QwertycoinConnectivityTool)
+target_include_directories(QwertycoinConnectivityTool PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinConnectivityTool ${QwertycoinConnectivityTool_LIBS})
+set_target_properties(QwertycoinConnectivityTool PROPERTIES OUTPUT_NAME "connectivity_tool")
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR APPLE AND NOT ANDROID)
-  target_link_libraries(SimpleWallet -lresolv)
-  target_link_libraries(Daemon -lresolv)
-  target_link_libraries(PaymentGateService -lresolv)
-endif ()
+# Qwertycoin::Crypto
 
-add_dependencies(Rpc version)
+set(QwertycoinCrypto_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/blake256.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/blake256.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/chacha8.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/chacha8.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/cn_slow_hash.hpp"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/cn_slow_hash_hard_arm.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/cn_slow_hash_hard_intel.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/cn_slow_hash_soft.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/crypto-ops-data.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/crypto-ops.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/crypto-ops.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/crypto.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/crypto.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/generic-ops.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/groestl.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/groestl.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/groestl_tables.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/hash-ops.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/hash.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/hash.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/initializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/jh.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/jh.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/keccak.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/keccak.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/random.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/random.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/skein.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/skein.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/skein_port.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/tree-hash.c")
 
-add_dependencies(ConnectivityTool version)
-add_dependencies(Daemon version)
-add_dependencies(SimpleWallet version)
-add_dependencies(PaymentGateService version)
-add_dependencies(P2P version)
+add_library(QwertycoinCrypto STATIC ${QwertycoinCrypto_SOURCES})
+add_library(Qwertycoin::Crypto ALIAS QwertycoinCrypto)
+target_include_directories(QwertycoinCrypto PRIVATE ${Qwertycoin_INCLUDE_DIRS})
 
-set_property(TARGET ConnectivityTool PROPERTY OUTPUT_NAME "connectivity_tool")
-set_property(TARGET Daemon PROPERTY OUTPUT_NAME "qwertycoind")
-set_property(TARGET SimpleWallet PROPERTY OUTPUT_NAME "simplewallet")
-set_property(TARGET PaymentGateService PROPERTY OUTPUT_NAME "walletd")
-set_property(TARGET Miner PROPERTY OUTPUT_NAME "miner")
+if(NOT ARM AND NOT PPC64LE)
+    message(STATUS "[Qwertycoin::Crypto] AES support enabled.")
+    target_compile_options(QwertycoinCrypto PRIVATE -maes)
+elseif(PPC64LE)
+    message(STATUS "[Qwertycoin::Crypto] AES support disabled.")
+endif()
+
+# Qwertycoin::CryptoNoteCore
+
+set(QwertycoinCryptoNoteCore_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Account.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Account.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/BlockIndex.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/BlockIndex.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Blockchain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Blockchain.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/BlockchainIndices.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/BlockchainIndices.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/BlockchainMessages.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/BlockchainMessages.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Checkpoints.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Checkpoints.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Core.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Core.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CoreConfig.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CoreConfig.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteBasic.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteBasic.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteBasicImpl.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteBasicImpl.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteFormatUtils.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteFormatUtils.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteSerialization.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteSerialization.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteStatInfo.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteTools.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/CryptoNoteTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Currency.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Currency.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Difficulty.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Difficulty.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlock.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlock.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlockchainStorageObserver.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ICore.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ICoreObserver.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IMinerHandler.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITimeProvider.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITimeProvider.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITransactionValidator.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITxPoolObserver.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IntrusiveLinkedList.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/MessageQueue.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Miner.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Miner.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/MinerConfig.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/MinerConfig.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/OnceInInterval.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedMap.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedMap.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedVector.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedVector.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Transaction.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionApi.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionApiExtra.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionExtra.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionExtra.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionPool.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionPool.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionPrefixImpl.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/UpgradeDetector.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/UpgradeDetector.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/VerificationContext.h")
+
+set(QwertycoinCryptoNoteCore_LIBS
+    sparsehash::sparsehash
+    Qwertycoin::BlockchainExplorer
+    Qwertycoin::Common
+    Qwertycoin::Crypto)
+
+add_library(QwertycoinCryptoNoteCore STATIC ${QwertycoinCryptoNoteCore_SOURCES})
+add_library(Qwertycoin::CryptoNoteCore ALIAS QwertycoinCryptoNoteCore)
+target_include_directories(QwertycoinCryptoNoteCore PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinCryptoNoteCore PRIVATE ${QwertycoinCryptoNoteCore_LIBS})
+
+# Qwertycoin::CryptoNoteProtocol
+
+set(QwertycoinCryptoNoteProtocol_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteProtocol/CryptoNoteProtocolHandler.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteProtocol/CryptoNoteProtocolHandlerCommon.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteProtocol/ICryptoNoteProtocolObserver.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteProtocol/ICryptoNoteProtocolQuery.h")
+
+add_library(QwertycoinCryptoNoteProtocol STATIC ${QwertycoinCryptoNoteProtocol_SOURCES})
+add_library(Qwertycoin::CryptoNoteProtocol ALIAS QwertycoinCryptoNoteProtocol)
+target_include_directories(QwertycoinCryptoNoteProtocol PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::Daemon
+
+set(QwertycoinDaemon_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Daemon/Daemon.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.h")
+
+if(WIN32)
+    list(APPEND QwertycoinDaemon_SOURCES "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/daemon.rc")
+endif()
+
+set(QwertycoinDaemon_LIBS
+    Boost::filesystem
+    Boost::program_options
+    MiniUPnP::miniupnpc
+    Qwertycoin::BlockchainExplorer
+    Qwertycoin::Common
+    Qwertycoin::Crypto
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::CryptoNoteProtocol
+    Qwertycoin::Http
+    Qwertycoin::Logging
+    Qwertycoin::P2p
+    Qwertycoin::Rpc
+    Qwertycoin::Serialization
+    Qwertycoin::System)
+
+add_executable(QwertycoinDaemon ${QwertycoinDaemon_SOURCES})
+add_executable(Qwertycoin::Daemon ALIAS QwertycoinDaemon)
+target_include_directories(QwertycoinDaemon PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinDaemon PRIVATE ${QwertycoinDaemon_LIBS})
+set_target_properties(QwertycoinDaemon PROPERTIES OUTPUT_NAME "qwertycoind")
+
+# Qwertycoin::Http
+
+set(QwertycoinHttp_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParser.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParser.h"
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParserErrorCodes.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParserErrorCodes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpRequest.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpRequest.h"
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpResponse.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpResponse.h")
+
+add_library(QwertycoinHttp STATIC ${QwertycoinHttp_SOURCES})
+add_library(Qwertycoin::Http ALIAS QwertycoinHttp)
+target_include_directories(QwertycoinHttp PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::InProcessNode
+
+set(QwertycoinInProcessNode_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/InProcessNode/InProcessNode.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/InProcessNode/InProcessNode.h"
+    "${CMAKE_CURRENT_LIST_DIR}/InProcessNode/InProcessNodeErrors.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/InProcessNode/InProcessNodeErrors.h")
+
+add_library(QwertycoinInProcessNode STATIC ${QwertycoinInProcessNode_SOURCES})
+add_library(Qwertycoin::InProcessNode ALIAS QwertycoinInProcessNode)
+target_include_directories(QwertycoinInProcessNode PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::JsonRpcServer
+
+set(QwertycoinJsonRpcServer_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/JsonRpcServer/JsonRpcServer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/JsonRpcServer/JsonRpcServer.h")
+
+add_library(QwertycoinJsonRpcServer STATIC ${QwertycoinJsonRpcServer_SOURCES})
+add_library(Qwertycoin::JsonRpcServer ALIAS QwertycoinJsonRpcServer)
+target_include_directories(QwertycoinJsonRpcServer PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::Logging
+
+set(QwertycoinLogging_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/CommonLogger.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/CommonLogger.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/ConsoleLogger.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/ConsoleLogger.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/FileLogger.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/FileLogger.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/ILogger.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/ILogger.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerGroup.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerGroup.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerManager.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerMessage.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerMessage.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerRef.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/LoggerRef.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/StreamLogger.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Logging/StreamLogger.h")
+
+add_library(QwertycoinLogging STATIC ${QwertycoinLogging_SOURCES})
+add_library(Qwertycoin::Logging ALIAS QwertycoinLogging)
+target_include_directories(QwertycoinLogging PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::Miner
+
+set(QwertycoinMiner_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/BlockchainMonitor.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/BlockchainMonitor.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/Miner.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/Miner.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MinerEvent.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MinerManager.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MinerManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MiningConfig.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MiningConfig.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/main.cpp")
+
+if(WIN32)
+    list(APPEND QwertycoinMiner_SOURCES "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/miner.rc")
+endif()
+
+set(QwertycoinMiner_LIBS
+    Boost::program_options
+    Threads::Threads
+    Qwertycoin::Common
+    Qwertycoin::Crypto
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::Http
+    Qwertycoin::Logging
+    Qwertycoin::Rpc
+    Qwertycoin::Serialization
+    Qwertycoin::System)
+
+if(WIN32)
+    list(APPEND QwertycoinMiner_LIBS ws2_32)
+endif()
+
+add_executable(QwertycoinMiner ${QwertycoinMiner_SOURCES})
+add_executable(Qwertycoin::Miner ALIAS QwertycoinMiner)
+target_include_directories(QwertycoinMiner PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinMiner PRIVATE ${QwertycoinMiner_LIBS})
+set_target_properties(QwertycoinMiner PROPERTIES OUTPUT_NAME "miner")
+
+# Qwertycoin::Mnemonics
+
+set(QwertycoinMnemonics_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/chinese_simplified.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/dutch.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/electrum-words.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/electrum-words.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/english.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/french.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/german.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/italian.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/japanese.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/language_base.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/polish.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/portuguese.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/russian.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/singleton.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/spanish.h"
+    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/ukrainian.h")
+
+add_library(QwertycoinMnemonics STATIC ${QwertycoinMnemonics_SOURCES})
+add_library(Qwertycoin::Mnemonics ALIAS QwertycoinMnemonics)
+target_include_directories(QwertycoinMnemonics PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::NodeRpcProxy
+
+set(QwertycoinNodeRpcProxy_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxy/NodeErrors.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxy/NodeErrors.h"
+    "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxy/NodeRpcProxy.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxy/NodeRpcProxy.h")
+
+add_library(QwertycoinNodeRpcProxy STATIC ${QwertycoinNodeRpcProxy_SOURCES})
+add_library(Qwertycoin::NodeRpcProxy ALIAS QwertycoinNodeRpcProxy)
+target_include_directories(QwertycoinNodeRpcProxy PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinNodeRpcProxy PRIVATE Qwertycoin::Rpc)
+
+# Qwertycoin::P2p
+
+set(QwertycoinP2p_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/ConnectionContext.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/IP2pNodeInternal.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/IP2pNodeInternal.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNode.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNode.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeCommon.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeConfig.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeConfig.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pConnectionProxy.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pConnectionProxy.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContext.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContext.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContextOwner.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContextOwner.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pInterfaces.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pInterfaces.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNetworks.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNode.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNode.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNodeConfig.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNodeConfig.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pProtocolDefinitions.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pProtocolTypes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/PeerListManager.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/P2p/PeerListManager.h")
+
+add_library(QwertycoinP2p STATIC ${QwertycoinP2p_SOURCES})
+add_library(Qwertycoin::P2p ALIAS QwertycoinP2p)
+target_include_directories(QwertycoinP2p PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinP2p PRIVATE MiniUPnP::miniupnpc)
+
+# Qwertycoin::PaymentGate
+
+set(QwertycoinPaymentGate_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/NodeFactory.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/NodeFactory.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/PaymentServiceJsonRpcMessages.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/PaymentServiceJsonRpcMessages.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/PaymentServiceJsonRpcServer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/PaymentServiceJsonRpcServer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/WalletService.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/WalletService.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/WalletServiceErrorCategory.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/WalletServiceErrorCategory.h")
+
+add_library(QwertycoinPaymentGate STATIC ${QwertycoinPaymentGate_SOURCES})
+add_library(Qwertycoin::PaymentGate ALIAS QwertycoinPaymentGate)
+target_include_directories(QwertycoinPaymentGate PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinPaymentGate PRIVATE Qwertycoin::NodeRpcProxy)
+
+# Qwertycoin::PaymentGateService
+
+set(QwertycoinPaymentGateService_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/ConfigurationManager.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/ConfigurationManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentGateService.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentGateService.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentServiceConfiguration.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentServiceConfiguration.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/RpcNodeConfiguration.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/RpcNodeConfiguration.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/main.cpp")
+
+if(WIN32)
+    list(APPEND QwertycoinPaymentGateService_SOURCES "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/walletd.rc")
+endif()
+
+set(QwertycoinPaymentGateService_LIBS
+    Boost::filesystem
+    Boost::program_options
+    MiniUPnP::miniupnpc
+    Threads::Threads
+    Qwertycoin::BlockchainExplorer
+    Qwertycoin::Common
+    Qwertycoin::Crypto
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::CryptoNoteProtocol
+    Qwertycoin::Http
+    Qwertycoin::InProcessNode
+    Qwertycoin::JsonRpcServer
+    Qwertycoin::Logging
+    Qwertycoin::NodeRpcProxy
+    Qwertycoin::P2p
+    Qwertycoin::PaymentGate
+    Qwertycoin::Rpc
+    Qwertycoin::Serialization
+    Qwertycoin::System
+    Qwertycoin::Transfers
+    Qwertycoin::Wallet)
+
+add_executable(QwertycoinPaymentGateService ${QwertycoinPaymentGateService_SOURCES})
+add_executable(Qwertycoin::PaymentGateService ALIAS QwertycoinPaymentGateService)
+target_include_directories(QwertycoinPaymentGateService PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinPaymentGateService ${QwertycoinPaymentGateService_LIBS})
+set_target_properties(QwertycoinPaymentGateService PROPERTIES OUTPUT_NAME "walletd")
+
+# Qwertycoin::Platform # TODO: Merge this target into Qwertycoin::System
+
+# Qwertycoin::Rpc
+
+set(QwertycoinRpc_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/CoreRpcServerCommandsDefinitions.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/CoreRpcServerErrorCodes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/HttpClient.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/HttpClient.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/HttpServer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/HttpServer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/JsonRpc.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/JsonRpc.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/RpcServer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/RpcServer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/RpcServerConfig.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Rpc/RpcServerConfig.h")
+
+set(QwertycoinRpc_LIBS
+    sparsehash::sparsehash
+    Qwertycoin::Crypto
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::Http)
+
+add_library(QwertycoinRpc STATIC ${QwertycoinRpc_SOURCES})
+add_library(Qwertycoin::Rpc ALIAS QwertycoinRpc)
+target_include_directories(QwertycoinRpc PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinRpc PRIVATE ${QwertycoinRpc_LIBS})
+
+# Qwertycoin::Serialization
+
+set(QwertycoinSerialization_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinaryInputStreamSerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinaryInputStreamSerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinaryOutputStreamSerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinaryOutputStreamSerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinarySerializationTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/ISerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/IStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/JsonInputStreamSerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/JsonInputStreamSerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/JsonInputValueSerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/JsonInputValueSerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/JsonOutputStreamSerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/JsonOutputStreamSerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryCommon.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryInputStreamSerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryInputStreamSerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryOutputStreamSerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryOutputStreamSerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/MemoryStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/MemoryStream.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationOverloads.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationOverloads.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationTools.h")
+
+add_library(QwertycoinSerialization STATIC ${QwertycoinSerialization_SOURCES})
+add_library(Qwertycoin::Serialization ALIAS QwertycoinSerialization)
+target_include_directories(QwertycoinSerialization PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::SimpleWallet
+
+set(QwertycoinSimpleWallet_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/PasswordContainer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/PasswordContainer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/SimpleWallet.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/SimpleWallet.h")
+
+if(WIN32)
+    list(APPEND QwertycoinSimpleWallet_SOURCES "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/simplewallet.rc")
+endif()
+
+set(QwertycoinSimpleWallet_LIBS
+    Boost::filesystem
+    Boost::program_options
+    Threads::Threads
+    Qwertycoin::BlockchainExplorer
+    Qwertycoin::Common
+    Qwertycoin::Crypto
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::CryptoNoteProtocol
+    Qwertycoin::Http
+    Qwertycoin::InProcessNode
+    Qwertycoin::JsonRpcServer
+    Qwertycoin::Logging
+    Qwertycoin::Mnemonics
+    Qwertycoin::NodeRpcProxy
+    Qwertycoin::P2p
+    Qwertycoin::PaymentGate
+    Qwertycoin::Rpc
+    Qwertycoin::Serialization
+    Qwertycoin::System
+    Qwertycoin::Transfers
+    Qwertycoin::Wallet)
+
+if(WIN32)
+    list(APPEND QwertycoinMiner_LIBS ws2_32)
+endif()
+
+add_executable(QwertycoinSimpleWallet ${QwertycoinSimpleWallet_SOURCES})
+add_executable(Qwertycoin::SimpleWallet ALIAS QwertycoinSimpleWallet)
+target_include_directories(QwertycoinSimpleWallet PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinSimpleWallet ${QwertycoinSimpleWallet_LIBS})
+set_target_properties(QwertycoinSimpleWallet PROPERTIES OUTPUT_NAME "simplewallet")
+
+# Qwertycoin::System
+
+set(QwertycoinSystem_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/System/Context.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/ContextGroup.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/ContextGroup.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/ContextGroupTimeout.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/ContextGroupTimeout.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/Event.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/Event.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/EventLock.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/EventLock.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/InterruptedException.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/InterruptedException.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/Ipv4Address.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/Ipv4Address.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/OperationTimeout.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/RemoteContext.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/RemoteEventLock.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/RemoteEventLock.h"
+    "${CMAKE_CURRENT_LIST_DIR}/System/TcpStream.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/System/TcpStream.h")
+
+if(MSVC)
+    list(APPEND QwertycoinSystem_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/Dispatcher.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/Dispatcher.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/ErrorMessage.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/ErrorMessage.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/Future.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/Ipv4Resolver.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/Ipv4Resolver.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/MemoryMappedFile.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/MemoryMappedFile.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/TcpConnection.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/TcpConnection.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/TcpConnector.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/TcpConnector.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/TcpListener.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/TcpListener.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/Timer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Windows/System/Timer.h")
+elseif(APPLE)
+    list(APPEND QwertycoinSystem_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Context.c"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Context.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Dispatcher.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Dispatcher.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/ErrorMessage.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/ErrorMessage.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Future.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Ipv4Resolver.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Ipv4Resolver.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/TcpConnection.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/TcpConnection.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/TcpConnector.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/TcpConnector.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/TcpListener.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/TcpListener.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Timer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/Timer.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/OSX/System/asm.s"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.h")
+elseif(ANDROID)
+    list(APPEND QwertycoinSystem_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Context.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Dispatcher.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Dispatcher.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/ErrorMessage.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/ErrorMessage.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Future.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Ipv4Resolver.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Ipv4Resolver.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/TcpConnection.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/TcpConnection.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/TcpConnector.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/TcpConnector.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/TcpListener.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/TcpListener.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Timer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Timer.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.h")
+else()
+    list(APPEND QwertycoinSystem_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/Dispatcher.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/Dispatcher.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/ErrorMessage.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/ErrorMessage.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/Future.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/Ipv4Resolver.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/Ipv4Resolver.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/TcpConnection.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/TcpConnection.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/TcpConnector.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/TcpConnector.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/TcpListener.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/TcpListener.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/Timer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux/System/Timer.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.h")
+endif()
+
+add_library(QwertycoinSystem STATIC ${QwertycoinSystem_SOURCES})
+add_library(Qwertycoin::System ALIAS QwertycoinSystem)
+target_include_directories(QwertycoinSystem PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+
+# Qwertycoin::Transfers
+
+set(QwertycoinTransfers_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/BlockchainSynchronizer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/BlockchainSynchronizer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/CommonTypes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/IBlockchainSynchronizer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/IObservableImpl.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/SynchronizationState.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/SynchronizationState.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersConsumer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersConsumer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersContainer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersContainer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersSubscription.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersSubscription.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersSynchronizer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersSynchronizer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Transfers/TypeHelpers.h")
+
+set(QwertycoinTransfers_LIBS
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::Serialization
+    Qwertycoin::Wallet)
+
+add_library(QwertycoinTransfers STATIC ${QwertycoinTransfers_SOURCES})
+add_library(Qwertycoin::Transfers ALIAS QwertycoinTransfers)
+target_include_directories(QwertycoinTransfers PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinTransfers PRIVATE ${QwertycoinTransfers_LIBS})
+
+# Qwertycoin::Wallet
+
+set(QwertycoinWallet_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/IFusionManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/LegacyKeysImporter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/LegacyKeysImporter.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletAsyncContextCounter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletAsyncContextCounter.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletErrors.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletErrors.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletGreen.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletGreen.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletIndices.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletRpcServer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletRpcServer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletRpcServerCommandsDefinitions.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletRpcServerErrorCodes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletSerializationV1.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletSerializationV1.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletSerializationV2.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletSerializationV2.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletUtils.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletUtils.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/KeysStorage.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/KeysStorage.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletHelper.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletHelper.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletLegacy.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletLegacy.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletLegacyEvent.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletLegacySerialization.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletLegacySerialization.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletLegacySerializer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletLegacySerializer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletRequest.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletSendTransactionContext.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletTransactionSender.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletTransactionSender.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletUnconfirmedTransactions.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletUnconfirmedTransactions.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletUserTransactionsCache.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletUserTransactionsCache.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletUtils.h")
+
+set(QwertycoinWallet_LIBS
+    Boost::filesystem
+    Qwertycoin::System
+    Qwertycoin::Transfers)
+
+add_library(QwertycoinWallet STATIC ${QwertycoinWallet_SOURCES})
+add_library(Qwertycoin::Wallet ALIAS QwertycoinWallet)
+target_include_directories(QwertycoinWallet PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinWallet PRIVATE ${QwertycoinWallet_LIBS})
+
+# Qwertycoin::WalletLegacy # TODO: Merge this target into Qwertycoin::Wallet
