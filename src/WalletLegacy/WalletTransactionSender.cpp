@@ -57,14 +57,22 @@ void createChangeDestinations(const AccountPublicAddress& address, uint64_t need
   }
 }
 
-void constructTx(const AccountKeys keys, const std::vector<TransactionSourceEntry>& sources, const std::vector<TransactionDestinationEntry>& splittedDests,
-    const std::string& extra, uint64_t unlockTimestamp, uint64_t sizeLimit, Transaction& tx, Crypto::SecretKey& tx_key, const std::vector<CryptoNote::TX_MESSAGE_ENTRY>& messages) {
+void constructTx(const AccountKeys keys, 
+                 const std::vector<TransactionSourceEntry>& sources, 
+                 const std::vector<TransactionDestinationEntry>& splittedDests,
+                 const std::string& extra, 
+                 uint64_t unlockTimestamp, 
+                 uint64_t sizeLimit, 
+                 Transaction& tx, 
+                 Crypto::SecretKey& tx_key, 
+                 const std::vector<CryptoNote::TxMessageEntry>& messages,
+                 uint64_t ttl) {
   std::vector<uint8_t> extraVec;
   extraVec.reserve(extra.size());
   std::for_each(extra.begin(), extra.end(), [&extraVec] (const char el) { extraVec.push_back(el);});
 
   Logging::LoggerGroup nullLog;
-  bool r = constructTransaction(keys, sources, splittedDests, messages, extraVec, tx, unlockTimestamp, tx_key, nullLog);
+  bool r = constructTransaction(keys, sources, splittedDests, messages, ttl, extraVec, unlockTimestamp, tx_key, tx,  nullLog);
 
   throwIf(!r, error::INTERNAL_WALLET_ERROR);
   throwIf(getObjectBinarySize(tx) >= sizeLimit, error::TRANSACTION_SIZE_TOO_BIG);
@@ -106,9 +114,16 @@ void WalletTransactionSender::validateTransfersAddresses(const std::vector<Walle
   }
 }
 
-std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendDustRequest(
-  TransactionId& transactionId, std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
-  const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp, const std::vector<TransactionMessage>& messages) {
+std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendRequest(
+  TransactionId& transactionId, 
+  std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
+  const std::vector<WalletLegacyTransfer>& transfers, 
+  uint64_t fee, 
+  const std::string& extra, 
+  uint64_t mixIn, 
+  uint64_t unlockTimestamp, 
+  const std::vector<TransactionMessage>& messages,
+  uint64_t ttl) {
 
   using namespace CryptoNote;
 
@@ -124,6 +139,17 @@ std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendDustRequest(
   transactionId = m_transactionsCache.addNewTransaction(neededMoney, fee, extra, transfers, unlockTimestamp);
   context->transactionId = transactionId;
   context->mixIn = mixIn;
+  context->ttl = ttl;
+
+  for (const TransactionMessage& message : messages) {
+    AccountPublicAddress address;
+    bool extracted = m_currency.parseAccountAddressString(message.address, address);
+    if (!extracted) {
+      throw std::system_error(make_error_code(error::BAD_ADDRESS));
+    }
+
+    context->messages.push_back( { message.message, true, address });
+  }
 
   if(context->mixIn) {
     std::shared_ptr<WalletRequest> request = makeGetRandomOutsRequest(context);
@@ -247,7 +273,7 @@ std::shared_ptr<WalletRequest> WalletTransactionSender::doSendTransaction(std::s
     splitDestinations(transaction.firstTransferId, transaction.transferCount, changeDts, context->dustPolicy, splittedDests);
 
     Transaction tx;
-    constructTx(m_keys, sources, splittedDests, transaction.extra, transaction.unlockTime, m_upperTransactionSizeLimit, tx, context->tx_key, context->messages);
+    constructTx(m_keys, sources, splittedDests, transaction.extra, transaction.unlockTime, m_upperTransactionSizeLimit, tx, context->tx_key, context->messages, context->ttl);
 
     getObjectHash(tx, transaction.hash);
 
@@ -370,10 +396,10 @@ void WalletTransactionSender::notifyBalanceChanged(std::deque<std::shared_ptr<Wa
   events.push_back(std::make_shared<WalletActualBalanceUpdatedEvent>(actualBalance));
   events.push_back(std::make_shared<WalletPendingBalanceUpdatedEvent>(pendingBalance));
 }
-
+/*
 //TODO
-void WalletTransactionSender::markOutputsSpent(const std::list<crypto::key_image>& selectedTransfers) {
-  for (const crypto::key_image& ki: selectedTransfers) {
+void WalletTransactionSender::markOutputsSpent(const std::list<crypto::KeyImage>& selectedTransfers) {
+  for (const crypto::KeyImage& ki: selectedTransfers) {
     size_t idx;
     bool found = m_transferDetails.getTransferDetailsIdxByKeyImage(ki, idx);
     if (!found) {
@@ -384,8 +410,8 @@ void WalletTransactionSender::markOutputsSpent(const std::list<crypto::key_image
   }
 }
 
-void WalletTransactionSender::makeOutputsNotSpent(const std::list<crypto::key_image>& selectedTransfers) {
-  for (const crypto::key_image& ki: selectedTransfers) {
+void WalletTransactionSender::makeOutputsNotSpent(const std::list<crypto::KeyImage>& selectedTransfers) {
+  for (const crypto::KeyImage& ki: selectedTransfers) {
     size_t idx;
     bool found = m_transferDetails.getTransferDetailsIdxByKeyImage(ki, idx);
     if (!found) {
@@ -395,7 +421,7 @@ void WalletTransactionSender::makeOutputsNotSpent(const std::list<crypto::key_im
     td.spent = false;
   }
 }
-
+*/
 namespace {
 
 template<typename URNG, typename T>

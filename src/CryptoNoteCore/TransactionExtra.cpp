@@ -18,9 +18,11 @@
 
 #include "TransactionExtra.h"
 
+#include "Common/int-util.h"
 #include "Common/MemoryInputStream.h"
 #include "Common/StreamTools.h"
 #include "Common/StringTools.h"
+#include "Common/Varint.h"
 #include "CryptoNoteTools.h"
 #include "Serialization/BinaryOutputStreamSerializer.h"
 #include "Serialization/BinaryInputStreamSerializer.h"
@@ -86,6 +88,22 @@ bool parseTransactionExtra(const std::vector<uint8_t> &transactionExtra, std::ve
         transactionExtraFields.push_back(mmTag);
         break;
       }
+
+      case TX_EXTRA_MESSAGE_TAG: {
+        TxExtraMessage message;
+        ar(message.data, "message");
+        transactionExtraFields.push_back(message);
+        break;
+      }
+
+      case TX_EXTRA_TTL: {
+        uint8_t size;
+        readVarint(iss, size);
+        TransactionExtraTTL ttl;
+        readVarint(iss, ttl.ttl);
+        transactionExtraFields.push_back(ttl);
+        break;
+      }
       }
     }
   } catch (std::exception &) {
@@ -119,6 +137,15 @@ struct ExtraSerializerVisitor : public boost::static_visitor<bool> {
 
   bool operator()(const TransactionExtraMergeMiningTag& t) {
     return appendMergeMiningTagToExtra(extra, t);
+  }
+
+  bool operator()(const TxExtraMessage& t) {
+    return appendMessageToExtra(extra, t);
+  }
+
+  bool operator()(const TransactionExtraTTL& t) {
+    appendTTLToExtra(extra, t.ttl);
+    return true;
   }
 };
 
@@ -224,7 +251,15 @@ std::vector<std::string>getMessagesFromExtra(const std::vector<uint8_t>& extra, 
   return result;
 }
 
-// TODO: Append TTL to Extra
+void appendTTLToExtra(std::vector<uint8_t>& txExtra, uint64_t ttl) {
+  std::string ttlData = Tools::get_varint_data(ttl);
+  std::string extraFieldSize = Tools::get_varint_data(ttlData.size());
+
+  txExtra.reserve(txExtra.size() + 1 + extraFieldSize.size() + ttlData.size());
+  txExtra.push_back(TX_EXTRA_TTL);
+  std::copy(extraFieldSize.begin(), extraFieldSize.end(), std::back_inserter(txExtra));
+  std::copy(ttlData.begin(), ttlData.end(), std::back_inserter(txExtra));
+}
 
 void setPaymentIdToTransactionExtraNonce(std::vector<uint8_t>& extra_nonce, const Hash& payment_id) {
   extra_nonce.clear();
@@ -281,9 +316,72 @@ bool getPaymentIdFromTxExtra(const std::vector<uint8_t>& extra, Hash& paymentId)
   return true;
 }
 
-bool TxExtraMessage::encrypt() {}
+#define TX_EXTRA_MESSAGE_CHECKSUM_SIZE 4
+#pragma pack(push, 1)
+struct MessageKeyData {
+  KeyDerivation derivation;
+  uint8_t magic1, magic2;
+};
 
-bool TxExtraMessage::decrypt() {}
 
-bool TxExtraMessage::serialize() {}
+bool TxExtraMessage::encrypt(size_t index, const std::string& message, const AccountPublicAddress* recipient, const KeyPair& txKey) {
+  size_t mlen = message.size();
+  std::unique_ptr<char[]> buf(new char[mlen + TX_EXTRA_MESSAGE_CHECKSUM_SIZE]);
+  memcpy(buf.get(), message.data(), mlen);
+  memset(buf.get() + mlen, 0, TX_EXTRA_MESSAGE_CHECKSUM_SIZE);
+  mlen += TX_EXTRA_MESSAGE_CHECKSUM_SIZE;
+
+  if (recipient) {
+    MessageKeyData keyData;
+    if (!generate_key_derivation(recipient->spendPublicKey, txKey.secretKey, keyData.derivation)) {
+      return false;
+    }
+    keyData.magic1 = 0x80;
+    keyData.magic2 = 0;
+    Hash h = cn_fast_hash(&keyData, sizeof(MessageKeyData));
+    uint64_t nonce = SWAP64LE(index);
+    chacha8(buf.get(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), buf.get());
+  }
+  data.assign(buf.get(), mlen);
+  return true;
+}
+
+bool TxExtraMessage::decrypt(size_t index, const Crypto::PublicKey& txKey, const Crypto::SecretKey* recipientSecretKey, std::string& message) const {
+  size_t mlen = data.size();
+  if (mlen < TX_EXTRA_MESSAGE_CHECKSUM_SIZE) {
+    return false;
+  }
+
+  const char* buf;
+  std::unique_ptr<char[]> ptr;
+  if (recipientSecretKey != nullptr) {
+    ptr.reset(new char[mlen]);
+    assert(ptr);
+    MessageKeyData keyData;
+    if (!generate_key_derivation(txKey, *recipientSecretKey, keyData.derivation)) {
+      return false;
+    }
+    keyData.magic1 = 0x80;
+    keyData.magic2 = 0;
+    Hash h = cn_fast_hash(&keyData, sizeof(MessageKeyData));
+    uint64_t nonce = SWAP64LE(index);
+    chacha8(data.data(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), ptr.get());
+    buf = ptr.get();
+  } else {
+    buf = data.data();
+  }
+  mlen -= TX_EXTRA_MESSAGE_CHECKSUM_SIZE;
+  for (size_t i = 0; i< TX_EXTRA_MESSAGE_CHECKSUM_SIZE; i++) {
+    if (buf[mlen + i] != 0) {
+      return false;
+    }
+  }
+  message.assign(buf, mlen);
+  return true;
+}
+
+bool TxExtraMessage::serialize(ISerializer& s) {
+  s(data, "data");
+  return true;
+}
 }

@@ -156,7 +156,7 @@ std::vector<TransactionId> WalletUnconfirmedTransactions::deleteOutdatedTransact
 
   return deletedTransactions;
 }
-
+/*
 void WalletUnconfirmedTransactions::synchronizeTransactionIds(const WalletUserTransactionsCache& transactionCache) {
   size_t txCount = transactionCache.getTransactionCount();
 
@@ -177,5 +177,5 @@ void WalletUnconfirmedTransactions::synchronizeTransactionIds(const WalletUserTr
     it->second.transactionId = txId;
   }
 }
-
+*/
 } /* namespace CryptoNote */

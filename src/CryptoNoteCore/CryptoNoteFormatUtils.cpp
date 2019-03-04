@@ -248,7 +248,7 @@ bool constructTransaction(
   }
 
   if (ttl != 0) {
-    // TODO: Append TTL to Extra
+    appendTTLToExtra(tx.extra, ttl);
   }
 
   //generate ring signatures

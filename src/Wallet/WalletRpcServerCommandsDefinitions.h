@@ -56,11 +56,23 @@ using CryptoNote::ISerializer;
 	{
 		uint64_t amount;
 		std::string address;
+		std::string message;
 
 		void serialize(ISerializer& s)
 		{
 			KV_MEMBER(amount)
 			KV_MEMBER(address)
+			KV_MEMBER(message)
+		}
+	};
+
+	struct transferMessage {
+		std::string address;
+		std::string message;
+
+		void serialize(ISerializer& s) {
+			KV_MEMBER(address)
+			KV_MEMBER(message)
 		}
 	};
 
@@ -73,6 +85,8 @@ using CryptoNote::ISerializer;
 			uint64_t mixin = 0;
 			uint64_t unlock_time = 0;
 			std::string payment_id;
+			std::list<transferMessage> messages;
+			uint64_t ttl = 0;
 
 			void serialize(ISerializer& s)
 			{
@@ -81,6 +95,8 @@ using CryptoNote::ISerializer;
 				KV_MEMBER(mixin)
 				KV_MEMBER(unlock_time)
 				KV_MEMBER(payment_id)
+				KV_MEMBER(messages)
+				KV_MEMBER(ttl)
 			}
 		};
 		struct response
@@ -320,6 +336,45 @@ using CryptoNote::ISerializer;
 			void serialize(ISerializer& s)
 			{
 				KV_MEMBER(tx_key)
+			}
+		};
+	};
+
+	/* Command: get_messages */
+	struct transactionMessages {
+		std::string txHash;
+		uint64_t txId;
+		uint32_t blockHeight;
+		uint64_t timestamp;
+		std::list<std::string> messages;
+
+		void serialize(ISerializer& s) {
+			KV_MEMBER(txHash);
+			KV_MEMBER(txId);
+			KV_MEMBER(blockHeight);
+			KV_MEMBER(timestamp);
+			KV_MEMBER(messages);
+		}
+	};
+
+	struct COMMAND_RPC_GET_MESSAGES {
+		struct request {
+			uint64_t firstTxId = 0;
+			uint32_t txLimit = std::numeric_limits<uint32_t>::max();
+
+			void serialize(ISerializer& s) {
+				KV_MEMBER(firstTxId);
+				KV_MEMBER(txLimit);
+			}
+		};
+
+		struct response {
+			uint64_t totalTxCount;
+			std::list<transactionMessages> txMessages;
+
+			void serialize(ISerializer& s) {
+				KV_MEMBER(totalTxCount);
+				KV_MEMBER(txMessages);
 			}
 		};
 	};

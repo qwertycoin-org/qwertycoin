@@ -48,7 +48,8 @@ struct SendTransactionContext
   TxDustPolicy dustPolicy;
   uint64_t mixIn;
   Crypto::SecretKey tx_key = NULL_SECRET_KEY;
-  std::vector<CryptoNote::TX_MESSAGE_ENTRY> messages;
+  std::vector<CryptoNote::TxMessageEntry> messages;
+  uint64_t ttl;
 };
 
 } //namespace CryptoNote

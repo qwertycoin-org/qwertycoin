@@ -65,6 +65,7 @@ bool constructTransaction(
   const std::vector<TransactionSourceEntry>&sources,
   const std::vector<TransactionDestinationEntry>&destinations,
   const std::vector<TxMessageEntry> &messages,
+  uint64_t ttl,
   std::vector<uint8_t> extra,
   uint64_t unlock_time,
   Crypto::SecretKey &tx_key,
@@ -73,19 +74,27 @@ bool constructTransaction(
 
 inline bool constructTransaction(
   const AccountKeys& senderAccountKeys,
-  const std::vector<TransactionSourceEntry>&sources,
-  const std::vector<TransactionDestinationEntry>&destinations,
+  const std::vector<TransactionSourceEntry>& sources,
+  const std::vector<TransactionDestinationEntry>& destinations,
+  uint64_t ttl,
   std::vector<uint8_t> extra,
   uint64_t unlock_time,
-  Crypto::SecretKey &tx_key,
+  Crypto::SecretKey &txKey,
   Transaction& transaction,
-  Logging::ILogger& log) 
+  Logging::ILogger& log
+  ) 
 {
   return constructTransaction(
     senderAccountKeys,
     sources,
     destinations,
-    std::vector<TxMessageEntry>(), extra, unlock_time, tx_key, transaction, log);
+    std::vector<TxMessageEntry>(), 
+    0, 
+    extra,
+    unlock_time, 
+    txKey,
+    transaction, 
+    log);
 }
 
 

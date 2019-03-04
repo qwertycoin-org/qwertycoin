@@ -66,7 +66,7 @@ struct TxExtraMessage {
   std::string data;
 
   bool encrypt(std::size_t index, const std::string &message, const AccountPublicAddress* recipient, const KeyPair &txkey);
-  bool decrypt(std::size_t index, const Crypto::PublicKey &txkey, const account_keys *recipient, std::string &message) const;
+  bool decrypt(std::size_t index, const Crypto::PublicKey &txkey, const Crypto::SecretKey *recipientSecretKey, std::string &message) const;
 
   bool serialize(ISerializer& serialize);
 };

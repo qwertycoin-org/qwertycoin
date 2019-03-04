@@ -426,7 +426,7 @@ namespace CryptoNote {
         ss << "TTL: " << std::ctime (reinterpret_cast<const time_t*>(&ttlIt->second));
       }
 
-      ss << std::endl  
+      ss << std::endl;
     }
 
     return ss.str();
@@ -523,6 +523,7 @@ namespace CryptoNote {
 
       m_paymentIdIndex.clear();
       m_timestampIndex.clear();
+      m_ttlIndex.clear();
     } else {
       buildIndices();
     }
@@ -618,8 +619,15 @@ namespace CryptoNote {
         uint64_t txAge = now - it->receiveTime;
         bool remove = txAge > (it->keptByBlock ? m_currency.mempoolTxFromAltBlockLiveTime() : m_currency.mempoolTxLiveTime());
 
-        if (remove) {
-          logger(TRACE) << "Tx " << it->id << " removed from tx pool due to outdated, age: " << txAge;
+        auto ttlIt = m_ttlIndex.find(it->id);
+        bool ttlExpired = (ttlIt != m_ttlIndex.end() && ttlIt->second <= now);
+
+        if (remove || ttlExpired) {
+          if (ttlExpired) {
+            logger(TRACE) << "Tx " << it->id << " removed from tx pool due to expired TTL, TTL: " << ttlIt->second;
+          } else {
+            logger(TRACE) << "Tx " << it->id << " removed from tx pool due to outdated, age: " << txAge;
+          }
           m_recentlyDeletedTransactions.emplace(it->id, now);
           it = removeTransaction(it);
           somethingRemoved = true;
@@ -640,6 +648,7 @@ namespace CryptoNote {
     removeTransactionInputs(i->id, i->tx, i->keptByBlock);
     m_paymentIdIndex.remove(i->tx);
     m_timestampIndex.remove(i->receiveTime, i->id);
+    m_ttlIndex.erase(i->id);
     if (m_validated_transactions.find(i->id) != m_validated_transactions.end()) {
       m_validated_transactions.erase(i->id);
       logger(DEBUGGING) << "Removing transaction from MemPool cache " << i->id << ". Cache size: " << m_validated_transactions.size();
@@ -742,6 +751,15 @@ namespace CryptoNote {
     for (auto it = m_transactions.begin(); it != m_transactions.end(); it++) {
       m_paymentIdIndex.add(it->tx);
       m_timestampIndex.add(it->receiveTime, it->id);
+
+      std::vector<TransactionExtraField> txExtraFields;
+      parseTransactionExtra(it->tx.extra, txExtraFields);
+      TransactionExtraTTL ttl;
+      if (findTransactionExtraFieldByType(txExtraFields, ttl)) {
+        if (ttl.ttl != 0) {
+          m_ttlIndex.emplace(std::make_pair(it->id, ttl.ttl));
+        }
+      }
     }
   }
 

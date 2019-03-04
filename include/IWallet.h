@@ -75,12 +75,12 @@ struct WalletEvent {
     WalletSynchronizationProgressUpdated synchronizationProgressUpdated;
   };
 };
-
+/*
 struct TransactionMessage {
   std::string message;
   std::string address;
 };
-
+*/
 struct WalletTransaction {
   WalletTransactionState state;
   uint64_t timestamp;
@@ -95,9 +95,6 @@ struct WalletTransaction {
   bool isBase;          //isCoinbase
   std::vector<std::string> messages;
 };
-
-typedef std::array<uint8_t, 32> PublicKey;
-typedef std::array<uint8_t, 32> SecretKey;
 
 enum class WalletTransferType : uint8_t {
   USUAL = 0,

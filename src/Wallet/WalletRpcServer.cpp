@@ -149,6 +149,7 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest& request, C
             { "get_tx_key"       , makeMemberMethod(&wallet_rpc_server::on_get_tx_key)        },
             { "get_tx_proof"     , makeMemberMethod(&wallet_rpc_server::on_get_tx_proof)      },
             { "get_reserve_proof", makeMemberMethod(&wallet_rpc_server::on_get_reserve_proof) },
+			{ "get_messages"	 , makeMemberMethod(&wallet_rpc_server::on_get_messages) 	  },
             { "sign_message"     , makeMemberMethod(&wallet_rpc_server::on_sign_message)      },
             { "verify_message"   , makeMemberMethod(&wallet_rpc_server::on_verify_message)    },
             { "change_password"  , makeMemberMethod(&wallet_rpc_server::on_change_password)   },
@@ -202,12 +203,17 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 	}
 	
 	std::vector<CryptoNote::WalletLegacyTransfer> transfers;
+	std::vector<CryptoNote::TransactionMessage> messages;
 	for (auto it = req.destinations.begin(); it != req.destinations.end(); ++it)
 	{
 		CryptoNote::WalletLegacyTransfer transfer;
 		transfer.address = it->address;
 		transfer.amount  = it->amount;
 		transfers.push_back(transfer);
+
+		if (!it->message.empty()) {
+			messages.emplace_back(CryptoNote::TransactionMessage { it->message, it->address });
+		}
 	}
 
 	std::vector<uint8_t> extra;
@@ -230,6 +236,11 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 		}
 	}
 
+	uint64_t ttl = 0;
+	if (req.ttl != 0) {
+		ttl = static_cast<uint64_t>(time(nullptr)) + req.ttl;
+	}
+
 	std::string extraString;
 	std::copy(extra.begin(), extra.end(), std::back_inserter(extraString));
 	try
@@ -237,7 +248,7 @@ bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::requ
 		CryptoNote::WalletHelper::SendCompleteResultObserver sent;
 		WalletHelper::IWalletRemoveObserverGuard removeGuard(m_wallet, sent);
 
-		CryptoNote::TransactionId tx = m_wallet.sendTransaction(transfers, req.fee == 0 ? m_currency.minimumFee() : req.fee, extraString, req.mixin, req.unlock_time);
+		CryptoNote::TransactionId tx = m_wallet.sendTransaction(transfers, req.fee == 0 ? m_currency.minimumFee() : req.fee, extraString, req.mixin, req.unlock_time, messages, ttl);
 		if (tx == WALLET_LEGACY_INVALID_TRANSACTION_ID)
 			throw std::runtime_error("Couldn't send transaction");
 
@@ -601,6 +612,32 @@ bool wallet_rpc_server::on_get_reserve_proof(const wallet_rpc::COMMAND_RPC_GET_B
 	}
 	catch (const std::exception &e) {
 		throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, e.what());
+	}
+
+	return true;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------
+bool wallet_rpc_server::on_get_messages(const wallet_rpc::COMMAND_RPC_GET_MESSAGES::request & req, wallet_rpc::COMMAND_RPC_GET_MESSAGES::response & res)
+{
+	res.totalTxCount = m_wallet.getTransactionCount();
+
+	for (uint64_t i = req.firstTxId; i < res.totalTxCount && res.txMessages.size() < req.txLimit; ++i) {
+		WalletLegacyTransaction tx;
+		if (!m_wallet.getTransaction(static_cast<TransactionId>(i), tx)) {
+	    	throw JsonRpc::JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, "Failed to get transaction");
+		}
+
+		if (!tx.messages.empty()) {
+			wallet_rpc::transactionMessages txMessages;
+			txMessages.txHash = Common::podToHex(tx.hash);
+			txMessages.txId = i;
+			txMessages.blockHeight = tx.blockHeight;
+			txMessages.timestamp = tx.timestamp;
+			std::copy(tx.messages.begin(), tx.messages.end(), std::back_inserter(txMessages.messages));
+
+			res.txMessages.emplace_back(std::move(txMessages));
+		}
 	}
 
 	return true;
