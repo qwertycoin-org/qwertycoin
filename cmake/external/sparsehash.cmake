@@ -18,7 +18,7 @@ if(WIN32)
 else()
     set(SPARSEHASH_CONFIGURE_COMMAND
         COMMAND ${CMAKE_COMMAND} -E copy_directory "<SOURCE_DIR>" "<BINARY_DIR>"
-        COMMAND cd "<BINARY_DIR>" && ./configure --prefix=<INSTALL_DIR>)
+        COMMAND cd "<BINARY_DIR>" && ./configure --prefix=<INSTALL_DIR> CXXFLAGS=-std=c++11)
 
     set(SPARSEHASH_BUILD_COMMAND
         cd "<BINARY_DIR>" && ${CMAKE_MAKE_PROGRAM})
