@@ -659,7 +659,7 @@ set(QwertycoinSimpleWallet_LIBS
     Qwertycoin::Wallet)
 
 if(WIN32)
-    list(APPEND QwertycoinMiner_LIBS ws2_32)
+    list(APPEND QwertycoinSimpleWallet_LIBS ws2_32)
 endif()
 
 add_executable(QwertycoinSimpleWallet ${QwertycoinSimpleWallet_SOURCES})
