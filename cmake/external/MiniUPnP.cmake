@@ -1,7 +1,6 @@
 # MiniUPnP
 
 set(MiniUPnP_CMAKE_ARGS
-    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
     -DUPNPC_BUILD_STATIC:BOOL=TRUE
     -DUPNPC_BUILD_SHARED:BOOL=FALSE
@@ -32,7 +31,7 @@ ExternalProject_Add(MiniUPnP
     TEST_COMMAND ""
     INSTALL_COMMAND
         COMMAND ${CMAKE_COMMAND} -E make_directory <INSTALL_DIR>/include/miniupnpc
-        COMMAND ${CMAKE_COMMAND} --build . --target install
+        COMMAND ${CMAKE_COMMAND} --build . --config Release --target install
 )
 
 ExternalProject_Get_property(MiniUPnP INSTALL_DIR)
