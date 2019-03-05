@@ -108,10 +108,14 @@ set(QwertycoinCommon_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Common/pod-class.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/static_assert.h")
 
+set(QwertycoinCommon_LIBS
+    Threads::Threads
+    Qwertycoin::Crypto)
+
 add_library(QwertycoinCommon STATIC ${QwertycoinCommon_SOURCES})
 add_library(Qwertycoin::Common ALIAS QwertycoinCommon)
 target_include_directories(QwertycoinCommon PRIVATE ${Qwertycoin_INCLUDE_DIRS})
-target_link_libraries(QwertycoinCommon PRIVATE Threads::Threads)
+target_link_libraries(QwertycoinCommon PRIVATE ${QwertycoinCommon_LIBS})
 
 if (UNIX AND NOT ANDROID)
     target_link_libraries(QwertycoinCommon PUBLIC -lresolv)
@@ -129,10 +133,7 @@ endif()
 set(QwertycoinConnectivityTool_LIBS
     Boost::program_options
     Qwertycoin::Common
-    Qwertycoin::Crypto
     Qwertycoin::CryptoNoteCore
-    Qwertycoin::Http
-    Qwertycoin::Logging
     Qwertycoin::P2p
     Qwertycoin::Rpc
     Qwertycoin::Serialization
@@ -151,6 +152,8 @@ set_target_properties(QwertycoinConnectivityTool PROPERTIES OUTPUT_NAME "connect
 # Qwertycoin::Crypto
 
 set(QwertycoinCrypto_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/aesb.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/aesb.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/blake256.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/blake256.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/chacha8.c"
@@ -168,6 +171,10 @@ set(QwertycoinCrypto_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/crypto/groestl.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/groestl.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/groestl_tables.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/hash-extra-blake.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/hash-extra-groestl.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/hash-extra-jh.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/hash-extra-skein.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/hash-ops.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/hash.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/hash.h"
@@ -176,11 +183,17 @@ set(QwertycoinCrypto_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/crypto/jh.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/keccak.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/keccak.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/oaes_config.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/oaes_lib.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/oaes_lib.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/random.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/random.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/skein.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/skein.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/skein_port.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/slow-hash.c"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/slow-hash.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/slow-hash.inl"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/tree-hash.c")
 
 add_library(QwertycoinCrypto STATIC ${QwertycoinCrypto_SOURCES})
@@ -264,10 +277,13 @@ set(QwertycoinCryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/VerificationContext.h")
 
 set(QwertycoinCryptoNoteCore_LIBS
+    Boost::filesystem
+    Boost::program_options
     sparsehash::sparsehash
     Qwertycoin::BlockchainExplorer
     Qwertycoin::Common
-    Qwertycoin::Crypto)
+    Qwertycoin::Crypto
+    Qwertycoin::Serialization)
 
 add_library(QwertycoinCryptoNoteCore STATIC ${QwertycoinCryptoNoteCore_SOURCES})
 add_library(Qwertycoin::CryptoNoteCore ALIAS QwertycoinCryptoNoteCore)
@@ -301,14 +317,8 @@ endif()
 
 set(QwertycoinDaemon_LIBS
     Boost::filesystem
-    Boost::program_options
-    MiniUPnP::miniupnpc
-    Qwertycoin::BlockchainExplorer
     Qwertycoin::Common
-    Qwertycoin::Crypto
     Qwertycoin::CryptoNoteCore
-    Qwertycoin::CryptoNoteProtocol
-    Qwertycoin::Http
     Qwertycoin::Logging
     Qwertycoin::P2p
     Qwertycoin::Rpc
@@ -405,11 +415,8 @@ endif()
 
 set(QwertycoinMiner_LIBS
     Boost::program_options
-    Threads::Threads
     Qwertycoin::Common
-    Qwertycoin::Crypto
     Qwertycoin::CryptoNoteCore
-    Qwertycoin::Http
     Qwertycoin::Logging
     Qwertycoin::Rpc
     Qwertycoin::Serialization
@@ -460,7 +467,6 @@ set(QwertycoinNodeRpcProxy_SOURCES
 add_library(QwertycoinNodeRpcProxy STATIC ${QwertycoinNodeRpcProxy_SOURCES})
 add_library(Qwertycoin::NodeRpcProxy ALIAS QwertycoinNodeRpcProxy)
 target_include_directories(QwertycoinNodeRpcProxy PRIVATE ${Qwertycoin_INCLUDE_DIRS})
-target_link_libraries(QwertycoinNodeRpcProxy PRIVATE Qwertycoin::Rpc)
 
 # Qwertycoin::P2p
 
@@ -493,10 +499,14 @@ set(QwertycoinP2p_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/P2p/PeerListManager.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/PeerListManager.h")
 
+set(QwertycoinP2p_LIBS
+    MiniUPnP::miniupnpc
+    Qwertycoin::CryptoNoteProtocol)
+
 add_library(QwertycoinP2p STATIC ${QwertycoinP2p_SOURCES})
 add_library(Qwertycoin::P2p ALIAS QwertycoinP2p)
 target_include_directories(QwertycoinP2p PRIVATE ${Qwertycoin_INCLUDE_DIRS})
-target_link_libraries(QwertycoinP2p PRIVATE MiniUPnP::miniupnpc)
+target_link_libraries(QwertycoinP2p PRIVATE ${QwertycoinP2p_LIBS})
 
 # Qwertycoin::PaymentGate
 
@@ -512,10 +522,16 @@ set(QwertycoinPaymentGate_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/WalletServiceErrorCategory.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PaymentGate/WalletServiceErrorCategory.h")
 
+set(QwertycoinPaymentGate_LIBS
+    Qwertycoin::JsonRpcServer
+    Qwertycoin::NodeRpcProxy
+    Qwertycoin::System
+    Qwertycoin::Wallet)
+
 add_library(QwertycoinPaymentGate STATIC ${QwertycoinPaymentGate_SOURCES})
 add_library(Qwertycoin::PaymentGate ALIAS QwertycoinPaymentGate)
 target_include_directories(QwertycoinPaymentGate PRIVATE ${Qwertycoin_INCLUDE_DIRS})
-target_link_libraries(QwertycoinPaymentGate PRIVATE Qwertycoin::NodeRpcProxy)
+target_link_libraries(QwertycoinPaymentGate PRIVATE ${QwertycoinPaymentGate_LIBS})
 
 # Qwertycoin::PaymentGateService
 
@@ -537,25 +553,12 @@ endif()
 set(QwertycoinPaymentGateService_LIBS
     Boost::filesystem
     Boost::program_options
-    MiniUPnP::miniupnpc
-    Threads::Threads
-    Qwertycoin::BlockchainExplorer
     Qwertycoin::Common
-    Qwertycoin::Crypto
     Qwertycoin::CryptoNoteCore
-    Qwertycoin::CryptoNoteProtocol
-    Qwertycoin::Http
     Qwertycoin::InProcessNode
-    Qwertycoin::JsonRpcServer
     Qwertycoin::Logging
-    Qwertycoin::NodeRpcProxy
-    Qwertycoin::P2p
-    Qwertycoin::PaymentGate
     Qwertycoin::Rpc
-    Qwertycoin::Serialization
-    Qwertycoin::System
-    Qwertycoin::Transfers
-    Qwertycoin::Wallet)
+    Qwertycoin::System)
 
 add_executable(QwertycoinPaymentGateService ${QwertycoinPaymentGateService_SOURCES})
 add_executable(Qwertycoin::PaymentGateService ALIAS QwertycoinPaymentGateService)
@@ -582,9 +585,12 @@ set(QwertycoinRpc_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Rpc/RpcServerConfig.h")
 
 set(QwertycoinRpc_LIBS
-    sparsehash::sparsehash
-    Qwertycoin::Crypto
+    Qwertycoin::BlockchainExplorer
     Qwertycoin::CryptoNoteCore
+    Qwertycoin::P2p
+    Qwertycoin::PaymentGate
+    Qwertycoin::Serialization
+    Qwertycoin::System
     Qwertycoin::Http)
 
 add_library(QwertycoinRpc STATIC ${QwertycoinRpc_SOURCES})
@@ -600,6 +606,8 @@ set(QwertycoinSerialization_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinaryOutputStreamSerializer.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinaryOutputStreamSerializer.h"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/BinarySerializationTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/BlockchainExplorerDataSerialization.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/BlockchainExplorerDataSerialization.h"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/ISerializer.h"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/IStream.h"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/JsonInputStreamSerializer.cpp"
@@ -622,6 +630,7 @@ set(QwertycoinSerialization_SOURCES
 add_library(QwertycoinSerialization STATIC ${QwertycoinSerialization_SOURCES})
 add_library(Qwertycoin::Serialization ALIAS QwertycoinSerialization)
 target_include_directories(QwertycoinSerialization PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinSerialization PRIVATE Qwertycoin::Common)
 
 # Qwertycoin::SimpleWallet
 
@@ -638,24 +647,11 @@ endif()
 set(QwertycoinSimpleWallet_LIBS
     Boost::filesystem
     Boost::program_options
-    Threads::Threads
-    Qwertycoin::BlockchainExplorer
     Qwertycoin::Common
-    Qwertycoin::Crypto
-    Qwertycoin::CryptoNoteCore
-    Qwertycoin::CryptoNoteProtocol
-    Qwertycoin::Http
-    Qwertycoin::InProcessNode
-    Qwertycoin::JsonRpcServer
     Qwertycoin::Logging
-    Qwertycoin::Mnemonics
     Qwertycoin::NodeRpcProxy
-    Qwertycoin::P2p
-    Qwertycoin::PaymentGate
     Qwertycoin::Rpc
     Qwertycoin::Serialization
-    Qwertycoin::System
-    Qwertycoin::Transfers
     Qwertycoin::Wallet)
 
 if(WIN32)
@@ -797,15 +793,10 @@ set(QwertycoinTransfers_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Transfers/TransfersSynchronizer.h"
     "${CMAKE_CURRENT_LIST_DIR}/Transfers/TypeHelpers.h")
 
-set(QwertycoinTransfers_LIBS
-    Qwertycoin::CryptoNoteCore
-    Qwertycoin::Serialization
-    Qwertycoin::Wallet)
-
 add_library(QwertycoinTransfers STATIC ${QwertycoinTransfers_SOURCES})
 add_library(Qwertycoin::Transfers ALIAS QwertycoinTransfers)
 target_include_directories(QwertycoinTransfers PRIVATE ${Qwertycoin_INCLUDE_DIRS})
-target_link_libraries(QwertycoinTransfers PRIVATE ${QwertycoinTransfers_LIBS})
+target_link_libraries(QwertycoinTransfers PRIVATE Qwertycoin::CryptoNoteCore)
 
 # Qwertycoin::Wallet
 
@@ -853,7 +844,11 @@ set(QwertycoinWallet_SOURCES
 
 set(QwertycoinWallet_LIBS
     Boost::filesystem
-    Qwertycoin::System
+    Qwertycoin::Common
+    Qwertycoin::Crypto
+    Qwertycoin::CryptoNoteCore
+    Qwertycoin::Mnemonics
+    Qwertycoin::Rpc
     Qwertycoin::Transfers)
 
 add_library(QwertycoinWallet STATIC ${QwertycoinWallet_SOURCES})
