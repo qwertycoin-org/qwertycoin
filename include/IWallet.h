@@ -148,7 +148,6 @@ public:
   virtual void initializeWithViewKeyAndTimestamp(const std::string& path, const std::string& password, const Crypto::SecretKey& viewSecretKey, const uint64_t& creationTimestamp) = 0;
   virtual void load(const std::string& path, const std::string& password, std::string& extra) = 0;
   virtual void load(const std::string& path, const std::string& password) = 0;
-  virtual void initWithKeys(const AccountKeys& accountKeys, const std::string& password) = 0;
   virtual void shutdown() = 0;
 
   virtual void changePassword(const std::string& oldPassword, const std::string& newPassword) = 0;
@@ -198,8 +197,6 @@ public:
 
   //blocks until an event occurred
   virtual WalletEvent getEvent() = 0;
-
-  virtual void getAccountKeys(AccountKeys& keys) = 0;
 };
 
 }
