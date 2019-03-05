@@ -200,7 +200,7 @@ add_library(QwertycoinCrypto STATIC ${QwertycoinCrypto_SOURCES})
 add_library(Qwertycoin::Crypto ALIAS QwertycoinCrypto)
 target_include_directories(QwertycoinCrypto PRIVATE ${Qwertycoin_INCLUDE_DIRS})
 
-if(NOT ARM AND NOT PPC64LE)
+if(NOT WIN32 AND NOT ARM AND NOT PPC64LE)
     message(STATUS "[Qwertycoin::Crypto] AES support enabled.")
     target_compile_options(QwertycoinCrypto PRIVATE -maes)
 elseif(PPC64LE)
