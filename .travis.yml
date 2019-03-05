@@ -8,7 +8,7 @@ matrix:
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CMAKE_ARGS="-DBUILD_TESTS=OFF -DSTATIC=ON -DBUILD_64=OFF -DANDROID=true" # -DBUILD_TAG="android"
+              - CMAKE_ARGS="-DANDROID=TRUE" # -DBUILD_TAG="android"
         - os: linux
           dist: xenial
           sudo: required
