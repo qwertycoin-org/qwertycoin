@@ -27,6 +27,8 @@ else()
     list(APPEND Qwertycoin_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix")
 endif()
 
+set(Qwertycoin_INCLUDE_DIRS ${Qwertycoin_INCLUDE_DIRS} PARENT_SCOPE)
+
 # Qwertycoin::BinaryInfo # NOTE: Ignore this. It's not a target.
 
 # Qwertycoin::BlockchainExplorer
@@ -283,6 +285,7 @@ set(QwertycoinCryptoNoteCore_LIBS
     Qwertycoin::BlockchainExplorer
     Qwertycoin::Common
     Qwertycoin::Crypto
+    Qwertycoin::Logging
     Qwertycoin::Serialization)
 
 add_library(QwertycoinCryptoNoteCore STATIC ${QwertycoinCryptoNoteCore_SOURCES})
@@ -467,6 +470,7 @@ set(QwertycoinNodeRpcProxy_SOURCES
 add_library(QwertycoinNodeRpcProxy STATIC ${QwertycoinNodeRpcProxy_SOURCES})
 add_library(Qwertycoin::NodeRpcProxy ALIAS QwertycoinNodeRpcProxy)
 target_include_directories(QwertycoinNodeRpcProxy PRIVATE ${Qwertycoin_INCLUDE_DIRS})
+target_link_libraries(QwertycoinNodeRpcProxy PRIVATE Qwertycoin::System)
 
 # Qwertycoin::P2p
 
@@ -847,6 +851,7 @@ set(QwertycoinWallet_LIBS
     Qwertycoin::Common
     Qwertycoin::Crypto
     Qwertycoin::CryptoNoteCore
+    Qwertycoin::Logging
     Qwertycoin::Mnemonics
     Qwertycoin::Rpc
     Qwertycoin::Transfers)
