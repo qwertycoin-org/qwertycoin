@@ -15,13 +15,13 @@ matrix:
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CMAKE_ARGS=""
+              - CMAKE_ARGS="-DBUILD_WITH_TESTS:BOOL=TRUE"
         - os: osx
           osx_image: xcode10.1
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
-              - CMAKE_ARGS=""
+              - CMAKE_ARGS="-DBUILD_WITH_TESTS:BOOL=TRUE"
 
 addons:
     apt: # Linux
