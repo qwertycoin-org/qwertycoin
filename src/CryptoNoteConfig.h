@@ -168,11 +168,7 @@ const char* const SEED_NODES[] = {
   "node-04.qwertycoin.org:8196",
   "node-05.qwertycoin.org:8196",
   "loop.qwertycoin.org:8196",
-  "qwertycoin.spdns.org:8196",
-  "explorer.qwertycoin.org:8196",
-  "220.82.126.94:8196",
-  "91.194.90.163:8196",
-  "77.55.237.152:8196"
+  "explorer.qwertycoin.org:8196"
 };
 
 struct CheckpointData {
