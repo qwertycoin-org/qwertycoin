@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
             end = n - currency.difficultyLag();
             begin = end - currency.difficultyWindow();
         }
-        uint64_t res = currency.nextDifficulty(
+        uint64_t res = currency.nextDifficultyV5(
 			CryptoNote::BLOCK_MAJOR_VERSION_1,
             vector<uint64_t>(timestamps.begin() + begin, timestamps.begin() + end),
             vector<uint64_t>(cumulative_difficulties.begin() + begin, cumulative_difficulties.begin() + end));
