@@ -1,6 +1,6 @@
 # Boost
 
-set(Boost_COMPONENTS filesystem program_options serialization)
+set(Boost_COMPONENTS chrono filesystem program_options serialization)
 
 if(MSVC)
     add_definitions(-DBOOST_ALL_NO_LIB)
