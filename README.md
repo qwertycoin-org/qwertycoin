@@ -105,8 +105,6 @@ git clone https://github.com/qwertycoin-org/qwertycoin
 cd ./qwertycoin
 mkdir ./build
 cd ./build
-cmake ..
-cmake --build . --config Release
 cmake -DCMAKE_TOOLCHAIN_FILE=cmake/polly/android-ndk-r18b-api-21-x86-clang-libcxx.cmake -DBUILD_TESTS=OFF -DSTATIC=ON -DBUILD_64=OFF -DANDROID=true -DBUILD_TAG="android" ..
 cmake --build . --config Release
 ```
