@@ -29,7 +29,7 @@ namespace CryptoNote
 	{
 		boost::uuids::uuid name;
 		boost::uuids::name_generator gen(name);
-		boost::uuids::uuid u = gen(GENESIS_COINBASE_TX_HEX);
+		boost::uuids::uuid u = gen(GENESIS_COINBASE_TX_FIX);
 	}
 	const static boost::uuids::uuid QWERTYCOIN_NETWORK = u;
 }

@@ -150,7 +150,7 @@ namespace CryptoNote {
     if (!findTransactionExtraFieldByType(txExtraFields, ttl)) {
       ttl.ttl = 0;
     }
-
+    /*
     uint64_t now = static_cast<uint64_t>(time(nullptr));
     if (ttl.ttl != 0) {
       if (ttl.ttl <= now) {
@@ -163,9 +163,23 @@ namespace CryptoNote {
         return false;
       }
     }
-
+    */
     const uint64_t fee = inputs_amount - outputs_amount;
     bool isFusionTransaction = fee == 0 && m_currency.isFusionTransaction(tx, blobSize, m_core.get_current_blockchain_height());
+
+    if (ttl.ttl != !keptByBlock) {
+      uint64_t now = static_cast<uint64_t>(time(nullptr));
+      if (ttl.ttl <= now) {
+        logger(WARNING, BRIGHT_YELLOW) << "Transaction TTL has already expired: Tx = " << id << ", TTL = " << ttl.ttl;
+        tvc.m_verification_failed = true;
+        return false;
+      } else if (ttl.ttl - now > m_currency.mempoolTxLiveTime() + m_currency.blockFutureTimeLimit()) {
+        logger(WARNING, BRIGHT_YELLOW) << "Transaction TTL is out of range: Tx = " << id << ", TTL = " << ttl.ttl;
+        tvc.m_verification_failed = true;
+        return false;
+      }
+      
+    }
 
     //check key images for transaction if it is not kept by block
     if (!keptByBlock) {

@@ -634,7 +634,8 @@ bool wallet_rpc_server::on_get_messages(const wallet_rpc::COMMAND_RPC_GET_MESSAG
 			txMessages.txId = i;
 			txMessages.blockHeight = tx.blockHeight;
 			txMessages.timestamp = tx.timestamp;
-			std::copy(tx.messages.begin(), tx.messages.end(), std::back_inserter(txMessages.messages));
+			// TODO
+			//std::copy(tx.messages.begin(), tx.messages.end(), std::back_inserter(txMessages.messages));
 
 			res.txMessages.emplace_back(std::move(txMessages));
 		}

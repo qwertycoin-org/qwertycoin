@@ -233,7 +233,7 @@ struct TransferCommand {
   std::vector<CryptoNote::WalletLegacyTransfer> dsts;
   std::vector<uint8_t> extra;
   uint64_t fee;
-  std::vector<std::string> messages;
+  std::vector<TransactionMessage> messages;
   uint64_t ttl;
 #ifndef __ANDROID__
   std::map<std::string, std::vector<WalletLegacyTransfer>> aliases;
@@ -303,7 +303,7 @@ struct TransferCommand {
               return false;
             }
           } else if (arg == "-m") {
-              messages.emplace_back(value);
+              messages.emplace_back(TransactionMessage{ value });
           } else if (arg == "-ttl") {
               ttlFound = true;
               
@@ -533,14 +533,16 @@ const size_t TOTAL_AMOUNT_MAX_WIDTH = 20;
 const size_t FEE_MAX_WIDTH = 14;
 const size_t BLOCK_MAX_WIDTH = 7;
 const size_t UNLOCK_TIME_MAX_WIDTH = 11;
+const size_t MESSAGE_MAX_WIDTH = 100;
 
 void printListTransfersHeader(LoggerRef& logger) {
-  std::string header = makeCenteredString(TIMESTAMP_MAX_WIDTH, "timestamp (UTC)") + "  ";
-  header += makeCenteredString(HASH_MAX_WIDTH, "hash") + "  ";
-  header += makeCenteredString(TOTAL_AMOUNT_MAX_WIDTH, "total amount") + "  ";
-  header += makeCenteredString(FEE_MAX_WIDTH, "fee") + "  ";
-  header += makeCenteredString(BLOCK_MAX_WIDTH, "block") + "  ";
-  header += makeCenteredString(UNLOCK_TIME_MAX_WIDTH, "unlock time");
+  std::string header;
+  header += makeCenteredString(TIMESTAMP_MAX_WIDTH, "Timestamp (UTC)") + "  ";
+  header += makeCenteredString(HASH_MAX_WIDTH, "Hash") + "  ";
+  header += makeCenteredString(TOTAL_AMOUNT_MAX_WIDTH, "Total Amount") + "  ";
+  header += makeCenteredString(FEE_MAX_WIDTH, "Fee") + "  ";
+  header += makeCenteredString(BLOCK_MAX_WIDTH, "Block") + "  ";
+  header += makeCenteredString(UNLOCK_TIME_MAX_WIDTH, "Unlock Time");
 
   logger(INFO) << header;
   logger(INFO) << std::string(header.size(), '-');
@@ -583,6 +585,38 @@ void printListTransfersItem(LoggerRef& logger, const WalletLegacyTransaction& tx
   }
 
   logger(INFO, rowColor) << " "; //just to make logger print one endline
+}
+
+void printMessagesHeader(LoggerRef& logger) {
+  std::string header;
+  header += makeCenteredString(TIMESTAMP_MAX_WIDTH, "Timestamp (UTC)") + "  ";
+  header += makeCenteredString(HASH_MAX_WIDTH, "Hash");
+  header += makeCenteredString(MESSAGE_MAX_WIDTH, "Message");
+
+  logger(INFO) << header;
+  logger(INFO) << std::string(header.size(), '-');
+}
+
+void printListMessageItem(LoggerRef& logger, const WalletLegacyTransaction& txInfo, IWalletLegacy& wallet, const Currency& currency) {
+  std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
+
+  char timeString[TIMESTAMP_MAX_WIDTH + 1];
+  time_t timestamp = static_cast<time_t>(txInfo.timestamp);
+  if (std::strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", std::gmtime(&timestamp)) == 0) {
+    throw std::runtime_error("time buffer is too small");
+  }
+
+  std::string rowColor = txInfo.totalAmount < 0 ? MAGENTA : GREEN;
+  logger(INFO, rowColor)
+  <<  std::setw(TIMESTAMP_MAX_WIDTH) << timeString
+  << "  " <<  std::setw(HASH_MAX_WIDTH) << Common::podToHex(txInfo.hash)
+  << "  " <<  std::setw(MESSAGE_MAX_WIDTH); // txInfo.messages;
+  for (uint64_t i = 0; i < txInfo.messages.size(); ++i) {
+    logger(INFO, rowColor) << std::setw(83) << txInfo.messages[i].message;
+  }
+
+  logger(INFO, rowColor) << " "; //just to make logger print one endline
+
 }
 
 std::string prepareWalletAddressFilename(const std::string& walletBaseName) {
@@ -731,6 +765,7 @@ simple_wallet::simple_wallet(System::Dispatcher& dispatcher, const CryptoNote::C
   m_consoleHandler.setHandler("incoming_transfers", boost::bind(&simple_wallet::show_incoming_transfers, this, _1), "Show incoming transfers");
   m_consoleHandler.setHandler("outgoing_transfers", boost::bind(&simple_wallet::show_outgoing_transfers, this, _1), "Show outgoing transfers");
   m_consoleHandler.setHandler("list_transfers", boost::bind(&simple_wallet::listTransfers, this, _1), "Show all known transfers");
+  m_consoleHandler.setHandler("list_messages", boost::bind(&simple_wallet::listMessages, this, _1), "Show all Messages");
   m_consoleHandler.setHandler("payments", boost::bind(&simple_wallet::show_payments, this, _1), "payments <payment_id_1> [<payment_id_2> ... <payment_id_N>] - Show payments <payment_id_1>, ... <payment_id_N>");
   m_consoleHandler.setHandler("outputs", boost::bind(&simple_wallet::show_unlocked_outputs_count, this, _1), "Show the number of unlocked outputs available for a transaction");
   m_consoleHandler.setHandler("bc_height", boost::bind(&simple_wallet::show_blockchain_height, this, _1), "Show blockchain height");
@@ -2017,7 +2052,33 @@ bool simple_wallet::listTransfers(const std::vector<std::string>& args) {
   }
 
   if (!haveTransfers) {
-    success_msg_writer() << "No transfers";
+    success_msg_writer() << "No Transfers";
+  }
+
+  return true;
+}
+
+bool simple_wallet::listMessages(const std::vector<std::string>& args) {
+  bool haveMessages = false;
+  size_t transactionCount = m_wallet->getTransactionCount();
+  for (size_t txNr = 0; txNr < transactionCount; ++ txNr) {
+    WalletLegacyTransaction txInfo;
+    m_wallet->getTransaction(txNr, txInfo);
+
+    if (txInfo.state != WalletLegacyTransactionState::Active || txInfo.blockHeight == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) {
+      continue;
+    }
+
+    if (!haveMessages) {
+      printMessagesHeader(logger);
+      haveMessages = true;
+    }
+
+    printListMessageItem(logger, txInfo, *m_wallet, m_currency);
+  }
+
+  if (!haveMessages) {
+    success_msg_writer() << "No Transfers";
   }
 
   return true;
@@ -2201,7 +2262,7 @@ bool simple_wallet::transfer(const std::vector<std::string> &args) {
     std::vector<TransactionMessage> messages;
     for (auto dst : cmd.dsts) {
         for (auto msg : cmd.messages) {
-            messages.emplace_back(TransactionMessage{ msg, dst.address });
+            messages.emplace_back(TransactionMessage{ msg.message, dst.address });
         }
     }
     
