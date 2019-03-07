@@ -777,6 +777,10 @@ add_library(QwertycoinSystem STATIC ${QwertycoinSystem_SOURCES})
 add_library(Qwertycoin::System ALIAS QwertycoinSystem)
 target_include_directories(QwertycoinSystem PRIVATE ${Qwertycoin_INCLUDE_DIRS})
 
+if(WIN32)
+    target_link_libraries(QwertycoinSystem PRIVATE ws2_32)
+endif()
+
 # Qwertycoin::Transfers
 
 set(QwertycoinTransfers_SOURCES
