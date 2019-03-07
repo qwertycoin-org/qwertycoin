@@ -65,7 +65,10 @@ add_executable(QwertycoinTests_CoreTests ${QwertycoinTests_CoreTests_SOURCES})
 add_executable(QwertycoinTests::CoreTests ALIAS QwertycoinTests_CoreTests)
 target_include_directories(QwertycoinTests_CoreTests PRIVATE ${QwertycoinTests_INCLUDE_DIRS})
 target_link_libraries(QwertycoinTests_CoreTests PRIVATE ${QwertycoinTests_CoreTests_LIBS})
-set_target_properties(QwertycoinTests_CoreTests PROPERTIES OUTPUT_NAME "core_tests")
+set_target_properties(QwertycoinTests_CoreTests PROPERTIES
+    OUTPUT_NAME "core_tests"
+    EXCLUDE_FROM_ALL TRUE
+    EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 
 add_test(NAME CoreTests
          COMMAND core_tests --generate_and_play_test_data)
@@ -400,7 +403,10 @@ add_executable(QwertycoinTests_UnitTests ${QwertycoinTests_UnitTests_SOURCES})
 add_executable(QwertycoinTests::UnitTests ALIAS QwertycoinTests_UnitTests)
 target_include_directories(QwertycoinTests_UnitTests PRIVATE ${QwertycoinTests_INCLUDE_DIRS})
 target_link_libraries(QwertycoinTests_UnitTests PRIVATE ${QwertycoinTests_UnitTests_LIBS})
-set_target_properties(QwertycoinTests_UnitTests PROPERTIES OUTPUT_NAME "unit_tests")
+set_target_properties(QwertycoinTests_UnitTests PROPERTIES
+    OUTPUT_NAME "unit_tests"
+    EXCLUDE_FROM_ALL TRUE
+    EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 
 add_test(NAME UnitTests
          COMMAND unit_tests)
