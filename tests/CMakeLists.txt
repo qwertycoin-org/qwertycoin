@@ -89,6 +89,9 @@ target_include_directories(QwertycoinTests_CryptoTests PRIVATE ${QwertycoinTests
 target_link_libraries(QwertycoinTests_CryptoTests PRIVATE ${QwertycoinTests_CryptoTests_LIBS})
 set_target_properties(QwertycoinTests_CryptoTests PROPERTIES OUTPUT_NAME "crypto_tests")
 
+add_test(NAME CryptoTests
+         COMMAND crypto_tests ${CMAKE_CURRENT_LIST_DIR}/CryptoTests/tests.txt)
+
 # QwertycoinTests::Data (skipped, not a library or executable target)
 
 # QwertycoinTests::DifficultyTests
@@ -106,6 +109,9 @@ target_include_directories(QwertycoinTests_DifficultyTests PRIVATE ${QwertycoinT
 target_link_libraries(QwertycoinTests_DifficultyTests PRIVATE ${QwertycoinTests_DifficultyTests_LIBS})
 set_target_properties(QwertycoinTests_DifficultyTests PROPERTIES OUTPUT_NAME "difficulty_tests")
 
+add_test(NAME DifficultyTests
+         COMMAND difficulty_tests ${CMAKE_CURRENT_LIST_DIR}/DifficultyTests/data.txt)
+
 # QwertycoinTests::HashTargetTests
 
 set(QwertycoinTests_HashTargetTests_SOURCES
@@ -120,6 +126,9 @@ target_include_directories(QwertycoinTests_HashTargetTests PRIVATE ${QwertycoinT
 target_link_libraries(QwertycoinTests_HashTargetTests PRIVATE ${QwertycoinTests_HashTargetTests_LIBS})
 set_target_properties(QwertycoinTests_HashTargetTests PROPERTIES OUTPUT_NAME "hash_target_tests")
 
+add_test(NAME HashTargetTests
+         COMMAND hash_target_tests)
+
 # QwertycoinTests::HashTests
 
 set(QwertycoinTests_HashTests_SOURCES
@@ -133,6 +142,11 @@ add_executable(QwertycoinTests::HashTests ALIAS QwertycoinTests_HashTests)
 target_include_directories(QwertycoinTests_HashTests PRIVATE ${QwertycoinTests_INCLUDE_DIRS})
 target_link_libraries(QwertycoinTests_HashTests PRIVATE ${QwertycoinTests_HashTests_LIBS})
 set_target_properties(QwertycoinTests_HashTests PROPERTIES OUTPUT_NAME "hash_tests")
+
+foreach(hash IN ITEMS extra-blake extra-groestl extra-jh extra-skein fast slow tree)
+    add_test(NAME HashTests-${hash}
+             COMMAND hash_tests ${hash} ${CMAKE_CURRENT_LIST_DIR}/HashTests/tests-${hash}.txt)
+endforeach()
 
 # QwertycoinTests::IntegrationTestLib
 
@@ -272,6 +286,9 @@ target_include_directories(QwertycoinTests_SystemTests PRIVATE ${QwertycoinTests
 target_link_libraries(QwertycoinTests_SystemTests PRIVATE ${QwertycoinTests_SystemTests_LIBS})
 set_target_properties(QwertycoinTests_SystemTests PROPERTIES OUTPUT_NAME "system_tests")
 
+add_test(NAME SystemTests
+         COMMAND system_tests)
+
 # QwertycoinTests::TestGenerator
 
 set(QwertycoinTests_TestGenerator_SOURCES
@@ -313,6 +330,9 @@ add_executable(QwertycoinTests::TransfersTests ALIAS QwertycoinTests_TransfersTe
 target_include_directories(QwertycoinTests_TransfersTests PRIVATE ${QwertycoinTests_INCLUDE_DIRS})
 target_link_libraries(QwertycoinTests_TransfersTests PRIVATE ${QwertycoinTests_TransfersTests_LIBS})
 set_target_properties(QwertycoinTests_TransfersTests PROPERTIES OUTPUT_NAME "transfers_tests")
+
+add_test(NAME TransfersTests
+         COMMAND transfers_tests)
 
 # QwertycoinTests::UnitTests
 
@@ -381,3 +401,6 @@ add_executable(QwertycoinTests::UnitTests ALIAS QwertycoinTests_UnitTests)
 target_include_directories(QwertycoinTests_UnitTests PRIVATE ${QwertycoinTests_INCLUDE_DIRS})
 target_link_libraries(QwertycoinTests_UnitTests PRIVATE ${QwertycoinTests_UnitTests_LIBS})
 set_target_properties(QwertycoinTests_UnitTests PROPERTIES OUTPUT_NAME "unit_tests")
+
+add_test(NAME UnitTests
+         COMMAND unit_tests)
