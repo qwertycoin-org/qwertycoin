@@ -866,3 +866,33 @@ target_include_directories(QwertycoinWallet PRIVATE ${Qwertycoin_INCLUDE_DIRS})
 target_link_libraries(QwertycoinWallet PRIVATE ${QwertycoinWallet_LIBS})
 
 # Qwertycoin::WalletLegacy # TODO: Merge this target into Qwertycoin::Wallet
+
+# Installation
+
+install(TARGETS
+            QwertycoinBlockchainExplorer
+            QwertycoinCommon
+            QwertycoinConnectivityTool
+            QwertycoinCrypto
+            QwertycoinCryptoNoteCore
+            QwertycoinCryptoNoteProtocol
+            QwertycoinDaemon
+            QwertycoinHttp
+            QwertycoinInProcessNode
+            QwertycoinJsonRpcServer
+            QwertycoinLogging
+            QwertycoinMiner
+            QwertycoinMnemonics
+            QwertycoinNodeRpcProxy
+            QwertycoinP2p
+            QwertycoinPaymentGate
+            QwertycoinPaymentGateService
+            QwertycoinRpc
+            QwertycoinSerialization
+            QwertycoinSimpleWallet
+            QwertycoinSystem
+            QwertycoinTransfers
+            QwertycoinWallet
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib/static)
