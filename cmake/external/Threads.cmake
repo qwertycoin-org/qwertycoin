@@ -1,0 +1,12 @@
+# Threads
+
+if(WIN32)
+    set(CMAKE_USE_WIN32_THREADS_INIT TRUE)
+endif()
+
+if(UNIX AND NOT ANDROID)
+    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+    set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+endif()
+
+find_package(Threads REQUIRED)
