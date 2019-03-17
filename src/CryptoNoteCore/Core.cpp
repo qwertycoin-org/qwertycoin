@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers, The Karbowanec developers
 //
 // This file is part of Qwertycoin.
@@ -323,6 +323,21 @@ bool core::check_tx_semantic(const Transaction& tx, bool keeped_by_block) {
   if (!tx.inputs.size()) {
     logger(ERROR) << "tx with empty inputs, rejected for tx id= " << getObjectHash(tx);
     return false;
+  }
+
+  if (tx.inputs.size() != tx.signatures.size()) {
+    logger(ERROR) << "tx signatures size doesn't match inputs size, rejected for tx id= " << getObjectHash(tx);
+    return false;
+  }
+
+  for (size_t i = 0; i < tx.inputs.size(); ++i) {
+    if (tx.inputs[i].type() == typeid(KeyInput)) {
+      if (boost::get<KeyInput>(tx.inputs[i]).outputIndexes.size() != tx.signatures[i].size()) {
+        logger(ERROR) << "tx signatures count doesn't match outputIndexes count for input " 
+          << i << ", rejected for tx id= " << getObjectHash(tx);
+        return false;
+      }
+    }
   }
 
   if (!check_inputs_types_supported(tx)) {
