@@ -40,7 +40,7 @@ void AccountBase::generate() {
   m_creation_timestamp = time(NULL);
 }
 //-----------------------------------------------------------------
-void AccountBase::generateDeterministic() { 
+void AccountBase::generateDeterministic() {
   Crypto::SecretKey second;
   Crypto::generate_keys(m_keys.address.spendPublicKey, m_keys.spendSecretKey);
   keccak((uint8_t *)&m_keys.spendSecretKey, sizeof(Crypto::SecretKey), (uint8_t *)&second, sizeof(Crypto::SecretKey));

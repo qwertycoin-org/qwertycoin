@@ -132,7 +132,7 @@ bool DaemonCommandsHandler::status(const std::vector<std::string>& args) {
   uint64_t alt_block_count = m_core.get_alternative_blocks_count();
 
   std::cout << std::endl
-    << (synced ? "Synced " : "Syncing ") << height << "/" << last_known_block_index 
+    << (synced ? "Synced " : "Syncing ") << height << "/" << last_known_block_index
     << " (" << get_sync_percentage(height, last_known_block_index) << "%) "
     << "on " << (m_core.currency().isTestnet() ? "testnet, " : "mainnet, ")
     << "network hashrate: " << get_mining_speed(hashrate) << ", next difficulty: " << difficulty << ", "
@@ -142,7 +142,7 @@ bool DaemonCommandsHandler::status(const std::vector<std::string>& args) {
     << "uptime: " << (unsigned int)floor(uptime / 60.0 / 60.0 / 24.0) << "d " << (unsigned int)floor(fmod((uptime / 60.0 / 60.0), 24.0)) << "h "
     << (unsigned int)floor(fmod((uptime / 60.0), 60.0)) << "m " << (unsigned int)fmod(uptime, 60.0) << "s"
     << std::endl;
-  
+
   return true;
 }
 
@@ -422,7 +422,7 @@ bool DaemonCommandsHandler::ban(const std::vector<std::string>& args)
     if (seconds == 0) {
       return false;
     }
-  } 
+  }
   try {
     ip = Common::stringToIpAddress(addr);
   } catch (const std::exception &e) {

@@ -59,7 +59,7 @@ public:
       return false;
     }
 
-    return decode(cmd.buf, response); 
+    return decode(cmd.buf, response);
   }
 
   template <typename Request>

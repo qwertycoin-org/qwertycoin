@@ -148,9 +148,9 @@ void WaitWalletSave(TrivialWalletObserver* observer) {
 
 void WaitWalletLoad(TrivialWalletObserver* observer) {
   std::error_code ec;
-  
+
   ASSERT_TRUE(observer->waitForLoadEnd(ec));
-  EXPECT_FALSE(ec);  
+  EXPECT_FALSE(ec);
 }
 
 class WalletLegacyApi : public ::testing::Test
@@ -417,7 +417,7 @@ TEST_F(WalletLegacyApi, TransactionsAndTransfersAfterSend) {
   int64_t amount2 = 1234500;
   ASSERT_NO_FATAL_FAILURE(TransferMoney(*alice, *bob, amount2, fee, 0));
   ASSERT_NO_FATAL_FAILURE(WaitWalletSend(aliceWalletObserver.get()));
-  
+
   generator.generateEmptyBlocks(10);
   aliceNode->updateObservers();
   ASSERT_NO_FATAL_FAILURE(WaitWalletSync(aliceWalletObserver.get()));
@@ -934,13 +934,13 @@ TEST_F(WalletLegacyApi, sendSeveralTransactions) {
   uint64_t sendAmount = 100000;
   uint64_t totalSentAmount = 0;
   size_t transactionCount = 0;
-  
+
   for (int i = 0; i < 10 && alice->actualBalance() > sendAmount; ++i) {
     CryptoNote::WalletLegacyTransfer tr;
     tr.address = bob->getAddress();
     tr.amount = sendAmount;
 
-    auto txId = alice->sendTransaction(tr, m_currency.minimumFee(), "", 1, 0);  
+    auto txId = alice->sendTransaction(tr, m_currency.minimumFee(), "", 1, 0);
     ASSERT_NE(txId, CryptoNote::WALLET_LEGACY_INVALID_TRANSACTION_ID);
 
     std::error_code sendResult;
@@ -1231,7 +1231,7 @@ TEST_F(WalletLegacyApi, initWithKeys) {
 
   CryptoNote::AccountKeys keys;
   alice->getAccountKeys(keys);
-  
+
   EXPECT_EQ(accountKeys.address.spendPublicKey, keys.address.spendPublicKey);
   EXPECT_EQ(accountKeys.spendSecretKey, keys.spendSecretKey);
   EXPECT_EQ(accountKeys.address.viewPublicKey, keys.address.viewPublicKey);

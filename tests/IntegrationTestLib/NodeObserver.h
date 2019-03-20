@@ -28,7 +28,7 @@ namespace CryptoNote {
 template <typename T>
 class ObservableValue {
 public:
-  ObservableValue(const T defaultValue = 0) : 
+  ObservableValue(const T defaultValue = 0) :
     m_prev(defaultValue), m_value(defaultValue) {
   }
 

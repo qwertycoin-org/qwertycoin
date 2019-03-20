@@ -1,22 +1,22 @@
 // Copyright (c) 2014-2017, The Monero Project
 // Copyright (c) 2017-2018, Karbo developers
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -29,9 +29,9 @@
 
 /*!
  * \file electrum-words.cpp
- * 
+ *
  * \brief Mnemonic seed generation and wallet restoration from them.
- * 
+ *
  * This file and its header file are for translating Electrum-style word lists
  * into their equivalent byte representations for cross-compatibility with
  * that method of "backing up" one's wallet keys.
@@ -86,7 +86,7 @@ typedef std::unordered_map<std::string, Lazy<std::shared_ptr<Base>>> LanguageMap
 const static LanguageMap c_languageMap =
 {
 	{ English   ::c_name, Lazy<std::shared_ptr<Base>>([](){ return std::make_shared<English>();    }) },
-	{ Ukrainian ::c_name, Lazy<std::shared_ptr<Base>>([](){ return std::make_shared<Ukrainian>();  }) },	
+	{ Ukrainian ::c_name, Lazy<std::shared_ptr<Base>>([](){ return std::make_shared<Ukrainian>();  }) },
 	{ Polish    ::c_name, Lazy<std::shared_ptr<Base>>([](){ return std::make_shared<Polish>();     }) },
 	{ German    ::c_name, Lazy<std::shared_ptr<Base>>([](){ return std::make_shared<German>();     }) },
 	{ French    ::c_name, Lazy<std::shared_ptr<Base>>([](){ return std::make_shared<French>();     }) },
@@ -115,7 +115,7 @@ bool checksum_test(std::vector<std::string> seed, uint32_t unique_prefix_length)
 * \param  language        Language instance pointer to write to after it is found.
 * \return                 true if all the words were present in some language false if not.
 */
-bool find_seed_language(const std::vector<std::string> &seed, bool has_checksum, 
+bool find_seed_language(const std::vector<std::string> &seed, bool has_checksum,
 	std::vector<uint32_t> &matched_indices, Language::Base **language)
 {
 	Language::Base *fallback = NULL;
@@ -161,14 +161,14 @@ bool find_seed_language(const std::vector<std::string> &seed, bool has_checksum,
 		{
 			// if we were using prefix only, and we have a checksum, check it now
 			// to avoid false positives due to prefix set being too common
-			if (has_checksum && 
+			if (has_checksum &&
 				!checksum_test(seed, lang->get_unique_prefix_length()))
 			{
 				fallback = lang.get();
 				full_match = false;
 			}
 		}
-		
+
 		if (full_match)
 		{
 			*language = lang.get();
@@ -226,9 +226,9 @@ bool checksum_test(std::vector<std::string> seed, uint32_t unique_prefix_length)
 
 	std::string checksum = seed[create_checksum_index(seed, unique_prefix_length)];
 
-	std::string trimmed_checksum = checksum.length() > unique_prefix_length ? 
+	std::string trimmed_checksum = checksum.length() > unique_prefix_length ?
 		Language::utf8prefix(checksum, unique_prefix_length) : checksum;
-	std::string trimmed_last_word = last_word.length() > unique_prefix_length ? 
+	std::string trimmed_last_word = last_word.length() > unique_prefix_length ?
 		Language::utf8prefix(last_word, unique_prefix_length) : last_word;
 	return trimmed_checksum == trimmed_last_word;
 }
@@ -237,7 +237,7 @@ bool checksum_test(std::vector<std::string> seed, uint32_t unique_prefix_length)
 
 /*!
  * \namespace Crypto
- * 
+ *
  * \brief Crypto namespace.
  */
 namespace Crypto {
@@ -364,7 +364,7 @@ void get_language_list(std::vector<std::string> &languages)
     languages.clear();
 	auto itBegin = Language::c_languageMap.cbegin();
 	auto itEnd   = Language::c_languageMap.cend();
-	std::transform(itBegin, itEnd, std::back_inserter(languages), 
+	std::transform(itBegin, itEnd, std::back_inserter(languages),
 		[](const Language::LanguageMap::value_type& pair){ return pair.first; });
 }
 

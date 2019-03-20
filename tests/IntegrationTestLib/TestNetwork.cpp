@@ -77,7 +77,7 @@ void copyBlockchainFiles(bool testnet, const std::string& from, const std::strin
       boost::filesystem::path filePath = std::string(testnet ? "testnet_" : "") + item.first;
       boost::filesystem::copy(fromPath / filePath, toPath / filePath);
     } catch (...) {
-      if (item.second) { 
+      if (item.second) {
         // if file is required, the rethrow error
         throw;
       }
@@ -92,9 +92,9 @@ namespace Tests {
 
 
 TestNetworkBuilder::TestNetworkBuilder(size_t nodeCount, Topology topology, uint16_t rpcBasePort, uint16_t p2pBasePort) :
-  nodeCount(nodeCount), 
-  topology(topology), 
-  rpcBasePort(rpcBasePort), 
+  nodeCount(nodeCount),
+  topology(topology),
+  rpcBasePort(rpcBasePort),
   p2pBasePort(p2pBasePort),
   baseDataDir("."),
   testnet(true)
@@ -172,7 +172,7 @@ TestNodeConfiguration TestNetworkBuilder::buildNodeConfiguration(size_t index) {
 
 }
 
-TestNetwork::TestNetwork(System::Dispatcher& dispatcher, const CryptoNote::Currency& currency) : 
+TestNetwork::TestNetwork(System::Dispatcher& dispatcher, const CryptoNote::Currency& currency) :
   m_dispatcher(dispatcher),
   m_currency(currency) {
 }

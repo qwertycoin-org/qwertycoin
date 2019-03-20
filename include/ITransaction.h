@@ -28,7 +28,7 @@
 namespace CryptoNote {
 
 namespace TransactionTypes {
-  
+
   enum class InputType : uint8_t { Invalid, Key, Multisignature, Generating };
   enum class OutputType : uint8_t { Invalid, Key, Multisignature };
 
@@ -54,7 +54,7 @@ namespace TransactionTypes {
 
 //
 // ITransactionReader
-// 
+//
 class ITransactionReader {
 public:
   virtual ~ITransactionReader() { }
@@ -99,9 +99,9 @@ public:
 
 //
 // ITransactionWriter
-// 
+//
 class ITransactionWriter {
-public: 
+public:
 
   virtual ~ITransactionWriter() { }
 
@@ -113,7 +113,7 @@ public:
   virtual void setExtraNonce(const BinaryArray& nonce) = 0;
   virtual void appendExtra(const BinaryArray& extraData) = 0;
 
-  // Inputs/Outputs 
+  // Inputs/Outputs
   virtual size_t addInput(const KeyInput& input) = 0;
   virtual size_t addInput(const MultisignatureInput& input) = 0;
   virtual size_t addInput(const AccountKeys& senderKeys, const TransactionTypes::InputKeyInfo& info, KeyPair& ephKeys) = 0;
@@ -132,8 +132,8 @@ public:
   virtual void signInputMultisignature(size_t input, const KeyPair& ephemeralKeys) = 0;
 };
 
-class ITransaction : 
-  public ITransactionReader, 
+class ITransaction :
+  public ITransactionReader,
   public ITransactionWriter {
 public:
   virtual ~ITransaction() { }

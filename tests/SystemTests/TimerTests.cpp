@@ -152,8 +152,8 @@ TEST_F(TimerTests, movedTimerIsWorking2) {
     ASSERT_TRUE(done);
   });
 
-  contextGroup.spawn([&]() { 
-    done = true; 
+  contextGroup.spawn([&]() {
+    done = true;
   });
 
   contextGroup.wait();
@@ -206,8 +206,8 @@ TEST_F(TimerTests, timerIsCancelable) {
     ASSERT_THROW(t.sleep(std::chrono::milliseconds(100)), InterruptedException);
   });
 
-  contextGroup.spawn([&]() { 
-    contextGroup.interrupt(); 
+  contextGroup.spawn([&]() {
+    contextGroup.interrupt();
   });
 }
 
@@ -232,7 +232,7 @@ TEST_F(TimerTests, sleepIsSleepingAtLeastTakenTime) {
   });
 
   contextGroup.wait();
-  auto timepoint2 = std::chrono::high_resolution_clock::now();  
+  auto timepoint2 = std::chrono::high_resolution_clock::now();
   ASSERT_LE(95, std::chrono::duration_cast<std::chrono::milliseconds>(timepoint2 - timepoint1).count());
 }
 
@@ -240,13 +240,13 @@ TEST_F(TimerTests, timerIsReusable) {
   Timer t(dispatcher);
   auto timepoint1 = std::chrono::high_resolution_clock::now();
   contextGroup.spawn([&] {
-    ASSERT_NO_THROW(t.sleep(std::chrono::seconds(1))); 
+    ASSERT_NO_THROW(t.sleep(std::chrono::seconds(1)));
   });
 
   contextGroup.wait();
   auto timepoint2 = std::chrono::high_resolution_clock::now();
   contextGroup.spawn([&] {
-    ASSERT_NO_THROW(t.sleep(std::chrono::seconds(1))); 
+    ASSERT_NO_THROW(t.sleep(std::chrono::seconds(1)));
   });
 
   contextGroup.wait();

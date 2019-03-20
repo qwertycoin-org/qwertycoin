@@ -40,7 +40,7 @@ public:
   HttpClient(System::Dispatcher& dispatcher, const std::string& address, uint16_t port);
   ~HttpClient();
   void request(const HttpRequest& req, HttpResponse& res);
-  
+
   bool isConnected() const;
 
 private:

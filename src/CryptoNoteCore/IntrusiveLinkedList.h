@@ -201,12 +201,12 @@ template<class Value>
 Value& IntrusiveLinkedList<Value>::iterator::operator*() const {
   assert(currentElement != nullptr);
 
-  return *currentElement; 
+  return *currentElement;
 }
 
 template<class Value>
 Value* IntrusiveLinkedList<Value>::iterator::operator->() const {
-  return currentElement; 
+  return currentElement;
 }
 
 }

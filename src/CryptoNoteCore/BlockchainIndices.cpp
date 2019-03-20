@@ -210,7 +210,7 @@ bool TimestampTransactionsIndex::find(uint64_t timestampBegin, uint64_t timestam
   if (!enabled) {
     throw std::runtime_error("Timestamp transactions index disabled.");
   }
-  
+
   uint32_t hashesNumber = 0;
   if (timestampBegin > timestampEnd) {
     //std::swap(timestampBegin, timestampEnd);
@@ -254,7 +254,7 @@ bool GeneratedTransactionsIndex::add(const Block& block) {
 
   if (index.size() != blockHeight) {
     return false;
-  } 
+  }
 
   bool status = index.emplace(blockHeight, lastGeneratedTxNumber + block.transactionHashes.size() + 1).second; //Plus miner tx
   if (status) {
@@ -285,7 +285,7 @@ bool GeneratedTransactionsIndex::remove(const Block& block) {
   } else {
     lastGeneratedTxNumber = 0;
   }
-  
+
   return true;
 }
 

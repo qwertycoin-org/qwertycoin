@@ -502,7 +502,7 @@ TEST(parseAccountAddressString, fails_on_invalid_address_prefix)
   CryptoNote::Currency currency = CryptoNote::CurrencyBuilder(logger).currency();
 
   CryptoNote::AccountPublicAddress addr;
-  
+
   ASSERT_FALSE(currency.parseAccountAddressString(addr_str, addr));
 }
 

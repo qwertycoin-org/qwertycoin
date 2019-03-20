@@ -30,14 +30,14 @@
 using namespace CryptoNote;
 
 namespace {
- 
-  template <size_t size> 
+
+  template <size_t size>
   void fillRandomBytes(std::array<uint8_t, size>& data) {
     for (size_t i = 0; i < size; ++i) {
       data[i] = std::rand() % std::numeric_limits<uint8_t>::max();
     }
   }
-  
+
   template <typename Array>
   Array randomArray() {
     Array a;
@@ -48,8 +48,8 @@ namespace {
   void derivePublicKey(const AccountKeys& reciever, const Crypto::PublicKey& srcTxKey, size_t outputIndex, PublicKey& ephemeralKey) {
     Crypto::KeyDerivation derivation;
     Crypto::generate_key_derivation(srcTxKey, reinterpret_cast<const Crypto::SecretKey&>(reciever.viewSecretKey), derivation);
-    Crypto::derive_public_key(derivation, outputIndex, 
-      reinterpret_cast<const Crypto::PublicKey&>(reciever.address.spendPublicKey), 
+    Crypto::derive_public_key(derivation, outputIndex,
+      reinterpret_cast<const Crypto::PublicKey&>(reciever.address.spendPublicKey),
       reinterpret_cast<Crypto::PublicKey&>(ephemeralKey));
   }
 
@@ -68,7 +68,7 @@ namespace {
 
   class TransactionApi : public testing::Test {
   protected:
-    
+
     virtual void SetUp() override {
       sender = generateAccountKeys();
       tx = createTransaction();
@@ -221,19 +221,19 @@ TEST_F(TransactionApi, addOutputMsig) {
 
 TEST_F(TransactionApi, secretKey) {
   tx->addOutput(1000, sender.address);
-  ASSERT_EQ(1000, tx->getOutputTotalAmount()); 
+  ASSERT_EQ(1000, tx->getOutputTotalAmount());
   // reloaded transaction does not have secret key, cannot add outputs
   auto tx2 = reloadedTx(tx);
   ASSERT_ANY_THROW(tx2->addOutput(1000, sender.address));
   // take secret key from first transaction and add to second (reloaded)
   SecretKey txSecretKey;
   ASSERT_TRUE(tx->getTransactionSecretKey(txSecretKey));
-  
+
   KeyPair kp1;
   Crypto::generate_keys(kp1.publicKey, kp1.secretKey);
   SecretKey sk = kp1.secretKey;
   ASSERT_ANY_THROW(tx2->setTransactionSecretKey(sk)); // unrelated secret key should not be accepted
-  
+
   tx2->setTransactionSecretKey(txSecretKey);
   // adding output should succeed
   tx2->addOutput(500, sender.address);

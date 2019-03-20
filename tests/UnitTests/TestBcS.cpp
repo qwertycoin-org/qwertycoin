@@ -1200,7 +1200,7 @@ TEST_F(BcSTest, checkConsumerHeightReceivedOnDetach) {
 
   uint32_t alternativeHeight = 10;
 
-  m_node.startAlternativeChain(alternativeHeight);  
+  m_node.startAlternativeChain(alternativeHeight);
   generator.generateEmptyBlocks(20);
 
   uint32_t receivedStartHeight = 0;
@@ -1277,7 +1277,7 @@ TEST_F(BcSTest, checkBlocksRerequestingOnError) {
 
   generator.generateEmptyBlocks(20);
   m_node.setGetNewBlocksLimit(10);
-  
+
   std::atomic<int> requestsCount(0);
   std::list<Hash> firstlyKnownBlockIdsTaken;
   std::list<Hash> secondlyKnownBlockIdsTaken;
@@ -1301,7 +1301,7 @@ TEST_F(BcSTest, checkBlocksRerequestingOnError) {
       }
     }
 
-    return true;   
+    return true;
   };
 
   m_node.queryBlocksFunctor = [&](const std::vector<Hash>& knownBlockIds, uint64_t timestamp, std::vector<BlockShortEntry>& newBlocks, uint32_t& startHeight, const INode::Callback& callback) -> bool {

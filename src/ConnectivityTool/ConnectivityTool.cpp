@@ -72,7 +72,7 @@ void withTimeout(System::Dispatcher& dispatcher, unsigned timeout, std::function
   std::string result;
   System::ContextGroup cg(dispatcher);
   System::ContextGroupTimeout cgTimeout(dispatcher, cg, std::chrono::milliseconds(timeout));
-  
+
   cg.spawn([&] {
     try {
       f();
@@ -92,7 +92,7 @@ void withTimeout(System::Dispatcher& dispatcher, unsigned timeout, std::function
 
 
 std::ostream& get_response_schema_as_json(std::ostream& ss, response_schema &rs) {
-  
+
   ss << "{" << ENDL
      << "  \"status\": \"" << rs.status << "\"," << ENDL
      << "  \"COMMAND_REQUEST_NETWORK_STATE_status\": \"" << rs.COMMAND_REQUEST_NETWORK_STATE_status << "\"," << ENDL
@@ -285,8 +285,8 @@ bool handle_request_stat(po::variables_map& vm, PeerIdType peer_id) {
         rs.COMMAND_REQUEST_STAT_INFO_status = "OK";
       } catch (const std::exception &e) {
         std::stringstream ss;
-        ss << "ERROR: Failed to invoke remote command COMMAND_REQUEST_STAT_INFO to " 
-           << command_line::get_arg(vm, arg_ip) << ":" << command_line::get_arg(vm, arg_port) 
+        ss << "ERROR: Failed to invoke remote command COMMAND_REQUEST_STAT_INFO to "
+           << command_line::get_arg(vm, arg_ip) << ":" << command_line::get_arg(vm, arg_port)
            << " - " << e.what();
         rs.COMMAND_REQUEST_STAT_INFO_status = ss.str();
       }
@@ -373,11 +373,11 @@ int main(int argc, char *argv[]) {
   if (command_line::has_arg(vm, arg_request_stat_info) || command_line::has_arg(vm, arg_request_net_state)) {
     return handle_request_stat(vm, command_line::get_arg(vm, arg_peer_id)) ? 0 : 1;
   }
-  
+
   if (command_line::has_arg(vm, arg_get_daemon_info)) {
     return handle_get_daemon_info(vm) ? 0 : 1;
-  } 
-  
+  }
+
   if (command_line::has_arg(vm, arg_generate_keys)) {
     return generate_and_print_keys() ? 0 : 1;
   }

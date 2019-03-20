@@ -72,10 +72,10 @@ public:
   TestTransactionGenerator(const CryptoNote::Currency& currency, size_t ringSize) :
     m_currency(currency),
     m_ringSize(ringSize),
-    m_miners(ringSize), 
-    m_miner_txs(ringSize), 
-    m_public_keys(ringSize), 
-    m_public_key_ptrs(ringSize) 
+    m_miners(ringSize),
+    m_miner_txs(ringSize),
+    m_public_keys(ringSize),
+    m_public_key_ptrs(ringSize)
   {
     rv_acc.generate();
   }
@@ -144,7 +144,7 @@ public:
 class tx_pool : public ::testing::Test {
 public:
 
-  tx_pool() : 
+  tx_pool() :
     currency(CryptoNote::CurrencyBuilder(logger).currency()) {}
 
 protected:
@@ -173,7 +173,7 @@ namespace
     txGenerator.createSources();
     txGenerator.construct(txGenerator.m_source_amount, fee, outputs, tx);
   }
-  
+
   template <typename Validator, typename TimeProvider>
   class TestPool : public tx_memory_pool {
   public:
@@ -227,7 +227,7 @@ TEST_F(tx_pool, add_one_tx)
   test.construct(test.m_currency.minimumFee(), 1, tx);
 
   tx_verification_context tvc = boost::value_initialized<tx_verification_context>();
-  
+
   ASSERT_TRUE(test.pool.add_tx(tx, tvc, false));
   ASSERT_FALSE(tvc.m_verification_failed);
 };
@@ -287,7 +287,7 @@ TEST_F(tx_pool, fillblock_same_fee)
   for (int i = 1; i <= 50; ++i) {
     TestTransactionGenerator txGenerator(currency, 1);
     txGenerator.createSources();
-    
+
     std::unique_ptr<Transaction> txptr(new Transaction);
     Transaction& tx = *txptr;
 
@@ -421,7 +421,7 @@ TEST_F(tx_pool, cleanup_stale_tx)
 
   ASSERT_EQ(8, pool.get_transactions_count());
 
-  pool.timeProvider.timeNow = startTime + currency.mempoolTxLiveTime() + 3*60*60; 
+  pool.timeProvider.timeNow = startTime + currency.mempoolTxLiveTime() + 3*60*60;
   pool.on_idle(); // 2 transactions should be removed
 
   ASSERT_EQ(6, pool.get_transactions_count());

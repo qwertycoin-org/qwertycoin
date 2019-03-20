@@ -202,7 +202,7 @@ bool test_generator::constructBlockManually(Block& blk, const Block& prevBlock, 
   blk.timestamp    = actualParams & bf_timestamp ? timestamp : prevBlock.timestamp + m_currency.difficultyTarget(); // Keep difficulty unchanged
   blk.previousBlockHash       = actualParams & bf_prev_id   ? previousBlockHash    : get_block_hash(prevBlock);
   blk.transactionHashes     = actualParams & bf_tx_hashes ? transactionHashes  : std::vector<Crypto::Hash>();
-  
+
   blk.parentBlock.baseTransaction.version = 0;
   blk.parentBlock.baseTransaction.unlockTime = 0;
 

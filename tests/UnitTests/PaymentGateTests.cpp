@@ -40,7 +40,7 @@ public:
     logger(Logging::ERROR),
     currency(CryptoNote::CurrencyBuilder(logger).currency()),
     generator(currency),
-    nodeStub(generator) 
+    nodeStub(generator)
   {}
 
   WalletConfiguration createWalletConfiguration(const std::string& walletFile = "pgwalleg.bin") const {
@@ -60,7 +60,7 @@ public:
     generateNewWallet(currency, conf, logger, dispatcher);
   }
 
-protected:  
+protected:
   Logging::ConsoleLogger logger;
   CryptoNote::Currency currency;
   TestBlockchainGenerator generator;

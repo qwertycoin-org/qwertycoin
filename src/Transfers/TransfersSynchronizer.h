@@ -36,7 +36,7 @@ class Currency;
 }
 
 namespace CryptoNote {
- 
+
 class TransfersConsumer;
 class INode;
 

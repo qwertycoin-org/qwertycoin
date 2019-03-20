@@ -20,7 +20,7 @@
 
 #include <thread>
 #include <chrono>
-#include <mutex>  
+#include <mutex>
 #include <functional>
 #include <future>
 
@@ -93,7 +93,7 @@ protected:
   void init() {
     desc.add_options()
       ("help,h", "produce this help message and exit")
-      ("test-type,t", po::value<uint16_t>()->default_value(1), 
+      ("test-type,t", po::value<uint16_t>()->default_value(1),
         "test type:\r\n"
         "1 - wallet to wallet test,\r\n"
         "3 - block thru daemons test\r\n"
@@ -110,7 +110,7 @@ protected:
 class SimpleTest : public Tests::Common::BaseFunctionalTests {
 public:
 
-  SimpleTest(const CryptoNote::Currency& currency, System::Dispatcher& system, const Tests::Common::BaseFunctionalTestsConfig& config) : 
+  SimpleTest(const CryptoNote::Currency& currency, System::Dispatcher& system, const Tests::Common::BaseFunctionalTestsConfig& config) :
     BaseFunctionalTests(currency, system, config) {}
 
   class WaitForActualGrowObserver : public CryptoNote::IWalletLegacyObserver {
@@ -267,7 +267,7 @@ public:
     TransactionId sendTransaction;
     std::error_code result;
     Semaphore moneySent;
-    WaitForSendCompletedObserver sco1(moneySent, sendTransaction, result);    
+    WaitForSendCompletedObserver sco1(moneySent, sendTransaction, result);
     Semaphore w2GotPending;
     WaitForPendingGrowObserver pgo1(w2GotPending, wallet2PendingBeforeTransaction);
     wallet2->addObserver(&pgo1);
@@ -289,7 +289,7 @@ public:
     LOG_DEBUG("Wallet2 actual:  " +  m_currency.formatAmount(wallet2->actualBalance()));
     CHECK_AND_ASSERT_MES((tr.amount == w2PendingDiff), false, "STEP 6 ASSERTION 1 FAILED\r\n Transfered amount " +  m_currency.formatAmount(tr.amount) + " doesn't match recieved amount " +  m_currency.formatAmount(w2PendingDiff));
     CHECK_AND_ASSERT_MES((wallet1ActualBeforeTransaction - wallet1PendingAfterTransaction - wallet1ActualAfterTransaction - tr.amount - FEE == 0), false,
-      "STEP 6 ASSERTION 2 FAILED\r\n wallet1 Actual Before Transaction doesn't match wallet1 total After Transaction + Transfered amount + Fee "  
+      "STEP 6 ASSERTION 2 FAILED\r\n wallet1 Actual Before Transaction doesn't match wallet1 total After Transaction + Transfered amount + Fee "
       + m_currency.formatAmount(wallet1ActualBeforeTransaction) + " <> " + m_currency.formatAmount(wallet1PendingAfterTransaction) + " + " + m_currency.formatAmount(wallet1ActualAfterTransaction) + " + " + m_currency.formatAmount(tr.amount) + " + " + m_currency.formatAmount(FEE));
     LOG_TRACE("STEP 6 PASSED");
     LOG_DEBUG("Wallet1 pending: " +  m_currency.formatAmount(wallet1->pendingBalance()));
@@ -360,7 +360,7 @@ public:
 
     nodeDaemons.front()->makeINode(localNode);
     nodeDaemons.back()->makeINode(remoteNode);
-    
+
     std::unique_ptr<CryptoNote::IWalletLegacy> wallet;
     makeWallet(wallet, localNode);
 
@@ -380,7 +380,7 @@ public:
       nodeDaemons.front()->stopMining();
       LOG_TRACE("STEP 4 STAGE " + TO_STRING(blockNumber+1) + " of " + TO_STRING(blocksCount)+" PASSED");
     }
-    
+
     return true;
   }
 
@@ -389,7 +389,7 @@ public:
     using namespace Tests::Common;
     launchTestnet(3, Star);
     LOG_TRACE("STEP 1 PASSED");
-    
+
     std::unique_ptr<CryptoNote::INode> hopNode;
     std::unique_ptr<CryptoNote::INode> localNode;
     std::unique_ptr<CryptoNote::INode> remoteNode;
@@ -497,7 +497,7 @@ public:
     LOG_TRACE("Local   -> HopNode: " + TO_STRING(std::chrono::duration_cast<std::chrono::milliseconds>(hoplAdded - localAdded).count()) + " ms");
     LOG_TRACE("HopNode -> Remote:  " + TO_STRING(std::chrono::duration_cast<std::chrono::milliseconds>(remoteAdded - hoplAdded).count()) + " ms");
     LOG_TRACE("Local   -> Remote:  " + TO_STRING(std::chrono::duration_cast<std::chrono::milliseconds>(remoteAdded - localAdded).count()) + " ms");
-    
+
     LOG_TRACE("test_block4");
     submitInvokingStart = std::chrono::steady_clock::now();
     if (!nodeDaemons[1]->submitBlock(test_block4_hex)) return false;
@@ -522,7 +522,7 @@ public:
     using namespace CryptoNote;
     const uint64_t FEE = 1000000;
     launchTestnetWithInprocNode(2);
-    
+
     std::unique_ptr<CryptoNote::INode> node1;
     std::unique_ptr<CryptoNote::INode> inprocNode;
 
@@ -569,7 +569,7 @@ public:
     LOG_DEBUG("Wallet1 actual:  " + m_currency.formatAmount(wallet1->actualBalance()));
     LOG_DEBUG("Wallet2 pending: " + m_currency.formatAmount(wallet2->pendingBalance()));
     LOG_DEBUG("Wallet2 actual:  " + m_currency.formatAmount(wallet2->actualBalance()));
-    
+
     CHECK_AND_ASSERT_MES(stopMining(), false, "stopMining() failed");
 
     auto wallet1ActualBeforeTransaction = wallet1->actualBalance();
@@ -583,7 +583,7 @@ public:
     Semaphore w2GotPending;
     WaitForPendingGrowObserver pgo1(w2GotPending, wallet2PendingBeforeTransaction);
     wallet2->addObserver(&pgo1);
-    
+
     WaitForExternalTransactionObserver poolTxWaiter;
     auto future = poolTxWaiter.promise.get_future();
     wallet2->addObserver(&poolTxWaiter);
@@ -764,7 +764,7 @@ public:
 
 
 
-    
+
 
     WaitForTransactionUpdated trasactionDeletionObserver;
     trasactionDeletionObserver.expectindTxId = txId;
@@ -776,7 +776,7 @@ public:
     wallet2->getTransaction(txId, txInfo);
     wallet2->removeObserver(&trasactionDeletionObserver);
 
-   
+
     CHECK_AND_ASSERT_MES(txInfo.state == WalletLegacyTransactionState::Deleted, false, "STEP 6 ASSERTION 1 FAILED tx not deleted");
     CHECK_AND_ASSERT_MES(wallet2PendingBeforeTransaction == wallet2->pendingBalance(), false, "STEP 6 ASSERTION 2 FAILED current pending balance <> pending balance before transaction");
 
@@ -803,8 +803,8 @@ class SimpleTestCase : public ::testing::Test {
 
 public:
 
-  SimpleTestCase() : 
-    currency(CryptoNote::CurrencyBuilder(logger).testnet(true).currency()), 
+  SimpleTestCase() :
+    currency(CryptoNote::CurrencyBuilder(logger).testnet(true).currency()),
     test(currency, dispatcher, baseCfg) {
   }
 

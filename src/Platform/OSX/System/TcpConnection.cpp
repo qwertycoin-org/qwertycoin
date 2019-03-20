@@ -106,16 +106,16 @@ size_t TcpConnection::read(uint8_t* data, size_t size) {
           if (!context->interrupted) {
             struct kevent event;
             EV_SET(&event, connection, EVFILT_READ, EV_DELETE | EV_DISABLE, 0, 0, NULL);
-            
+
             if (kevent(dispatcher->getKqueue(), &event, 1, NULL, 0, NULL) == -1) {
               throw std::runtime_error("TcpListener::interruptionProcedure, kevent failed, " + lastErrorMessage());
             }
-            
+
             context->interrupted = true;
             dispatcher->pushContext(context->context);
           }
         };
-        
+
         dispatcher->dispatch();
         dispatcher->getCurrentContext()->interruptProcedure = nullptr;
         assert(dispatcher != nullptr);
@@ -181,16 +181,16 @@ size_t TcpConnection::write(const uint8_t* data, size_t size) {
           if (!context->interrupted) {
             struct kevent event;
             EV_SET(&event, connection, EVFILT_WRITE, EV_DELETE | EV_DISABLE, 0, 0, NULL);
-            
+
             if (kevent(dispatcher->getKqueue(), &event, 1, NULL, 0, NULL) == -1) {
               throw std::runtime_error("TcpListener::stop, kevent failed, " + lastErrorMessage());
             }
-            
+
             context->interrupted = true;
-            dispatcher->pushContext(context->context);            
+            dispatcher->pushContext(context->context);
           }
         };
-        
+
         dispatcher->dispatch();
         dispatcher->getCurrentContext()->interruptProcedure = nullptr;
         assert(dispatcher != nullptr);

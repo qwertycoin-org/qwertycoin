@@ -486,7 +486,7 @@ TEST_F(MultisignatureTest, createMulitisignatureTransaction) {
 
   BlockchainSynchronizer blockSync(*node2.get(), logger, currency.genesisBlockHash());
   TransfersSyncronizer transferSync(currency, logger, blockSync, *node2.get());
-  
+
   // add transaction collector
   TransactionConsumer txConsumer;
   blockSync.addConsumer(&txConsumer);

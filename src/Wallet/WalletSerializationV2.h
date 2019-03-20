@@ -56,7 +56,7 @@ public:
 private:
   void loadKeyListAndBanalces(CryptoNote::ISerializer& serializer, bool saveCache);
   void saveKeyListAndBanalces(CryptoNote::ISerializer& serializer, bool saveCache);
-    
+
   void loadTransactions(CryptoNote::ISerializer& serializer);
   void saveTransactions(CryptoNote::ISerializer& serializer);
 

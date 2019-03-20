@@ -45,7 +45,7 @@ public:
   BlockchainExplorer& operator=(BlockchainExplorer&&) = delete;
 
   virtual ~BlockchainExplorer();
-    
+
   virtual bool addObserver(IBlockchainObserver* observer) override;
   virtual bool removeObserver(IBlockchainObserver* observer) override;
 

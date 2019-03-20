@@ -167,7 +167,7 @@ void P2pNode::stop() {
 
   m_stopRequested = true;
   // clear prepared connections
-  m_connectionQueue.clear(); 
+  m_connectionQueue.clear();
   // stop processing
   m_queueEvent.set();
   workingContextGroup.interrupt();
@@ -201,7 +201,7 @@ void P2pNode::acceptLoop() {
   while (!m_stopRequested) {
     try {
       auto connection = m_listener.accept();
-      auto ctx = new P2pContext(m_dispatcher, std::move(connection), true, 
+      auto ctx = new P2pContext(m_dispatcher, std::move(connection), true,
         getRemoteAddress(connection), m_cfg.getTimedSyncInterval(), getGenesisPayload());
       logger(INFO) << "Incoming connection from " << ctx->getRemoteAddress();
       workingContextGroup.spawn([this, ctx] {
@@ -308,7 +308,7 @@ bool P2pNode::makeNewConnectionFromPeerlist(const PeerlistManager::Peerlist& pee
 
   return false;
 }
-  
+
 void P2pNode::preprocessIncomingConnection(ContextPtr ctx) {
   try {
     logger(DEBUGGING) << *ctx << "preprocessIncomingConnection";

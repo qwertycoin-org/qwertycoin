@@ -41,8 +41,8 @@ namespace CryptoNote {
 class P2pContext;
 class P2pConnectionProxy;
 
-class P2pNode : 
-  public IP2pNode, 
+class P2pNode :
+  public IP2pNode,
   public IStreamSerializable,
   IP2pNodeInternal {
 
@@ -50,13 +50,13 @@ public:
 
   P2pNode(
     const P2pNodeConfig& cfg,
-    System::Dispatcher& dispatcher, 
-    Logging::ILogger& log, 
-    const Crypto::Hash& genesisHash, 
+    System::Dispatcher& dispatcher,
+    Logging::ILogger& log,
+    const Crypto::Hash& genesisHash,
     PeerIdType peerId);
 
   ~P2pNode();
-  
+
   // IP2pNode
   virtual std::unique_ptr<IP2pConnection> receiveConnection() override;
   virtual void stop() override;

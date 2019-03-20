@@ -157,17 +157,17 @@ TestGenerator DoubleSpendBase::prepare(std::vector<test_event_entry>& events) co
 
   TransactionBuilder::KeysVector kv;
   kv.push_back(m_bob_account.getAccountKeys());
-  
+
   builder.addMultisignatureOut(send_amount, kv, 1);
 
   // move money
   auto tx = builder.build();
-    
+
   generator.addEvent(tx);
   generator.makeNextBlock(tx);
 
   // unlock
-  generator.generateBlocks(); 
+  generator.generateBlocks();
 
   return generator;
 }
@@ -202,7 +202,7 @@ TransactionBuilder DoubleSpendBase::createBobToAliceTx() const {
 // MultiSigTx_DoubleSpendInTx
 //======================================================================================================================
 
-MultiSigTx_DoubleSpendInTx::MultiSigTx_DoubleSpendInTx(bool txsKeepedByBlock) 
+MultiSigTx_DoubleSpendInTx::MultiSigTx_DoubleSpendInTx(bool txsKeepedByBlock)
   : m_txsKeepedByBlock(txsKeepedByBlock)
 {
   has_invalid_tx = true;
@@ -235,7 +235,7 @@ bool MultiSigTx_DoubleSpendInTx::generate(std::vector<test_event_entry>& events)
 //======================================================================================================================
 // MultiSigTx_DoubleSpendSameBlock
 //======================================================================================================================
-MultiSigTx_DoubleSpendSameBlock::MultiSigTx_DoubleSpendSameBlock(bool txsKeepedByBlock) 
+MultiSigTx_DoubleSpendSameBlock::MultiSigTx_DoubleSpendSameBlock(bool txsKeepedByBlock)
   : m_txsKeepedByBlock(txsKeepedByBlock) {
   has_invalid_tx = !txsKeepedByBlock;
 }
@@ -260,7 +260,7 @@ bool MultiSigTx_DoubleSpendSameBlock::generate(std::vector<test_event_entry>& ev
   }
 
   generator.addEvent(tx2);
-  
+
   txs.push_back(tx1);
   txs.push_back(tx2);
 
@@ -275,7 +275,7 @@ bool MultiSigTx_DoubleSpendSameBlock::generate(std::vector<test_event_entry>& ev
 // MultiSigTx_DoubleSpendDifferentBlocks
 //======================================================================================================================
 MultiSigTx_DoubleSpendDifferentBlocks::MultiSigTx_DoubleSpendDifferentBlocks(bool txsKeepedByBlock)
-  : m_txsKeepedByBlock(txsKeepedByBlock) { 
+  : m_txsKeepedByBlock(txsKeepedByBlock) {
   has_invalid_tx = !txsKeepedByBlock;
 }
 

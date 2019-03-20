@@ -31,7 +31,7 @@ namespace CryptoNote
 
   public:
 
-    BlockIndex() : 
+    BlockIndex() :
       m_index(m_container.get<1>()) {}
 
     void pop() {

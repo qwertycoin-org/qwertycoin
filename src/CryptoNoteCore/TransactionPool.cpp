@@ -92,7 +92,7 @@ namespace CryptoNote {
       }
       return true;
     }
-    
+
     std::unordered_set<Crypto::KeyImage> m_keyImages;
     std::set<std::pair<uint64_t, uint64_t>> m_usedOutputs;
     std::vector<Crypto::Hash> m_txHashes;
@@ -105,7 +105,7 @@ namespace CryptoNote {
   //---------------------------------------------------------------------------------
   tx_memory_pool::tx_memory_pool(
     const CryptoNote::Currency& currency,
-    CryptoNote::ITransactionValidator& validator, 
+    CryptoNote::ITransactionValidator& validator,
     CryptoNote::ICore& core,
     CryptoNote::ITimeProvider& timeProvider,
     Logging::ILogger& log,
@@ -113,7 +113,7 @@ namespace CryptoNote {
     m_currency(currency),
     m_validator(validator),
     m_core(core),
-    m_timeProvider(timeProvider), 
+    m_timeProvider(timeProvider),
     m_txCheckInterval(60, timeProvider),
     m_fee_index(boost::get<1>(m_transactions)),
     logger(log, "txpool"),
@@ -369,7 +369,7 @@ namespace CryptoNote {
     std::lock_guard<std::recursive_mutex> lock(m_transactions_lock);
     for (const auto& txd : m_fee_index) {
       ss << "id: " << txd.id << std::endl;
-      
+
       if (!short_format) {
         ss << storeToJson(txd.tx) << std::endl;
       }
@@ -497,7 +497,7 @@ namespace CryptoNote {
 
     m_paymentIdIndex.clear();
     m_timestampIndex.clear();
-    
+
     return true;
   }
 

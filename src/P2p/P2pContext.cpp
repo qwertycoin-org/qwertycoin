@@ -132,7 +132,7 @@ void P2pContext::writeMessage(const Message& msg) {
 
 void P2pContext::start() {
   // stub for OperationTimeout class
-} 
+}
 
 void P2pContext::stop() {
   if (!stopped) {
@@ -143,12 +143,12 @@ void P2pContext::stop() {
 
 void P2pContext::timedSyncLoop() {
   // construct message
-  P2pContext::Message timedSyncMessage{ 
-    P2pMessage{ 
-      COMMAND_TIMED_SYNC::ID, 
+  P2pContext::Message timedSyncMessage{
+    P2pMessage{
+      COMMAND_TIMED_SYNC::ID,
       LevinProtocol::encode(COMMAND_TIMED_SYNC::request{ timedSyncData })
-    }, 
-    P2pContext::Message::REQUEST 
+    },
+    P2pContext::Message::REQUEST
   };
 
   while (!stopped) {

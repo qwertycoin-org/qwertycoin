@@ -50,7 +50,7 @@ namespace CryptoNote {
     virtual void drop_connection(CryptoNoteConnectionContext& context, bool add_fail) override {}
     virtual std::map<uint32_t, time_t> get_blocked_hosts() override { return std::map<uint32_t, time_t>(); }
     virtual void for_each_connection(std::function<void(CryptoNote::CryptoNoteConnectionContext&, PeerIdType)> f) override {}
-    virtual uint64_t get_connections_count() override { return 0; }   
+    virtual uint64_t get_connections_count() override { return 0; }
     virtual void externalRelayNotifyToAll(int command, const BinaryArray& data_buff) override {}
   };
 }

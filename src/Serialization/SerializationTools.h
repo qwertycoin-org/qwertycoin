@@ -113,7 +113,7 @@ template <typename T>
 std::string storeToBinaryKeyValue(const T& v) {
   KVBinaryOutputStreamSerializer s;
   serialize(const_cast<T&>(v), s);
-  
+
   std::string result;
   Common::StringOutputStream stream(result);
   s.dump(stream);

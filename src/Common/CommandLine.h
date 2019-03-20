@@ -176,7 +176,7 @@ namespace command_line
   {
     return vm[arg.name].template as<T>();
   }
- 
+
   template<>
   inline bool has_arg<bool, false>(const boost::program_options::variables_map& vm, const arg_descriptor<bool, false>& arg)
   {

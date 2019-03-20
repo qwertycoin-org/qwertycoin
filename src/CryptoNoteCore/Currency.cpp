@@ -432,7 +432,7 @@ namespace CryptoNote {
 		return Common::fromString(strAmount, amount);
 	}
 
-	// Copyright (c) 2017-2018 Zawy 
+	// Copyright (c) 2017-2018 Zawy
 	// http://zawy1.blogspot.com/2017/12/using-difficulty-to-get-constant-value.html
 	// Moore's law application by Sergey Kozlov
 	uint64_t Currency::getMinimalFee(uint64_t dailyDifficulty, uint64_t reward, uint64_t avgHistoricalDifficulty, uint64_t medianHistoricalReward, uint32_t height) const {
@@ -440,11 +440,11 @@ namespace CryptoNote {
 		const double gauge = double(0.25);
 		uint64_t minimumFee(0);
 		double dailyDifficultyMoore = dailyDifficulty / pow(2, static_cast<double>(height) / static_cast<double>(blocksInTwoYears));
-		double minFee = gauge * CryptoNote::parameters::COIN * static_cast<double>(avgHistoricalDifficulty) 
+		double minFee = gauge * CryptoNote::parameters::COIN * static_cast<double>(avgHistoricalDifficulty)
 			/ dailyDifficultyMoore * static_cast<double>(reward)
 			/ static_cast<double>(medianHistoricalReward);
 		if (minFee == 0 || !std::isfinite(minFee))
-			return CryptoNote::parameters::MAXIMUM_FEE; // zero test 
+			return CryptoNote::parameters::MAXIMUM_FEE; // zero test
 		minimumFee = static_cast<uint64_t>(minFee);
 
 		//TODO
@@ -561,7 +561,7 @@ namespace CryptoNote {
 		difficulty_type totalWork = cumulativeDifficulties.back() - cumulativeDifficulties.front();
 		assert(totalWork > 0);
 
-		// uint64_t nextDiffZ = totalWork * m_difficultyTarget / timeSpan; 
+		// uint64_t nextDiffZ = totalWork * m_difficultyTarget / timeSpan;
 
 		uint64_t low, high;
 		low = mul128(totalWork, m_difficultyTarget, &high);
@@ -586,7 +586,7 @@ namespace CryptoNote {
 		// LWMA difficulty algorithm
 		// Copyright (c) 2017-2018 Zawy
 		// MIT license http://www.opensource.org/licenses/mit-license.php.
-		// This is an improved version of Tom Harding's (Deger8) "WT-144"  
+		// This is an improved version of Tom Harding's (Deger8) "WT-144"
 		// Karbowanec, Masari, Bitcoin Gold, and Bitcoin Cash have contributed.
 		// See https://github.com/zawy12/difficulty-algorithms/issues/1 for other algos.
 		// Do not use "if solvetime < 0 then solvetime = 1" which allows a catastrophic exploit.
@@ -634,7 +634,7 @@ namespace CryptoNote {
 		harmonic_mean_D = N / sum_inverse_D * adjust;
 		nextDifficulty = harmonic_mean_D * T / LWMA;
 		next_difficulty = static_cast<uint64_t>(nextDifficulty);
-		
+
 		// minimum limit
 		if (!isTestnet() && next_difficulty < 100000) {
 			next_difficulty = 100000;
@@ -653,7 +653,7 @@ namespace CryptoNote {
 	difficulty_type Currency::nextDifficultyV5(uint8_t blockMajorVersion,
 		std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulativeDifficulties) const {
 
-		// LWMA-2 difficulty algorithm 
+		// LWMA-2 difficulty algorithm
 		// Copyright (c) 2017-2018 Zawy, MIT License
 		// https://github.com/zawy12/difficulty-algorithms/issues/3
 		// with modifications by Ryo Currency developers

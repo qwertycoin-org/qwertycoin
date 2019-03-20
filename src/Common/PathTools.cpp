@@ -32,7 +32,7 @@ const char NATIVE_PATH_SEPARATOR = '/';
 
 std::string::size_type findExtensionPosition(const std::string& filename) {
   auto pos = filename.rfind('.');
-  
+
   if (pos != std::string::npos) {
     auto slashPos = filename.rfind(GENERIC_PATH_SEPARATOR);
     if (slashPos != std::string::npos && slashPos > pos) {
@@ -93,7 +93,7 @@ std::string GetExtension(const std::string& path) {
   return std::string();
 }
 
-std::string RemoveExtension(const std::string& filename) { 
+std::string RemoveExtension(const std::string& filename) {
   auto pos = findExtensionPosition(filename);
 
   if (pos == std::string::npos) {

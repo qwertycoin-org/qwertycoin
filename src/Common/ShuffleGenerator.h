@@ -38,7 +38,7 @@ public:
     typedef typename distr_t::param_type param_t;
 
     distr_t distr;
-    
+
     T value = distr(generator, param_t(0, --count));
 
     auto rvalIt = selected.find(count);

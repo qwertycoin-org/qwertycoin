@@ -89,7 +89,7 @@ void INodeTrivialRefreshStub::doGetNewBlocks(std::vector<Crypto::Hash> knownBloc
   std::vector<Block>::iterator start = blockchain.end();
 
   for (const auto& id : knownBlockIds) {
-    start = std::find_if(blockchain.begin(), blockchain.end(), 
+    start = std::find_if(blockchain.begin(), blockchain.end(),
       [&id](Block& block) { return get_block_hash(block) == id; });
     if (start != blockchain.end())
       break;
@@ -102,7 +102,7 @@ void INodeTrivialRefreshStub::doGetNewBlocks(std::vector<Crypto::Hash> knownBloc
   }
 
   m_lastHeight = static_cast<uint32_t>(std::distance(blockchain.begin(), start));
-  startHeight = m_lastHeight; 
+  startHeight = m_lastHeight;
 
   for (; m_lastHeight < blockchain.size(); ++m_lastHeight)
   {
@@ -356,7 +356,7 @@ void INodeTrivialRefreshStub::getBlocks(const std::vector<uint32_t>& blockHeight
       static_cast<
         void(INodeTrivialRefreshStub::*)(
         const std::vector<uint32_t>&,
-          std::vector<std::vector<BlockDetails>>&, 
+          std::vector<std::vector<BlockDetails>>&,
           const Callback&
         )
       >(&INodeTrivialRefreshStub::doGetBlocks),
@@ -404,8 +404,8 @@ void INodeTrivialRefreshStub::getBlocks(const std::vector<Crypto::Hash>& blockHa
     std::bind(
       static_cast<
         void(INodeTrivialRefreshStub::*)(
-          const std::vector<Crypto::Hash>&, 
-          std::vector<BlockDetails>&, 
+          const std::vector<Crypto::Hash>&,
+          std::vector<BlockDetails>&,
           const Callback&
         )
       >(&INodeTrivialRefreshStub::doGetBlocks),
@@ -424,8 +424,8 @@ void INodeTrivialRefreshStub::doGetBlocks(const std::vector<Crypto::Hash>& block
 
   for (const Crypto::Hash& hash: blockHashes) {
     auto iter = std::find_if(
-        m_blockchainGenerator.getBlockchain().begin(), 
-        m_blockchainGenerator.getBlockchain().end(), 
+        m_blockchainGenerator.getBlockchain().begin(),
+        m_blockchainGenerator.getBlockchain().end(),
         [&hash](const Block& block) -> bool {
           return hash == get_block_hash(block);
         }
@@ -453,10 +453,10 @@ void INodeTrivialRefreshStub::getBlocks(uint64_t timestampBegin, uint64_t timest
     std::bind(
       static_cast<
         void(INodeTrivialRefreshStub::*)(
-          uint64_t, 
+          uint64_t,
           uint64_t,
           uint32_t,
-          std::vector<BlockDetails>&, 
+          std::vector<BlockDetails>&,
           uint32_t&,
           const Callback&
         )
@@ -485,8 +485,8 @@ void INodeTrivialRefreshStub::doGetBlocks(uint64_t timestampBegin, uint64_t time
 
   for (const Crypto::Hash& hash: blockHashes) {
     auto iter = std::find_if(
-        m_blockchainGenerator.getBlockchain().begin(), 
-        m_blockchainGenerator.getBlockchain().end(), 
+        m_blockchainGenerator.getBlockchain().begin(),
+        m_blockchainGenerator.getBlockchain().end(),
         [&hash](const Block& block) -> bool {
           return hash == get_block_hash(block);
         }
@@ -513,8 +513,8 @@ void INodeTrivialRefreshStub::getTransactions(const std::vector<Crypto::Hash>& t
     std::bind(
       static_cast<
         void(INodeTrivialRefreshStub::*)(
-          const std::vector<Crypto::Hash>&, 
-          std::vector<TransactionDetails>&, 
+          const std::vector<Crypto::Hash>&,
+          std::vector<TransactionDetails>&,
           const Callback&
         )
       >(&INodeTrivialRefreshStub::doGetTransactions),
@@ -547,7 +547,7 @@ void INodeTrivialRefreshStub::doGetTransactions(const std::vector<Crypto::Hash>&
       callback(std::error_code(EDOM, std::generic_category()));
       return;
     }
-    
+
     transactions.push_back(txDetails);
   }
 
@@ -598,7 +598,7 @@ void INodeTrivialRefreshStub::doGetPoolTransactions(uint64_t timestampBegin, uin
       callback(std::error_code(EDOM, std::generic_category()));
       return;
     }
-    
+
     transactions.push_back(txDetails);
   }
 
@@ -651,7 +651,7 @@ void INodeTrivialRefreshStub::doGetTransactionsByPaymentId(const Crypto::Hash& p
       callback(std::error_code(EDOM, std::generic_category()));
       return;
     }
-    
+
     transactions.push_back(txDetails);
   }
 

@@ -129,7 +129,7 @@ void WalletLegacySerializer::deserialize(std::istream& stream, const std::string
   std::string plain;
   decrypt(cipher, plain, iv, password);
 
-  MemoryInputStream decryptedStream(plain.data(), plain.size()); 
+  MemoryInputStream decryptedStream(plain.data(), plain.size());
   CryptoNote::BinaryInputStreamSerializer serializer(decryptedStream);
 
   loadKeys(serializer);

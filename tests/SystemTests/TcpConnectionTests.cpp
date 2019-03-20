@@ -239,7 +239,7 @@ TEST_F(TcpConnectionTests, reuseReadAfterInterrupt) {
 
 TEST_F(TcpConnectionTests, sendBigChunk) {
   connect();
-  
+
   const size_t bufsize =  15* 1024 * 1024; // 15MB
   std::vector<uint8_t> buf;
   buf.resize(bufsize);
@@ -360,7 +360,7 @@ TEST_F(TcpConnectionTests, sendBigChunkThruTcpStream) {
 
   ASSERT_EQ(bufsize, incoming.size());
 
-  //ASSERT_EQ(buf, incoming); 
+  //ASSERT_EQ(buf, incoming);
   for (size_t i = 0; i < bufsize; ++i) {
     ASSERT_EQ(buf[i], incoming[i]); //for better output.
   }

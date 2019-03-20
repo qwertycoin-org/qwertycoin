@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
 
   po::options_description desc;
   po::variables_map vm;
-  
+
   config.init(desc);
   po::store(po::command_line_parser(argc, argv).options(desc).allow_unregistered().run(), vm);
   po::notify(vm);

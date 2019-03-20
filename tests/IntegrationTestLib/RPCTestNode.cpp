@@ -37,11 +37,11 @@ using namespace System;
 
 namespace Tests {
 
-RPCTestNode::RPCTestNode(uint16_t port, System::Dispatcher& d) : 
+RPCTestNode::RPCTestNode(uint16_t port, System::Dispatcher& d) :
   m_rpcPort(port), m_dispatcher(d), m_httpClient(d, "127.0.0.1", port) {
 }
 
-bool RPCTestNode::startMining(size_t threadsCount, const std::string& address) { 
+bool RPCTestNode::startMining(size_t threadsCount, const std::string& address) {
   LOG_DEBUG("startMining()");
 
   try {
@@ -107,7 +107,7 @@ bool RPCTestNode::submitBlock(const std::string& block) {
   return true;
 }
 
-bool RPCTestNode::stopMining() { 
+bool RPCTestNode::stopMining() {
   LOG_DEBUG("stopMining()");
 
   try {

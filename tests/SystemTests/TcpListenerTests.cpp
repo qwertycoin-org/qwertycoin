@@ -34,7 +34,7 @@ public:
   TcpListenerTests() :
     event(dispatcher), listener(dispatcher, Ipv4Address("127.0.0.1"), 6666), contextGroup(dispatcher) {
   }
-  
+
   Dispatcher dispatcher;
   Event event;
   TcpListener listener;

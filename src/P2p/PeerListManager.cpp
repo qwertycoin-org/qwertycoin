@@ -93,7 +93,7 @@ void PeerlistManager::Peerlist::trim() {
   }
 }
 
-PeerlistManager::PeerlistManager() : 
+PeerlistManager::PeerlistManager() :
   m_whitePeerlist(m_peers_white, CryptoNote::P2P_LOCAL_WHITE_PEERLIST_LIMIT),
   m_grayPeerlist(m_peers_gray, CryptoNote::P2P_LOCAL_GRAY_PEERLIST_LIMIT) {}
 
@@ -115,7 +115,7 @@ void PeerlistManager::trim_gray_peerlist() {
 
 //--------------------------------------------------------------------------------------------------
 bool PeerlistManager::merge_peerlist(const std::list<PeerlistEntry>& outer_bs)
-{ 
+{
   for(const PeerlistEntry& be : outer_bs) {
     append_with_peer_gray(be);
   }
@@ -222,7 +222,7 @@ bool PeerlistManager::append_with_peer_white(const PeerlistEntry& ple)
       m_peers_white.insert(ple);
       trim_white_peerlist();
     } else {
-      //update record in white list 
+      //update record in white list
       m_peers_white.replace(by_addr_it_wt, ple);
     }
     //remove from gray list, if need
@@ -257,7 +257,7 @@ bool PeerlistManager::append_with_peer_gray(const PeerlistEntry& ple)
       trim_gray_peerlist();
     } else
     {
-      //update record in white list 
+      //update record in white list
       m_peers_gray.replace(by_addr_it_gr, ple);
     }
     return true;
@@ -267,10 +267,10 @@ bool PeerlistManager::append_with_peer_gray(const PeerlistEntry& ple)
 }
 //--------------------------------------------------------------------------------------------------
 
-PeerlistManager::Peerlist& PeerlistManager::getWhite() { 
-  return m_whitePeerlist; 
+PeerlistManager::Peerlist& PeerlistManager::getWhite() {
+  return m_whitePeerlist;
 }
 
-PeerlistManager::Peerlist& PeerlistManager::getGray() { 
-  return m_grayPeerlist; 
+PeerlistManager::Peerlist& PeerlistManager::getGray() {
+  return m_grayPeerlist;
 }

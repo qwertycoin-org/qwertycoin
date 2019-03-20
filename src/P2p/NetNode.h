@@ -99,7 +99,7 @@ namespace CryptoNote
       stopped(false) {
     }
 
-    P2pConnectionContext(P2pConnectionContext&& ctx) : 
+    P2pConnectionContext(P2pConnectionContext&& ctx) :
       CryptoNoteConnectionContext(std::move(ctx)),
       context(ctx.context),
       peerId(ctx.peerId),
@@ -207,14 +207,14 @@ namespace CryptoNote
     bool make_new_connection_from_peerlist(bool use_white_list);
     bool try_to_connect_and_handshake_with_new_peer(const NetworkAddress& na, bool just_take_peerlist = false, uint64_t last_seen_stamp = 0, bool white = true);
     bool is_peer_used(const PeerlistEntry& peer);
-    bool is_addr_connected(const NetworkAddress& peer);  
+    bool is_addr_connected(const NetworkAddress& peer);
     bool try_ping(basic_node_data& node_data, P2pConnectionContext& context);
     bool make_expected_connections_count(bool white_list, size_t expected_connections);
     bool is_priority_node(const NetworkAddress& na);
 
     bool connect_to_peerlist(const std::vector<NetworkAddress>& peers);
 
-    bool parse_peers_and_add_to_container(const boost::program_options::variables_map& vm, 
+    bool parse_peers_and_add_to_container(const boost::program_options::variables_map& vm,
       const command_line::arg_descriptor<std::vector<std::string> > & arg, std::vector<NetworkAddress>& container);
 
     //debug functions

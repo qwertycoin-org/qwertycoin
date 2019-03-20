@@ -30,7 +30,7 @@
 namespace CryptoNote {
 
 class HttpClient;
-  
+
 namespace JsonRpc {
 
 const int errParseError = -32700;
@@ -66,7 +66,7 @@ typedef boost::optional<Common::JsonValue> OptionalId;
 
 class JsonRpcRequest {
 public:
-  
+
   JsonRpcRequest() : psReq(Common::JsonValue::OBJECT) {}
 
   bool parseRequest(const std::string& requestBody) {
@@ -91,7 +91,7 @@ public:
 
   template <typename T>
   bool loadParams(T& v) const {
-    loadFromJsonValue(v, psReq.contains("params") ? 
+    loadFromJsonValue(v, psReq.contains("params") ?
       psReq("params") : Common::JsonValue(Common::JsonValue::NIL));
     return true;
   }

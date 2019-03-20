@@ -27,7 +27,7 @@ namespace System {
 template<typename ResultType = void>
 class Context {
 public:
-  Context(Dispatcher& dispatcher, std::function<ResultType()>&& target) : 
+  Context(Dispatcher& dispatcher, std::function<ResultType()>&& target) :
     dispatcher(dispatcher), target(std::move(target)), ready(dispatcher), bindingContext(dispatcher.getReusableContext()) {
     bindingContext.interrupted = false;
     bindingContext.groupNext = nullptr;
@@ -46,7 +46,7 @@ public:
     dispatcher.pushContext(&bindingContext);
   }
 
-  Context(const Context&) = delete;  
+  Context(const Context&) = delete;
   Context& operator=(const Context&) = delete;
 
   ~Context() {

@@ -51,7 +51,7 @@ using CryptoNote::ISerializer;
 		};
 	};
 
-	/* Command: transfer */ 
+	/* Command: transfer */
 	struct transfer_destination
 	{
 		uint64_t amount;
@@ -246,7 +246,7 @@ using CryptoNote::ISerializer;
 	{
 		typedef CryptoNote::EMPTY_STRUCT request;
 		typedef CryptoNote::EMPTY_STRUCT response;
-	}; 
+	};
 
 	/* Command: query_key */
 	struct COMMAND_RPC_QUERY_KEY
@@ -329,7 +329,7 @@ using CryptoNote::ISerializer;
 		struct request
 		{
 			std::string message;
- 
+
 			void serialize(ISerializer& s)
 			{
 				KV_MEMBER(message);
@@ -366,7 +366,7 @@ using CryptoNote::ISerializer;
 		struct response
 		{
 			bool good;
- 
+
 			void serialize(ISerializer& s)
 			{
 				KV_MEMBER(good);

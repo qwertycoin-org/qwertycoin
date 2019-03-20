@@ -71,10 +71,10 @@ void HttpParser::receiveRequest(std::istream& stream, HttpRequest& request) {
 void HttpParser::receiveResponse(std::istream& stream, HttpResponse& response) {
   std::string httpVersion;
   readWord(stream, httpVersion);
-  
+
   std::string status;
   char c;
-  
+
   stream.get(c);
   while (stream.good() && c != '\r') { //Till the end
     status += c;
@@ -91,7 +91,7 @@ void HttpParser::receiveResponse(std::istream& stream, HttpResponse& response) {
   }
 
   response.setStatus(parseResponseStatusFromString(status));
-  
+
   std::string name;
   std::string value;
 
@@ -108,7 +108,7 @@ void HttpParser::receiveResponse(std::istream& stream, HttpResponse& response) {
   if (it != headers.end()) {
     length = std::stoul(it->second);
   }
-  
+
   std::string body;
   if (length) {
     readBody(stream, body, length);

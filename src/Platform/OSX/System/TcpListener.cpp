@@ -141,19 +141,19 @@ TcpConnection TcpListener::accept() {
       assert(context != nullptr);
       OperationContext* listenerContext = static_cast<OperationContext*>(context);
       if (!listenerContext->interrupted) {
-        
+
         struct kevent event;
         EV_SET(&event, listener, EVFILT_READ, EV_DELETE | EV_DISABLE, 0, 0, NULL);
-        
+
         if (kevent(dispatcher->getKqueue(), &event, 1, NULL, 0, NULL) == -1) {
           throw std::runtime_error("TcpListener::stop, kevent failed, " + lastErrorMessage());
         }
-        
+
         listenerContext->interrupted = true;
         dispatcher->pushContext(listenerContext->context);
       }
     };
-    
+
     dispatcher->dispatch();
     dispatcher->getCurrentContext()->interruptProcedure = nullptr;
     assert(dispatcher != nullptr);

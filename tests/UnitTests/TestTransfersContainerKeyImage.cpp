@@ -44,8 +44,8 @@ namespace {
   public:
 
     TransfersContainerKeyImage() :
-      currency(CurrencyBuilder(logger).currency()), 
-      container(currency, logger, TEST_TRANSACTION_SPENDABLE_AGE), 
+      currency(CurrencyBuilder(logger).currency()),
+      container(currency, logger, TEST_TRANSACTION_SPENDABLE_AGE),
       account(generateAccountKeys()),
       txTemplate(createTransaction()) {
       txTemplate->getTransactionSecretKey(txSecretKey);
@@ -73,12 +73,12 @@ namespace {
 
     std::unique_ptr<ITransactionReader> addTransactionWithFixedKey(uint32_t height, size_t inputs = 1, uint64_t amount = TEST_OUTPUT_AMOUNT, uint32_t txIndex = 0) {
       auto tx = createTransactionWithFixedKey();
-      
+
       while (inputs--) {
         tx.addTestInput(amount + 1);
       }
 
-      auto outputIndex = (height == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) ? 
+      auto outputIndex = (height == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) ?
         UNCONFIRMED_TRANSACTION_GLOBAL_OUTPUT_INDEX : TEST_TRANSACTION_OUTPUT_GLOBAL_INDEX;
       auto outInfo = tx.addTestKeyOutput(amount, outputIndex, account);
 
@@ -161,7 +161,7 @@ TEST_F(TransfersContainerKeyImage, addTransaction_addingSecondUnconfirmedTransfe
   ASSERT_EQ(1, container.transactionsCount());
   ASSERT_EQ(TEST_OUTPUT_AMOUNT, container.balance(ITransfersContainer::IncludeAllLocked));
   ASSERT_EQ(1, outputsCount(ITransfersContainer::IncludeAllLocked));
-  
+
   // fill tx2
   tx2b.addTestInput(TEST_OUTPUT_AMOUNT);
   tx2b.addTestInput(TEST_OUTPUT_AMOUNT);
@@ -182,7 +182,7 @@ TEST_F(TransfersContainerKeyImage, addTransaction_unconfirmedTransferAddedAfterC
   // fill tx1
   auto tx1 = addTransactionWithFixedKey(TEST_BLOCK_HEIGHT);
   container.advanceHeight(TEST_BLOCK_HEIGHT + TEST_TRANSACTION_SPENDABLE_AGE);
-  
+
   ASSERT_EQ(1, container.transactionsCount());
   ASSERT_EQ(TEST_OUTPUT_AMOUNT, container.balance(ITransfersContainer::IncludeAllUnlocked));
   ASSERT_EQ(1, outputsCount(ITransfersContainer::IncludeAllUnlocked));
@@ -211,7 +211,7 @@ TEST_F(TransfersContainerKeyImage, addTransaction_unconfirmedTransferAddedAfterS
 
   ASSERT_EQ(TEST_OUTPUT_AMOUNT, container.balance(ITransfersContainer::IncludeAllUnlocked));
 
-  addSpendingTransaction(tx1->getTransactionHash(), TEST_BLOCK_HEIGHT + TEST_TRANSACTION_SPENDABLE_AGE, 
+  addSpendingTransaction(tx1->getTransactionHash(), TEST_BLOCK_HEIGHT + TEST_TRANSACTION_SPENDABLE_AGE,
     TEST_TRANSACTION_OUTPUT_GLOBAL_INDEX, TEST_OUTPUT_AMOUNT);
 
   ASSERT_EQ(0, container.balance(ITransfersContainer::IncludeAllUnlocked));
@@ -308,7 +308,7 @@ TEST_F(TransfersContainerKeyImage, markTransactionConfirmed_oneSpentOtherUnconfi
   auto tx1 = addTransactionWithFixedKey(TEST_BLOCK_HEIGHT, 1, TEST_OUTPUT_AMOUNT);
   container.advanceHeight(TEST_BLOCK_HEIGHT + TEST_TRANSACTION_SPENDABLE_AGE);
   ASSERT_EQ(TEST_OUTPUT_AMOUNT, container.balance(ITransfersContainer::IncludeAllUnlocked));
-  addSpendingTransaction(tx1->getTransactionHash(), TEST_BLOCK_HEIGHT + TEST_TRANSACTION_SPENDABLE_AGE, 
+  addSpendingTransaction(tx1->getTransactionHash(), TEST_BLOCK_HEIGHT + TEST_TRANSACTION_SPENDABLE_AGE,
     TEST_TRANSACTION_OUTPUT_GLOBAL_INDEX, TEST_OUTPUT_AMOUNT);
   ASSERT_EQ(0, container.balance(ITransfersContainer::IncludeAll));
 
@@ -384,7 +384,7 @@ TEST_F(TransfersContainerKeyImage_Spend, spendingTransferIfThereIsSpentTransferW
 
   ASSERT_EQ(TEST_OUTPUT_AMOUNT, container.balance(ITransfersContainer::IncludeAllUnlocked));
 
-  addSpendingTransaction(tx1->getTransactionHash(), 
+  addSpendingTransaction(tx1->getTransactionHash(),
     TEST_BLOCK_HEIGHT + TEST_TRANSACTION_SPENDABLE_AGE, TEST_TRANSACTION_OUTPUT_GLOBAL_INDEX);
   ASSERT_EQ(0, container.balance(ITransfersContainer::IncludeAll));
 
@@ -490,7 +490,7 @@ TEST_F(TransfersContainerKeyImage_Spend, spendHiddenWithSameAmount_differentBloc
 // remove spending transaction
 /////////////////////////////////////////////////////////////////////////////
 class TransfersContainerKeyImage_Remove : public TransfersContainerKeyImage {
-public: 
+public:
   void checkSpentOutputs(const Hash& expectedTxHash) {
     auto spentOutputs = container.getSpentOutputs();
     ASSERT_EQ(1, spentOutputs.size());
@@ -547,7 +547,7 @@ TEST_F(TransfersContainerKeyImage_Remove, removeUnconfirmedTxAfterAddingMoreTx) 
 TEST_F(TransfersContainerKeyImage, removingOneOfTwoUnconfirmedTransfersMakesAnotherVisible) {
   auto tx1 = addTransactionWithFixedKey(WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT);
   auto tx2 = addTransactionWithFixedKey(WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT, 2, TEST_OUTPUT_AMOUNT * 2, 2);
-  
+
   ASSERT_EQ(0, container.balance(ITransfersContainer::IncludeAll));
 
   ASSERT_TRUE(container.deleteUnconfirmedTransaction(tx2->getTransactionHash()));

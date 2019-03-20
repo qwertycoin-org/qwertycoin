@@ -1791,7 +1791,7 @@ TEST_F(WalletApi, hybridTxTransfer) {
     return tr1.address == transfer.address && tr1.amount == transfer.amount && WalletTransferType::USUAL == transfer.type;
   });
   EXPECT_NE(transfersWithTx.transfers.end(), iter);
-  
+
   iter = std::find_if(transfersWithTx.transfers.begin(), transfersWithTx.transfers.end(), [&tr2](const WalletTransfer& transfer) {
     return tr2.address == transfer.address && tr2.amount == transfer.amount && WalletTransferType::USUAL == transfer.type;
   });

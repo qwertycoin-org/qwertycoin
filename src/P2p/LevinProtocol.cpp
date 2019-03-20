@@ -49,7 +49,7 @@ bool LevinProtocol::Command::needReply() const {
   return !(isNotify || isResponse);
 }
 
-LevinProtocol::LevinProtocol(System::TcpConnection& connection) 
+LevinProtocol::LevinProtocol(System::TcpConnection& connection)
   : m_conn(connection) {}
 
 void LevinProtocol::sendMessage(uint32_t command, const BinaryArray& out, bool needResponse) {

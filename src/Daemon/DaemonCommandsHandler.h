@@ -57,7 +57,7 @@ private:
   Logging::LoggerManager& m_logManager;
   const CryptoNote::ICryptoNoteProtocolQuery& protocolQuery;
   CryptoNote::RpcServer* m_prpc_server;
-  
+
   std::string get_commands_str();
   std::string get_mining_speed(uint32_t hr);
   float get_sync_percentage(uint64_t height, uint64_t target_height);

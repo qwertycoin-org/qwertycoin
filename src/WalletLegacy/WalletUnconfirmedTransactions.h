@@ -38,12 +38,12 @@ typedef std::pair<Crypto::PublicKey, size_t> TransactionOutputId;
 
 namespace std {
 
-template<> 
+template<>
 struct hash<CryptoNote::TransactionOutputId> {
-  size_t operator()(const CryptoNote::TransactionOutputId &_v) const {    
+  size_t operator()(const CryptoNote::TransactionOutputId &_v) const {
     return hash<Crypto::PublicKey>()(_v.first) ^ _v.second;
-  } 
-}; 
+  }
+};
 
 }
 
@@ -74,7 +74,7 @@ public:
 
   bool findTransactionId(const Crypto::Hash& hash, TransactionId& id);
   void erase(const Crypto::Hash& hash);
-  void add(const CryptoNote::Transaction& tx, TransactionId transactionId, 
+  void add(const CryptoNote::Transaction& tx, TransactionId transactionId,
     uint64_t amount, const std::list<TransactionOutputInformation>& usedOutputs, Crypto::SecretKey& tx_key);
   void updateTransactionId(const Crypto::Hash& hash, TransactionId id);
 

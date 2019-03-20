@@ -68,7 +68,7 @@ private:
 
 }
 }
- 
+
 inline std::error_code make_error_code(CryptoNote::error::NodeErrorCodes e) {
   return std::error_code(static_cast<int>(e), CryptoNote::error::NodeErrorCategory::INSTANCE);
 }

@@ -27,7 +27,7 @@ namespace CryptoNote {
   public:
     TransactionExtra() {}
     TransactionExtra(const std::vector<uint8_t>& extra) {
-      parse(extra);        
+      parse(extra);
     }
 
     bool parse(const std::vector<uint8_t>& extra) {

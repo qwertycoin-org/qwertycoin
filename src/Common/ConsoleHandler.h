@@ -30,7 +30,7 @@
 
 #ifndef _WIN32
 #include <sys/select.h>
-#endif 
+#endif
 
 namespace Common {
 
@@ -47,7 +47,7 @@ public:
   bool stopped() const;
   void pause();
   void unpause();
-  
+
 private:
 
   void consoleThread();

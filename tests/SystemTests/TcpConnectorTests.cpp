@@ -33,7 +33,7 @@ class TcpConnectorTests : public testing::Test {
 public:
   TcpConnectorTests() : event(dispatcher), listener(dispatcher, Ipv4Address("127.0.0.1"), 6666), contextGroup(dispatcher) {
   }
-  
+
   Dispatcher dispatcher;
   Event event;
   TcpListener listener;
@@ -47,16 +47,16 @@ TEST_F(TcpConnectorTests, tcpConnector1) {
   });
 
   TcpConnector connector(dispatcher);
-  contextGroup.spawn([&] { 
-    connector.connect(Ipv4Address("127.0.0.1"), 6666); 
+  contextGroup.spawn([&] {
+    connector.connect(Ipv4Address("127.0.0.1"), 6666);
   });
   event.wait();
   dispatcher.yield();
 }
 
 TEST_F(TcpConnectorTests, tcpConnectorInterruptAfterStart) {
-  contextGroup.spawn([&] { 
-    ASSERT_THROW(TcpConnector(dispatcher).connect(Ipv4Address("127.0.0.1"), 6666), InterruptedException); 
+  contextGroup.spawn([&] {
+    ASSERT_THROW(TcpConnector(dispatcher).connect(Ipv4Address("127.0.0.1"), 6666), InterruptedException);
   });
   contextGroup.interrupt();
 }
@@ -69,8 +69,8 @@ TEST_F(TcpConnectorTests, tcpConnectorInterrupt) {
     event.set();
   });
 
-  contextGroup.spawn([&] { 
-    ASSERT_THROW(connector.connect(Ipv4Address("10.255.255.1"), 6666), InterruptedException); 
+  contextGroup.spawn([&] {
+    ASSERT_THROW(connector.connect(Ipv4Address("10.255.255.1"), 6666), InterruptedException);
   });
   contextGroup.wait();
 }
@@ -83,12 +83,12 @@ TEST_F(TcpConnectorTests, tcpConnectorUseAfterInterrupt) {
     event.set();
   });
 
-  contextGroup.spawn([&] { 
-    ASSERT_THROW(connector.connect(Ipv4Address("10.255.255.1"), 6666), InterruptedException); 
+  contextGroup.spawn([&] {
+    ASSERT_THROW(connector.connect(Ipv4Address("10.255.255.1"), 6666), InterruptedException);
   });
   contextGroup.wait();
-  contextGroup.spawn([&] { 
-    ASSERT_NO_THROW(connector.connect(Ipv4Address("127.0.0.1"), 6666)); 
+  contextGroup.spawn([&] {
+    ASSERT_NO_THROW(connector.connect(Ipv4Address("127.0.0.1"), 6666));
   });
   contextGroup.wait();
 }

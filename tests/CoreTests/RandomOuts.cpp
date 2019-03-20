@@ -51,7 +51,7 @@ bool GetRandomOutputs::generate(std::vector<test_event_entry>& events) const {
   // unlock the remaining part
   generator.generateBlocks(m_currency.minedMoneyUnlockWindow() / 2);
   generator.addCallback("checkFullyUnlocked");
-  
+
   return true;
 }
 

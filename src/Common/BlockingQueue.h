@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 
 #include <atomic>
 #include <condition_variable>
@@ -30,7 +30,7 @@ public:
 
   typedef BlockingQueue<T, Container> ThisType;
 
-  BlockingQueue(size_t maxSize = 1) : 
+  BlockingQueue(size_t maxSize = 1) :
     m_maxSize(maxSize), m_closed(false) {}
 
   template <typename TT>
@@ -60,7 +60,7 @@ public:
       }
       m_haveData.wait(lk);
     }
-   
+
     v = std::move(m_queue.front());
     m_queue.pop_front();
 
@@ -100,7 +100,7 @@ private:
   const size_t m_maxSize;
   Container m_queue;
   bool m_closed;
-  
+
   std::mutex m_mutex;
   std::condition_variable m_haveData;
   std::condition_variable m_haveSpace;

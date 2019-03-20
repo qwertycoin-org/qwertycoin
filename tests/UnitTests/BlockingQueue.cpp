@@ -46,7 +46,7 @@ public:
 private:
 
   std::vector<std::thread> m_threads;
-  
+
 };
 
 // single producer, many consumers
@@ -64,7 +64,7 @@ void TestQueue_SPMC(unsigned iterations, unsigned threadCount, unsigned queueSiz
       while (bq.pop(v)) {
         sum += v;
       }
-      
+
       result += sum;
       // std::cout << "Sum: " << sum << std::endl;
     });
@@ -158,7 +158,7 @@ TEST(BlockingQueue, Close)
   bq.push(10); // enqueue 1 item
 
   bq.close(); // all threads should unblock and finish
-  p.join(); 
+  p.join();
 }
 
 TEST(BlockingQueue, CloseAndWait)
@@ -171,14 +171,14 @@ TEST(BlockingQueue, CloseAndWait)
 
   // fill the queue
   for (int i = 0; i < queueSize; ++i)
-    bq.push(i); 
+    bq.push(i);
 
   p.spawn([&bq, &itemsPopped] {
     int v;
     while (bq.pop(v)) {
       itemsPopped += 1;
       // some delay to make close() really wait
-      std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   });
 

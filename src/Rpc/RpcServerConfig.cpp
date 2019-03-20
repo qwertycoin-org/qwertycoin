@@ -39,7 +39,7 @@ namespace CryptoNote {
   std::string RpcServerConfig::getBindAddress() const {
     return bindIp + ":" + std::to_string(bindPort);
   }
-  
+
   void RpcServerConfig::initOptions(boost::program_options::options_description& desc) {
     command_line::add_arg(desc, arg_rpc_bind_ip);
     command_line::add_arg(desc, arg_rpc_bind_port);

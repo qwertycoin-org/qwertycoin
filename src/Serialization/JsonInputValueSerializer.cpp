@@ -83,7 +83,7 @@ bool JsonInputValueSerializer::beginArray(size_t& size, Common::StringView name)
     idxs.push_back(0);
     return true;
   }
- 
+
   size = 0;
   return false;
 }

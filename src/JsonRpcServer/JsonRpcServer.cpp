@@ -41,7 +41,7 @@
 namespace CryptoNote {
 
 JsonRpcServer::JsonRpcServer(System::Dispatcher& sys, System::Event& stopEvent, Logging::ILogger& loggerGroup) :
-  HttpServer(sys, loggerGroup), 
+  HttpServer(sys, loggerGroup),
   system(sys),
   stopEvent(stopEvent),
   logger(loggerGroup, "JsonRpcServer")
@@ -98,7 +98,7 @@ void JsonRpcServer::prepareJsonResponse(const Common::JsonValue& req, Common::Js
   if (req.contains("id")) {
     resp.insert("id", req("id"));
   }
-  
+
   resp.insert("jsonrpc", "2.0");
 }
 

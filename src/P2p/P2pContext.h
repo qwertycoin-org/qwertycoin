@@ -34,7 +34,7 @@
 #include "P2pProtocolTypes.h"
 
 namespace CryptoNote {
-  
+
 class P2pContext {
 public:
   using Clock = std::chrono::steady_clock;
@@ -54,7 +54,7 @@ public:
     size_t size() const;
   };
 
-  P2pContext(System::Dispatcher& dispatcher, System::TcpConnection&& conn, 
+  P2pContext(System::Dispatcher& dispatcher, System::TcpConnection&& conn,
     bool isIncoming, const NetworkAddress& remoteAddress, std::chrono::nanoseconds timedSyncInterval, const CORE_SYNC_DATA& timedSyncData);
   ~P2pContext();
 
@@ -66,7 +66,7 @@ public:
   void setPeerInfo(uint8_t protocolVersion, PeerIdType id, uint16_t port);
   bool readCommand(LevinProtocol::Command& cmd);
   void writeMessage(const Message& msg);
- 
+
   void start();
   void stop();
 

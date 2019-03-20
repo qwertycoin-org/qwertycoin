@@ -67,7 +67,7 @@ namespace boost
   {
     a & reinterpret_cast<char (&)[sizeof(Crypto::Hash)]>(x);
   }
-  
+
   template <class Archive> void serialize(Archive& archive, CryptoNote::MultisignatureInput &output, unsigned int version) {
     archive & output.amount;
     archive & output.signatureCount;

@@ -46,7 +46,7 @@ public:
 
   void serialize(ISerializer& s);
 
-  template<class Archive> 
+  template<class Archive>
   void serialize(Archive& archive, unsigned int version) {
     archive & index;
   }
@@ -66,7 +66,7 @@ public:
 
   void serialize(ISerializer& s);
 
-  template<class Archive> 
+  template<class Archive>
   void serialize(Archive& archive, unsigned int version) {
     archive & index;
   }
@@ -106,7 +106,7 @@ public:
 
   void serialize(ISerializer& s);
 
-  template<class Archive> 
+  template<class Archive>
   void serialize(Archive& archive, unsigned int version) {
     archive & index;
     archive & lastGeneratedTxNumber;

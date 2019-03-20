@@ -22,7 +22,7 @@
 #include "CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h"
 #include "Serialization/SerializationTools.h"
 
-TEST(protocol_pack, protocol_pack_command) 
+TEST(protocol_pack, protocol_pack_command)
 {
   std::string buff;
   CryptoNote::NOTIFY_RESPONSE_CHAIN_ENTRY::request r;

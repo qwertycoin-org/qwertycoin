@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 
 #include "Chaingen.h"
 
@@ -27,7 +27,7 @@
 class TestGenerator {
 public:
   TestGenerator(
-    const CryptoNote::Currency& currency, 
+    const CryptoNote::Currency& currency,
     std::vector<test_event_entry>& eventsRef) :
       generator(currency),
       events(eventsRef) {
@@ -81,7 +81,7 @@ public:
   }
 
   void fillTxSourcesAndDestinations(
-    std::vector<CryptoNote::TransactionSourceEntry>& sources, 
+    std::vector<CryptoNote::TransactionSourceEntry>& sources,
     std::vector<CryptoNote::TransactionDestinationEntry>& destinations,
     const CryptoNote::AccountBase& from, const CryptoNote::AccountBase& to, uint64_t amount, uint64_t fee, size_t nmix = 0) {
     fill_tx_sources_and_destinations(events, lastBlock, from, to, amount, fee, nmix, sources, destinations);

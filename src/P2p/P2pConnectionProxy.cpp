@@ -44,13 +44,13 @@ bool P2pConnectionProxy::processIncomingHandshake() {
   if (cmd.command == COMMAND_HANDSHAKE::ID) {
     handleHandshakeRequest(cmd);
     return true;
-  } 
-  
+  }
+
   if (cmd.command == COMMAND_PING::ID) {
     COMMAND_PING::response resp{ PING_OK_RESPONSE_STATUS_TEXT, m_node.getPeerId() };
     m_context.writeMessage(makeReply(COMMAND_PING::ID, LevinProtocol::encode(resp), LEVIN_PROTOCOL_RETCODE_SUCCESS));
     return false;
-  } 
+  }
 
   throw std::runtime_error("Unexpected command: " + std::to_string(cmd.command));
 }
@@ -126,7 +126,7 @@ void P2pConnectionProxy::handleHandshakeRequest(const LevinProtocol::Command& cm
   }
 
   m_node.handleNodeData(req.node_data, m_context);
-  m_readQueue.push(P2pMessage{ 
+  m_readQueue.push(P2pMessage{
     cmd.command, LevinProtocol::encode(req.payload_data) }); // enqueue payload info
 }
 

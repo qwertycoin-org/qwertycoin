@@ -76,7 +76,7 @@ public:
     std::unique_lock<std::mutex> lk(mutex);
     std::sort(relayedTxs.begin(), relayedTxs.end(), [](const std::pair<uint32_t, CryptoNote::Transaction>& val1, const std::pair<uint32_t, CryptoNote::Transaction>& val2)->bool {return val1.first < val2.first; });
     is_bc_actual = true;
-    
+
     if (detached) {
       size_t i = 0;
       for (; i < relayedTxs.size(); ++i) {
@@ -91,10 +91,10 @@ public:
     }
 
     lk.unlock();
-    callback(std::error_code()); 
+    callback(std::error_code());
   };
 
-  
+
   std::vector<std::pair<uint32_t, CryptoNote::Transaction>> relayedTxs;
   uint32_t detachHeight;
   bool detached;
@@ -287,7 +287,7 @@ TEST_F(DetachTest, testBlockchainDetach) {
   subscribeAccounts();
 
   generator.generateEmptyBlocks(20);
-  
+
   syncCompleted = std::promise<std::error_code>();
   syncCompletedFuture = syncCompleted.get_future();
   m_sync.addObserver(this);
@@ -316,7 +316,7 @@ TEST_F(DetachTest, testBlockchainDetach) {
   ASSERT_EQ(1, tc2.transactionsCount());
 
   std::vector<Crypto::Hash> unconfirmed;
-  tc2.getUnconfirmedTransactions(unconfirmed);  
+  tc2.getUnconfirmedTransactions(unconfirmed);
   ASSERT_EQ(0, unconfirmed.size());
 
   m_node.startAlternativeChain(m_node.getLastLocalBlockHeight() - 1);

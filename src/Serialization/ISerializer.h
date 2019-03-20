@@ -52,7 +52,7 @@ public:
   virtual bool operator()(double& value, Common::StringView name) = 0;
   virtual bool operator()(bool& value, Common::StringView name) = 0;
   virtual bool operator()(std::string& value, Common::StringView name) = 0;
-  
+
   // read/write binary block
   virtual bool binary(void* value, size_t size, Common::StringView name) = 0;
   virtual bool binary(std::string& value, Common::StringView name) = 0;

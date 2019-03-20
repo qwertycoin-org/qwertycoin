@@ -75,7 +75,7 @@ private:
     Crypto::Hash transactionHash;
     uint16_t indexOut;
   };
-  
+
   void addGenesisBlock();
   void addMiningBlock();
 

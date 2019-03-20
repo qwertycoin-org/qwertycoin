@@ -38,7 +38,7 @@ public:
   void stop();
 
   typename IntrusiveLinkedList<MessageQueue<MessageType>>::hook& getHook();
-  
+
 private:
   void wait();
   std::queue<MessageType> messageQueue;

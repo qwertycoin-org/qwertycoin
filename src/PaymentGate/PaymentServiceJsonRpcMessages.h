@@ -88,7 +88,7 @@ struct GetStatus {
 struct ValidateAddress {
 	struct Request {
 		std::string address;
-		
+
 		void serialize(CryptoNote::ISerializer& serializer);
 	};
 

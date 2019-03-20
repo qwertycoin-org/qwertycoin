@@ -43,7 +43,7 @@ bool parse_peer_from_string(NetworkAddress &pe, const std::string &node_addr) {
 }
 
 
-InProcTestNode::InProcTestNode(const TestNodeConfiguration& cfg, const CryptoNote::Currency& currency) : 
+InProcTestNode::InProcTestNode(const TestNodeConfiguration& cfg, const CryptoNote::Currency& currency) :
   m_cfg(cfg), m_currency(currency) {
 
   std::promise<std::string> initPromise;
@@ -106,7 +106,7 @@ void InProcTestNode::workerThread(std::promise<std::string>& initPromise) {
     CryptoNote::CoreConfig coreConfig;
 
     coreConfig.configFolder = m_cfg.dataDir;
-    
+
     if (!core->init(coreConfig, emptyMiner, true)) {
       throw std::runtime_error("Core failed to initialize");
     }

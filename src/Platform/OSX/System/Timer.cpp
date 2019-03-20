@@ -101,7 +101,7 @@ void Timer::sleep(std::chrono::nanoseconds duration) {
       timerContext->interrupted = true;
     }
   };
-  
+
   dispatcher->dispatch();
   dispatcher->getCurrentContext()->interruptProcedure = nullptr;
   assert(dispatcher != nullptr);

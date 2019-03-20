@@ -24,7 +24,7 @@ void
 makecontext(uctx *ucp, void (*func)(void), intptr_t arg)
 {
   long *sp;
-  
+
   memset(&ucp->uc_mcontext, 0, sizeof ucp->uc_mcontext);
   ucp->uc_mcontext.mc_rdi = (long)arg;
   sp = (long*)ucp->uc_stack.ss_sp+ucp->uc_stack.ss_size/sizeof(long);

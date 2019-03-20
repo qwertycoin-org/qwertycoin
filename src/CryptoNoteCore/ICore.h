@@ -80,11 +80,11 @@ public:
   virtual i_cryptonote_protocol* get_protocol() = 0;
   virtual bool handle_incoming_tx(const BinaryArray& tx_blob, tx_verification_context& tvc, bool keeped_by_block, bool loose_check) = 0; //Deprecated. Should be removed with CryptoNoteProtocolHandler.
   virtual std::vector<Transaction> getPoolTransactions() = 0;
-  
+
   virtual bool getPoolChanges(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds, std::vector<Transaction>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
   virtual bool getPoolChangesLite(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds, std::vector<TransactionPrefixInfo>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
   virtual void getPoolChanges(const std::vector<Crypto::Hash>& knownTxsIds, std::vector<Transaction>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) = 0;
-  
+
   virtual bool queryBlocks(
     const std::vector<Crypto::Hash>& block_ids,
     uint64_t timestamp,
@@ -93,7 +93,7 @@ public:
     uint32_t& full_offset,
     std::vector<BlockFullInfo>& entries
   ) = 0;
-  
+
   virtual bool queryBlocksLite(
     const std::vector<Crypto::Hash>& block_ids,
     uint64_t timestamp,
@@ -102,7 +102,7 @@ public:
     uint32_t& full_offset,
     std::vector<BlockShortInfo>& entries
   ) = 0;
-  
+
   virtual bool queryBlocksDetailed(
     const std::vector<Crypto::Hash>& knownBlockHashes,
     uint64_t timestamp,
@@ -135,7 +135,7 @@ public:
   virtual std::vector<Crypto::Hash> getTransactionHashesByPaymentId(const Crypto::Hash& paymentId) = 0;
   virtual uint64_t getMinimalFeeForHeight(uint32_t height) = 0;
   virtual uint64_t getMinimalFee() = 0;
-  
+
   virtual uint32_t get_current_blockchain_height() = 0;
   virtual uint8_t getBlockMajorVersionForHeight(uint32_t height) = 0;
   virtual uint8_t getCurrentBlockMajorVersion() = 0;

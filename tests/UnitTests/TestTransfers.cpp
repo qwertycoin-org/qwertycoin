@@ -92,7 +92,7 @@ public:
   void subscribeAccounts() {
 
     m_transferObservers.reset(new TransfersObserver[m_accounts.size()]);
-      
+
     for (size_t i = 0; i < m_accounts.size(); ++i) {
       m_subscriptions.push_back(&m_transfersSync.addSubscription(createSubscription(i)));
       m_subscriptions.back()->addObserver(&m_transferObservers[i]);
@@ -160,7 +160,7 @@ protected:
 
 namespace CryptoNote {
   inline bool operator == (const TransactionOutputInformation& t1, const TransactionOutputInformation& t2) {
-    return 
+    return
       t1.type == t2.type &&
       t1.amount == t2.amount &&
       t1.outputInTransaction == t2.outputInTransaction &&
@@ -190,7 +190,7 @@ TEST_F(TransfersApi, testSubscriptions) {
   ASSERT_EQ(0, subscriptions.size());
 }
 
-TEST_F(TransfersApi, syncOneBlock) { 
+TEST_F(TransfersApi, syncOneBlock) {
   addAccounts(2);
   subscribeAccounts();
 
@@ -201,7 +201,7 @@ TEST_F(TransfersApi, syncOneBlock) {
 
   auto& tc1 = m_transfersSync.getSubscription(m_accounts[0].address)->getContainer();
   auto& tc2 = m_transfersSync.getSubscription(m_accounts[1].address)->getContainer();
-  
+
   ASSERT_NE(&tc1, &tc2);
 
   ASSERT_GT(tc1.balance(ITransfersContainer::IncludeAll), 0);
@@ -213,7 +213,7 @@ TEST_F(TransfersApi, syncOneBlock) {
 TEST_F(TransfersApi, syncMinerAcc) {
   addMinerAccount();
   subscribeAccounts();
-  
+
   generator.generateEmptyBlocks(10);
 
   startSync();

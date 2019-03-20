@@ -36,8 +36,8 @@ public:
 };
 
 TEST_F(Ipv4ResolverTests, start) {
-  contextGroup.spawn([&] { 
-    ASSERT_NO_THROW(Ipv4Resolver(dispatcher).resolve("localhost")); 
+  contextGroup.spawn([&] {
+    ASSERT_NO_THROW(Ipv4Resolver(dispatcher).resolve("localhost"));
   });
   contextGroup.wait();
 }

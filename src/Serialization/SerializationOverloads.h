@@ -229,7 +229,7 @@ bool serialize(std::array<uint8_t, size>& value, Common::StringView name, Crypto
   return s.binary(value.data(), value.size(), name);
 }
 
-template <typename T1, typename T2> 
+template <typename T1, typename T2>
 void serialize(std::pair<T1, T2>& value, ISerializer& s) {
   s(value.first, "first");
   s(value.second, "second");

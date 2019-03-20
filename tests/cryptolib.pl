@@ -21,7 +21,7 @@ sub ec_rec {
 	if ($x->copy()->bpow(2)->bsub($xx)->bmod($p)) {$x->bmul($ii)->bmod($p)}
 	if ($x->is_odd) {$x = $p->copy()->bsub($x)};
 	return $x;
-	} 
+	}
 
 sub h2i {
 	return Math::BigInt->new('0x'.(unpack 'H*', (reverse pack 'H*', shift)));;
@@ -32,8 +32,8 @@ sub i2h {
 	if (length($t)%2 == 1) {$t = '0'.$t}
 	return unpack 'H*', (reverse pack 'H*', $t);
 	}
-	
-	
+
+
 sub random {
 	return keccak_256(rand(2**20));
 	#return keccak_256(3); #I swear that's random!
@@ -46,7 +46,7 @@ sub ec_pack {
 	$y |= $or if ($x->is_odd());
 	return unpack 'H*', (reverse pack 'H*', substr($y->as_hex(),2,64));
 	}
-	
+
 sub ec_unpack {
 	my $y = Math::BigInt->new(h2i(shift));
 	my $b = $y >> 255;
@@ -64,12 +64,12 @@ sub minv {
 	$x->bmodpow($p-2,$p);
 	return $x;
 	}
-	
-	
+
+
 sub ec_doub {
 	my $x = Math::BigInt->new($_[0]);
 	my $y = Math::BigInt->new($_[1]);
-	
+
 	#$t = $x->copy()->bpow(2)->bmul(3)->badd($x->copy()->bmul($d)->bmul(2))->binc()->bmul(minv($y->copy()->bmul(2)));			#montgomery
 	#$x2 = $t->copy()->bpow(2)->bsub($d)->bsub($x)->bsub($x)->bmod($p);												#montgomery
 	#$y2 = $x->copy()->bmul(2)->badd($x)->badd($d)->bmul($t)->bsub($t->copy()->bpow(3))->bsub($y)->bmod($p);		#montgomery
@@ -82,19 +82,19 @@ sub ec_add {
 	my $x1 = Math::BigInt->new($_[0]);
 	my $y1 = Math::BigInt->new($_[1]);
 	my $x2 = Math::BigInt->new($_[2]);
-	my $y2 = Math::BigInt->new($_[3]);	
-	
+	my $y2 = Math::BigInt->new($_[3]);
+
 	#$t = $y2->copy()->bsub($y1)->bmul(minv($x2->copy()->bsub($x1)));
 	#$x3 = $t->copy()->bpow(2)->bsub($d)->bsub($x1)->bsub($x2)->bmod($p);
 	#$y3 = $x1->copy()->bmul(2)->badd($x2)->badd($d)->bmul($t)->bsub($t->copy()->bpow(3))->bsub($y1)->bmod($p);
 	$t = $x1->copy->bmul($x2)->bmul($y1)->bmul($y2)->bmul($d)->bmod($p);
-	$x3 = $x1->copy()->bmul($y2)->badd($y1->copy()->bmul($x2))->bmul(minv($t+1))->bmod($p); 
+	$x3 = $x1->copy()->bmul($y2)->badd($y1->copy()->bmul($x2))->bmul(minv($t+1))->bmod($p);
 	$y3 = $y1->copy()->bmul($y2)->badd($x1->copy()->bmul($x2))->bmul(minv(1-$t))->bmod($p);
-	
-	
+
+
 	return ($x3,$y3);
 	}
-	
+
 sub ec_mul {
 	my $n = Math::BigInt->new($_[0]);
 	my $x = Math::BigInt->new($_[1]);
@@ -104,16 +104,16 @@ sub ec_mul {
 		return ($x,$y);
 		last;
 		}
-	elsif ($n->is_even()) {	
+	elsif ($n->is_even()) {
 		$n->bdiv(2);
 		return ec_mul($n,&ec_doub($x,$y));
 		}
 	else {
 		$n->bdec()->bdiv(2);
-		return ec_add($x,$y,ec_mul($n,&ec_doub($x,$y))); 	
+		return ec_add($x,$y,ec_mul($n,&ec_doub($x,$y)));
 		}
 	}
-	
+
 sub pkeygen {
 	my $key = Math::BigInt->new(h2i(shift))->bmod($l);
 	return ec_pack(ec_mul($key,$x0,$y0));
@@ -129,14 +129,14 @@ sub ec_hash {
 		}
 	return ec_mul(8,$x,$y);
 	}
-	
+
 sub im_gen {
 	my ($x,$y) = ec_hash(shift);
 	my $k = Math::BigInt->new(h2i(shift))->bmod($l);
 	return ec_pack(ec_mul($k,$x,$y));
 	}
-	
-	
+
+
 sub sign {
 	my ($m,$sec_key) = @_;
 	my $sec_key = Math::BigInt->new(h2i($sec_key));
@@ -146,9 +146,9 @@ sub sign {
 	my $e = unpack 'H*', keccak_256($m.(pack 'H*', ec_pack(ec_mul($k,$x0,$y0))));
 	my $s = i2h(Math::BigInt->new(h2i($e))->bmul($sec_key)->bneg()->badd($k)->bmod($l));
 	$e = i2h(Math::BigInt->new(h2i($e))->bmod($l));
-	return ($s,$e);	
+	return ($s,$e);
 	}
-	
+
 sub check_s {
 	my ($m,$pt,$s1,$e1) = @_;
 	my ($x,$y) = ec_unpack($pt);
@@ -157,14 +157,14 @@ sub check_s {
 	my ($x1,$y1) = ec_add(ec_mul($s,$x0,$y0),ec_mul($e,$x,$y));
 	$m = $m.(pack 'H*', ec_pack($x1,$y1));
 	my $ev = Math::BigInt->new(h2i(unpack 'H*', keccak_256($m)))->bmod($l);
-	
-	return !$ev->bcmp($e); 	
+
+	return !$ev->bcmp($e);
 	}
 
 sub r_sign {
 	my ($m,$image,$sec_key,$index,@pkeys) = @_;
 	my ($ix,$iy) = ec_unpack($image);
-	my $n = @pkeys;		
+	my $n = @pkeys;
 	my $data = $m;
 	my $w = $a = $b = $hx = $hy = $px = $py = 0;
 	my @zc = ();
@@ -178,7 +178,7 @@ sub r_sign {
 			$a = pack 'H*', ec_pack(ec_mul($w,$x0,$y0));
 			$b = pack 'H*', ec_pack(ec_mul($w,$hx,$hy));
 			push @zc,0,0;
-			} 
+			}
 		else {
 			$z = Math::BigInt->new('0x'.(unpack 'H*', random()))->bmod($l);
 			$c = Math::BigInt->new('0x'.(unpack 'H*', random()))->bmod($l);
@@ -196,7 +196,7 @@ sub r_sign {
 	my $zy = $cy->copy()->bmul(h2i($sec_key))->bneg()->badd($w)->bmod($l);
 	@zc[2*$index] = i2h($zy);
 	@zc[2*$index+1] = i2h($cy);
-	return @zc;	
+	return @zc;
 	}
 
 sub r_check_s {
@@ -206,7 +206,7 @@ sub r_check_s {
 		@pkeys[$j] = shift @zc;
 		}
 	my $data = $m;
-	my ($ix,$iy) = ec_unpack($image);	
+	my ($ix,$iy) = ec_unpack($image);
 	my $a = $b = $hx = $hy = $px = $py = $z = $c = 0;
 	my $sum = Math::BigInt->new();
 	#print "\nBegin checking ($n keys)\n";
@@ -222,10 +222,10 @@ sub r_check_s {
 		#print "key number $i done\n";
 		}
 	my $h = Math::BigInt->new(h2i(unpack 'H*',  keccak_256($data)))->bmod($l);
-	
+
 	return !$h->bcmp($sum);
 	}
 
-	
-	
-	
+
+
+

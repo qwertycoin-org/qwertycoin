@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 #include "Chaingen.h"
 
 /************************************************************************/
@@ -24,7 +24,7 @@
 /************************************************************************/
 class gen_chain_switch_1 : public test_chain_unit_base
 {
-public: 
+public:
   gen_chain_switch_1();
 
   bool generate(std::vector<test_event_entry>& events) const;

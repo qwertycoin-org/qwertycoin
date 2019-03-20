@@ -32,10 +32,10 @@ extern Tests::Common::BaseFunctionalTestsConfig baseCfg;
 
 struct TotalWalletBalance {
 
-  TotalWalletBalance(uint64_t actual_ = 0, uint64_t pending_ = 0) 
+  TotalWalletBalance(uint64_t actual_ = 0, uint64_t pending_ = 0)
     : actual(actual_), pending(pending_) {}
 
-  TotalWalletBalance(IWalletLegacy& wallet) 
+  TotalWalletBalance(IWalletLegacy& wallet)
     : TotalWalletBalance(wallet.actualBalance(), wallet.pendingBalance()) {}
 
   uint64_t actual = 0;
@@ -49,8 +49,8 @@ struct TotalWalletBalance {
 class IntegrationTest : public Tests::Common::BaseFunctionalTests, public ::testing::Test {
 public:
 
-  IntegrationTest() : 
-    currency(CryptoNote::CurrencyBuilder(log).testnet(true).currency()), 
+  IntegrationTest() :
+    currency(CryptoNote::CurrencyBuilder(log).testnet(true).currency()),
     BaseFunctionalTests(currency, dispatcher, baseCfg),
     logger(log, "IntegrationTest") {
   }
@@ -118,8 +118,8 @@ public:
   }
 
   std::error_code transferMoney(size_t srcWallet, size_t dstWallet, uint64_t amount, uint64_t fee) {
-    logger(INFO) 
-      << "Transferring from " << wallets[srcWallet]->getAddress().substr(0, 6) 
+    logger(INFO)
+      << "Transferring from " << wallets[srcWallet]->getAddress().substr(0, 6)
       << " to " << wallets[dstWallet]->getAddress().substr(0, 6) << " " << currency.formatAmount(amount);
 
     CryptoNote::WalletLegacyTransfer tr;
@@ -191,7 +191,7 @@ TEST_F(IntegrationTest, Wallet2Wallet) {
   TotalWalletBalance w0after(*wallets[0]);
   TotalWalletBalance w1after(*wallets[1]);
 
-  // check total 
+  // check total
   ASSERT_EQ(w0pre.total() + w1pre.total() - currency.minimumFee(), w0after.total() + w1after.total());
 
   // check diff

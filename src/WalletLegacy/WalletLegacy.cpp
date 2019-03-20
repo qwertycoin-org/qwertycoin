@@ -2,23 +2,23 @@
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2017-2018, Karbo developers
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -259,7 +259,7 @@ void WalletLegacy::initAndLoad(std::istream& source, const std::string& password
 
   m_password = password;
   m_state = LOADING;
-      
+
   m_asyncContextCounter.addAsyncContext();
   std::thread loader(&WalletLegacy::doLoad, this, std::ref(source));
   loader.detach();
@@ -271,14 +271,14 @@ void WalletLegacy::initSync() {
   sub.transactionSpendableAge = CryptoNote::parameters::CRYPTONOTE_TX_SPENDABLE_AGE;
   sub.syncStart.height = 0;
   sub.syncStart.timestamp = m_account.get_createtime() - ACCOUNT_CREATE_TIME_ACCURACY;
-  
+
   auto& subObject = m_transfersSync.addSubscription(sub);
   m_transferDetails = &subObject.getContainer();
   subObject.addObserver(this);
 
   m_sender.reset(new WalletTransactionSender(m_currency, m_transactionsCache, m_account.getAccountKeys(), *m_transferDetails));
   m_state = INITIALIZED;
-  
+
   m_blockchainSync.addObserver(this);
 }
 
@@ -286,11 +286,11 @@ void WalletLegacy::doLoad(std::istream& source) {
   ContextCounterHolder counterHolder(m_asyncContextCounter);
   try {
     std::unique_lock<std::mutex> lock(m_cacheMutex);
-    
+
     std::string cache;
     WalletLegacySerializer serializer(m_account, m_transactionsCache);
     serializer.deserialize(source, m_password, cache);
-      
+
     initSync();
 
     try {
@@ -346,7 +346,7 @@ void WalletLegacy::shutdown() {
   m_asyncContextCounter.waitAsyncContextsFinish();
 
   m_sender.reset();
-   
+
   {
     std::unique_lock<std::mutex> lock(m_cacheMutex);
     m_isStopping = false;
@@ -413,7 +413,7 @@ void WalletLegacy::doSave(std::ostream& destination, bool saveDetailed, bool sav
   try {
     m_blockchainSync.stop();
     std::unique_lock<std::mutex> lock(m_cacheMutex);
-    
+
     WalletLegacySerializer serializer(m_account, m_transactionsCache);
     std::string cache;
 
@@ -535,7 +535,7 @@ uint64_t WalletLegacy::dustBalance() {
 	m_transferDetails->getOutputs(outputs, ITransfersContainer::IncludeKeyUnlocked);
 
 	uint64_t money = 0;
-	
+
 	for (size_t i = 0; i < outputs.size(); ++i) {
 		const auto& out = outputs[i];
 		if (!m_transactionsCache.isUsed(out)) {
@@ -909,7 +909,7 @@ void WalletLegacy::getAccountKeys(AccountKeys& keys) {
 bool WalletLegacy::isTrackingWallet() {
   AccountKeys keys;
   getAccountKeys(keys);
-  
+
   return keys.spendSecretKey == boost::value_initialized<Crypto::SecretKey>();
 }
 
@@ -987,7 +987,7 @@ std::string WalletLegacy::getReserveProof(const uint64_t &reserve, const std::st
 	// determine which outputs to include in the proof
 	std::vector<TransactionOutputInformation> selected_transfers;
 	m_transferDetails->getOutputs(selected_transfers, ITransfersContainer::IncludeAllUnlocked);
-	
+
 	// minimize the number of outputs included in the proof, by only picking the N largest outputs that can cover the requested min reserve amount
 	std::sort(selected_transfers.begin(), selected_transfers.end(), compareTransactionOutputInformationByAmount);
 	while (selected_transfers.size() >= 2 && selected_transfers[1].amount >= reserve)
@@ -999,11 +999,11 @@ std::string WalletLegacy::getReserveProof(const uint64_t &reserve, const std::st
 		++sz;
 	}
 	selected_transfers.resize(sz);
-	
+
 	// compute signature prefix hash
 	std::string prefix_data = message;
 	prefix_data.append((const char*)&keys.address, sizeof(CryptoNote::AccountPublicAddress));
-	
+
 	std::vector<Crypto::KeyImage> kimages;
 	CryptoNote::KeyPair ephemeral;
 
@@ -1029,7 +1029,7 @@ std::string WalletLegacy::getReserveProof(const uint64_t &reserve, const std::st
 
 	// generate proof entries
 	std::vector<reserve_proof_entry> proofs(selected_transfers.size());
-	
+
 	for (size_t i = 0; i < selected_transfers.size(); ++i) {
 		const TransactionOutputInformation &td = selected_transfers[i];
 		reserve_proof_entry& proof = proofs[i];

@@ -297,7 +297,7 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
   std::unordered_set<PublicKey> keys_seen;
   for (const TransactionOutput& out : tx.outputs) {
     if (out.target.type() == typeid(KeyOutput)) {
- 
+
       if (out.amount == 0) {
         if (error) {
           *error = "Zero amount ouput";

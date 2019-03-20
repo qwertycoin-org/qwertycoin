@@ -116,7 +116,7 @@ size_t WalletUserTransactionsCache::getTransferCount() const {
 
 TransactionId WalletUserTransactionsCache::addNewTransaction(
   uint64_t amount, uint64_t fee, const std::string& extra, const std::vector<WalletLegacyTransfer>& transfers, uint64_t unlockTime) {
-  
+
   WalletLegacyTransaction transaction;
 
   transaction.firstTransferId = insertTransfers(transfers);
@@ -371,7 +371,7 @@ void WalletUserTransactionsCache::updateUnconfirmedTransactions() {
 WalletLegacyTransfer& WalletUserTransactionsCache::getTransfer(TransferId transferId) {
   return m_transfers.at(transferId);
 }
-  
+
 void WalletUserTransactionsCache::reset() {
   m_transactions.clear();
   m_transfers.clear();

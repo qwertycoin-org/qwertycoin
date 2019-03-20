@@ -47,7 +47,7 @@ TEST_F(DispatcherTests, clearRemainsDispatcherWorkableAfterAsyncOperation) {
   Context<> context(dispatcher, [&]() {
     spawn1Done = true;
   });
-  
+
   dispatcher.yield();
   ASSERT_TRUE(spawn1Done);
   dispatcher.clear();
@@ -238,10 +238,10 @@ TEST_F(DispatcherTests, remoteSpawnActuallySpawns) {
 
 TEST_F(DispatcherTests, remoteSpawnActuallySpawns2) {
   Event remoteSpawnDone(dispatcher);
-  auto remoteSpawnThread = std::thread([&] { 
-    dispatcher.remoteSpawn([&]() { 
-      remoteSpawnDone.set(); 
-    }); 
+  auto remoteSpawnThread = std::thread([&] {
+    dispatcher.remoteSpawn([&]() {
+      remoteSpawnDone.set();
+    });
   });
 
   if (remoteSpawnThread.joinable()) {

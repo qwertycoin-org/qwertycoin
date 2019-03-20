@@ -100,7 +100,7 @@ TEST_F(TransfersSubscriptionTest, onBlockchainDetach) {
   addTransaction(10000, 10, 0);
   auto txHash = addTransaction(10000, 11, 1)->getTransactionHash();
   ASSERT_EQ(2, sub.getContainer().transactionsCount());
-  
+
   sub.onBlockchainDetach(11);
 
   ASSERT_EQ(1, sub.getContainer().transactionsCount());

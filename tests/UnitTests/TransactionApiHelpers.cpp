@@ -130,7 +130,7 @@ void TestTransactionBuilder::addTestMultisignatureInput(uint64_t amount, const T
   input.outputIndex = t.globalOutputIndex;
   input.signatureCount = t.requiredSignatures;
   size_t idx = tx->addInput(input);
- 
+
   msigInputs[idx] = MsigInfo{ t.transactionPublicKey, t.outputInTransaction, getMsigAccounts() };
 }
 

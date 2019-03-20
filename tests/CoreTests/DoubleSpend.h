@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 #include "Chaingen.h"
 #include "TransactionBuilder.h"
 
@@ -138,7 +138,7 @@ class TestGenerator;
 class DoubleSpendBase : public test_chain_unit_base
 {
 public:
-  
+
   // parameters to be checked
   uint64_t send_amount;
   bool has_invalid_tx;
@@ -172,7 +172,7 @@ private:
 
 
 struct MultiSigTx_DoubleSpendInTx : public DoubleSpendBase
-{ 
+{
   const bool m_txsKeepedByBlock;
 
   MultiSigTx_DoubleSpendInTx(bool txsKeepedByBlock);

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 #include "Chaingen.h"
 
 struct gen_uint_overflow_base : public test_chain_unit_base

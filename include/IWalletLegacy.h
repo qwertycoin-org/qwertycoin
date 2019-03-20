@@ -127,7 +127,7 @@ public:
   virtual size_t getUnlockedOutputsCount() = 0;
 
   virtual TransactionId findTransactionByTransferId(TransferId transferId) = 0;
-  
+
   virtual bool getTransaction(TransactionId transactionId, WalletLegacyTransaction& transaction) = 0;
   virtual bool getTransfer(TransferId transferId, WalletLegacyTransfer& transfer) = 0;
   virtual std::vector<Payments> getTransactionsByPaymentIds(const std::vector<PaymentId>& paymentIds) const = 0;
@@ -146,7 +146,7 @@ public:
 
   virtual size_t estimateFusion(const uint64_t& threshold) = 0;
   virtual std::list<TransactionOutputInformation> selectFusionTransfersToSend(uint64_t threshold, size_t minInputCount, size_t maxInputCount) = 0;
-      
+
   virtual std::string sign_message(const std::string &data) = 0;
   virtual bool verify_message(const std::string &data, const CryptoNote::AccountPublicAddress &address, const std::string &signature) = 0;
 

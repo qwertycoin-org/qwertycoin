@@ -26,7 +26,7 @@ namespace CryptoNote
 class OnceInInterval {
 public:
 
-  OnceInInterval(unsigned interval, bool startNow = true) 
+  OnceInInterval(unsigned interval, bool startNow = true)
     : m_interval(interval), m_lastCalled(startNow ? 0 : time(nullptr)) {}
 
   template<class F>

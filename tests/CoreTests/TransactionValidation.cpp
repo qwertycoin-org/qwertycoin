@@ -733,7 +733,7 @@ bool MultiSigTx_OutputSignatures::generate(TestGenerator& generator) const {
 
   std::vector<TransactionSourceEntry> sources;
   std::vector<TransactionDestinationEntry> destinations;
-  fill_tx_sources_and_destinations(generator.events, generator.lastBlock, generator.minerAccount, generator.minerAccount, 
+  fill_tx_sources_and_destinations(generator.events, generator.lastBlock, generator.minerAccount, generator.minerAccount,
     MK_COINS(1), m_currency.minimumFee(), 0, sources, destinations);
 
   tx_builder builder;
@@ -810,8 +810,8 @@ bool MultiSigTx_InvalidOutputSignature::generate(std::vector<test_event_entry>& 
 
 namespace
 {
-  void fillMultisignatureInput(TestGenerator& generator, tx_builder& builder, uint64_t inputAmount, uint32_t givenSignatures) {  
-    
+  void fillMultisignatureInput(TestGenerator& generator, tx_builder& builder, uint64_t inputAmount, uint32_t givenSignatures) {
+
     builder.step1_init();
 
     // create input
@@ -835,12 +835,12 @@ namespace
 
 MultiSigTx_Input::MultiSigTx_Input(
   size_t givenKeys, uint32_t requiredSignatures, uint32_t givenSignatures, bool inputShouldSucceed) :
-    MultiSigTx_OutputSignatures(givenKeys, requiredSignatures, true), 
-    m_givenSignatures(givenSignatures), 
+    MultiSigTx_OutputSignatures(givenKeys, requiredSignatures, true),
+    m_givenSignatures(givenSignatures),
     m_inputShouldSucceed(inputShouldSucceed) {}
 
 bool MultiSigTx_Input::generate(std::vector<test_event_entry>& events) const {
-  
+
   TestGenerator generator(m_currency, events);
 
   // create outputs
@@ -861,7 +861,7 @@ bool MultiSigTx_Input::generate(std::vector<test_event_entry>& events) const {
     Crypto::generate_signature(builder.m_tx_prefix_hash, pk, sk, sig);
     outsigs.push_back(sig);
   }
-  
+
   if (!m_inputShouldSucceed) {
     generator.addCallback("mark_invalid_tx");
   }
@@ -871,7 +871,7 @@ bool MultiSigTx_Input::generate(std::vector<test_event_entry>& events) const {
 }
 
 
-MultiSigTx_BadInputSignature::MultiSigTx_BadInputSignature() : 
+MultiSigTx_BadInputSignature::MultiSigTx_BadInputSignature() :
   MultiSigTx_OutputSignatures(1, 1, true) {
 }
 
@@ -909,6 +909,6 @@ bool MultiSigTx_BadInputSignature::generate(std::vector<test_event_entry>& event
   // blocks with transaction with bad signature should be rejected
   generator.addCallback("mark_invalid_block");
   generator.makeNextBlock(builder.m_tx);
-  
+
   return true;
 }

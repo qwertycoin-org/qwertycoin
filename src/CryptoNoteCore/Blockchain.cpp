@@ -775,7 +775,7 @@ uint64_t Blockchain::getMinimalFee(uint32_t height) {
 
 	// calculate average difficulty for ~last month
 	uint64_t avgDifficultyCurrent = getAvgDifficultyForHeight(height, window * 7 * 4);
-	
+
 	// historical reference moving average difficulty
 	uint64_t avgDifficultyHistorical = m_blocks[height].cumulative_difficulty / height;
 
@@ -1033,7 +1033,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
 
     if (!main_chain_start_offset)
       ++main_chain_start_offset; //skip genesis block
-    
+
     // get difficulties and timestamps from relevant main chain blocks
     for (; main_chain_start_offset < main_chain_stop_offset; ++main_chain_start_offset) {
       timestamps.push_back(m_blocks[main_chain_start_offset].bl.timestamp);
@@ -1996,7 +1996,7 @@ bool Blockchain::addNewBlock(const Block& bl_, block_verification_context& bvc) 
     if (!(bl.previousBlockHash == getTailId())) {
       //chain switching or wrong block
       logger(DEBUGGING) << "handling alternative block " << Common::podToHex(id)
-                   << " at height " << boost::get<BaseInput>(bl.baseTransaction.inputs.front()).blockIndex 
+                   << " at height " << boost::get<BaseInput>(bl.baseTransaction.inputs.front()).blockIndex
                    << " as it doesn't refer to chain tail " << Common::podToHex(getTailId())
                    << ", its prev. block hash: " << Common::podToHex(bl.previousBlockHash);
       bvc.m_added_to_main_chain = false;
@@ -2065,7 +2065,7 @@ bool Blockchain::pushBlock(const Block& blockData, const std::vector<Transaction
     logger(ERROR, BRIGHT_RED) << "Merge mining tag was found in extra of miner transaction";
     return false;
   }
-  
+
   if (blockData.previousBlockHash != getTailId()) {
     logger(INFO, BRIGHT_WHITE) <<
       "Block " << blockHash << " has wrong previousBlockHash: " << blockData.previousBlockHash << ", expected: " << getTailId();
