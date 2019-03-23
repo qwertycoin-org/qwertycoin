@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -73,7 +73,7 @@ TEST(EventLockTests, eventLockIsUnlockOnlyOnce) {
     dispatcher.yield();
     i += 2;
   });
-  
+
   event.set();
   dispatcher.yield();
   ASSERT_EQ(i, 1);

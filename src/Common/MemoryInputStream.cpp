@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -23,7 +23,7 @@
 
 namespace Common {
 
-MemoryInputStream::MemoryInputStream(const void* buffer, size_t bufferSize) : 
+MemoryInputStream::MemoryInputStream(const void* buffer, size_t bufferSize) :
 buffer(static_cast<const char*>(buffer)), bufferSize(bufferSize), position(0) {}
 
 size_t MemoryInputStream::getPosition() const {
@@ -42,7 +42,7 @@ size_t MemoryInputStream::readSome(void* data, size_t size) {
     memcpy(data, buffer + position, readSize);
     position += readSize;
   }
-  
+
   return readSize;
 }
 

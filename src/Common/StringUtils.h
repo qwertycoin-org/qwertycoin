@@ -31,11 +31,11 @@ namespace StringUtils
 
   std::string join(const std::vector<std::string> & tokens,
     const std::string & delimiter);
-  
+
   std::string escapeChar(char character);
-  
+
   std::string escapeString(const std::string & str);
-  
+
   std::vector<std::string> escapeStrings(
     const std::vector<std::string> & strs);
 

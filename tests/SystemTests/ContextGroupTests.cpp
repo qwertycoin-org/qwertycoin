@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -75,7 +75,7 @@ TEST(ContextGroupTests, ContextGroupInterruptIsInterrupting) {
   cg1.wait();
 
   ASSERT_TRUE(interrupted);
-} 
+}
 
 TEST(ContextGroupTests, ContextGroupDestructorIsInterrupt_Waitable) {
   Dispatcher dispatcher;
@@ -97,7 +97,7 @@ TEST(ContextGroupTests, ContextGroupDestructorIsInterrupt_Waitable) {
 
 TEST(ContextGroupTests, TimerIsContextIntrerruptible) {
   Dispatcher dispatcher;
-  
+
   bool interrupted = false;
   {
     ContextGroup cg1(dispatcher);

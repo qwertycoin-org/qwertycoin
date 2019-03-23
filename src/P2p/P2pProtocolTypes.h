@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -31,7 +31,7 @@ namespace CryptoNote
   typedef uint64_t PeerIdType;
 
 #pragma pack (push, 1)
-  
+
   struct NetworkAddress
   {
     uint32_t ip;
@@ -63,7 +63,7 @@ namespace CryptoNote
   }
 
   inline std::ostream& operator << (std::ostream& s, const NetworkAddress& na) {
-    return s << Common::ipAddressToString(na.ip) << ":" << std::to_string(na.port);   
+    return s << Common::ipAddressToString(na.ip) << ":" << std::to_string(na.port);
   }
 
   inline uint32_t hostToNetwork(uint32_t n) {

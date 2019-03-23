@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -113,7 +113,7 @@ template <typename T>
 std::string storeToBinaryKeyValue(const T& v) {
   KVBinaryOutputStreamSerializer s;
   serialize(const_cast<T&>(v), s);
-  
+
   std::string result;
   Common::StringOutputStream stream(result);
   s.dump(stream);

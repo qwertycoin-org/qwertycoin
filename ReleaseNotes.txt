@@ -25,7 +25,7 @@ Qwertycoin plan his second stage for the upcoming hard fork to heavy algorithm
 - Fix Debug for win32 systems
 - Check for fee address
 - Masternode optional check for fee in relayed transaction
-- Checked double bug. ok. this make 2nd key track 
+- Checked double bug. ok. this make 2nd key track
 - Added RPC method validateaddress
 - New branding
 
@@ -35,7 +35,7 @@ Qwertycoin has a Hardfork @ Block Height 8473
 -New Network Identifiers, New P2P Trust Key and new Set of Masternodes.
 
 Realse Notes 2.2.0
-Changed to Blocksize Increase on height 60,000 to 1,000,000 instead of 10,000 
+Changed to Blocksize Increase on height 60,000 to 1,000,000 instead of 10,000
 
 Release notes Qwertycoin 1.8.0
 

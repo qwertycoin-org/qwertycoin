@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -116,7 +116,7 @@ private:
   void doRemoveUnconfirmedTransaction(const Crypto::Hash& transactionHash);
 
   ///second parameter is used only in case of errors returned into callback from INode, such as aborted or connection lost
-  bool setFutureState(State s); 
+  bool setFutureState(State s);
   bool setFutureStateIf(State s, std::function<bool(void)>&& pred);
 
   void actualizeFutureState();

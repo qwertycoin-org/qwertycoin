@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -36,8 +36,8 @@ public:
 };
 
 TEST_F(Ipv4ResolverTests, start) {
-  contextGroup.spawn([&] { 
-    ASSERT_NO_THROW(Ipv4Resolver(dispatcher).resolve("localhost")); 
+  contextGroup.spawn([&] {
+    ASSERT_NO_THROW(Ipv4Resolver(dispatcher).resolve("localhost"));
   });
   contextGroup.wait();
 }

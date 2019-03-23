@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, The BBSCoin Developers
 // Copyright (c) 2018, The Karbo Developers
@@ -49,7 +49,7 @@ public:
 
   void initTransactionPool(const std::unordered_set<Crypto::Hash>& uncommitedTransactions);
   void addPublicKeysSeen(const Crypto::Hash& transactionHash, const Crypto::PublicKey& outputKey);
-  
+
   // IBlockchainConsumer
   virtual SynchronizationStart getSyncStart() override;
   virtual void onBlockchainDetach(uint32_t height) override;

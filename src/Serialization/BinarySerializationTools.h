@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -56,7 +56,7 @@ bool storeToBinaryFile(const T& obj, const std::string& filename) {
     Common::StdOutputStream stream(dataFile);
     BinaryOutputStreamSerializer out(stream);
     CryptoNote::serialize(const_cast<T&>(obj), out);
-      
+
     if (dataFile.fail()) {
       return false;
     }

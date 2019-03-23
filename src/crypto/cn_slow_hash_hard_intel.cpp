@@ -64,7 +64,7 @@ inline void aes_genkey_sub(__m128i& xout0, __m128i& xout2)
 	xout2 = _mm_xor_si128(xout2, xout1);
 }
 
-inline void aes_genkey(const __m128i* memory, __m128i& k0, __m128i& k1, __m128i& k2, __m128i& k3, __m128i& k4, 
+inline void aes_genkey(const __m128i* memory, __m128i& k0, __m128i& k1, __m128i& k2, __m128i& k3, __m128i& k4,
 	__m128i& k5, __m128i& k6, __m128i& k7, __m128i& k8, __m128i& k9)
 {
 	__m128i xout0, xout2;
@@ -121,7 +121,7 @@ void cn_slow_hash<MEMORY,ITER,POWVER>::implode_scratchpad_hard()
 {
 	__m128i x0, x1, x2, x3, x4, x5, x6, x7;
 	__m128i k0, k1, k2, k3, k4, k5, k6, k7, k8, k9;
-	
+
 	aes_genkey(spad.as_xmm() + 2, k0, k1, k2, k3, k4, k5, k6, k7, k8, k9);
 
 	x0 = _mm_load_si128(spad.as_xmm() + 4);
@@ -327,7 +327,7 @@ void cn_slow_hash<MEMORY,ITER,POWVER>::hardware_hash(const void* in, size_t len,
 	keccak((const uint8_t *)in, len, spad.as_byte(), 200);
 
 	explode_scratchpad_hard();
-	
+
 	uint64_t* h0 = spad.as_uqword();
 
 	uint64_t al0 = h0[0] ^ h0[4];
@@ -361,7 +361,7 @@ void cn_slow_hash<MEMORY,ITER,POWVER>::hardware_hash(const void* in, size_t len,
 		ah0 ^= ch;
 		al0 ^= cl;
 		idx0 = al0;
-		
+
 		if(POWVER > 0)
 		{
 			int64_t n  = scratchpad_ptr(idx0).as_qword(0);

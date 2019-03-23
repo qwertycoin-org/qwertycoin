@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, The BBSCoin Developers
 // Copyright (c) 2018, The Karbo Developers
@@ -62,7 +62,7 @@ ITransfersSubscription& TransfersSyncronizer::addSubscription(const AccountSubsc
     consumer->addObserver(this);
     it = m_consumers.insert(std::make_pair(acc.keys.address.viewPublicKey, std::move(consumer))).first;
   }
-    
+
   return it->second->addSubscription(acc);
 }
 
@@ -181,7 +181,7 @@ void TransfersSyncronizer::save(std::ostream& os) {
 
     std::string blob = consumerState.str();
     s(blob, "state");
-    
+
     std::vector<AccountPublicAddress> subscriptions;
     consumer.second->getSubscriptions(subscriptions);
     size_t subCount = subscriptions.size();

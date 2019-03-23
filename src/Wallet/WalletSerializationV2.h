@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -56,7 +56,7 @@ public:
 private:
   void loadKeyListAndBanalces(CryptoNote::ISerializer& serializer, bool saveCache);
   void saveKeyListAndBanalces(CryptoNote::ISerializer& serializer, bool saveCache);
-    
+
   void loadTransactions(CryptoNote::ISerializer& serializer);
   void saveTransactions(CryptoNote::ISerializer& serializer);
 

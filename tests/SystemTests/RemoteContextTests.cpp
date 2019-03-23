@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -33,8 +33,8 @@ public:
 
 
 TEST_F(RemoteContextTests, getReturnsResult) {
-  RemoteContext<int> context(dispatcher, [&] { 
-    return 2; 
+  RemoteContext<int> context(dispatcher, [&] {
+    return 2;
   });
 
   ASSERT_EQ(2, context.get());
@@ -42,7 +42,7 @@ TEST_F(RemoteContextTests, getReturnsResult) {
 
 TEST_F(RemoteContextTests, getRethrowsException) {
   RemoteContext<> context(dispatcher, [&] {
-    throw std::string("Hi there!"); 
+    throw std::string("Hi there!");
   });
 
   ASSERT_THROW(context.get(), std::string);

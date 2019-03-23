@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -27,7 +27,7 @@ namespace Common {
     MemoryInputStream(const void* buffer, size_t bufferSize);
     size_t getPosition() const;
     bool endOfStream() const;
-    
+
     // IInputStream
     virtual size_t readSome(void* data, size_t size) override;
 

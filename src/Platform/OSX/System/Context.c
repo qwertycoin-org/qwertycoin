@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -23,7 +23,7 @@ void
 makecontext(uctx *ucp, void (*func)(void), intptr_t arg)
 {
   long *sp;
-  
+
   memset(&ucp->uc_mcontext, 0, sizeof ucp->uc_mcontext);
   ucp->uc_mcontext.mc_rdi = (long)arg;
   sp = (long*)ucp->uc_stack.ss_sp+ucp->uc_stack.ss_size/sizeof(long);

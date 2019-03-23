@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -121,12 +121,12 @@ TcpConnection TcpConnector::connect(const Ipv4Address& address, uint16_t port) {
                   if (close(connectorContext->connection) == -1) {
                     throw std::runtime_error("TcpListener::stop, close failed, " + lastErrorMessage());
                   }
-                  
+
                   dispatcher->pushContext(connectorContext->context);
                   connectorContext->interrupted = true;
-                }                
+                }
               };
-              
+
               dispatcher->dispatch();
               dispatcher->getCurrentContext()->interruptProcedure = nullptr;
               assert(dispatcher != nullptr);

@@ -25,7 +25,7 @@
 
 namespace Common {
 
-std::string StringUtils::join(const std::vector<std::string> & tokens, 
+std::string StringUtils::join(const std::vector<std::string> & tokens,
   const std::string & delimiter) {
   std::stringstream stream;
   stream << tokens.front();

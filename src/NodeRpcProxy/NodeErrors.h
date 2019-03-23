@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -68,7 +68,7 @@ private:
 
 }
 }
- 
+
 inline std::error_code make_error_code(CryptoNote::error::NodeErrorCodes e) {
   return std::error_code(static_cast<int>(e), CryptoNote::error::NodeErrorCategory::INSTANCE);
 }

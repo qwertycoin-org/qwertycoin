@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -47,7 +47,7 @@ TEST_F(DispatcherTests, clearRemainsDispatcherWorkableAfterAsyncOperation) {
   Context<> context(dispatcher, [&]() {
     spawn1Done = true;
   });
-  
+
   dispatcher.yield();
   ASSERT_TRUE(spawn1Done);
   dispatcher.clear();
@@ -238,10 +238,10 @@ TEST_F(DispatcherTests, remoteSpawnActuallySpawns) {
 
 TEST_F(DispatcherTests, remoteSpawnActuallySpawns2) {
   Event remoteSpawnDone(dispatcher);
-  auto remoteSpawnThread = std::thread([&] { 
-    dispatcher.remoteSpawn([&]() { 
-      remoteSpawnDone.set(); 
-    }); 
+  auto remoteSpawnThread = std::thread([&] {
+    dispatcher.remoteSpawn([&]() {
+      remoteSpawnDone.set();
+    });
   });
 
   if (remoteSpawnThread.joinable()) {

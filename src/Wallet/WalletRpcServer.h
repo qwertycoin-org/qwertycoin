@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2014-2016, XDN developers
 // Copyright (c) 2014-2016, The Monero Project
@@ -36,10 +36,10 @@ class wallet_rpc_server : CryptoNote::HttpServer
 {
 public:
 	wallet_rpc_server(
-		System::Dispatcher& dispatcher, 
+		System::Dispatcher& dispatcher,
 		Logging::ILogger& log,
-		CryptoNote::IWalletLegacy &w, 
-		CryptoNote::INode &n, 
+		CryptoNote::IWalletLegacy &w,
+		CryptoNote::INode &n,
 		CryptoNote::Currency& currency,
 		const std::string& walletFilename);
 
@@ -50,7 +50,7 @@ public:
 
 	static void init_options(boost::program_options::options_description& desc);
 	bool init(const boost::program_options::variables_map& vm);
-    
+
 	bool run();
 	void send_stop_signal();
 

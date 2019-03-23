@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -75,7 +75,7 @@ public:
     m_externalTransactions.push_back(transactionId);
     m_cv.notify_all();
   }
-  
+
   uint64_t getCurrentHeight() {
     std::unique_lock<std::mutex> lk(m_mutex);
     return m_currentHeight;
@@ -158,7 +158,7 @@ public:
   ObservableValueBase<std::error_code> m_syncResult;
 
 private:
-    
+
   std::mutex m_mutex;
   std::condition_variable m_cv;
 

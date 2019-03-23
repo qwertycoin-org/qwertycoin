@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -49,7 +49,7 @@ bool LevinProtocol::Command::needReply() const {
   return !(isNotify || isResponse);
 }
 
-LevinProtocol::LevinProtocol(System::TcpConnection& connection) 
+LevinProtocol::LevinProtocol(System::TcpConnection& connection)
   : m_conn(connection) {}
 
 void LevinProtocol::sendMessage(uint32_t command, const BinaryArray& out, bool needResponse) {

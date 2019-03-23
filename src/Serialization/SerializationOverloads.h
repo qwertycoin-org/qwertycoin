@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -229,7 +229,7 @@ bool serialize(std::array<uint8_t, size>& value, Common::StringView name, Crypto
   return s.binary(value.data(), value.size(), name);
 }
 
-template <typename T1, typename T2> 
+template <typename T1, typename T2>
 void serialize(std::pair<T1, T2>& value, ISerializer& s) {
   s(value.first, "first");
   s(value.second, "second");

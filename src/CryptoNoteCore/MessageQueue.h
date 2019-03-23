@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -38,7 +38,7 @@ public:
   void stop();
 
   typename IntrusiveLinkedList<MessageQueue<MessageType>>::hook& getHook();
-  
+
 private:
   void wait();
   std::queue<MessageType> messageQueue;

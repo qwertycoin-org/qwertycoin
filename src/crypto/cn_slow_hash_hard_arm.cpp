@@ -42,7 +42,7 @@ struct aeskeydata
 	uint32_t x1;
 	uint32_t x2;
 	uint32_t x3;
-	
+
 	aeskeydata(const uint8_t* memory)
 	{
 		const uint32_t* mem = reinterpret_cast<const uint32_t*>(memory);
@@ -78,7 +78,7 @@ inline void sl_xor(aeskeydata& x)
 
 inline uint32_t sub_word(uint32_t key)
 {
-	return (saes_sbox[key >> 24 ] << 24)   | (saes_sbox[(key >> 16) & 0xff] << 16 ) | 
+	return (saes_sbox[key >> 24 ] << 24)   | (saes_sbox[(key >> 16) & 0xff] << 16 ) |
 		(saes_sbox[(key >> 8)  & 0xff] << 8  ) | saes_sbox[key & 0xff];
 }
 
@@ -97,7 +97,7 @@ inline void soft_aes_genkey_sub(aeskeydata& xout0, aeskeydata& xout2)
 	xout2 ^= sub_word(xout0.x3);
 }
 
-inline void aes_genkey(const uint8_t* memory, uint8x16_t& k0, uint8x16_t& k1, uint8x16_t& k2, uint8x16_t& k3, uint8x16_t& k4, 
+inline void aes_genkey(const uint8_t* memory, uint8x16_t& k0, uint8x16_t& k1, uint8x16_t& k2, uint8x16_t& k3, uint8x16_t& k4,
 	uint8x16_t& k5, uint8x16_t& k6, uint8x16_t& k7, uint8x16_t& k8, uint8x16_t& k9)
 {
 	aeskeydata xout0(memory);
@@ -123,7 +123,7 @@ inline void aes_genkey(const uint8_t* memory, uint8x16_t& k0, uint8x16_t& k1, ui
 	k9 = xout2.store();
 }
 
-inline void aes_round10(uint8x16_t& x, const uint8x16_t& k0, const uint8x16_t& k1, const uint8x16_t& k2, const uint8x16_t& k3, 
+inline void aes_round10(uint8x16_t& x, const uint8x16_t& k0, const uint8x16_t& k1, const uint8x16_t& k2, const uint8x16_t& k3,
 				const uint8x16_t& k4, const uint8x16_t& k5, const uint8x16_t& k6, const uint8x16_t& k7, const uint8x16_t& k8, const uint8x16_t& k9)
 {
 	x = vaesmcq_u8(vaeseq_u8(x, vdupq_n_u8(0)));
@@ -314,7 +314,7 @@ void cn_slow_hash<MEMORY,ITER,POWVER>::hardware_hash(const void* in, size_t len,
 	keccak((const uint8_t *)in, len, spad.as_byte(), 200);
 
 	explode_scratchpad_hard();
-	
+
 	uint64_t* h0 = spad.as_uqword();
 
 	uint64_t al0 = h0[0] ^ h0[4];
@@ -350,7 +350,7 @@ void cn_slow_hash<MEMORY,ITER,POWVER>::hardware_hash(const void* in, size_t len,
 		ah0 ^= ch;
 		al0 ^= cl;
 		idx0 = al0;
-		
+
 		if(POWVER > 0)
 		{
 			int64_t n  = scratchpad_ptr(idx0).as_qword(0);

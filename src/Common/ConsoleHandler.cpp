@@ -62,7 +62,7 @@ void AsyncConsoleReader::pause() {
 
 void AsyncConsoleReader::unpause() {
   start();
-} 
+}
 
 void AsyncConsoleReader::stop() {
 
@@ -118,7 +118,7 @@ bool AsyncConsoleReader::waitInput() {
     struct timeval tv;
     tv.tv_sec = 0;
     tv.tv_usec = 100 * 1000;
- 
+
     int retval = ::select(stdin_fileno + 1, &read_set, NULL, NULL, &tv);
 
     if (retval == -1 && errno == EINTR) {
@@ -183,7 +183,7 @@ void ConsoleHandler::pause() {
 void ConsoleHandler::unpause() {
   m_consoleReader.unpause();
 }
-  
+
 void ConsoleHandler::wait() {
 
   try {
@@ -204,11 +204,11 @@ std::string ConsoleHandler::getUsage() const {
   if (m_handlers.empty()) {
     return std::string();
   }
-  
+
   std::stringstream ss;
 
   size_t maxlen = std::max_element(m_handlers.begin(), m_handlers.end(), [](
-    CommandHandlersMap::const_reference& a, CommandHandlersMap::const_reference& b) { 
+    CommandHandlersMap::const_reference& a, CommandHandlersMap::const_reference& b) {
       return a.first.size() < b.first.size(); })->first.size();
 
   for (auto& x : m_handlers) {

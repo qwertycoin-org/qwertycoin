@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -28,7 +28,7 @@
 #include <unistd.h>
 #endif
 
-namespace Common { namespace Console { 
+namespace Common { namespace Console {
 
 bool isConsoleTty() {
 #if defined(WIN32)

@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -63,7 +63,7 @@ namespace CryptoNote {
     for (auto pair : headers) {
       os << pair.first << ": " << pair.second << "\r\n";
     }
-    
+
     os << "\r\n";
     if (!body.empty()) {
       os << body;

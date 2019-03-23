@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 #include "Chaingen.h"
 
-class gen_simple_chain_001: public test_chain_unit_base 
+class gen_simple_chain_001: public test_chain_unit_base
 {
-public: 
+public:
   gen_simple_chain_001();
   bool generate(std::vector<test_event_entry> &events);
-  bool verify_callback_1(CryptoNote::core& c, size_t ev_index, const std::vector<test_event_entry> &events); 
-  bool verify_callback_2(CryptoNote::core& c, size_t ev_index, const std::vector<test_event_entry> &events); 
+  bool verify_callback_1(CryptoNote::core& c, size_t ev_index, const std::vector<test_event_entry> &events);
+  bool verify_callback_2(CryptoNote::core& c, size_t ev_index, const std::vector<test_event_entry> &events);
 };
 
 class one_block: public test_chain_unit_base

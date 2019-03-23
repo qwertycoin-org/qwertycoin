@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -66,7 +66,7 @@ struct mcontext {
   long	mc_rflags;
   long	mc_rsp;
   long	mc_ss;
-  
+
   long	mc_len;			/* sizeof(mcontext_t) */
 #define	_MC_FPFMT_NODEV		0x10000	/* device not present or configured */
 #define	_MC_FPFMT_XMM		0x10002
@@ -93,12 +93,12 @@ struct ucontext {
    */
   sigset_t	uc_sigmask;
   mctx	uc_mcontext;
-  
+
   struct __ucontext *uc_link;
   stack_t		uc_stack;
   int		__spare__[8];
 };
-  
+
 #ifdef __cplusplus
 }
 #endif

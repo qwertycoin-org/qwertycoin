@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -45,7 +45,7 @@ bool toBinaryArray(const T& object, BinaryArray& binaryArray) {
 }
 
 template<>
-bool toBinaryArray(const BinaryArray& object, BinaryArray& binaryArray); 
+bool toBinaryArray(const BinaryArray& object, BinaryArray& binaryArray);
 
 template<class T>
 BinaryArray toBinaryArray(const T& object) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, Karbo developers
 //
@@ -129,7 +129,7 @@ void WalletLegacySerializer::deserialize(std::istream& stream, const std::string
   std::string plain;
   decrypt(cipher, plain, iv, password);
 
-  MemoryInputStream decryptedStream(plain.data(), plain.size()); 
+  MemoryInputStream decryptedStream(plain.data(), plain.size());
   CryptoNote::BinaryInputStreamSerializer serializer(decryptedStream);
 
   loadKeys(serializer);

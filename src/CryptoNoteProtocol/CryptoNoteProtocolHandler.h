@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -43,8 +43,8 @@ namespace CryptoNote
 {
   class Currency;
 
-  class CryptoNoteProtocolHandler : 
-    public i_cryptonote_protocol, 
+  class CryptoNoteProtocolHandler :
+    public i_cryptonote_protocol,
     public ICryptoNoteProtocolQuery
   {
   public:

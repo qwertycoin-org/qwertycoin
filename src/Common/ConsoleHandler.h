@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -30,7 +30,7 @@
 
 #ifndef _WIN32
 #include <sys/select.h>
-#endif 
+#endif
 
 namespace Common {
 
@@ -47,7 +47,7 @@ public:
   bool stopped() const;
   void pause();
   void unpause();
-  
+
 private:
 
   void consoleThread();

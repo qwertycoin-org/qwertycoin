@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -201,12 +201,12 @@ template<class Value>
 Value& IntrusiveLinkedList<Value>::iterator::operator*() const {
   assert(currentElement != nullptr);
 
-  return *currentElement; 
+  return *currentElement;
 }
 
 template<class Value>
 Value* IntrusiveLinkedList<Value>::iterator::operator->() const {
-  return currentElement; 
+  return currentElement;
 }
 
 }

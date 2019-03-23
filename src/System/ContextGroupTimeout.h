@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 #include <chrono>
 #include <System/ContextGroup.h>
 #include <System/Timer.h>
@@ -24,10 +24,10 @@
 namespace System {
 
 class ContextGroupTimeout {
-public: 
+public:
   ContextGroupTimeout(Dispatcher&, ContextGroup&, std::chrono::nanoseconds);
 
-private: 
+private:
   Timer timeoutTimer;
   ContextGroup workingContextGroup;
 };

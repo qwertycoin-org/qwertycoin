@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -113,7 +113,7 @@ void Event::wait() {
         last = waiter.prev;
       }
 
-      if (waiter.prev != nullptr) { 
+      if (waiter.prev != nullptr) {
         assert(waiter.prev->next == &waiter);
         waiter.prev->next = waiter.next;
       } else {
@@ -140,7 +140,7 @@ void Event::wait() {
     assert(dispatcher != nullptr);
     if (waiter.interrupted) {
       throw InterruptedException();
-    } 
+    }
   }
 }
 

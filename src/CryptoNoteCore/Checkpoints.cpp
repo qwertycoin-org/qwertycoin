@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, The TurtleCoin developers
 // Copyright (c) 2018, The Karbo developers
@@ -96,7 +96,7 @@ bool Checkpoints::check_block(uint32_t  height, const Crypto::Hash &h,
     return true;
 
   if (it->second == h) {
-    logger(Logging::INFO, Logging::GREEN) 
+    logger(Logging::INFO, Logging::GREEN)
       << "CHECKPOINT PASSED FOR HEIGHT " << height << " " << h;
     return true;
   } else {

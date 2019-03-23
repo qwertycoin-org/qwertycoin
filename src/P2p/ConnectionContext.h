@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -78,7 +78,7 @@ inline std::string get_protocol_state_string(CryptoNoteConnectionContext::state 
 
 namespace std {
 inline std::ostream& operator << (std::ostream& s, const CryptoNote::CryptoNoteConnectionContext& context) {
-  return s << "[" << Common::ipAddressToString(context.m_remote_ip) << ":" << 
+  return s << "[" << Common::ipAddressToString(context.m_remote_ip) << ":" <<
     context.m_remote_port << (context.m_is_income ? " INC" : " OUT") << "] ";
 }
 }
