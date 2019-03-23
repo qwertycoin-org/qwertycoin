@@ -6,29 +6,40 @@
 #### Development Build Status
 [![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=dev)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/master?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/dev)
 
-### Installing
+# Table of contents
+1. [Coin Specs & Useful Links](#coinspecs)
+2. [How to Compile Qwertycoin](#howtocompile)
+    1. [Qwertycoin for Android](#build-android)
+    2. [Qwertycoin for Apple](#build-apple)
+    3. [Qwertycoin for Linux](#build-linux)
+    4. [Qwertycoin for Windows](#build-windows)
+3. [Donate & Thanks](#donate)
 
+### Installing <a name="installing"></a>
 We offer binary images of the latest releases here: https://releases.qwertycoin.org
+
 If you would like to compile yourself, read on.
 
-### Coin Specs
+### Coin Specs <a name="coinspecs"></a>
 <table>
 <tr><td>Ticker Symbol</td><td>QWC</td></tr>
 <tr><td>Algorithm</td><td>Cryptonight</td></tr>
 <tr><td>Type</td><td>Proof of Work (PoW)</td></tr>
 <tr><td>Block Time</td><td>120 Seconds</td></tr>
-<tr><td>Premine</td><td>0.0%</td></tr>
+<tr><td>Premine</td><td>0.0 %</td></tr>
 <tr><td>Decimals</td><td>8 Digits</td></tr>
 <tr><td>Block Reward</td><td>Decrease by each block</td></tr>
-<tr><td>Max Coin Supply </td><td>184,470,000,000 QWC</td></tr>
+<tr><td>Max Coin Supply </td><td>184,467,440,737 QWC</td></tr>
+<tr><td>P2P- | RPC-Port</td><td>8196 | 8197</td></tr>
 </table>
 
-### Useful Links
+### Useful Links <a name="usefullinks"></a>
 <table>
 <tr><td>Website</td><td>https://qwertycoin.org</td></tr>
 <tr><td>Bitcointalk ANN</td><td>https://bitcointalk.org/index.php?topic=2881418.0</td></tr>
 <tr><td>Explorer</td><td>https://explorer.qwertycoin.org</td></tr>
 <tr><td>Pool Explorer</td><td>https://explorer.qwertycoin.org/#network</td></tr>
+<tr><td>Node Map</td><td>https://nodes.qwertycoin.org</td></tr>
 <tr><td>Wallets</td><td>https://releases.qwertycoin.org</td></tr>
 <tr><td>Web Wallet</td><td>https://myqwertycoin.com</td></tr>
 <tr><td>Masternode Setup</td><td>https://github.com/qwertycoin-org/qwertycoin/wiki</td></tr>
@@ -41,9 +52,9 @@ If you would like to compile yourself, read on.
 
 More information at [qwertycoin.org](https://qwertycoin.org/)
 
-### How To Compile
+# How To Compile <a name="howtocompile"></a>
 
-#### Linux
+#### Linux  <a name="build-linux"></a>
 
 ##### Prerequisites
 
@@ -66,7 +77,7 @@ cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
 
-#### Windows 10
+#### Windows 10 <a name="build-windows"></a>
 
 ##### Prerequisites
 
@@ -89,7 +100,7 @@ cmake --build . --config Release
 - If all went well, it will complete successfully, and you will find all your binaries in the `.\build\src\Release` directory;
 - Additionally, a `.sln` file will have been created in the `build` directory. If you wish to open the project in Visual Studio with this, you can.
 
-#### Apple
+#### Apple <a name="build-apple"></a>
 
 ##### Prerequisites
 
@@ -147,7 +158,7 @@ cmake --build . --config Release
 * Test suite: run `make test-release` to run tests in addition to building. Running `make test-debug` will do the same to the debug version;
 * Building with Clang: it may be possible to use Clang instead of GCC, but this may not work everywhere. To build, run `export CC=clang CXX=clang++` before running `make`.
 
-## Donate
+## Donate <a name="donate"></a>
 
 ```
 QWC: QWC1K6XEhCC1WsZzT9RRVpc1MLXXdHVKt2BUGSrsmkkXAvqh52sVnNc1pYmoF2TEXsAvZnyPaZu8MW3S8EWHNfAh7X2xa63P7Y
@@ -168,6 +179,6 @@ XMR: 47gmN4GMQ17Veur5YEpru7eCQc5A65DaWUThZa9z9bP6jNMYXPKAyjDcAW4RzNYbRChEwnKu1H3
 ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQp31GbG3M2DiVM3qRDSQ5Vwq
 ```
 
-#### Thanks
+#### Thanks <a name="thanks"></a>
 
 Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Developers, Qwertycoin Community
