@@ -9,8 +9,36 @@
 ### Installing
 
 We offer binary images of the latest releases here: https://releases.qwertycoin.org
-
 If you would like to compile yourself, read on.
+
+### Coin Specs
+<table>
+<tr><td>Ticker Symbol</td><td>QWC</td></tr>
+<tr><td>Algorithm</td><td>Cryptonight</td></tr>
+<tr><td>Type</td><td>Proof of Work (PoW)</td></tr>
+<tr><td>Block Time</td><td>120 Seconds</td></tr>
+<tr><td>Premine</td><td>0.0%</td></tr>
+<tr><td>Decimals</td><td>8 Digits</td></tr>
+<tr><td>Block Reward</td><td>Decrease by each block</td></tr>
+<tr><td>Max Coin Supply </td><td>184,470,000,000 QWC</td></tr>
+</table>
+
+### Useful Links
+<table>
+<tr><td>Website</td><td>https://qwertycoin.org</td></tr>
+<tr><td>Bitcointalk ANN</td><td>https://bitcointalk.org/index.php?topic=2881418.0</td></tr>
+<tr><td>Explorer</td><td>https://explorer.qwertycoin.org</td></tr>
+<tr><td>Pool Explorer</td><td>https://explorer.qwertycoin.org/#network</td></tr>
+<tr><td>Wallets</td><td>https://releases.qwertycoin.org</td></tr>
+<tr><td>Web Wallet</td><td>https://myqwertycoin.com</td></tr>
+<tr><td>Masternode Setup</td><td>https://github.com/qwertycoin-org/qwertycoin/wiki</td></tr>
+<tr><td>Blockfolio</td><td>https://blockfolio.com/#get-app</td></tr>
+<tr><td>CoinGecko</td><td>https://www.coingecko.com/en/coins/qwertycoin</td></tr>
+<tr><td>Delta</td><td>https://delta.app</td></tr>
+<tr><td>Discord</td><td>https://qwertycoin.org/discord</td></tr>
+<tr><td>Twitter</td><td>https://twitter.com/Qwertycoin_QWC</td></tr>
+</table>
+More information at [qwertycoin.org](https://qwertycoin.org/)
 
 ### How To Compile
 
