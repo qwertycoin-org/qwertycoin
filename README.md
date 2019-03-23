@@ -38,6 +38,7 @@ If you would like to compile yourself, read on.
 <tr><td>Discord</td><td>https://qwertycoin.org/discord</td></tr>
 <tr><td>Twitter</td><td>https://twitter.com/Qwertycoin_QWC</td></tr>
 </table>
+
 More information at [qwertycoin.org](https://qwertycoin.org/)
 
 ### How To Compile
