@@ -9,10 +9,10 @@
 # Table of contents
 1. [Coin Specs & Useful Links](#coinspecs)
 2. [How to Compile Qwertycoin](#howtocompile)
-    1. [Qwertycoin for Android](#build-android)
-    2. [Qwertycoin for Apple](#build-apple)
-    3. [Qwertycoin for Linux](#build-linux)
-    4. [Qwertycoin for Windows](#build-windows)
+    1. [Qwertycoin for Linux](#build-linux)
+    2. [Qwertycoin for Windows](#build-windows)
+    3. [Qwertycoin for Apple](#build-apple)
+    4. [Qwertycoin for Android](#build-android)
 3. [Donate & Thanks](#donate)
 
 ### Installing <a name="installing"></a>
@@ -30,7 +30,7 @@ If you would like to compile yourself, read on.
 <tr><td>Decimals</td><td>8 Digits</td></tr>
 <tr><td>Block Reward</td><td>Decrease by each block</td></tr>
 <tr><td>Max Coin Supply </td><td>184,467,440,737 QWC</td></tr>
-<tr><td>P2P- | RPC-Port</td><td>8196 | 8197</td></tr>
+<tr><td>P2P | RPC Port</td><td>8196 | 8197</td></tr>
 </table>
 
 ### Useful Links <a name="usefullinks"></a>
@@ -121,7 +121,7 @@ cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
 
-#### Android (building on Linux)
+#### Android (building on Linux) <a name="build-android"></a>
 
 ##### Prerequisites
 
