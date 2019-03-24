@@ -15,6 +15,6 @@ install:
 build_script:
     - md build
     - cd build
-    - cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/polly/vs-15-2017-win64.cmake -DBUILD_WITH_TESTS:BOOL=TRUE -DBUILD_WITH_PACKAGE:BOOL=TRUE ..
+    - cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/polly/vs-15-2017-win64.cmake -DBUILD_ALL:BOOL=TRUE ..
     - cmake --build . --config Release
     - cmake --build . --config Release --target package
