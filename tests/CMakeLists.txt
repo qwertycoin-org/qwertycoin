@@ -1,12 +1,13 @@
 enable_testing()
 
 set(QwertycoinTests_INCLUDE_DIRS
-    ${Qwertycoin_INCLUDE_DIRS}
+    ${QwertycoinFramework_INCLUDE_DIRS}
     "${CMAKE_CURRENT_LIST_DIR}")
 
 # QwertycoinTests
 
-add_custom_target(QwertycoinTests DEPENDS
+add_custom_target(QwertycoinTests)
+add_dependencies(QwertycoinTests
     #QwertycoinTests::CoreTests
     QwertycoinTests::CryptoTests
     QwertycoinTests::DifficultyTests
@@ -57,7 +58,8 @@ set(QwertycoinTests_CoreTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CoreTests/UnorderedContainersBoostSerialization.h"
     "${CMAKE_CURRENT_LIST_DIR}/CoreTests/Upgrade.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CoreTests/Upgrade.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CoreTests/double_spend.inl")
+    "${CMAKE_CURRENT_LIST_DIR}/CoreTests/double_spend.inl"
+)
 
 set(QwertycoinTests_CoreTests_LIBS "")
 
@@ -82,7 +84,8 @@ set(QwertycoinTests_CryptoTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoTests/crypto.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoTests/hash.c"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoTests/main.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoTests/random.c")
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoTests/random.c"
+)
 
 set(QwertycoinTests_CryptoTests_LIBS "")
 
@@ -100,11 +103,13 @@ add_test(NAME CryptoTests
 # QwertycoinTests::DifficultyTests
 
 set(QwertycoinTests_DifficultyTests_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/DifficultyTests/Difficulty.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/DifficultyTests/Difficulty.cpp"
+)
 
 set(QwertycoinTests_DifficultyTests_LIBS
-    Qwertycoin::Logging
-    Qwertycoin::CryptoNoteCore)
+    QwertycoinFramework::Logging
+    QwertycoinFramework::CryptoNoteCore
+)
 
 add_executable(QwertycoinTests_DifficultyTests ${QwertycoinTests_DifficultyTests_SOURCES})
 add_executable(QwertycoinTests::DifficultyTests ALIAS QwertycoinTests_DifficultyTests)
@@ -118,10 +123,12 @@ add_test(NAME DifficultyTests
 # QwertycoinTests::HashTargetTests
 
 set(QwertycoinTests_HashTargetTests_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/HashTargetTests/HashTarget.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/HashTargetTests/HashTarget.cpp"
+)
 
 set(QwertycoinTests_HashTargetTests_LIBS
-    Qwertycoin::CryptoNoteCore)
+    QwertycoinFramework::CryptoNoteCore
+)
 
 add_executable(QwertycoinTests_HashTargetTests ${QwertycoinTests_HashTargetTests_SOURCES})
 add_executable(QwertycoinTests::HashTargetTests ALIAS QwertycoinTests_HashTargetTests)
@@ -135,10 +142,12 @@ add_test(NAME HashTargetTests
 # QwertycoinTests::HashTests
 
 set(QwertycoinTests_HashTests_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/HashTests/main.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/HashTests/main.cpp"
+)
 
 set(QwertycoinTests_HashTests_LIBS
-    Qwertycoin::Crypto)
+    QwertycoinFramework::Crypto
+)
 
 add_executable(QwertycoinTests_HashTests ${QwertycoinTests_HashTests_SOURCES})
 add_executable(QwertycoinTests::HashTests ALIAS QwertycoinTests_HashTests)
@@ -172,10 +181,12 @@ set(QwertycoinTests_IntegrationTestLib_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/IntegrationTestLib/TestNetwork.h"
     "${CMAKE_CURRENT_LIST_DIR}/IntegrationTestLib/TestNode.h"
     "${CMAKE_CURRENT_LIST_DIR}/IntegrationTestLib/TestWalletLegacy.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/IntegrationTestLib/TestWalletLegacy.h")
+    "${CMAKE_CURRENT_LIST_DIR}/IntegrationTestLib/TestWalletLegacy.h"
+)
 
 set(QwertycoinTests_IntegrationTestLib_LIBS
-    Qwertycoin::InProcessNode)
+    QwertycoinFramework::InProcessNode
+)
 
 add_library(QwertycoinTests_IntegrationTestLib ${QwertycoinTests_IntegrationTestLib_SOURCES})
 add_library(QwertycoinTests::IntegrationTestLib ALIAS QwertycoinTests_IntegrationTestLib)
@@ -191,20 +202,22 @@ set(QwertycoinTests_IntegrationTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/IntegrationTests/Node.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/IntegrationTests/WalletLegacyObserver.h"
     "${CMAKE_CURRENT_LIST_DIR}/IntegrationTests/WalletLegacyTests.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/IntegrationTests/main.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/IntegrationTests/main.cpp"
+)
 
 set(QwertycoinTests_IntegrationTests_LIBS
     Boost::program_options
     GTest::main
-    Qwertycoin::CryptoNoteCore
-    Qwertycoin::CryptoNoteProtocol
-    Qwertycoin::Http
-    Qwertycoin::InProcessNode
-    Qwertycoin::Logging
-    Qwertycoin::Rpc
-    Qwertycoin::Serialization
-    Qwertycoin::System
-    QwertycoinTests::IntegrationTestLib)
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::CryptoNoteProtocol
+    QwertycoinFramework::Http
+    QwertycoinFramework::InProcessNode
+    QwertycoinFramework::Logging
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Serialization
+    QwertycoinFramework::System
+    QwertycoinTests::IntegrationTestLib
+)
 
 add_executable(QwertycoinTests_IntegrationTests ${QwertycoinTests_IntegrationTests_SOURCES})
 add_executable(QwertycoinTests::IntegrationTests ALIAS QwertycoinTests_IntegrationTests)
@@ -215,14 +228,16 @@ set_target_properties(QwertycoinTests_IntegrationTests PROPERTIES OUTPUT_NAME "i
 # QwertycoinTests::NodeRpcProxyTests
 
 set(QwertycoinTests_NodeRpcProxyTests_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxyTests/NodeRpcProxyTests.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxyTests/NodeRpcProxyTests.cpp"
+)
 
 set(QwertycoinTests_NodeRpcProxyTests_LIBS
-    Qwertycoin::Common
-    Qwertycoin::Logging
-    Qwertycoin::NodeRpcProxy
-    Qwertycoin::Rpc
-    Qwertycoin::Serialization)
+    QwertycoinFramework::Common
+    QwertycoinFramework::Logging
+    QwertycoinFramework::NodeRpcProxy
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Serialization
+)
 
 add_executable(QwertycoinTests_NodeRpcProxyTests ${QwertycoinTests_NodeRpcProxyTests_SOURCES})
 add_executable(QwertycoinTests::NodeRpcProxyTests ALIAS QwertycoinTests_NodeRpcProxyTests)
@@ -246,12 +261,14 @@ set(QwertycoinTests_PerformanceTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/PerformanceTests/PerformanceTests.h"
     "${CMAKE_CURRENT_LIST_DIR}/PerformanceTests/PerformanceUtils.h"
     "${CMAKE_CURRENT_LIST_DIR}/PerformanceTests/SingleTransactionTestBase.h"
-    "${CMAKE_CURRENT_LIST_DIR}/PerformanceTests/main.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/PerformanceTests/main.cpp"
+)
 
 set(QwertycoinTests_PerformanceTests_LIBS
     Boost::chrono
-    Qwertycoin::CryptoNoteCore
-    Qwertycoin::Logging)
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::Logging
+)
 
 add_executable(QwertycoinTests_PerformanceTests ${QwertycoinTests_PerformanceTests_SOURCES})
 add_executable(QwertycoinTests::PerformanceTests ALIAS QwertycoinTests_PerformanceTests)
@@ -277,11 +294,13 @@ set(QwertycoinTests_SystemTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/SystemTests/TcpConnectorTests.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/SystemTests/TcpListenerTests.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/SystemTests/TimerTests.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/SystemTests/main.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/SystemTests/main.cpp"
+)
 
 set(QwertycoinTests_SystemTests_LIBS
     GTest::main
-    Qwertycoin::System)
+    QwertycoinFramework::System
+)
 
 add_executable(QwertycoinTests_SystemTests ${QwertycoinTests_SystemTests_SOURCES})
 add_executable(QwertycoinTests::SystemTests ALIAS QwertycoinTests_SystemTests)
@@ -296,7 +315,8 @@ add_test(NAME SystemTests
 
 set(QwertycoinTests_TestGenerator_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/TestGenerator/TestGenerator.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/TestGenerator/TestGenerator.h")
+    "${CMAKE_CURRENT_LIST_DIR}/TestGenerator/TestGenerator.h"
+)
 
 set(QwertycoinTests_TestGenerator_LIBS "")
 
@@ -312,21 +332,23 @@ set(QwertycoinTests_TransfersTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/TransfersTests/TestNodeRpcProxy.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/TransfersTests/TestTxPoolSync.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/TransfersTests/Tests.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/TransfersTests/main.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/TransfersTests/main.cpp"
+)
 
 set(QwertycoinTests_TransfersTests_LIBS
     Boost::program_options
     GTest::main
-    Qwertycoin::Common
-    Qwertycoin::CryptoNoteCore
-    Qwertycoin::CryptoNoteProtocol
-    Qwertycoin::InProcessNode
-    Qwertycoin::Logging
-    Qwertycoin::Rpc
-    Qwertycoin::Serialization
-    Qwertycoin::System
-    Qwertycoin::Transfers
-    QwertycoinTests::IntegrationTestLib)
+    QwertycoinFramework::Common
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::CryptoNoteProtocol
+    QwertycoinFramework::InProcessNode
+    QwertycoinFramework::Logging
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Serialization
+    QwertycoinFramework::System
+    QwertycoinFramework::Transfers
+    QwertycoinTests::IntegrationTestLib
+)
 
 add_executable(QwertycoinTests_TransfersTests ${QwertycoinTests_TransfersTests_SOURCES})
 add_executable(QwertycoinTests::TransfersTests ALIAS QwertycoinTests_TransfersTests)
@@ -394,10 +416,12 @@ set(QwertycoinTests_UnitTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/UnitTests/TransactionPool.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/UnitTests/TransfersObserver.h"
     "${CMAKE_CURRENT_LIST_DIR}/UnitTests/UnitTestsUtils.h"
-    "${CMAKE_CURRENT_LIST_DIR}/UnitTests/main.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/UnitTests/main.cpp"
+)
 
 set(QwertycoinTests_UnitTests_LIBS
-    GTest::main)
+    GTest::main
+)
 
 add_executable(QwertycoinTests_UnitTests ${QwertycoinTests_UnitTests_SOURCES})
 add_executable(QwertycoinTests::UnitTests ALIAS QwertycoinTests_UnitTests)
