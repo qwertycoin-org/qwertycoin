@@ -15,7 +15,7 @@
     4. [Qwertycoin for Android](#build-android)
 3. [Donate & Thanks](#donate)
 
-### Installing <a name="installing"></a>
+## Installing <a name="installing"></a>
 We offer binary images of the latest releases here: https://releases.qwertycoin.org
 
 If you would like to compile yourself, read on.
@@ -72,7 +72,7 @@ git clone --recurse-submodules https://github.com/qwertycoin-org/qwertycoin
 cd ./qwertycoin
 mkdir ./build
 cd ./build
-cmake ..
+cmake -DBUILD_WITH_TOOLS:BOOL=TRUE ..
 cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
@@ -94,7 +94,7 @@ git clone https://github.com/qwertycoin-org/qwertycoin
 cd qwertycoin
 md build
 cd build
-cmake -G "Visual Studio 15 2017 Win64" ..
+cmake -G "Visual Studio 15 2017 Win64" -DBUILD_WITH_TOOLS:BOOL=TRUE ..
 cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `.\build\src\Release` directory;
@@ -116,7 +116,7 @@ git clone https://github.com/qwertycoin-org/qwertycoin
 cd ./qwertycoin
 mkdir ./build
 cd ./build
-cmake ..
+cmake -DBUILD_WITH_TOOLS:BOOL=TRUE ..
 cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
@@ -146,7 +146,7 @@ git clone https://github.com/qwertycoin-org/qwertycoin
 cd ./qwertycoin
 mkdir ./build
 cd ./build
-cmake -DCMAKE_TOOLCHAIN_FILE=cmake/polly/android-ndk-r18b-api-21-x86-clang-libcxx.cmake -DBUILD_TESTS=OFF -DSTATIC=ON -DBUILD_64=OFF -DANDROID=true -DBUILD_TAG="android" ..
+cmake -DCMAKE_TOOLCHAIN_FILE=cmake/polly/android-ndk-r18b-api-21-x86-clang-libcxx.cmake -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE -DSTATIC=ON -DBUILD_64=OFF -DANDROID=true -DBUILD_TAG="android" ..
 cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
