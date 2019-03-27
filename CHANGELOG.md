@@ -1,4 +1,10 @@
-Realease Notes 5.0.1
+Release Notes 5.1.4
+- Release 5.1.3 due to massive network problems in case of trying to switch to an alternative chain. The primary nodes detected this issue and blocked all outdated Nodes. To solve this Issues in short time we decided to change net network identifer to ensure that every node uses the same version.
+- This Version code is: 5.1.3.3000 (6db7f2b-g6db7f2b)
+- It's importan to update any Pool, Node, Exchange or Wallet to this new Version ast fast as possible. We offer binary images of the latest releases here: https://releases.qwertycoin.org
+- If you would like to compile yourself, read the project "How to Compile" Details.
+
+Release Notes 5.0.1
 - Hunter (package manager)
 - Added configuration file for Hunter (package manager)
 - Changed Boost version to 1.66.0
