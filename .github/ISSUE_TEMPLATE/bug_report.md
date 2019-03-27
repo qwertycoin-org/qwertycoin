@@ -25,8 +25,8 @@ about: Create a report to help us improve
 Please insert your build commands here. Example:
 
 mkdir build && cd build
-cmake .. -DBOOST_ROOT=/home/qwertycoin/boost_1_59_0
-make -j4
+cmake -DBUILD_ALL:BOOL=TRUE ..
+cmake --build . --config Release
 ```
 
 **If self compiled, please provide of your Qwertycoin CMake output at the default verbosity**:

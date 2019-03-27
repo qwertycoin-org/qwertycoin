@@ -57,7 +57,7 @@ Binaries for Testing:
   - [ ] Windows
   - [ ] Linux
   - [ ] MacOS
- 
+
 ### Qwertycoin simplewallet Tests
 - Connect to local daemon
   - [ ] Windows
@@ -88,10 +88,6 @@ Binaries for Testing:
   - [ ] Linux
   - [ ] MacOS
 - Perform a full reset
-  - [ ] Windows
-  - [ ] Linux
-  - [ ] MacOS
-- Integrated Addresses work
   - [ ] Windows
   - [ ] Linux
   - [ ] MacOS
@@ -130,10 +126,6 @@ Binaries for Testing:
   - [ ] Linux
   - [ ] MacOS
 - Perform a full reset
-  - [ ] Windows
-  - [ ] Linux
-  - [ ] MacOS
-- Integrated Addresses work
   - [ ] Windows
   - [ ] Linux
   - [ ] MacOS
@@ -176,10 +168,6 @@ Binaries for Testing:
   - [ ] Linux
   - [ ] MacOS
 - Perform a full reset
-  - [ ] Windows
-  - [ ] Linux
-  - [ ] MacOS
-- Integrated Addresses work
   - [ ] Windows
   - [ ] Linux
   - [ ] MacOS
