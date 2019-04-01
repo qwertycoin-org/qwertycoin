@@ -6,8 +6,8 @@ cache:
     - C:\.hunter -> .appveyor.yml
 
 environment:
-    BOOST_ROOT: C:\Libraries\boost_1_66_0
-    BOOST_LIBRARYDIR: C:\Libraries\boost_1_66_0\lib64-msvc-14.1
+    BOOST_ROOT: C:\Libraries\boost_1_69_0
+    BOOST_LIBRARYDIR: C:\Libraries\boost_1_69_0\lib64-msvc-14.1
 
 install:
     - git submodule update --init --recursive
