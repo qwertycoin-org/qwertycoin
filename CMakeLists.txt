@@ -11,6 +11,7 @@ if(POLICY CMP0074)
 endif()
 
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_LIST_DIR}/cmake")
+list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_LIST_DIR}/cmake/find")
 
 # Configure project build type.
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Supported build types" FORCE)
@@ -25,8 +26,8 @@ set(HUNTER_CONFIGURATION_TYPES Release CACHE STRING "Hunter configuration types"
 set(HUNTER_JOBS_NUMBER 4 CACHE STRING "Hunter jobs number")
 include(hunter/HunterGate)
 HunterGate(
-    URL "https://github.com/ruslo/hunter/archive/v0.23.146.tar.gz"
-    SHA1 "06f44e121e5ac61c8571203ba47ce0b31187d985"
+    URL "https://github.com/ruslo/hunter/archive/v0.23.150.tar.gz"
+    SHA1 "7f1604b4dd3fb3e9478fa5a60928486df3a6b5cb"
     FILEPATH "${CMAKE_CURRENT_LIST_DIR}/cmake/hunter/HunterConfig.cmake"
 )
 
