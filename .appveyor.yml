@@ -6,8 +6,8 @@ cache:
     - C:\.hunter -> .appveyor.yml
 
 environment:
-    BOOST_ROOT: C:\Libraries\boost_1_66_0
-    BOOST_LIBRARYDIR: C:\Libraries\boost_1_66_0\lib64-msvc-14.1
+    BOOST_ROOT: "C:/Libraries/boost_1_69_0"
+    BOOST_LIBRARYDIR: "C:/Libraries/boost_1_69_0/lib64-msvc-14.1"
 
 install:
     - git submodule update --init --recursive
@@ -15,6 +15,11 @@ install:
 build_script:
     - md build
     - cd build
-    - cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/polly/vs-15-2017-win64.cmake -DBUILD_ALL:BOOL=TRUE ..
+    - >
+        cmake -G "Visual Studio 15 2017 Win64"
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_TOOLCHAIN_FILE=cmake/polly/vs-15-2017-win64.cmake
+        -DBUILD_ALL:BOOL=TRUE
+        ..
     - cmake --build . --config Release
     - cmake --build . --config Release --target package
