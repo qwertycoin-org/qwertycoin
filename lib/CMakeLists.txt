@@ -454,6 +454,10 @@ set(QwertycoinFramework_P2p_LIBS
     QwertycoinFramework::CryptoNoteProtocol
 )
 
+if(WIN32 AND MSVC)
+    list(APPEND QwertycoinFramework_P2p_LIBS Bcrypt)
+endif()
+
 add_library(QwertycoinFramework_P2p STATIC ${QwertycoinFramework_P2p_SOURCES})
 add_library(QwertycoinFramework::P2p ALIAS QwertycoinFramework_P2p)
 target_include_directories(QwertycoinFramework_P2p PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
