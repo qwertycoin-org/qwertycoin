@@ -31,6 +31,7 @@ addons:
             - git
             - unzip
             - wget
+            - lcov
         sources:
             - ubuntu-toolchain-r-test
     homebrew: # macOS
@@ -56,10 +57,14 @@ before_install:
 script:
     - mkdir ./build
     - cd ./build
-    - cmake -G "$CMAKE_GENERATOR_NAME" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME $CMAKE_ARGS ..
+    - cmake -G "$CMAKE_GENERATOR_NAME" -DCODE_COVERAGE=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME $CMAKE_ARGS ..
     - cmake --build . --config Release
     - cmake --build . --config Release --target package
 
-
 after_success:
-    - bash <(curl -s https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
+    # Create lcov report
+    - lcov --capture --directory . --output-file coverage.info
+    - lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
+    - lcov --list coverage.info # debug info
+    # Uploading report to CodeCov
+    - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
