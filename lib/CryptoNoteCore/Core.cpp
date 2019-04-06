@@ -333,7 +333,7 @@ bool core::check_tx_semantic(const Transaction& tx, bool keeped_by_block) {
   for (size_t i = 0; i < tx.inputs.size(); ++i) {
     if (tx.inputs[i].type() == typeid(KeyInput)) {
       if (boost::get<KeyInput>(tx.inputs[i]).outputIndexes.size() != tx.signatures[i].size()) {
-        logger(ERROR) << "tx signatures count doesn't match outputIndexes count for input " 
+        logger(ERROR) << "tx signatures count doesn't match outputIndexes count for input "
           << i << ", rejected for tx id= " << getObjectHash(tx);
         return false;
       }

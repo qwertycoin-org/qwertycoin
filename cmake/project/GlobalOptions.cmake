@@ -1,3 +1,5 @@
 option(DEVELOPER_BUILD "Developer build" OFF)
-option(BUILD_WITH_TESTS "Build with tests" ${DEVELOPER_BUILD})
-option(BUILD_WITH_PACKAGE "Build with package" ${DEVELOPER_BUILD})
+option(BUILD_ALL "Build all available lib, executable and test targets" ${DEVELOPER_BUILD})
+option(BUILD_WITH_TOOLS "Build with tools" ${BUILD_ALL})
+option(BUILD_WITH_TESTS "Build with tests" ${BUILD_ALL})
+option(BUILD_WITH_PACKAGE "Build with package" ${BUILD_ALL})

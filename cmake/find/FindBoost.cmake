@@ -465,7 +465,7 @@ function(_Boost_GUESS_COMPILER_PREFIX _ret)
     endif()
   elseif (GHSMULTI)
     set(_boost_COMPILER "-ghs")
-  elseif("x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xMSVC")
+  elseif("x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xMSVC" OR "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
     if(MSVC_TOOLSET_VERSION GREATER_EQUAL 141)
       set(_boost_COMPILER "-vc141;-vc140")
     elseif(MSVC_TOOLSET_VERSION GREATER_EQUAL 80)
@@ -476,6 +476,12 @@ function(_Boost_GUESS_COMPILER_PREFIX _ret)
       set(_boost_COMPILER "-vc7") # yes, this is correct
     else() # VS 6.0 Good luck!
       set(_boost_COMPILER "-vc6") # yes, this is correct
+    endif()
+
+    if("x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xClang")
+      string(REPLACE "." ";" VERSION_LIST "${CMAKE_CXX_COMPILER_VERSION}")
+      list(GET VERSION_LIST 0 CLANG_VERSION_MAJOR)
+      set(_boost_COMPILER "-clangw${CLANG_VERSION_MAJOR};${_boost_COMPILER}")
     endif()
   elseif (BORLAND)
     set(_boost_COMPILER "-bcb")
@@ -1201,6 +1207,8 @@ if(NOT TARGET Boost::diagnostic_definitions)
   add_library(Boost::diagnostic_definitions INTERFACE IMPORTED)
   add_library(Boost::disable_autolinking INTERFACE IMPORTED)
   add_library(Boost::dynamic_linking INTERFACE IMPORTED)
+  set_target_properties(Boost::dynamic_linking PROPERTIES
+    INTERFACE_COMPILE_DEFINITIONS "BOOST_ALL_DYN_LINK")
 endif()
 if(WIN32)
   # In windows, automatic linking is performed, so you do not have
@@ -1225,8 +1233,6 @@ if(WIN32)
     INTERFACE_COMPILE_DEFINITIONS "BOOST_LIB_DIAGNOSTIC")
   set_target_properties(Boost::disable_autolinking PROPERTIES
     INTERFACE_COMPILE_DEFINITIONS "BOOST_ALL_NO_LIB")
-  set_target_properties(Boost::dynamic_linking PROPERTIES
-    INTERFACE_COMPILE_DEFINITIONS "BOOST_ALL_DYN_LINK")
 endif()
 
 _Boost_CHECK_SPELLING(Boost_ROOT)
@@ -1807,22 +1813,37 @@ foreach(COMPONENT ${Boost_FIND_COMPONENTS})
     foreach(compiler IN LISTS _boost_COMPILER)
       list(APPEND _boost_RELEASE_NAMES
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_RELEASE_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+        ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_RELEASE_ABI_TAG}${_boost_ARCHITECTURE_TAG}
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_RELEASE_ABI_TAG} )
     endforeach()
     list(APPEND _boost_RELEASE_NAMES
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_RELEASE_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+      ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_RELEASE_ABI_TAG}${_boost_ARCHITECTURE_TAG}
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_RELEASE_ABI_TAG}
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component} )
+    # In Hunter it's possible to have only one variant in root,
+    # so it's okay to add all of them to search.
+    foreach(__type i x a m)
+      foreach(__bit 32 64)
+        list(
+            APPEND
+            _boost_RELEASE_NAMES
+            ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_RELEASE_ABI_TAG}-${__type}${__bit}
+        )
+      endforeach()
+    endforeach()
     if(_boost_STATIC_RUNTIME_WORKAROUND)
       set(_boost_RELEASE_STATIC_ABI_TAG "-s${_boost_RELEASE_ABI_TAG}")
       foreach(compiler IN LISTS _boost_COMPILER)
         list(APPEND _boost_RELEASE_NAMES
           ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_RELEASE_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+          ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_RELEASE_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}
           ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_RELEASE_STATIC_ABI_TAG} )
       endforeach()
       list(APPEND _boost_RELEASE_NAMES
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_RELEASE_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+        ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_RELEASE_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_RELEASE_STATIC_ABI_TAG} )
     endif()
   endforeach()
@@ -1860,22 +1881,37 @@ foreach(COMPONENT ${Boost_FIND_COMPONENTS})
     foreach(compiler IN LISTS _boost_COMPILER)
       list(APPEND _boost_DEBUG_NAMES
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_DEBUG_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+        ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_DEBUG_ABI_TAG}${_boost_ARCHITECTURE_TAG}
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_DEBUG_ABI_TAG} )
     endforeach()
     list(APPEND _boost_DEBUG_NAMES
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_DEBUG_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+      ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_DEBUG_ABI_TAG}${_boost_ARCHITECTURE_TAG}
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_DEBUG_ABI_TAG}
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}
       ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component} )
+    # In Hunter it's possible to have only one variant in root,
+    # so it's okay to add all of them to search.
+    foreach(__type i x a m)
+      foreach(__bit 32 64)
+        list(
+            APPEND
+            _boost_DEBUG_NAMES
+            ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_DEBUG_ABI_TAG}-${__type}${__bit}
+        )
+      endforeach()
+    endforeach()
     if(_boost_STATIC_RUNTIME_WORKAROUND)
       set(_boost_DEBUG_STATIC_ABI_TAG "-s${_boost_DEBUG_ABI_TAG}")
       foreach(compiler IN LISTS _boost_COMPILER)
         list(APPEND _boost_DEBUG_NAMES
           ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_DEBUG_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+          ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_DEBUG_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}
           ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${compiler}${_boost_MULTITHREADED}${_boost_DEBUG_STATIC_ABI_TAG} )
       endforeach()
       list(APPEND _boost_DEBUG_NAMES
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_DEBUG_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}-${Boost_LIB_VERSION}
+        ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_DEBUG_STATIC_ABI_TAG}${_boost_ARCHITECTURE_TAG}
         ${Boost_LIB_PREFIX}${Boost_NAMESPACE}_${component}${_boost_MULTITHREADED}${_boost_DEBUG_STATIC_ABI_TAG} )
     endif()
   endforeach()

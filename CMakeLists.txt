@@ -26,8 +26,8 @@ set(HUNTER_CONFIGURATION_TYPES Release CACHE STRING "Hunter configuration types"
 set(HUNTER_JOBS_NUMBER 4 CACHE STRING "Hunter jobs number")
 include(hunter/HunterGate)
 HunterGate(
-    URL "https://github.com/ruslo/hunter/archive/v0.23.122.tar.gz"
-    SHA1 "d8c252862a9900a703167ba703bfb1b17977948f"
+    URL "https://github.com/ruslo/hunter/archive/v0.23.150.tar.gz"
+    SHA1 "7f1604b4dd3fb3e9478fa5a60928486df3a6b5cb"
     FILEPATH "${CMAKE_CURRENT_LIST_DIR}/cmake/hunter/HunterConfig.cmake"
 )
 
@@ -48,7 +48,22 @@ if(GIT_FOUND)
         message(WARNING "Failed to execute Git: ${PROJECT_GIT_ERROR}")
     else()
         string(REPLACE "v" "" PROJECT_GIT_TAG ${PROJECT_GIT_TAG})
-        message(STATUS "Version from Git tag: ${PROJECT_GIT_TAG}")
+        message(STATUS "Git tag: ${PROJECT_GIT_TAG}")
+    endif()
+
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE PROJECT_GIT_RESULT
+        OUTPUT_VARIABLE PROJECT_GIT_COMMIT_ID
+        ERROR_VARIABLE PROJECT_GIT_ERROR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_STRIP_TRAILING_WHITESPACE)
+    if(NOT PROJECT_GIT_RESULT EQUAL 0)
+        set(PROJECT_GIT_COMMIT_ID "unknown")
+        message(WARNING "Failed to execute Git: ${PROJECT_GIT_ERROR}")
+    else()
+        message(STATUS "Git commit ID: ${PROJECT_GIT_COMMIT_ID}")
     endif()
 endif()
 
@@ -79,7 +94,29 @@ include(external/MiniUPnP)
 include(external/sparsehash)
 include(external/Threads)
 
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/src")
+# Code Coverage Configuration
+add_library(coverage_config INTERFACE)
+
+option(CODE_COVERAGE "Enable coverage reporting" OFF)
+if(CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  # Add required flags (GCC & LLVM/Clang)
+  target_compile_options(coverage_config INTERFACE
+    -O0        # no optimization
+    -g         # generate debug info
+    --coverage # sets all required flags
+  )
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
+    target_link_options(coverage_config INTERFACE --coverage)
+  else()
+    target_link_libraries(coverage_config INTERFACE --coverage)
+  endif()
+endif(CODE_COVERAGE)
+
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/lib")
+
+if(BUILD_WITH_TOOLS)
+    add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/src")
+endif()
 
 if(BUILD_WITH_TESTS)
     add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/tests")
