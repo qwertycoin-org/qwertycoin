@@ -110,7 +110,7 @@ if(CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   else()
     target_link_libraries(coverage_config INTERFACE --coverage)
   endif()
-endif(CODE_COVERAGE)
+endif()
 
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/lib")
 
