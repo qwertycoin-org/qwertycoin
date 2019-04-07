@@ -1,7 +1,8 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2014 - 2017 XDN - project developers
+// Copyright (c) 2018, The TurtleCoin Developers
+// Copyright (c) 2016-2019 The Karbo developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
-// Copyright(c) 2014 - 2017 XDN - project developers
-// Copyright(c) 2018 The Karbo developers
 //
 // This file is part of Qwertycoin.
 //
@@ -106,7 +107,11 @@ bool PaymentGateService::init(int argc, char** argv) {
 WalletConfiguration PaymentGateService::getWalletConfig() const {
   return WalletConfiguration{
     config.gateConfiguration.containerFile,
-    config.gateConfiguration.containerPassword
+    config.gateConfiguration.containerPassword,
+    config.gateConfiguration.secretViewKey,
+    config.gateConfiguration.secretSpendKey,
+    config.gateConfiguration.mnemonicSeed,
+    config.gateConfiguration.generateDeterministic
   };
 }
 
@@ -213,7 +218,7 @@ void PaymentGateService::runInProcess(Logging::LoggerRef& log) {
   }
 
   log(Logging::INFO) << "Starting core rpc server on "
-	  << config.remoteNodeConfig.daemonHost << ":" << config.remoteNodeConfig.daemonPort;
+    << config.remoteNodeConfig.daemonHost << ":" << config.remoteNodeConfig.daemonPort;
   rpcServer.start(config.remoteNodeConfig.daemonHost, config.remoteNodeConfig.daemonPort);
   log(Logging::INFO) << "Core rpc server started ok";
 

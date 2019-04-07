@@ -381,22 +381,22 @@ target_include_directories(QwertycoinFramework_Logging PRIVATE ${QwertycoinFrame
 # QwertycoinFramework::Mnemonics
 
 set(QwertycoinFramework_Mnemonics_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/chinese_simplified.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/dutch.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/electrum-words.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/electrum-words.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/english.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/french.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/german.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/italian.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/japanese.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/language_base.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/polish.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/portuguese.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/russian.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/singleton.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/spanish.h"
-    "${CMAKE_CURRENT_LIST_DIR}/mnemonics/ukrainian.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/chinese_simplified.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/dutch.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/electrum-words.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/electrum-words.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/english.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/french.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/german.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/italian.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/japanese.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/language_base.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/polish.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/portuguese.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/russian.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/singleton.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/spanish.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Mnemonics/ukrainian.h"
 )
 
 add_library(QwertycoinFramework_Mnemonics STATIC ${QwertycoinFramework_Mnemonics_SOURCES})
