@@ -120,6 +120,8 @@ bool constructTransaction(
   const AccountKeys& sender_account_keys,
   const std::vector<TransactionSourceEntry>& sources,
   const std::vector<TransactionDestinationEntry>& destinations,
+  const std::vector<tx_message_entry> messages,
+  uint64_t ttl,
   std::vector<uint8_t> extra,
   Transaction& tx,
   uint64_t unlock_time,
@@ -231,6 +233,22 @@ bool constructTransaction(
   if (summary_outs_money > summary_inputs_money) {
     logger(ERROR) << "Transaction inputs money (" << summary_inputs_money << ") less than outputs money (" << summary_outs_money << ")";
     return false;
+  }
+
+  for (size_t i = 0; i < messages.size(); i++) {
+    const tx_message_entry& msg = messages[i];
+    tx_extra_message tag;
+    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
+      return false;
+    }
+
+    if (!append_message_to_extra(tx.extra, tag)) {
+      return false;
+    }
+  }
+
+  if (ttl != 0) {
+    appendTTLToExtra(tx.extra, ttl);
   }
 
   //generate ring signatures

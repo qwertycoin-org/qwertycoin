@@ -53,12 +53,24 @@ struct TransactionDestinationEntry {
   TransactionDestinationEntry(uint64_t amount, const AccountPublicAddress &addr) : amount(amount), addr(addr) {}
 };
 
+struct tx_message_entry {
+  std::string message;
+  bool encrypt;
+  AccountPublicAddress addr;
+};
+
 
 bool constructTransaction(
   const AccountKeys& senderAccountKeys,
   const std::vector<TransactionSourceEntry>& sources,
   const std::vector<TransactionDestinationEntry>& destinations,
-  std::vector<uint8_t> extra, Transaction& transaction, uint64_t unlock_time, Crypto::SecretKey &tx_key, Logging::ILogger& log);
+  const std::vector<tx_message_entry>& messages,
+  uint64_t ttl,
+  std::vector<uint8_t> extra, 
+  Transaction& transaction, 
+  uint64_t unlock_time, 
+  Crypto::SecretKey &tx_key, 
+  Logging::ILogger& log);
 
 
 bool is_out_to_acc(const AccountKeys& acc, const KeyOutput& out_key, const Crypto::PublicKey& tx_pub_key, size_t keyIndex);

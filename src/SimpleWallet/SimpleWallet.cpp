@@ -238,6 +238,8 @@ struct TransferCommand {
   std::vector<CryptoNote::WalletLegacyTransfer> dsts;
   std::vector<uint8_t> extra;
   uint64_t fee;
+  std::vector<std::string> messages;
+  uint64_t ttl;
 #ifndef __ANDROID__
   std::map<std::string, std::vector<WalletLegacyTransfer>> aliases;
 #endif
@@ -245,7 +247,7 @@ struct TransferCommand {
   TransferCommand(const CryptoNote::Currency& currency, const CryptoNote::NodeRpcProxy& node) :
     m_currency(currency), m_node(node), fake_outs_count(0),
     fee(m_node.getLastLocalBlockHeaderInfo().majorVersion < CryptoNote::BLOCK_MAJOR_VERSION_4 ?
-    m_currency.minimumFee() : m_currency.roundUpMinFee(m_node.getMinimalFee(), 1)) { // Round up minimal fee to 1 digit after last leading zero by default
+    m_currency.minimumFee() : m_currency.roundUpMinFee(m_node.getMinimalFee(), 1)), ttl(0) { // Round up minimal fee to 1 digit after last leading zero by default
   }
 
   bool parseArguments(LoggerRef& logger, const std::vector<std::string> &args) {
@@ -261,7 +263,7 @@ struct TransferCommand {
         return false;
       }
 
-	  if (fake_outs_count < m_currency.minMixin() && fake_outs_count != 0) {
+	    if (fake_outs_count < m_currency.minMixin() && fake_outs_count != 0) {
           logger(ERROR, BRIGHT_RED) << "mixIn should be equal to or bigger than " << m_currency.minMixin();
           return false;
       }
@@ -270,6 +272,9 @@ struct TransferCommand {
           logger(ERROR, BRIGHT_RED) << "mixIn should be equal to or less than " << m_currency.maxMixin();
           return false;
       }
+
+      bool feeFound = false;
+      bool ttlFound = false;
 
       while (!ar.eof()) {
 
@@ -296,12 +301,29 @@ struct TransferCommand {
                 << (m_node.getLastLocalBlockHeaderInfo().majorVersion < CryptoNote::BLOCK_MAJOR_VERSION_4 ? m_currency.minimumFee() : m_node.getMinimalFee());
               return false;
             }
+          } else if (arg == "-m") {
+            messages.emplace_back(value);
+          } else if (arg == "-ttl") {
+            ttlFound = true;
+
+            if (feeFound) {
+              logger(ERROR, BRIGHT_RED) << "Transaction with fee can not have TTL";
+              return false;
+            } else {
+              fee = 0;
+            }
+
+            if (!Common::fromString(value, ttl) || ttl < 1 || ttl * 60 > m_currency.mempoolTxLiveTime()) {
+              logger(ERROR, BRIGHT_RED) << "TTL has invalid format: \"" << value << "\", " <<
+                "enter time from 1 to " << (m_currency.mempoolTxLiveTime() / 60) << " minutes";
+              return false;
+            }
           }
         } else {
           WalletLegacyTransfer destination;
           CryptoNote::TransactionDestinationEntry de;
 #ifndef __ANDROID__
-	  std::string aliasUrl;
+	        std::string aliasUrl;
 #endif
 
           if (!m_currency.parseAccountAddressString(arg, de.addr)) {
@@ -310,12 +332,12 @@ struct TransferCommand {
               logger(ERROR, BRIGHT_RED) << "Invalid payment ID usage. Please, use -p <payment_id>. See help for details.";
             } else {
 #ifndef __ANDROID__
-			  // if string doesn't contain a dot, we won't consider it a url for now.
-			  if (strchr(arg.c_str(), '.') == NULL) {
-				logger(ERROR, BRIGHT_RED) << "Wrong address or alias: " << arg;
-				return false;
-			  }
-			  aliasUrl = arg;
+              // if string doesn't contain a dot, we won't consider it a url for now.
+              if (strchr(arg.c_str(), '.') == NULL) {
+              logger(ERROR, BRIGHT_RED) << "Wrong address or alias: " << arg;
+              return false;
+              }
+              aliasUrl = arg;
 #endif
             }
           }
@@ -2173,6 +2195,18 @@ bool simple_wallet::transfer(const std::vector<std::string> &args) {
 	}
 #endif
 
+    std::vector<TransactionMessage> messages;
+    for (auto dst : cmd.dsts) {
+      for (auto msg : cmd.messages) {
+        messages.emplace_back(TransactionMessage { msg, dst.address});
+      }
+    }
+
+    uint64_t ttl = 0;
+    if (cmd.ttl != 0) {
+      ttl = static_cast<uint64_t>(time(nullptr)) +  cmd.ttl;
+    }
+
     CryptoNote::WalletHelper::SendCompleteResultObserver sent;
 
     std::string extraString;
@@ -2180,7 +2214,7 @@ bool simple_wallet::transfer(const std::vector<std::string> &args) {
 
     WalletHelper::IWalletRemoveObserverGuard removeGuard(*m_wallet, sent);
 
-    CryptoNote::TransactionId tx = m_wallet->sendTransaction(cmd.dsts, cmd.fee, extraString, cmd.fake_outs_count, 0);
+    CryptoNote::TransactionId tx = m_wallet->sendTransaction(cmd.dsts, cmd.fee, extraString, cmd.fake_outs_count, 0, messages, ttl);
     if (tx == WALLET_LEGACY_INVALID_TRANSACTION_ID) {
       fail_msg_writer() << "Can't send money";
       return true;
