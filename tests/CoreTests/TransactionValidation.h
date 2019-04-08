@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once 
+#pragma once
 #include "Chaingen.h"
 
 struct get_tx_validation_base : public test_chain_unit_base
@@ -156,7 +156,7 @@ class TestGenerator;
 
 struct MultiSigTx_OutputSignatures : public get_tx_validation_base {
   MultiSigTx_OutputSignatures(size_t givenKeys, uint32_t requiredSignatures, bool shouldSucceed);
-  
+
   bool generate(std::vector<test_event_entry>& events) const;
   bool generate(TestGenerator& generator) const;
 

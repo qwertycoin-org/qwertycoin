@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2018, Karbo developers
 //
@@ -28,8 +28,8 @@
 
 namespace CryptoNote {
 
-const size_t WALLET_INVALID_TRANSACTION_ID = std::numeric_limits<size_t>::max();  //TransactionId
-const size_t WALLET_INVALID_TRANSFER_ID = std::numeric_limits<size_t>::max();     //TransferId
+const size_t WALLET_INVALID_TRANSACTION_ID = std::numeric_limits<size_t>::max();
+const size_t WALLET_INVALID_TRANSFER_ID = std::numeric_limits<size_t>::max();
 const uint32_t WALLET_UNCONFIRMED_TRANSACTION_HEIGHT = std::numeric_limits<uint32_t>::max();
 
 enum class WalletTransactionState : uint8_t {
@@ -75,12 +75,7 @@ struct WalletEvent {
     WalletSynchronizationProgressUpdated synchronizationProgressUpdated;
   };
 };
-/*
-struct TransactionMessage {
-  std::string message;
-  std::string address;
-};
-*/
+
 struct WalletTransaction {
   WalletTransactionState state;
   uint64_t timestamp;
@@ -92,8 +87,7 @@ struct WalletTransaction {
   uint64_t creationTime;
   uint64_t unlockTime;
   std::string extra;
-  bool isBase;          //isCoinbase
-  std::vector<std::string> messages;
+  bool isBase;
 };
 
 enum class WalletTransferType : uint8_t {
@@ -163,6 +157,7 @@ public:
   virtual std::string createAddress() = 0;
   virtual std::string createAddress(const Crypto::SecretKey& spendSecretKey, bool reset = true) = 0;
   virtual std::string createAddress(const Crypto::PublicKey& spendPublicKey) = 0;
+  virtual std::vector<std::string> createAddressList(const std::vector<Crypto::SecretKey>& spendSecretKeys, bool reset = true) = 0;
   virtual std::string createAddressWithTimestamp(const Crypto::SecretKey& spendSecretKey, const uint64_t& creationTimestamp) = 0;
   virtual void deleteAddress(const std::string& address) = 0;
 

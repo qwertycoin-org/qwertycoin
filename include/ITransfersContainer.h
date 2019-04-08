@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -56,7 +56,7 @@ struct TransactionOutputInformation {
   Crypto::PublicKey transactionPublicKey;
 
   union {
-    Crypto::PublicKey outputKey;         // Type: Key 
+    Crypto::PublicKey outputKey;         // Type: Key
     uint32_t requiredSignatures; // Type: Multisignature
   };
 };

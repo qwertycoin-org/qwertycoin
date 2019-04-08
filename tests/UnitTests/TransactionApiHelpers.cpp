@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -130,7 +130,7 @@ void TestTransactionBuilder::addTestMultisignatureInput(uint64_t amount, const T
   input.outputIndex = t.globalOutputIndex;
   input.signatureCount = t.requiredSignatures;
   size_t idx = tx->addInput(input);
- 
+
   msigInputs[idx] = MsigInfo{ t.transactionPublicKey, t.outputInTransaction, getMsigAccounts() };
 }
 

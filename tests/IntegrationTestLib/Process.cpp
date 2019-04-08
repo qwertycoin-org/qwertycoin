@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -31,7 +31,7 @@
 namespace Tests {
 
   void Process::startChild(const std::string& executablePath, const std::vector<std::string>& args) {
-   
+
 #if defined WIN32
     std::stringstream ss;
     ss << "start /MIN " << executablePath;

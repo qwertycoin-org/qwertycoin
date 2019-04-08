@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2014-2016, The Monero Project
 // Copyright (c) 2018, Karbo developers
@@ -58,12 +58,6 @@ enum class WalletLegacyTransactionState : uint8_t {
   Failed     // --> {}
 };
 
-struct TransactionMessage {
-  std::string message;
-  std::string address;
-};
-
-
 struct WalletLegacyTransaction {
   TransferId       firstTransferId;
   size_t           transferCount;
@@ -78,7 +72,6 @@ struct WalletLegacyTransaction {
   uint64_t         timestamp;
   std::string      extra;
   WalletLegacyTransactionState state;
-  std::vector<TransactionMessage> messages;
 };
 
 using PaymentId = Crypto::Hash;
@@ -134,7 +127,7 @@ public:
   virtual size_t getUnlockedOutputsCount() = 0;
 
   virtual TransactionId findTransactionByTransferId(TransferId transferId) = 0;
-  
+
   virtual bool getTransaction(TransactionId transactionId, WalletLegacyTransaction& transaction) = 0;
   virtual bool getTransfer(TransferId transferId, WalletLegacyTransfer& transfer) = 0;
   virtual std::vector<Payments> getTransactionsByPaymentIds(const std::vector<PaymentId>& paymentIds) const = 0;
@@ -145,29 +138,15 @@ public:
   virtual void getAccountKeys(AccountKeys& keys) = 0;
   virtual bool getSeed(std::string& electrum_words) = 0;
 
-  virtual TransactionId sendTransaction(const WalletLegacyTransfer& transfer, 
-                                        uint64_t fee, 
-                                        const std::string& extra = "", 
-                                        uint64_t mixIn = 0, 
-                                        uint64_t unlockTimestamp = 0, 
-                                        const std::vector<TransactionMessage>& messages = std::vector<TransactionMessage>(), 
-                                        uint64_t ttl = 0) = 0;
-                                        
-  virtual TransactionId sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, 
-                                        uint64_t fee, 
-                                        const std::string& extra = "", 
-                                        uint64_t mixIn = 0, 
-                                        uint64_t unlockTimestamp = 0, 
-                                        const std::vector<TransactionMessage>& messages = std::vector<TransactionMessage>(), 
-                                        uint64_t ttl = 0) = 0;
-                                        
+  virtual TransactionId sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
+  virtual TransactionId sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
   virtual TransactionId sendDustTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
   virtual TransactionId sendFusionTransaction(const std::list<TransactionOutputInformation>& fusionInputs, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
   virtual std::error_code cancelTransaction(size_t transferId) = 0;
 
   virtual size_t estimateFusion(const uint64_t& threshold) = 0;
   virtual std::list<TransactionOutputInformation> selectFusionTransfersToSend(uint64_t threshold, size_t minInputCount, size_t maxInputCount) = 0;
-      
+
   virtual std::string sign_message(const std::string &data) = 0;
   virtual bool verify_message(const std::string &data, const CryptoNote::AccountPublicAddress &address, const std::string &signature) = 0;
 

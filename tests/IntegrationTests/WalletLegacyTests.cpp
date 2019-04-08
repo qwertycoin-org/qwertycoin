@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -44,7 +44,7 @@ TEST_F(WalletLegacyTests, checkNetworkShutdown) {
 
   {
     auto node = daemon.makeINode();
-	
+
     WalletLegacy wallet(currency, *node, logger);
     wallet.initAndGenerate("pass");
 
@@ -64,6 +64,6 @@ TEST_F(WalletLegacyTests, checkNetworkShutdown) {
     System::Timer(dispatcher).sleep(std::chrono::seconds(10));
 
     // check that sync progress was not updated
-    ASSERT_EQ(syncProgress, observer.getSyncProgress()); 
+    ASSERT_EQ(syncProgress, observer.getSyncProgress());
   }
 }

@@ -1,113 +1,209 @@
-add_definitions(-DSTATICLIB)
+set(QwertycoinTools_INCLUDE_DIRS
+    ${QwertycoinFramework_INCLUDE_DIRS}
+    "${CMAKE_CURRENT_LIST_DIR}"
+)
 
-file(GLOB_RECURSE BlockchainExplorer BlockchainExplorer/*)
-file(GLOB_RECURSE Common Common/*)
-file(GLOB_RECURSE ConnectivityTool ConnectivityTool/*)
-file(GLOB_RECURSE Crypto crypto/*)
-file(GLOB_RECURSE CryptoNoteCore CryptoNoteCore/* CryptoNoteConfig.h)
-file(GLOB_RECURSE CryptoNoteProtocol CryptoNoteProtocol/*)
-file(GLOB_RECURSE Daemon Daemon/*)
-file(GLOB_RECURSE Http HTTP/*)
-file(GLOB_RECURSE InProcessNode InProcessNode/*)
-file(GLOB_RECURSE Logging Logging/*)
-file(GLOB_RECURSE NodeRpcProxy NodeRpcProxy/*)
-file(GLOB_RECURSE P2p P2p/*)
-file(GLOB_RECURSE Rpc Rpc/*)
-file(GLOB_RECURSE Serialization Serialization/*)
-file(GLOB_RECURSE SimpleWallet SimpleWallet/*)
-file(GLOB_RECURSE Mnemonics mnemonics/*)
-if(MSVC)
-file(GLOB_RECURSE System System/* Platform/Windows/System/*)
-elseif(APPLE)
-file(GLOB_RECURSE System System/* Platform/OSX/System/* Platform/Posix/System/*)
-elseif(ANDROID)
-file(GLOB_RECURSE System System/* Platform/Android/System/* Platform/Posix/System/*)
-else()
-file(GLOB_RECURSE System System/* Platform/Linux/System/* Platform/Posix/System/*)
-endif()
-file(GLOB_RECURSE Transfers Transfers/*)
-file(GLOB_RECURSE Wallet Wallet/*)
-file(GLOB_RECURSE WalletLegacy WalletLegacy/*)
+set(QwertycoinTools_INCLUDE_DIRS ${QwertycoinTools_INCLUDE_DIRS} PARENT_SCOPE)
 
-file(GLOB_RECURSE JsonRpcServer JsonRpcServer/*)
+# QwertycoinTools
 
-file(GLOB_RECURSE PaymentGate PaymentGate/*)
-file(GLOB_RECURSE PaymentGateService PaymentGateService/*)
-file(GLOB_RECURSE Miner Miner/*)
+add_custom_target(QwertycoinTools)
+add_dependencies(QwertycoinTools
+    QwertycoinTools::ConnectivityTool
+    QwertycoinTools::Daemon
+    QwertycoinTools::Miner
+    QwertycoinTools::PaymentGateService
+    QwertycoinTools::SimpleWallet
+)
 
-source_group("" FILES $${Common} ${ConnectivityTool} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${Daemon} ${JsonRpcServer} ${Http} ${Logging} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${SimpleWallet} ${System} ${Transfers} ${Wallet} ${WalletLegacy} ${Mnemonics})
+# QwertycoinTools::BinaryInfo # NOTE: Ignore this. It's not a target.
 
-add_library(BlockchainExplorer ${BlockchainExplorer})
-add_library(Common ${Common})
-add_library(Crypto ${Crypto})
-add_library(CryptoNoteCore ${CryptoNoteCore})
-add_library(Http ${Http})
-add_library(InProcessNode ${InProcessNode})
-add_library(Logging ${Logging})
-add_library(NodeRpcProxy ${NodeRpcProxy})
-add_library(Rpc ${Rpc})
-add_library(P2P ${CryptoNoteProtocol} ${P2p})
-add_library(Serialization ${Serialization})
-add_library(System ${System})
-add_library(Transfers ${Transfers})
-add_library(Wallet ${Wallet} ${WalletLegacy})
-add_library(PaymentGate ${PaymentGate})
-add_library(JsonRpcServer ${JsonRpcServer})
-add_library(Mnemonics ${Mnemonics})
+# QwertycoinTools::ConnectivityTool
+
+set(QwertycoinTools_ConnectivityTool_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/ConnectivityTool/ConnectivityTool.cpp"
+)
 
 if(WIN32)
-add_executable(Daemon ${Daemon} BinaryInfo/daemon.rc)
-add_executable(SimpleWallet ${SimpleWallet} BinaryInfo/simplewallet.rc)
-add_executable(PaymentGateService ${PaymentGateService} BinaryInfo/walletd.rc)
-else()
-add_executable(Daemon ${Daemon} )
-add_executable(SimpleWallet ${SimpleWallet} )
-add_executable(PaymentGateService ${PaymentGateService} )
+    list(APPEND QwertycoinTools_ConnectivityTool_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/connectivity_tool.rc"
+    )
 endif()
-add_executable(ConnectivityTool ${ConnectivityTool})
-add_executable(Miner ${Miner})
 
-if (MSVC)
-  target_link_libraries(System ws2_32)
-endif ()
+set(QwertycoinTools_ConnectivityTool_LIBS
+    Boost::program_options
+    QwertycoinFramework::Common
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::P2p
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Serialization
+    QwertycoinFramework::System
+)
 
-# Boost libraries
-set(Boost_LIBS
-  Boost::system
-  Boost::filesystem
-  Boost::thread
-  Boost::date_time
-  Boost::chrono
-  Boost::regex
-  Boost::serialization
-  Boost::program_options
-  Boost::coroutine
-  Boost::context
-  Boost::atomic)
+if(WIN32)
+    list(APPEND QwertycoinTools_ConnectivityTool_LIBS ws2_32)
+endif()
 
-# Add the dependencies we need
-target_link_libraries(ConnectivityTool CryptoNoteCore Logging Crypto P2P Rpc Http Serialization Common System ${Boost_LIBS} ${EXTRA_LIBRARIES})
-target_link_libraries(Daemon Rpc CryptoNoteCore P2P System Http Logging Common Crypto upnpc-static BlockchainExplorer ${Boost_LIBS} Serialization ${EXTRA_LIBRARIES})
-target_link_libraries(SimpleWallet Wallet NodeRpcProxy Transfers Rpc Http CryptoNoteCore System Logging Common Crypto ${Boost_LIBS} Serialization Mnemonics ${EXTRA_LIBRARIES})
-target_link_libraries(PaymentGateService PaymentGate JsonRpcServer Wallet NodeRpcProxy Transfers CryptoNoteCore Crypto P2P Rpc Http System Logging Common InProcessNode upnpc-static BlockchainExplorer ${Boost_LIBS} Serialization ${EXTRA_LIBRARIES})
-target_link_libraries(Miner CryptoNoteCore Rpc System Http Logging Common Crypto ${Boost_LIBS} Serialization ${EXTRA_LIBRARIES})
+add_executable(QwertycoinTools_ConnectivityTool ${QwertycoinTools_ConnectivityTool_SOURCES})
+add_executable(QwertycoinTools::ConnectivityTool ALIAS QwertycoinTools_ConnectivityTool)
+target_include_directories(QwertycoinTools_ConnectivityTool PRIVATE ${QwertycoinTools_INCLUDE_DIRS})
+target_link_libraries(QwertycoinTools_ConnectivityTool ${QwertycoinTools_ConnectivityTool_LIBS})
+set_target_properties(QwertycoinTools_ConnectivityTool PROPERTIES OUTPUT_NAME "connectivity_tool")
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR APPLE AND NOT ANDROID)
-  target_link_libraries(SimpleWallet -lresolv)
-  target_link_libraries(Daemon -lresolv)
-  target_link_libraries(PaymentGateService -lresolv)
-endif ()
+# QwertycoinTools::Daemon
 
-add_dependencies(Rpc version)
+set(QwertycoinTools_Daemon_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Daemon/Daemon.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.h"
+)
 
-add_dependencies(ConnectivityTool version)
-add_dependencies(Daemon version)
-add_dependencies(SimpleWallet version)
-add_dependencies(PaymentGateService version)
-add_dependencies(P2P version)
+if(WIN32)
+    list(APPEND QwertycoinTools_Daemon_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/daemon.rc"
+    )
+endif()
 
-set_property(TARGET ConnectivityTool PROPERTY OUTPUT_NAME "connectivity_tool")
-set_property(TARGET Daemon PROPERTY OUTPUT_NAME "qwertycoind")
-set_property(TARGET SimpleWallet PROPERTY OUTPUT_NAME "simplewallet")
-set_property(TARGET PaymentGateService PROPERTY OUTPUT_NAME "walletd")
-set_property(TARGET Miner PROPERTY OUTPUT_NAME "miner")
+set(QwertycoinTools_Daemon_LIBS
+    Boost::filesystem
+    QwertycoinFramework::Common
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::Logging
+    QwertycoinFramework::P2p
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Serialization
+    QwertycoinFramework::System
+)
+
+add_executable(QwertycoinTools_Daemon ${QwertycoinTools_Daemon_SOURCES})
+add_executable(QwertycoinTools::Daemon ALIAS QwertycoinTools_Daemon)
+target_include_directories(QwertycoinTools_Daemon PRIVATE ${QwertycoinTools_INCLUDE_DIRS})
+target_link_libraries(QwertycoinTools_Daemon PRIVATE ${QwertycoinTools_Daemon_LIBS})
+set_target_properties(QwertycoinTools_Daemon PROPERTIES OUTPUT_NAME "qwertycoind")
+
+# QwertycoinTools::Miner
+
+set(QwertycoinTools_Miner_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/BlockchainMonitor.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/BlockchainMonitor.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/Miner.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/Miner.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MinerEvent.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MinerManager.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MinerManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MiningConfig.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/MiningConfig.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Miner/main.cpp"
+)
+
+if(WIN32)
+    list(APPEND QwertycoinTools_Miner_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/miner.rc"
+    )
+endif()
+
+set(QwertycoinTools_Miner_LIBS
+    Boost::program_options
+    QwertycoinFramework::Common
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::Logging
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Serialization
+    QwertycoinFramework::System
+)
+
+if(WIN32)
+    list(APPEND QwertycoinTools_Miner_LIBS ws2_32)
+endif()
+
+add_executable(QwertycoinTools_Miner ${QwertycoinTools_Miner_SOURCES})
+add_executable(QwertycoinTools::Miner ALIAS QwertycoinTools_Miner)
+target_include_directories(QwertycoinTools_Miner PRIVATE ${QwertycoinTools_INCLUDE_DIRS})
+target_link_libraries(QwertycoinTools_Miner PRIVATE ${QwertycoinTools_Miner_LIBS})
+set_target_properties(QwertycoinTools_Miner PROPERTIES OUTPUT_NAME "miner")
+
+# QwertycoinTools::PaymentGateService
+
+set(QwertycoinTools_PaymentGateService_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/ConfigurationManager.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/ConfigurationManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentGateService.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentGateService.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentServiceConfiguration.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/PaymentServiceConfiguration.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/RpcNodeConfiguration.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/RpcNodeConfiguration.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PaymentGateService/main.cpp"
+)
+
+if(WIN32)
+    list(APPEND QwertycoinTools_PaymentGateService_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/walletd.rc"
+    )
+endif()
+
+set(QwertycoinTools_PaymentGateService_LIBS
+    Boost::filesystem
+    Boost::program_options
+    QwertycoinFramework::Common
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::InProcessNode
+    QwertycoinFramework::Logging
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::System
+)
+
+add_executable(QwertycoinTools_PaymentGateService ${QwertycoinTools_PaymentGateService_SOURCES})
+add_executable(QwertycoinTools::PaymentGateService ALIAS QwertycoinTools_PaymentGateService)
+target_include_directories(QwertycoinTools_PaymentGateService PRIVATE ${QwertycoinTools_INCLUDE_DIRS})
+target_link_libraries(QwertycoinTools_PaymentGateService ${QwertycoinTools_PaymentGateService_LIBS})
+set_target_properties(QwertycoinTools_PaymentGateService PROPERTIES OUTPUT_NAME "walletd")
+
+# QwertycoinTools::SimpleWallet
+
+set(QwertycoinTools_SimpleWallet_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/PasswordContainer.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/PasswordContainer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/SimpleWallet.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/SimpleWallet/SimpleWallet.h"
+)
+
+if(WIN32)
+    list(APPEND QwertycoinTools_SimpleWallet_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/simplewallet.rc"
+    )
+endif()
+
+set(QwertycoinTools_SimpleWallet_LIBS
+    Boost::filesystem
+    Boost::program_options
+    QwertycoinFramework::Common
+    QwertycoinFramework::Logging
+    QwertycoinFramework::NodeRpcProxy
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Serialization
+    QwertycoinFramework::Wallet
+)
+
+if(WIN32)
+    list(APPEND QwertycoinTools_SimpleWallet_LIBS ws2_32)
+endif()
+
+add_executable(QwertycoinTools_SimpleWallet ${QwertycoinTools_SimpleWallet_SOURCES})
+add_executable(QwertycoinTools::SimpleWallet ALIAS QwertycoinTools_SimpleWallet)
+target_include_directories(QwertycoinTools_SimpleWallet PRIVATE ${QwertycoinTools_INCLUDE_DIRS})
+target_link_libraries(QwertycoinTools_SimpleWallet ${QwertycoinTools_SimpleWallet_LIBS})
+set_target_properties(QwertycoinTools_SimpleWallet PROPERTIES OUTPUT_NAME "simplewallet")
+
+# Installation
+
+install(TARGETS
+            QwertycoinTools_ConnectivityTool
+            QwertycoinTools_Daemon
+            QwertycoinTools_Miner
+            QwertycoinTools_PaymentGateService
+            QwertycoinTools_SimpleWallet
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib/static
+)

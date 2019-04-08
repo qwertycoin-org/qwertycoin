@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -40,7 +40,7 @@ public:
     logger(Logging::ERROR),
     currency(CryptoNote::CurrencyBuilder(logger).currency()),
     generator(currency),
-    nodeStub(generator) 
+    nodeStub(generator)
   {}
 
   WalletConfiguration createWalletConfiguration(const std::string& walletFile = "pgwalleg.bin") const {
@@ -60,7 +60,7 @@ public:
     generateNewWallet(currency, conf, logger, dispatcher);
   }
 
-protected:  
+protected:
   Logging::ConsoleLogger logger;
   CryptoNote::Currency currency;
   TestBlockchainGenerator generator;

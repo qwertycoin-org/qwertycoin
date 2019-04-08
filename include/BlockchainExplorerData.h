@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -28,9 +28,9 @@
 
 namespace CryptoNote {
 
-enum class TransactionRemoveReason : uint8_t 
-{ 
-  INCLUDED_IN_BLOCK = 0, 
+enum class TransactionRemoveReason : uint8_t
+{
+  INCLUDED_IN_BLOCK = 0,
   TIMEOUT = 1
 };
 
@@ -84,7 +84,7 @@ struct TransactionInputDetails {
 
 struct TransactionExtraDetails {
   std::vector<size_t> padding;
-  std::vector<Crypto::PublicKey> publicKey; 
+  std::vector<Crypto::PublicKey> publicKey;
   std::vector<std::string> nonce;
   std::vector<uint8_t> raw;
 };

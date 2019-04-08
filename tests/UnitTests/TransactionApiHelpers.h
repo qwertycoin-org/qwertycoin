@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -34,7 +34,7 @@ namespace {
   using namespace Crypto;
 
   inline AccountKeys accountKeysFromKeypairs(
-    const KeyPair& viewKeys, 
+    const KeyPair& viewKeys,
     const KeyPair& spendKeys) {
     AccountKeys ak;
     ak.address.spendPublicKey = spendKeys.publicKey;
@@ -61,7 +61,7 @@ namespace {
   AccountPublicAddress generateAddress() {
     return generateAccount().getAccountKeys().address;
   }
-  
+
   KeyImage generateKeyImage() {
     return Crypto::rand<KeyImage>();
   }
@@ -211,7 +211,7 @@ private:
 }
 
 namespace CryptoNote {
-inline bool operator == (const AccountKeys& a, const AccountKeys& b) { 
-  return memcmp(&a, &b, sizeof(a)) == 0; 
+inline bool operator == (const AccountKeys& a, const AccountKeys& b) {
+  return memcmp(&a, &b, sizeof(a)) == 0;
 }
 }

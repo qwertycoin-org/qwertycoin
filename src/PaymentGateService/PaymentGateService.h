@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -40,7 +40,7 @@ public:
 
   void run();
   void stop();
-  
+
   Logging::ILogger& getLogger() { return logger; }
 
 private:
@@ -55,7 +55,7 @@ private:
   PaymentService::ConfigurationManager config;
   PaymentService::WalletService* service;
   CryptoNote::CurrencyBuilder currencyBuilder;
-  
+
   Logging::LoggerGroup logger;
   std::ofstream fileStream;
   Logging::StreamLogger fileLogger;

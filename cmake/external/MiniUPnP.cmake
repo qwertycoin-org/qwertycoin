@@ -1,0 +1,57 @@
+# MiniUPnP
+
+set(MiniUPnP_CMAKE_ARGS
+    -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+    -DUPNPC_BUILD_STATIC:BOOL=TRUE
+    -DUPNPC_BUILD_SHARED:BOOL=FALSE
+    -DUPNPC_BUILD_TESTS:BOOL=FALSE
+    -DUPNPC_BUILD_SAMPLE:BOOL=FALSE
+    -DNO_GETADDRINFO:BOOL=FALSE)
+
+if(CMAKE_TOOLCHAIN_FILE)
+    list(INSERT MiniUPnP_CMAKE_ARGS 0 -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+endif()
+
+if(NOT WIN32)
+    list(INSERT MiniUPnP_CMAKE_ARGS 0 -DCMAKE_BUILD_TYPE=Release)
+endif()
+
+ExternalProject_Add(MiniUPnP
+    GIT_REPOSITORY https://github.com/miniupnp/miniupnp.git
+    GIT_TAG master
+    GIT_SHALLOW ON
+    GIT_PROGRESS OFF
+
+    UPDATE_COMMAND ""
+    PATCH_COMMAND ""
+
+    SOURCE_SUBDIR miniupnpc
+
+    CMAKE_ARGS ${MiniUPnP_CMAKE_ARGS}
+
+    # CONFIGURE_COMMAND (use default)
+    # BUILD_COMMAND (use default)
+    BUILD_ALWAYS FALSE
+    TEST_COMMAND ""
+    INSTALL_COMMAND
+        COMMAND ${CMAKE_COMMAND} -E make_directory <INSTALL_DIR>/include/miniupnpc
+        COMMAND ${CMAKE_COMMAND} --build . --config Release --target install
+)
+
+ExternalProject_Get_property(MiniUPnP INSTALL_DIR)
+get_filename_component(MINIUPNP_DIR "${INSTALL_DIR}" ABSOLUTE CACHE)
+set(MINIUPNP_INCLUDE_DIRS "${MINIUPNP_DIR}/include")
+set(MINIUPNP_STATIC_LIBRARY "${MINIUPNP_DIR}/lib/libminiupnpc${CMAKE_STATIC_LIBRARY_SUFFIX}")
+mark_as_advanced(MINIUPNP_DIR MINIUPNP_INCLUDE_DIRS MINIUPNP_STATIC_LIBRARY)
+
+add_library(MiniUPnP::miniupnpc STATIC IMPORTED GLOBAL)
+add_dependencies(MiniUPnP::miniupnpc MiniUPnP)
+
+set_target_properties(MiniUPnP::miniupnpc PROPERTIES
+    IMPORTED_LOCATION "${MINIUPNP_STATIC_LIBRARY}"
+    #INTERFACE_INCLUDE_DIRECTORIES ${MINIUPNP_INCLUDE_DIRS}
+    INTERFACE_COMPILE_DEFINITIONS "MINIUPNP_STATICLIB")
+
+if(WIN32)
+    target_link_libraries(MiniUPnP::miniupnpc INTERFACE iphlpapi mswsock ws2_32)
+endif()

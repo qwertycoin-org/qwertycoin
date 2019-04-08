@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
@@ -30,7 +30,7 @@ using namespace CryptoNote;
 TEST(BinarySerializer, uint16) {
 
   std::stringstream ss;
-  
+
   uint16_t u16 = 0xfeff;
   uint32_t u32 = 0x3fddfd48;
 
@@ -44,10 +44,10 @@ TEST(BinarySerializer, uint16) {
   {
     StdInputStream is(ss);
     BinaryInputStreamSerializer s(is);
-    
+
     uint32_t t32 = 0;
     uint16_t t16 = 0;
-    
+
     s(t32, "u32");
     s(t16, "u16");
 
