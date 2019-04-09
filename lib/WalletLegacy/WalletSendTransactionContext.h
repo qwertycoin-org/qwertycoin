@@ -25,7 +25,6 @@
 #include "CryptoNoteCore/CryptoNoteBasic.h"
 #include "IWalletLegacy.h"
 #include "ITransfersContainer.h"
-#include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 
 namespace CryptoNote {
 
