@@ -115,7 +115,6 @@ uint64_t get_tx_fee(const Transaction& tx) {
   return r;
 }
 
-
 bool constructTransaction(
   const AccountKeys& sender_account_keys,
   const std::vector<TransactionSourceEntry>& sources,

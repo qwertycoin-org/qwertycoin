@@ -21,6 +21,7 @@
 #include "CryptoNoteCore/Account.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
+#include "CryptoNoteCore/TransactionApi.h"
 
 #include "WalletLegacy/WalletTransactionSender.h"
 #include "WalletLegacy/WalletUtils.h"
@@ -68,12 +69,18 @@ void constructTx(
   const std::vector<tx_message_entry>& messages, 
   uint64_t ttl, 
   Crypto::SecretKey& tx_key) {
+
   std::vector<uint8_t> extraVec;
   extraVec.reserve(extra.size());
   std::for_each(extra.begin(), extra.end(), [&extraVec] (const char el) { extraVec.push_back(el);});
 
   Logging::LoggerGroup nullLog;
-  bool r = constructTransaction(keys, sources, splittedDests, messages, ttl, extraVec, tx, unlockTimestamp, tx_key, nullLog);
+    bool r;
+    // TODO
+    r = CryptoNote::constructTransaction(keys, sources, splittedDests, messages, ttl, extraVec, tx, unlockTimestamp, tx_key, nullLog);
+
+
+
 
   throwIf(!r, error::INTERNAL_WALLET_ERROR);
   throwIf(getObjectBinarySize(tx) >= sizeLimit, error::TRANSACTION_SIZE_TOO_BIG);

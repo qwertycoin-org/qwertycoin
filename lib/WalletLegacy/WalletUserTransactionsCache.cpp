@@ -114,8 +114,11 @@ size_t WalletUserTransactionsCache::getTransferCount() const {
   return m_transfers.size();
 }
 
-TransactionId WalletUserTransactionsCache::addNewTransaction(
-  uint64_t amount, uint64_t fee, const std::string& extra, const std::vector<WalletLegacyTransfer>& transfers, uint64_t unlockTime) {
+TransactionId WalletUserTransactionsCache::addNewTransaction(uint64_t amount,
+                                                             uint64_t fee,
+                                                             const std::string& extra,
+                                                             const std::vector<WalletLegacyTransfer>& transfers,
+                                                             uint64_t unlockTime) {
 
   WalletLegacyTransaction transaction;
 
@@ -131,6 +134,41 @@ TransactionId WalletUserTransactionsCache::addNewTransaction(
   transaction.state = WalletLegacyTransactionState::Sending;
   transaction.unlockTime = unlockTime;
   transaction.secretKey = NULL_SECRET_KEY;
+
+  return insertTransaction(std::move(transaction));
+}
+
+TransactionId WalletUserTransactionsCache::addNewTransaction(uint64_t amount,
+                                                             uint64_t fee,
+                                                             const std::string& extra,
+                                                             const std::vector<WalletLegacyTransfer>& transfers,
+                                                             uint64_t unlockTime,
+                                                             const std::vector<TransactionMessage>& messages) {
+
+  WalletLegacyTransaction transaction;
+
+  if (!transfers.empty()) {
+    transaction.firstTransferId = insertTransfers(transfers);
+  } else {
+    transaction.firstTransferId = WALLET_LEGACY_INVALID_TRANSFER_ID;
+  }
+
+  transaction.firstTransferId = insertTransfers(transfers);
+  transaction.transferCount = transfers.size();
+  transaction.totalAmount = -static_cast<int64_t>(amount);
+  transaction.fee = fee;
+  transaction.sentTime = time(nullptr);
+  transaction.isCoinbase = false;
+  transaction.timestamp = 0;
+  transaction.extra = extra;
+  transaction.blockHeight = WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT;
+  transaction.state = WalletLegacyTransactionState::Sending;
+  transaction.unlockTime = unlockTime;
+  transaction.secretKey = NULL_SECRET_KEY;
+
+  for (const TransactionMessage& message : messages) {
+      transaction.messages.push_back(message.message);
+  }
 
   return insertTransaction(std::move(transaction));
 }
