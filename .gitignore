@@ -17,6 +17,7 @@ src/CMakeFiles/
 src/Makefile
 src/build/
 src/cmake_install.cmake
+.codelite/
 
 ### mac
 # General

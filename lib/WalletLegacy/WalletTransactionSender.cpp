@@ -114,8 +114,14 @@ void WalletTransactionSender::validateTransfersAddresses(const std::vector<Walle
   }
 }
 
-std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendRequest(TransactionId& transactionId, std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
-    const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp, const std::vector<TransactionMessage>& messages,
+std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendRequest(TransactionId& transactionId, 
+																		std::deque<std::shared_ptr<WalletLegacyEvent>>& events,
+																		const std::vector<WalletLegacyTransfer>& transfers, 
+																		uint64_t fee, 
+																		const std::string& extra, 
+																		uint64_t mixIn, 
+																		uint64_t unlockTimestamp, 
+																		const std::vector<TransactionMessage>& messages,
                                                                         uint64_t ttl) {
 
   using namespace CryptoNote;
@@ -129,10 +135,20 @@ std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendRequest(Transact
   context->foundMoney = selectTransfersToSend(neededMoney, 0 == mixIn, context->dustPolicy.dustThreshold, context->selectedTransfers);
   throwIf(context->foundMoney < neededMoney, error::WRONG_AMOUNT);
 
-  transactionId = m_transactionsCache.addNewTransaction(neededMoney, fee, extra, transfers, unlockTimestamp);
+  transactionId = m_transactionsCache.addNewTransaction(neededMoney, fee, extra, transfers, unlockTimestamp, messages);
   context->transactionId = transactionId;
   context->mixIn = mixIn;
   context->ttl = ttl;
+  
+  for (const TransactionMessage& message: messages) {
+	  AccountPublicAddress address;
+	  bool extracted = m_currency.parseAccountAddressString(message.address, address);
+	  if (!extracted) {
+		  throw std::system_error(make_error_code(error::BAD_ADDRESS));
+	  }
+	  
+	  context->messages.push_back({message.message, true, address });
+  }
 
   if(context->mixIn) {
     std::shared_ptr<WalletRequest> request = makeGetRandomOutsRequest(context);

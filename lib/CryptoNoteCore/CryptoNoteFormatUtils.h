@@ -59,7 +59,6 @@ struct tx_message_entry {
   AccountPublicAddress addr;
 };
 
-
 bool constructTransaction(
   const AccountKeys& senderAccountKeys,
   const std::vector<TransactionSourceEntry>& sources,

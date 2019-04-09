@@ -25,6 +25,7 @@
 #include "CryptoNoteCore/CryptoNoteBasic.h"
 #include "IWalletLegacy.h"
 #include "ITransfersContainer.h"
+#include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 
 namespace CryptoNote {
 
@@ -50,5 +51,6 @@ struct SendTransactionContext
   uint64_t ttl;
   Crypto::SecretKey tx_key = NULL_SECRET_KEY;
 };
+
 
 } //namespace CryptoNote
