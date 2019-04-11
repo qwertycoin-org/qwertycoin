@@ -33,10 +33,10 @@
 #include <random>
 
 using namespace Crypto;
+using namespace CryptoNote;
 
 namespace {
 
-using namespace CryptoNote;
 
 uint64_t countNeededMoney(uint64_t fee, const std::vector<WalletLegacyTransfer>& transfers) {
   uint64_t needed_money = fee;
@@ -75,9 +75,7 @@ void constructTx(
   std::for_each(extra.begin(), extra.end(), [&extraVec] (const char el) { extraVec.push_back(el);});
 
   Logging::LoggerGroup nullLog;
-    bool r;
-    // TODO
-    r = CryptoNote::constructTransaction(keys, sources, splittedDests, messages, ttl, extraVec, tx, unlockTimestamp, tx_key, nullLog);
+  bool r = constructTransaction(keys, sources, splittedDests, messages, ttl, extraVec, tx, unlockTimestamp, tx_key, nullLog);
 
 
 

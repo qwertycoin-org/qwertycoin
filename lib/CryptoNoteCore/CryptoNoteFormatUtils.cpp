@@ -119,7 +119,7 @@ bool constructTransaction(
   const AccountKeys& sender_account_keys,
   const std::vector<TransactionSourceEntry>& sources,
   const std::vector<TransactionDestinationEntry>& destinations,
-  const std::vector<tx_message_entry> messages,
+  const std::vector<tx_message_entry>& messages,
   uint64_t ttl,
   std::vector<uint8_t> extra,
   Transaction& tx,
