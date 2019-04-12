@@ -71,6 +71,7 @@
 #include "Common/DnsTools.h"
 #include "Common/Util.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
+#include "CryptoNoteCore/TransactionExtra.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
 #include "NodeRpcProxy/NodeRpcProxy.h"
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
@@ -530,6 +531,7 @@ const size_t TOTAL_AMOUNT_MAX_WIDTH = 20;
 const size_t FEE_MAX_WIDTH = 14;
 const size_t BLOCK_MAX_WIDTH = 7;
 const size_t UNLOCK_TIME_MAX_WIDTH = 11;
+const size_t MESSAGE_MAX_WIDTH = 128;
 
 void printListTransfersHeader(LoggerRef& logger) {
   std::string header = makeCenteredString(TIMESTAMP_MAX_WIDTH, "timestamp (UTC)") + "  ";
@@ -538,6 +540,15 @@ void printListTransfersHeader(LoggerRef& logger) {
   header += makeCenteredString(FEE_MAX_WIDTH, "fee") + "  ";
   header += makeCenteredString(BLOCK_MAX_WIDTH, "block") + "  ";
   header += makeCenteredString(UNLOCK_TIME_MAX_WIDTH, "unlock time");
+
+  logger(INFO) << header;
+  logger(INFO) << std::string(header.size(), '-');
+}
+
+void printListMessagesHeader(LoggerRef& logger) {
+  std::string header = makeCenteredString(TIMESTAMP_MAX_WIDTH, "timestamp (UTC)") + "  ";
+  header += makeCenteredString(FEE_MAX_WIDTH, "fee");
+  header += makeCenteredString(MESSAGE_MAX_WIDTH, "Message");
 
   logger(INFO) << header;
   logger(INFO) << std::string(header.size(), '-');
@@ -580,6 +591,28 @@ void printListTransfersItem(LoggerRef& logger, const WalletLegacyTransaction& tx
   }
 
   logger(INFO, rowColor) << " "; //just to make logger print one endline
+}
+
+void printListMessagesItem(
+  LoggerRef& logger, 
+  const WalletLegacyTransaction& txInfo, 
+  IWalletLegacy& wallet, 
+  const Currency& currency
+  ) {
+  std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
+
+  char timeString[TIMESTAMP_MAX_WIDTH + 1];
+  time_t timestamp = static_cast<time_t>(txInfo.timestamp);
+  int messageCount = static_cast<int>(txInfo.messages.size());
+
+  std::string rowColor = messageCount < 0 ? MAGENTA : GREEN;
+  for (int i = 0; i < messageCount; ++i) {
+    logger(INFO, rowColor)
+    << std::setw(TIMESTAMP_MAX_WIDTH) << timeString
+    << "  " << std::setw(FEE_MAX_WIDTH) << currency.formatAmount(txInfo.fee)
+    << "  " << std::setw(MESSAGE_MAX_WIDTH) << txInfo.messages[i];
+  }
+  logger(INFO, rowColor) << " ";
 }
 
 std::string prepareWalletAddressFilename(const std::string& walletBaseName) {
@@ -728,6 +761,7 @@ simple_wallet::simple_wallet(System::Dispatcher& dispatcher, const CryptoNote::C
   m_consoleHandler.setHandler("incoming_transfers", boost::bind(&simple_wallet::show_incoming_transfers, this, _1), "Show incoming transfers");
   m_consoleHandler.setHandler("outgoing_transfers", boost::bind(&simple_wallet::show_outgoing_transfers, this, _1), "Show outgoing transfers");
   m_consoleHandler.setHandler("list_transfers", boost::bind(&simple_wallet::listTransfers, this, _1), "Show all known transfers");
+  m_consoleHandler.setHandler("list_msgs", boost::bind(&simple_wallet::listMessages, this, _1), "List messages");
   m_consoleHandler.setHandler("payments", boost::bind(&simple_wallet::show_payments, this, _1), "payments <payment_id_1> [<payment_id_2> ... <payment_id_N>] - Show payments <payment_id_1>, ... <payment_id_N>");
   m_consoleHandler.setHandler("outputs", boost::bind(&simple_wallet::show_unlocked_outputs_count, this, _1), "Show the number of unlocked outputs available for a transaction");
   m_consoleHandler.setHandler("bc_height", boost::bind(&simple_wallet::show_blockchain_height, this, _1), "Show blockchain height");
@@ -2018,6 +2052,32 @@ bool simple_wallet::listTransfers(const std::vector<std::string>& args) {
   }
 
   return true;
+}
+
+bool simple_wallet::listMessages(const std::vector<std::string>& args) {
+  bool haveTransfers = false;
+
+  size_t txCount = m_wallet->getTransactionCount();
+  for (size_t txNr = 0; txNr < txCount; ++txNr) {
+    WalletLegacyTransaction txInfo;
+    m_wallet->getTransaction(txNr, txInfo);
+    if (txInfo.state != WalletLegacyTransactionState::Active || txInfo.blockHeight == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) {
+      continue;
+    }
+
+    if (!haveTransfers) {
+      printListMessagesHeader(logger);
+      haveTransfers = true;
+    }
+
+    printListMessagesItem(logger, txInfo, *m_wallet, m_currency);
+
+    if (!haveTransfers) {
+      success_msg_writer() << "No messages";
+    }
+
+    return true;
+  }
 }
 
 bool simple_wallet::show_payments(const std::vector<std::string> &args) {
