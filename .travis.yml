@@ -34,7 +34,14 @@ matrix:
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
               - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
-        - os: osx
+        - os: osx # macOS, Debug
+          osx_image: xcode10.1
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
+              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+        - os: osx # macOS, Release
           osx_image: xcode10.1
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
