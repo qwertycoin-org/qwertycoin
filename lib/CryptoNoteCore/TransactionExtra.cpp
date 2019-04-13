@@ -98,6 +98,13 @@ bool parseTransactionExtra(const std::vector<uint8_t> &transactionExtra, std::ve
           break;
         }
 
+        case TX_EXTRA_SENDER_TAG: {
+          tx_extra_sender sender;
+          ar(sender.data, "sender");
+          transactionExtraFields.push_back(sender);
+          break;
+        }
+
         case TX_EXTRA_TTL: {
           uint8_t size;
           readVarint(iss, size);
@@ -142,7 +149,11 @@ struct ExtraSerializerVisitor : public boost::static_visitor<bool> {
   }
   
   bool operator()(const tx_extra_message& t) {
-    return append_message_to_extra(extra, t);
+    return appendMessageToExtra(extra, t);
+  }
+
+  bool operator()(const tx_extra_sender& t) {
+    return appendSenderToExtra(extra, t);
   }
 
   bool operator()(const TransactionExtraTTL& t) {
@@ -218,7 +229,7 @@ bool getMergeMiningTagFromExtra(const std::vector<uint8_t>& tx_extra, Transactio
   return findTransactionExtraFieldByType(tx_extra_fields, mm_tag);
 }
 
-bool append_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_message& message) {
+bool appendMessageToExtra(std::vector<uint8_t>& tx_extra, const tx_extra_message& message) {
   BinaryArray blob;
   if (!toBinaryArray(message, blob)) {
     return false;
@@ -231,35 +242,17 @@ bool append_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_mess
   return true;
 }
 
-std::vector<std::string> get_messages_from_extra(
-  const std::vector<uint8_t> &extra, 
-  const Crypto::PublicKey &txkey, 
-  Crypto::SecretKey *recepient_secret_key
-  ) {
-  std::vector<TransactionExtraField> tx_extra_fields;
-  std::vector<std::string> result;
-  if (!parseTransactionExtra(extra, tx_extra_fields)) {
-    // std::cout << "Tx Extra fields: "<< tx_extra_fields.size();
-    return result;
-  }
-  size_t i = 0;
-  for (const auto& f : tx_extra_fields) {
-    //std::cout << "Tx Extra fields (for): "<< tx_extra_fields.size() << std::endl;
-    //std::cout << "Tx Extra field type: " << f.type().name() << "\tDesired Type: " << typeid(tx_extra_message).name() <<std::endl;
+bool appendSenderToExtra(std::vector<uint8_t>& tx_extra, const tx_extra_sender& sender) {
+	BinaryArray blob;
+	if (!toBinaryArray(sender, blob)) {
+		return false;
+	}
 
-    if (f.type() != typeid(tx_extra_message)) {
-      continue;
-    }
-    
-    std::string res;
-    if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recepient_secret_key, res)) {
-      //std::cout << "Result: " << res << std::endl;
-      result.push_back(res);
-    }
-    ++i;
-  }
+	tx_extra.reserve(tx_extra.size() + 1 + blob.size());
+	tx_extra.push_back(TX_EXTRA_SENDER_TAG);
+	std::copy(reinterpret_cast<const uint8_t*>(blob.data()), reinterpret_cast<const uint8_t*>(blob.data() + blob.size()), std::back_inserter(tx_extra));
 
-  return result;
+	return true;
 }
 
 void appendTTLToExtra(std::vector<uint8_t>& tx_extra, uint64_t ttl) {
@@ -270,6 +263,58 @@ void appendTTLToExtra(std::vector<uint8_t>& tx_extra, uint64_t ttl) {
   tx_extra.push_back(TX_EXTRA_TTL);
   std::copy(extraFieldSize.begin(), extraFieldSize.end(), std::back_inserter(tx_extra));
   std::copy(ttlData.begin(), ttlData.end(), std::back_inserter(tx_extra));
+}
+
+std::vector<std::string> getMessagesFromExtra(
+	const std::vector<uint8_t> &extra,
+	const Crypto::PublicKey &txkey,
+	Crypto::SecretKey *recepient_secret_key
+) {
+	std::vector<TransactionExtraField> tx_extra_fields;
+	std::vector<std::string> result;
+	if (!parseTransactionExtra(extra, tx_extra_fields)) {
+		return result;
+	}
+	size_t i = 0;
+	for (const auto& f : tx_extra_fields) {
+		if (f.type() != typeid(tx_extra_message)) {
+			continue;
+		}
+
+		std::string res;
+		if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recepient_secret_key, res)) {
+			result.push_back(res);
+		}
+		++i;
+	}
+
+	return result;
+}
+
+std::vector<std::string> getSendersFromExtra(
+	const std::vector<uint8_t> &extra,
+	const Crypto::PublicKey &txkey,
+	Crypto::SecretKey *recepient_secret_key
+) {
+	std::vector<TransactionExtraField> txExtraFields;
+	std::vector<std::string> result;
+	if (!parseTransactionExtra(extra, txExtraFields)) {
+		return result;
+	}
+	size_t i = 0;
+	for (const auto& f : txExtraFields) {
+		if (f.type() != typeid(tx_extra_sender)) {
+			continue;
+		}
+
+		std::string res;
+		if (boost::get<tx_extra_sender>(f).decrypt(i, txkey, recepient_secret_key, res)) {
+			result.push_back(res);
+		}
+		++i;
+	}
+
+	return result;
 }
 
 void setPaymentIdToTransactionExtraNonce(std::vector<uint8_t>& extra_nonce, const Hash& payment_id) {
@@ -328,14 +373,24 @@ bool getPaymentIdFromTxExtra(const std::vector<uint8_t>& extra, Hash& paymentId)
 }
 
 #define TX_EXTRA_MESSAGE_CHECKSUM_SIZE 4
+#define TX_EXTRA_SENDER_CHECKSUM_SIZE 6
 
 #pragma pack(push, 1)
 struct message_key_data {
-  KeyDerivation derivation;
-  uint8_t magic1, magic2;
+    KeyDerivation derivation;
+    uint8_t magic1, magic2;
+};
+
+struct sender_key_data {
+	KeyDerivation derivation;
+	uint8_t magic1, magic2;
 };
 #pragma pack(pop)
+
+
 static_assert(sizeof(message_key_data) == 34, "Invalid structure size");
+static_assert(sizeof(sender_key_data) == 34, "Invalid structure size");
+
 
 bool tx_extra_message::encrypt(size_t index, const std::string &message, const AccountPublicAddress *recipient, const KeyPair &txkey) {
   size_t mlen = message.size();
@@ -397,6 +452,69 @@ bool tx_extra_message::decrypt(
 bool tx_extra_message::serialize(ISerializer& s) {
   s(data, "data");
   return true;
+}
+
+bool tx_extra_sender::encrypt(size_t index, const std::string &sender, const AccountPublicAddress *recipient, const KeyPair &txkey) {
+	size_t mlen = sender.size();
+	std::unique_ptr<char[]> buf(new char[mlen + TX_EXTRA_SENDER_CHECKSUM_SIZE]);
+	memcpy(buf.get(), sender.data(), mlen);
+	memset(buf.get() + mlen, 0, TX_EXTRA_SENDER_CHECKSUM_SIZE);
+	mlen += TX_EXTRA_SENDER_CHECKSUM_SIZE;
+	if (recipient) {
+		sender_key_data key_data;
+		if (!generate_key_derivation(recipient->spendPublicKey, txkey.secretKey, key_data.derivation)) {
+			return false;
+		}
+		key_data.magic1 = 0x80;
+		key_data.magic2 = 0;
+		Hash h = cn_fast_hash(&key_data, sizeof(sender_key_data));
+		uint64_t nonce = SWAP64LE(index);
+		chacha(10, buf.get(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), buf.get());
+	}
+	data.assign(buf.get(), mlen);
+	return true;
+}
+
+bool tx_extra_sender::decrypt(
+	size_t index, const Crypto::PublicKey &txkey,
+	Crypto::SecretKey *recepient_secret_key,
+	std::string &sender) const {
+	size_t mlen = data.size();
+	if (mlen < TX_EXTRA_SENDER_CHECKSUM_SIZE) {
+		return false;
+	}
+	const char *buf;
+	std::unique_ptr<char[]> ptr;
+	if (recepient_secret_key != nullptr) {
+		ptr.reset(new char[mlen]);
+		assert(ptr);
+		sender_key_data key_data;
+		if (!generate_key_derivation(txkey, *recepient_secret_key, key_data.derivation)) {
+			return false;
+		}
+		key_data.magic1 = 0x80;
+		key_data.magic2 = 0;
+		Hash h = cn_fast_hash(&key_data, sizeof(sender_key_data));
+		uint64_t nonce = SWAP64LE(index);
+		chacha(10, data.data(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), ptr.get());
+		buf = ptr.get();
+	}
+	else {
+		buf = data.data();
+	}
+	mlen -= TX_EXTRA_SENDER_CHECKSUM_SIZE;
+	for (size_t i = 0; i < TX_EXTRA_SENDER_CHECKSUM_SIZE; i++) {
+		if (buf[mlen + i] != 0) {
+			return false;
+		}
+	}
+	sender.assign(buf, mlen);
+	return true;
+}
+
+bool tx_extra_sender::serialize(ISerializer& s) {
+	s(data, "data");
+	return true;
 }
 
 }

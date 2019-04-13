@@ -67,7 +67,8 @@ void constructTx(
   uint64_t sizeLimit, 
   Transaction& tx, 
   const std::vector<tx_message_entry>& messages, 
-  uint64_t ttl, 
+  uint64_t ttl,
+  const std::string& sender,
   Crypto::SecretKey& tx_key) {
 
   std::vector<uint8_t> extraVec;
@@ -75,10 +76,7 @@ void constructTx(
   std::for_each(extra.begin(), extra.end(), [&extraVec] (const char el) { extraVec.push_back(el);});
 
   Logging::LoggerGroup nullLog;
-  bool r = constructTransaction(keys, sources, splittedDests, messages, ttl, extraVec, tx, unlockTimestamp, tx_key, nullLog);
-
-
-
+  bool r = constructTransaction(keys, sources, splittedDests, messages, sender, ttl, extraVec, tx, unlockTimestamp, tx_key, nullLog);
 
   throwIf(!r, error::INTERNAL_WALLET_ERROR);
   throwIf(getObjectBinarySize(tx) >= sizeLimit, error::TRANSACTION_SIZE_TOO_BIG);
@@ -127,7 +125,8 @@ std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendRequest(Transact
 																		uint64_t mixIn, 
 																		uint64_t unlockTimestamp, 
 																		const std::vector<TransactionMessage>& messages,
-                                                                        uint64_t ttl) {
+                                    uint64_t ttl,
+                                    const std::string& sender) {
 
   using namespace CryptoNote;
 
@@ -144,6 +143,7 @@ std::shared_ptr<WalletRequest> WalletTransactionSender::makeSendRequest(Transact
   context->transactionId = transactionId;
   context->mixIn = mixIn;
   context->ttl = ttl;
+  context->sender = sender;
   
   for (const TransactionMessage& message: messages) {
 	  AccountPublicAddress address;
@@ -255,7 +255,10 @@ void WalletTransactionSender::sendTransactionRandomOutsByAmount(std::shared_ptr<
     nextRequest = req;
 }
 
-std::shared_ptr<WalletRequest> WalletTransactionSender::doSendTransaction(std::shared_ptr<SendTransactionContext> context, std::deque<std::shared_ptr<WalletLegacyEvent>>& events) {
+std::shared_ptr<WalletRequest> WalletTransactionSender::doSendTransaction(
+    std::shared_ptr<SendTransactionContext> context, 
+    std::deque<std::shared_ptr<WalletLegacyEvent>>& events
+    ) {
   if (m_isStoping) {
     events.push_back(makeCompleteEvent(m_transactionsCache, context->transactionId, make_error_code(error::TX_CANCELLED)));
     return std::shared_ptr<WalletRequest>();
@@ -277,7 +280,7 @@ std::shared_ptr<WalletRequest> WalletTransactionSender::doSendTransaction(std::s
     splitDestinations(transaction.firstTransferId, transaction.transferCount, changeDts, context->dustPolicy, splittedDests);
 
     Transaction tx;
-    constructTx(m_keys, sources, splittedDests, transaction.extra, transaction.unlockTime, m_upperTransactionSizeLimit, tx, context->messages, context->ttl, context->tx_key);
+    constructTx(m_keys, sources, splittedDests, transaction.extra, transaction.unlockTime, m_upperTransactionSizeLimit, tx, context->messages, context->ttl, context->sender, context->tx_key);
 
     getObjectHash(tx, transaction.hash);
 

@@ -120,6 +120,7 @@ bool constructTransaction(
   const std::vector<TransactionSourceEntry>& sources,
   const std::vector<TransactionDestinationEntry>& destinations,
   const std::vector<tx_message_entry>& messages,
+  const std::string& sender,
   uint64_t ttl,
   std::vector<uint8_t> extra,
   Transaction& tx,
@@ -237,11 +238,12 @@ bool constructTransaction(
   for (size_t i = 0; i < messages.size(); i++) {
     const tx_message_entry& msg = messages[i];
     tx_extra_message tag;
-    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
+    tx_extra_sender sTag;
+    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey) && !sTag.encrypt(i, sender, msg.encrypt ? &msg.addr : NULL, txkey)) {
       return false;
     }
 
-    if (!append_message_to_extra(tx.extra, tag)) {
+    if (!appendMessageToExtra(tx.extra, tag) && appendSenderToExtra(tx.extra, sTag)) {
       return false;
     }
   }

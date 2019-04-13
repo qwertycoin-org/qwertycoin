@@ -33,6 +33,7 @@
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
 #define TX_EXTRA_MESSAGE_TAG                0x04
 #define TX_EXTRA_TTL                        0x05
+#define TX_EXTRA_SENDER_TAG                 0x06
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
 
@@ -66,6 +67,15 @@ struct tx_extra_message {
   bool serialize(ISerializer& serializer);
 };
 
+struct tx_extra_sender {
+	std::string data;
+
+	bool encrypt(std::size_t index, const std::string &sender, const AccountPublicAddress* recipient, const KeyPair &txkey);
+	bool decrypt(std::size_t index, const Crypto::PublicKey &txkey, Crypto::SecretKey *recepient_secret_key, std::string &sender) const;
+
+	bool serialize(ISerializer& serializer);
+};
+
 struct TransactionExtraTTL {
   uint64_t ttl;
 };
@@ -74,7 +84,7 @@ struct TransactionExtraTTL {
 //   varint tag;
 //   varint size;
 //   varint data[];
-typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce, TransactionExtraMergeMiningTag, tx_extra_message, TransactionExtraTTL> TransactionExtraField;
+typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce, TransactionExtraMergeMiningTag, tx_extra_message, tx_extra_sender, TransactionExtraTTL> TransactionExtraField;
 
 
 
@@ -100,9 +110,11 @@ void setPaymentIdToTransactionExtraNonce(BinaryArray& extra_nonce, const Crypto:
 bool getPaymentIdFromTransactionExtraNonce(const BinaryArray& extra_nonce, Crypto::Hash& payment_id);
 bool appendMergeMiningTagToExtra(std::vector<uint8_t>& tx_extra, const TransactionExtraMergeMiningTag& mm_tag);
 bool getMergeMiningTagFromExtra(const std::vector<uint8_t>& tx_extra, TransactionExtraMergeMiningTag& mm_tag);
-bool append_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_message& message);
-std::vector<std::string> get_messages_from_extra(const std::vector<uint8_t>& extra, const Crypto::PublicKey &txkey, Crypto::SecretKey *recepient_secret_key);
+bool appendMessageToExtra(std::vector<uint8_t>& tx_extra, const tx_extra_message& message);
+bool appendSenderToExtra(std::vector<uint8_t>& tx_extra, const tx_extra_sender& sender);
 void appendTTLToExtra(std::vector<uint8_t>& tx_extra, uint64_t ttl);
+std::vector<std::string> getMessagesFromExtra(const std::vector<uint8_t>& extra, const Crypto::PublicKey &txkey, Crypto::SecretKey *recepient_secret_key);
+std::vector<std::string> getSendersFromExtra(const std::vector<uint8_t>& extra, const Crypto::PublicKey& txkey, Crypto::SecretKey * recepient_secret_key);
 
 bool createTxExtraWithPaymentId(const std::string& paymentIdString, std::vector<uint8_t>& extra);
 //returns false if payment id is not found or parse error
