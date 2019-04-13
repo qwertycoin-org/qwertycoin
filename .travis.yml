@@ -18,7 +18,15 @@ matrix:
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
               - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
-        - os: linux
+        - os: linux # Linux, Debug
+          dist: xenial
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
+              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+        - os: linux # Linux, Release
           dist: xenial
           sudo: required
           env:
