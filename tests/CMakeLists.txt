@@ -185,6 +185,7 @@ set(QwertycoinTests_IntegrationTestLib_SOURCES
 )
 
 set(QwertycoinTests_IntegrationTestLib_LIBS
+    Boost::date_time
     QwertycoinFramework::InProcessNode
 )
 
