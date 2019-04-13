@@ -2,7 +2,15 @@ language: cpp
 
 matrix:
     include:
-        - os: linux # android
+        - os: linux # Android, Debug
+          dist: xenial
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
+              - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
+              - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
+        - os: linux # Android, Release
           dist: xenial
           sudo: required
           env:
@@ -58,9 +66,7 @@ before_install:
         fi
 
 script:
-    - |
-        mkdir ./build
-        cd ./build
+    - mkdir ./build && cd ./build
     - >
         cmake -G "$CMAKE_GENERATOR_NAME"
         -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
