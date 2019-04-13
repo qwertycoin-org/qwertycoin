@@ -64,6 +64,7 @@ addons:
         packages:
             - cmake
             - git
+            - lcov
 
 cache:
     directories:
@@ -88,5 +89,24 @@ script:
         -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
         $CMAKE_ARGS
         ..
-    - cmake --build . --config Release
-    - cmake --build . --config Release --target package
+    - cmake --build . --config $CMAKE_BUILD_TYPE
+    - |
+        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
+            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
+        else
+            ctest -R CryptoTests --output-on-errors # TODO: Enable all tests once fixed.
+        fi
+    - cpack -C $CMAKE_BUILD_TYPE
+
+after_success:
+    - |
+        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
+            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
+        elif [ "$CMAKE_BUILD_TYPE" = "Release" ]; then
+            echo "Code-coverage is only available for debug builds. Skipping..."
+        else
+            lcov --capture --directory . --output-file coverage.info
+            lcov --remove coverage.info "/usr/*" "*/tests/*" --output-file coverage.info
+            lcov --list coverage.info
+            bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Upload to codecov.io FAILED"
+        fi
