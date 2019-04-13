@@ -603,6 +603,9 @@ void printListMessagesItem(
 
   char timeString[TIMESTAMP_MAX_WIDTH + 1];
   time_t timestamp = static_cast<time_t>(txInfo.timestamp);
+  if (std::strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", std::gmtime(&timestamp)) == 0) {
+    throw std::runtime_error("time buffer is too small");
+  }
 
   std::string rowColor = messages.size() < 0 ? MAGENTA : GREEN;
   for (int i = 0; i < messages.size(); ++i) {
