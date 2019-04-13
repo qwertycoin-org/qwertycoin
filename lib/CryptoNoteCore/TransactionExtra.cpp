@@ -27,6 +27,8 @@
 #include "Serialization/BinaryOutputStreamSerializer.h"
 #include "Serialization/BinaryInputStreamSerializer.h"
 
+#include <iostream>
+
 using namespace Crypto;
 using namespace Common;
 
@@ -232,24 +234,31 @@ bool append_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_mess
 std::vector<std::string> get_messages_from_extra(
   const std::vector<uint8_t> &extra, 
   const Crypto::PublicKey &txkey, 
-  const Crypto::SecretKey *recepient_secret_key
+  Crypto::SecretKey *recepient_secret_key
   ) {
   std::vector<TransactionExtraField> tx_extra_fields;
   std::vector<std::string> result;
   if (!parseTransactionExtra(extra, tx_extra_fields)) {
+    std::cout << "Tx Extra fields: "<< tx_extra_fields.size();
     return result;
   }
   size_t i = 0;
   for (const auto& f : tx_extra_fields) {
+    std::cout << "Tx Extra fields (for): "<< tx_extra_fields.size() << std::endl;
+    std::cout << "Tx Extra field type: " << f.type().name() << "\tDesired Type: " << typeid(tx_extra_message).name() <<std::endl;
+
     if (f.type() != typeid(tx_extra_message)) {
       continue;
     }
+    
     std::string res;
     if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recepient_secret_key, res)) {
+      std::cout << "Result: " << res << std::endl;
       result.push_back(res);
     }
     ++i;
   }
+
   return result;
 }
 
@@ -349,7 +358,10 @@ bool tx_extra_message::encrypt(size_t index, const std::string &message, const A
   return true;
 }
 
-bool tx_extra_message::decrypt(size_t index, const Crypto::PublicKey &txkey, const Crypto::SecretKey *recepient_secret_key, std::string &message) const {
+bool tx_extra_message::decrypt(
+  size_t index, const Crypto::PublicKey &txkey, 
+  Crypto::SecretKey *recepient_secret_key, 
+  std::string &message) const {
   size_t mlen = data.size();
   if (mlen < TX_EXTRA_MESSAGE_CHECKSUM_SIZE) {
     return false;

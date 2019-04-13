@@ -71,7 +71,6 @@
 #include "Common/DnsTools.h"
 #include "Common/Util.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
-#include "CryptoNoteCore/TransactionExtra.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
 #include "NodeRpcProxy/NodeRpcProxy.h"
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
@@ -597,13 +596,15 @@ void printListMessagesItem(
   LoggerRef& logger, 
   const WalletLegacyTransaction& txInfo, 
   IWalletLegacy& wallet, 
-  const Currency& currency
+  const Currency& currency,
+  int& messageCount
   ) {
   std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
 
   char timeString[TIMESTAMP_MAX_WIDTH + 1];
   time_t timestamp = static_cast<time_t>(txInfo.timestamp);
-  int messageCount = static_cast<int>(txInfo.messages.size());
+
+  logger(INFO) << "Messagecount: " << messageCount;
 
   std::string rowColor = messageCount < 0 ? MAGENTA : GREEN;
   for (int i = 0; i < messageCount; ++i) {
@@ -2056,21 +2057,37 @@ bool simple_wallet::listTransfers(const std::vector<std::string>& args) {
 
 bool simple_wallet::listMessages(const std::vector<std::string>& args) {
   bool haveTransfers = false;
+	AccountKeys keys;
+  m_wallet->getAccountKeys(keys);
+  Crypto::SecretKey *sKey = &keys.spendSecretKey;//static_cast<Crypto::SecretKey*>();
 
+  
   size_t txCount = m_wallet->getTransactionCount();
+  logger(INFO) << "Transaction Count: " << txCount;
+
   for (size_t txNr = 0; txNr < txCount; ++txNr) {
     WalletLegacyTransaction txInfo;
     m_wallet->getTransaction(txNr, txInfo);
+    std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
+
     if (txInfo.state != WalletLegacyTransactionState::Active || txInfo.blockHeight == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) {
       continue;
     }
 
-    if (!haveTransfers) {
-      printListMessagesHeader(logger);
-      haveTransfers = true;
-    }
+    Crypto::PublicKey txPub =  getTransactionPublicKeyFromExtra(extraVec);
+    std::vector<std::string> msgs = get_messages_from_extra(extraVec, txPub, sKey);
 
-    printListMessagesItem(logger, txInfo, *m_wallet, m_currency);
+    int messageCount = static_cast<int>(msgs.size());
+    logger(INFO) << "Messages: " << messageCount;
+
+    if (messageCount > 0) {
+      if (!haveTransfers) {
+        printListMessagesHeader(logger);
+        haveTransfers = true;
+      }
+
+      printListMessagesItem(logger, txInfo, *m_wallet, m_currency, messageCount);
+    }
 
     if (!haveTransfers) {
       success_msg_writer() << "No messages";
@@ -2307,6 +2324,20 @@ bool simple_wallet::transfer(const std::vector<std::string> &args) {
 
   return true;
 }
+/*
+bool simple_wallet::sendMsg(const std::vector<std::string>& args) {
+  if (m_trackingWallet) {
+    fail_msg_writer() << "This is a tracking wallet. Sending Messages is impossible.";
+    return true;
+  }
+
+  TransferCommand cmd(m_currency, *m_node);
+
+  if (!cmd.parseArguments(logger, args)) {
+    return true;
+  }
+}
+*/
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::sweep_dust(const std::vector<std::string>& args) {
 	if (m_trackingWallet) {
