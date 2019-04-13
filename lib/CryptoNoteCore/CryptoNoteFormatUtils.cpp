@@ -243,7 +243,7 @@ bool constructTransaction(
       return false;
     }
 
-    if (!appendMessageToExtra(tx.extra, tag) && appendSenderToExtra(tx.extra, sTag)) {
+    if (!appendMessageToExtra(tx.extra, tag) && !appendSenderToExtra(tx.extra, sTag)) {
       return false;
     }
   }
