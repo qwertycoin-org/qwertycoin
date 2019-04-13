@@ -597,21 +597,19 @@ void printListMessagesItem(
   const WalletLegacyTransaction& txInfo, 
   IWalletLegacy& wallet, 
   const Currency& currency,
-  int& messageCount
+  std::vector<std::string> messages
   ) {
   std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
 
   char timeString[TIMESTAMP_MAX_WIDTH + 1];
   time_t timestamp = static_cast<time_t>(txInfo.timestamp);
 
-  logger(INFO) << "Messagecount: " << messageCount;
-
-  std::string rowColor = messageCount < 0 ? MAGENTA : GREEN;
-  for (int i = 0; i < messageCount; ++i) {
+  std::string rowColor = messages.size() < 0 ? MAGENTA : GREEN;
+  for (int i = 0; i < messages.size(); ++i) {
     logger(INFO, rowColor)
     << std::setw(TIMESTAMP_MAX_WIDTH) << timeString
     << "  " << std::setw(FEE_MAX_WIDTH) << currency.formatAmount(txInfo.fee)
-    << "  " << std::setw(MESSAGE_MAX_WIDTH) << txInfo.messages[i];
+    << "  " << std::setw(MESSAGE_MAX_WIDTH) << messages[i];
   }
   logger(INFO, rowColor) << " ";
 }
@@ -2068,6 +2066,7 @@ bool simple_wallet::listMessages(const std::vector<std::string>& args) {
   for (size_t txNr = 0; txNr < txCount; ++txNr) {
     WalletLegacyTransaction txInfo;
     m_wallet->getTransaction(txNr, txInfo);
+    // logger(INFO) << "Tx Nr: " << txNr;
     std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
 
     if (txInfo.state != WalletLegacyTransactionState::Active || txInfo.blockHeight == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) {
@@ -2077,24 +2076,21 @@ bool simple_wallet::listMessages(const std::vector<std::string>& args) {
     Crypto::PublicKey txPub =  getTransactionPublicKeyFromExtra(extraVec);
     std::vector<std::string> msgs = get_messages_from_extra(extraVec, txPub, sKey);
 
-    int messageCount = static_cast<int>(msgs.size());
-    logger(INFO) << "Messages: " << messageCount;
-
-    if (messageCount > 0) {
+    if (msgs.size() > 0) {
       if (!haveTransfers) {
         printListMessagesHeader(logger);
         haveTransfers = true;
       }
 
-      printListMessagesItem(logger, txInfo, *m_wallet, m_currency, messageCount);
+      printListMessagesItem(logger, txInfo, *m_wallet, m_currency, msgs);
     }
+  }
 
-    if (!haveTransfers) {
+  if (!haveTransfers) {
       success_msg_writer() << "No messages";
     }
 
-    return true;
-  }
+  return true;
 }
 
 bool simple_wallet::show_payments(const std::vector<std::string> &args) {

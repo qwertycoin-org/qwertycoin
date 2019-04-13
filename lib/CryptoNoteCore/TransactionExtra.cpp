@@ -239,13 +239,13 @@ std::vector<std::string> get_messages_from_extra(
   std::vector<TransactionExtraField> tx_extra_fields;
   std::vector<std::string> result;
   if (!parseTransactionExtra(extra, tx_extra_fields)) {
-    std::cout << "Tx Extra fields: "<< tx_extra_fields.size();
+    // std::cout << "Tx Extra fields: "<< tx_extra_fields.size();
     return result;
   }
   size_t i = 0;
   for (const auto& f : tx_extra_fields) {
-    std::cout << "Tx Extra fields (for): "<< tx_extra_fields.size() << std::endl;
-    std::cout << "Tx Extra field type: " << f.type().name() << "\tDesired Type: " << typeid(tx_extra_message).name() <<std::endl;
+    //std::cout << "Tx Extra fields (for): "<< tx_extra_fields.size() << std::endl;
+    //std::cout << "Tx Extra field type: " << f.type().name() << "\tDesired Type: " << typeid(tx_extra_message).name() <<std::endl;
 
     if (f.type() != typeid(tx_extra_message)) {
       continue;
@@ -253,7 +253,7 @@ std::vector<std::string> get_messages_from_extra(
     
     std::string res;
     if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recepient_secret_key, res)) {
-      std::cout << "Result: " << res << std::endl;
+      //std::cout << "Result: " << res << std::endl;
       result.push_back(res);
     }
     ++i;
