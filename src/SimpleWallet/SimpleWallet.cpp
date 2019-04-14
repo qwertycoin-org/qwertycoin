@@ -2080,11 +2080,11 @@ bool simple_wallet::listMessages(const std::vector<std::string>& args) {
   for (size_t txNr = 0; txNr < txCount; ++txNr) {
     WalletLegacyTransaction txInfo;
     m_wallet->getTransaction(txNr, txInfo);
-    
+    /*
     if (txInfo.state != WalletLegacyTransactionState::Active || txInfo.blockHeight == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) {
       continue;
     }
-
+	*/
 	AccountKeys keys;
 	m_wallet->getAccountKeys(keys);
 	Crypto::SecretKey *sKey = &keys.spendSecretKey;
