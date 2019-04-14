@@ -1,6 +1,7 @@
 # Qwertycoin: C++ client, tools and libraries.
-# Copyright 2019 The Qwertycoin Group.
+# Copyright 2019 (c) The Qwertycoin Group.
 # Licensed under the GNU General Public License, Version 3.
+# See the file LICENSE from this package for details.
 
 cmake_minimum_required(VERSION 3.10)
 
@@ -89,6 +90,7 @@ include(project/GlobalVariables)
 set_directory_properties(PROPERTIES EP_BASE "${CMAKE_CURRENT_BINARY_DIR}/_ExternalProjects")
 include(ExternalProject)
 include(external/Boost)
+include(external/codecov)
 include(external/GTest)
 include(external/MiniUPnP)
 include(external/sparsehash)
@@ -101,6 +103,7 @@ if(BUILD_WITH_TOOLS)
 endif()
 
 if(BUILD_WITH_TESTS)
+    enable_testing()
     add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/tests")
 endif()
 
