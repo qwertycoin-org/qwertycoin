@@ -96,14 +96,7 @@ bool parseTransactionExtra(const std::vector<uint8_t> &transactionExtra, std::ve
           ar(message.data, "message");
           transactionExtraFields.push_back(message);
           break;
-        }
-
-        case TX_EXTRA_SENDER_TAG: {
-          tx_extra_sender sender;
-          ar(sender.data, "sender");
-          transactionExtraFields.push_back(sender);
-          break;
-        }
+        }        
 
         case TX_EXTRA_TTL: {
           uint8_t size;
@@ -113,6 +106,13 @@ bool parseTransactionExtra(const std::vector<uint8_t> &transactionExtra, std::ve
           transactionExtraFields.push_back(ttl);
           break;
         }
+
+		case TX_EXTRA_SENDER_TAG: {
+			tx_extra_sender sender;
+			ar(sender.data, "sender");
+			transactionExtraFields.push_back(sender);
+			break;
+		}
       }
     }
   } catch (std::exception &) {
@@ -152,13 +152,13 @@ struct ExtraSerializerVisitor : public boost::static_visitor<bool> {
     return appendMessageToExtra(extra, t);
   }
 
-  bool operator()(const tx_extra_sender& t) {
-    return appendSenderToExtra(extra, t);
-  }
-
   bool operator()(const TransactionExtraTTL& t) {
     appendTTLToExtra(extra, t.ttl);
     return true;
+  }
+
+  bool operator()(const tx_extra_sender& t) {
+	  return appendSenderToExtra(extra, t);
   }
 };
 
@@ -242,6 +242,16 @@ bool appendMessageToExtra(std::vector<uint8_t>& tx_extra, const tx_extra_message
   return true;
 }
 
+void appendTTLToExtra(std::vector<uint8_t>& tx_extra, uint64_t ttl) {
+  std::string ttlData = Tools::get_varint_data(ttl);
+  std::string extraFieldSize = Tools::get_varint_data(ttlData.size());
+
+  tx_extra.reserve(tx_extra.size() + 1 + extraFieldSize.size() + ttlData.size());
+  tx_extra.push_back(TX_EXTRA_TTL);
+  std::copy(extraFieldSize.begin(), extraFieldSize.end(), std::back_inserter(tx_extra));
+  std::copy(ttlData.begin(), ttlData.end(), std::back_inserter(tx_extra));
+}
+
 bool appendSenderToExtra(std::vector<uint8_t>& tx_extra, const tx_extra_sender& sender) {
 	BinaryArray blob;
 	if (!toBinaryArray(sender, blob)) {
@@ -253,16 +263,6 @@ bool appendSenderToExtra(std::vector<uint8_t>& tx_extra, const tx_extra_sender& 
 	std::copy(reinterpret_cast<const uint8_t*>(blob.data()), reinterpret_cast<const uint8_t*>(blob.data() + blob.size()), std::back_inserter(tx_extra));
 
 	return true;
-}
-
-void appendTTLToExtra(std::vector<uint8_t>& tx_extra, uint64_t ttl) {
-  std::string ttlData = Tools::get_varint_data(ttl);
-  std::string extraFieldSize = Tools::get_varint_data(ttlData.size());
-
-  tx_extra.reserve(tx_extra.size() + 1 + extraFieldSize.size() + ttlData.size());
-  tx_extra.push_back(TX_EXTRA_TTL);
-  std::copy(extraFieldSize.begin(), extraFieldSize.end(), std::back_inserter(tx_extra));
-  std::copy(ttlData.begin(), ttlData.end(), std::back_inserter(tx_extra));
 }
 
 std::vector<std::string> getMessagesFromExtra(
@@ -278,6 +278,7 @@ std::vector<std::string> getMessagesFromExtra(
 	size_t i = 0;
 	for (const auto& f : tx_extra_fields) {
 		if (f.type() != typeid(tx_extra_message)) {
+			// std::cout << "Message Field Type: " << f.type().name() << std::endl;
 			continue;
 		}
 
@@ -299,16 +300,18 @@ std::vector<std::string> getSendersFromExtra(
 	std::vector<TransactionExtraField> txExtraFields;
 	std::vector<std::string> result;
 	if (!parseTransactionExtra(extra, txExtraFields)) {
+		std::cout << "Parse Status:  false" << std::endl;
 		return result;
 	}
 	size_t i = 0;
 	for (const auto& f : txExtraFields) {
 		if (f.type() != typeid(tx_extra_sender)) {
+			
 			continue;
 		}
-
 		std::string res;
 		if (boost::get<tx_extra_sender>(f).decrypt(i, txkey, recepient_secret_key, res)) {
+			std::cout << "Result: " << res << std::endl;
 			result.push_back(res);
 		}
 		++i;

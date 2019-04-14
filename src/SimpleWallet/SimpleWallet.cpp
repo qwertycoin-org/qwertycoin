@@ -613,20 +613,20 @@ void printListMessagesItem(
 
 	std::string rowColor = messages.size() < 0 ? MAGENTA : GREEN;
 	for (int i = 0; i < messages.size(); ++i) {
-      // logger(INFO) << "Sender: \t" << senders[i];
-      std::string validSender = "";
+		std::string validSender = "";
 
-      if (senders[i] != "") {
-        validSender = senders[i].substr(0, 16);
-      } else {
-        validSender = "";
-      }
-      
-      logger(INFO, rowColor)
-        << std::setw(TIMESTAMP_MAX_WIDTH) << timeString
-        << "  " << std::setw(SENDER_MAX_WITH) << validSender
-        << "  " << std::setw(MESSAGE_MAX_WIDTH) << messages[i];
-    }
+		if (senders.at(i) == "") {
+			validSender = "Anonymous";
+		}
+		else {
+			validSender = senders.at(i).substr(0, 16);
+		}
+
+		logger(INFO, rowColor)
+			<< std::setw(TIMESTAMP_MAX_WIDTH) << timeString
+			<< "  " << std::setw(SENDER_MAX_WITH) << validSender
+			<< "  " << std::setw(MESSAGE_MAX_WIDTH) << messages[i];
+	}
 	logger(INFO, rowColor) << " ";
 }
 
@@ -2068,7 +2068,7 @@ bool simple_wallet::listTransfers(const std::vector<std::string>& args) {
 
   return true;
 }
-
+//----------------------------------------------------------------------------------------------------
 bool simple_wallet::listMessages(const std::vector<std::string>& args) {
   bool haveTransfers = false;
   //static_cast<Crypto::SecretKey*>();
@@ -2089,9 +2089,13 @@ bool simple_wallet::listMessages(const std::vector<std::string>& args) {
 	m_wallet->getAccountKeys(keys);
 	Crypto::SecretKey *sKey = &keys.spendSecretKey;
 	std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
-  Crypto::PublicKey txPub = getTransactionPublicKeyFromExtra(extraVec);
-  std::vector<std::string> msgs = getMessagesFromExtra(extraVec, txPub, sKey);
+	Crypto::PublicKey txPub = getTransactionPublicKeyFromExtra(extraVec);
+	std::vector<std::string> msgs = getMessagesFromExtra(extraVec, txPub, sKey);
 	std::vector<std::string> sndr = getSendersFromExtra(extraVec, txPub, sKey);
+
+	if (sndr.empty()) {
+		sndr = std::vector<std::string>(1);
+	}
 
     if (msgs.size() > 0) {
       if (!haveTransfers) {
@@ -2109,7 +2113,7 @@ bool simple_wallet::listMessages(const std::vector<std::string>& args) {
 
   return true;
 }
-
+//----------------------------------------------------------------------------------------------------
 bool simple_wallet::show_payments(const std::vector<std::string> &args) {
   if (args.empty()) {
     failMsgWriter() << "expected at least one payment ID";

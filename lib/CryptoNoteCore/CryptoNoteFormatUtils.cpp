@@ -239,7 +239,7 @@ bool constructTransaction(
     const tx_message_entry& msg = messages[i];
     tx_extra_message tag;
     tx_extra_sender sTag;
-    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey) && !sTag.encrypt(i, sender, msg.encrypt ? &msg.addr : NULL, txkey)) {
+    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey) && !sTag.encrypt(i, sender, &msg.addr, txkey)) {
       return false;
     }
 
