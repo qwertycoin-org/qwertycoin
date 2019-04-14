@@ -1,6 +1,7 @@
 # Qwertycoin: C++ client, tools and libraries.
-# Copyright 2019 The Qwertycoin Group.
+# Copyright 2019 (c) The Qwertycoin Group.
 # Licensed under the GNU General Public License, Version 3.
+# See the file LICENSE from this package for details.
 
 cmake_minimum_required(VERSION 3.10)
 
