@@ -239,13 +239,21 @@ bool constructTransaction(
     const tx_message_entry& msg = messages[i];
     tx_extra_message tag;
     tx_extra_sender sTag;
-    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey) && !sTag.encrypt(i, sender, &msg.addr, txkey)) {
+    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
       return false;
     }
 
-    if (!appendMessageToExtra(tx.extra, tag) && !appendSenderToExtra(tx.extra, sTag)) {
+	if (!sTag.encrypt(i, sender, msg.encrypt ? &msg.addr : NULL, txkey)) {
+		return false;
+	}
+
+    if (!appendMessageToExtra(tx.extra, tag)) {
       return false;
     }
+
+	if (!appendSenderToExtra(tx.extra, sTag)) {
+		return false;
+	}
   }
 
   if (ttl != 0) {

@@ -299,6 +299,7 @@ std::vector<std::string> getSendersFromExtra(
 ) {
 	std::vector<TransactionExtraField> txExtraFields;
 	std::vector<std::string> result;
+	
 	if (!parseTransactionExtra(extra, txExtraFields)) {
 		std::cout << "Parse Status:  false" << std::endl;
 		return result;
@@ -306,14 +307,13 @@ std::vector<std::string> getSendersFromExtra(
 	size_t i = 0;
 	for (const auto& f : txExtraFields) {
 		if (f.type() != typeid(tx_extra_sender)) {
-			
 			continue;
 		}
 		std::string res;
 		if (boost::get<tx_extra_sender>(f).decrypt(i, txkey, recepient_secret_key, res)) {
-			std::cout << "Result: " << res << std::endl;
 			result.push_back(res);
 		}
+		
 		++i;
 	}
 
@@ -466,6 +466,7 @@ bool tx_extra_sender::encrypt(size_t index, const std::string &sender, const Acc
 	if (recipient) {
 		sender_key_data key_data;
 		if (!generate_key_derivation(recipient->spendPublicKey, txkey.secretKey, key_data.derivation)) {
+			std::cout << "Encrypt returned false" << std::endl;
 			return false;
 		}
 		key_data.magic1 = 0x80;
@@ -482,6 +483,7 @@ bool tx_extra_sender::decrypt(
 	size_t index, const Crypto::PublicKey &txkey,
 	Crypto::SecretKey *recepient_secret_key,
 	std::string &sender) const {
+
 	size_t mlen = data.size();
 	if (mlen < TX_EXTRA_SENDER_CHECKSUM_SIZE) {
 		return false;
@@ -511,6 +513,7 @@ bool tx_extra_sender::decrypt(
 			return false;
 		}
 	}
+
 	sender.assign(buf, mlen);
 	return true;
 }

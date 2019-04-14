@@ -275,7 +275,7 @@ struct TransferCommand {
 
       bool feeFound = false;
       bool ttlFound = false;
-	  
+
 
       while (!ar.eof()) {
 
@@ -596,19 +596,26 @@ void printListTransfersItem(LoggerRef& logger, const WalletLegacyTransaction& tx
 }
 
 void printListMessagesItem(
-  LoggerRef& logger, 
-  const WalletLegacyTransaction& txInfo, 
-  IWalletLegacy& wallet, 
+  LoggerRef& logger,
+  const WalletLegacyTransaction& txInfo,
+  IWalletLegacy& wallet,
   const Currency& currency,
   std::vector<std::string> messages,
   std::vector<std::string> senders
   ) {
 	std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
+	std::string deliv = "In delivery";
+	std::string badTime = "1970-01-01 00:00:00";
 
 	char timeString[TIMESTAMP_MAX_WIDTH + 1];
 	time_t timestamp = static_cast<time_t>(txInfo.timestamp);
-	if (std::strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", std::gmtime(&timestamp)) == 0) {
-		throw std::runtime_error("time buffer is too small");
+
+	if (std::strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", gmtime(&timestamp)) == 0) {
+		 throw std::runtime_error("time buffer is too small");		
+	}
+
+	if (std::strcmp(timeString, badTime.c_str()) == 0) {
+		std::strcpy(timeString, deliv.c_str());
 	}
 
 	std::string rowColor = messages.size() < 0 ? MAGENTA : GREEN;
@@ -619,7 +626,7 @@ void printListMessagesItem(
 			validSender = "Anonymous";
 		}
 		else {
-			validSender = senders.at(i).substr(0, 16);
+			validSender = senders.at(i).substr(senders.at(i).size() - 16);
 		}
 
 		logger(INFO, rowColor)
@@ -2071,12 +2078,8 @@ bool simple_wallet::listTransfers(const std::vector<std::string>& args) {
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::listMessages(const std::vector<std::string>& args) {
   bool haveTransfers = false;
-  //static_cast<Crypto::SecretKey*>();
 
-  
   size_t txCount = m_wallet->getTransactionCount();
-  logger(INFO) << "Transaction Count: " << txCount;
-
   for (size_t txNr = 0; txNr < txCount; ++txNr) {
     WalletLegacyTransaction txInfo;
     m_wallet->getTransaction(txNr, txInfo);
@@ -2301,7 +2304,9 @@ bool simple_wallet::transfer(const std::vector<std::string> &args) {
     }
 
     std::string sender = m_wallet->getAddress();
-    
+
+	logger(INFO) << "Senderaddress: " << sender;
+
 
     CryptoNote::WalletHelper::SendCompleteResultObserver sent;
 
