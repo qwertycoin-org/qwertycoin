@@ -33,27 +33,29 @@ set(QwertycoinFramework_INCLUDE_DIRS ${QwertycoinFramework_INCLUDE_DIRS} PARENT_
 
 # QwertycoinFramework
 
-add_custom_target(QwertycoinFramework)
-add_dependencies(QwertycoinFramework
-    QwertycoinFramework::BlockchainExplorer
-    QwertycoinFramework::Common
-    QwertycoinFramework::Crypto
-    QwertycoinFramework::CryptoNoteCore
-    QwertycoinFramework::CryptoNoteProtocol
-    QwertycoinFramework::Http
-    QwertycoinFramework::InProcessNode
-    QwertycoinFramework::JsonRpcServer
-    QwertycoinFramework::Logging
-    QwertycoinFramework::Mnemonics
-    QwertycoinFramework::NodeRpcProxy
-    QwertycoinFramework::P2p
-    QwertycoinFramework::PaymentGate
-    QwertycoinFramework::Rpc
-    QwertycoinFramework::Serialization
-    QwertycoinFramework::System
-    QwertycoinFramework::Transfers
-    QwertycoinFramework::Wallet
+set(QwertycoinFramework_LIBS
+    QwertycoinFramework_BlockchainExplorer
+    QwertycoinFramework_Common
+    QwertycoinFramework_Crypto
+    QwertycoinFramework_CryptoNoteCore
+    QwertycoinFramework_CryptoNoteProtocol
+    QwertycoinFramework_Http
+    QwertycoinFramework_InProcessNode
+    QwertycoinFramework_JsonRpcServer
+    QwertycoinFramework_Logging
+    QwertycoinFramework_Mnemonics
+    QwertycoinFramework_NodeRpcProxy
+    QwertycoinFramework_P2p
+    QwertycoinFramework_PaymentGate
+    QwertycoinFramework_Rpc
+    QwertycoinFramework_Serialization
+    QwertycoinFramework_System
+    QwertycoinFramework_Transfers
+    QwertycoinFramework_Wallet
 )
+
+add_custom_target(QwertycoinFramework)
+add_dependencies(QwertycoinFramework ${QwertycoinFramework_LIBS})
 
 # QwertycoinFramework::BlockchainExplorer
 
@@ -765,6 +767,16 @@ target_include_directories(QwertycoinFramework_Wallet PRIVATE ${QwertycoinFramew
 target_link_libraries(QwertycoinFramework_Wallet PRIVATE ${QwertycoinFramework_Wallet_LIBS})
 
 # QwertycoinFramework::WalletLegacy # TODO: Merge this target into QwertycoinFramework::Wallet
+
+if(BUILD_WITH_COVERAGE AND (${CMAKE_BUILD_TYPE} MATCHES Debug))
+    message(STATUS "Included code-coverage settings.")
+    message(STATUS "NOTE: Code-coverage is enabled by default when CMAKE_BUILD_TYPE=Debug.")
+
+    # Enable code-coverage settings for each library
+    foreach(lib ${QwertycoinFramework_LIBS})
+        target_link_libraries(${lib} PUBLIC codecov)
+    endforeach()
+endif()
 
 install(TARGETS
             QwertycoinFramework_BlockchainExplorer
