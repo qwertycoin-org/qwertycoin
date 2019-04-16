@@ -20,13 +20,13 @@
 
 namespace Miner {
 
-enum class MinerEventType: uint8_t {
-  BLOCK_MINED,
-  BLOCKCHAIN_UPDATED,
+enum class MinerEventType : uint8_t {
+    BLOCK_MINED,
+    BLOCKCHAIN_UPDATED,
 };
 
 struct MinerEvent {
-  MinerEventType type;
+    MinerEventType type;
 };
 
-} //namespace Miner
+} // namespace Miner

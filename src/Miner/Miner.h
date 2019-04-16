@@ -33,36 +33,37 @@
 namespace CryptoNote {
 
 struct BlockMiningParameters {
-  Block blockTemplate;
-  difficulty_type difficulty;
+    Block blockTemplate;
+    difficulty_type difficulty;
 };
 
-class Miner {
+class Miner
+{
 public:
-  Miner(System::Dispatcher& dispatcher, Logging::ILogger& logger);
-  ~Miner();
+    Miner(System::Dispatcher &dispatcher, Logging::ILogger &logger);
+    ~Miner();
 
-  Block mine(const BlockMiningParameters& blockMiningParameters, size_t threadCount);
+    Block mine(const BlockMiningParameters &blockMiningParameters, size_t threadCount);
 
-  //NOTE! this is blocking method
-  void stop();
+    // NOTE! this is blocking method
+    void stop();
 
 private:
-  System::Dispatcher& m_dispatcher;
-  System::Event m_miningStopped;
+    System::Dispatcher &m_dispatcher;
+    System::Event m_miningStopped;
 
-  enum class MiningState : uint8_t { MINING_STOPPED, BLOCK_FOUND, MINING_IN_PROGRESS};
-  std::atomic<MiningState> m_state;
+    enum class MiningState : uint8_t { MINING_STOPPED, BLOCK_FOUND, MINING_IN_PROGRESS };
+    std::atomic<MiningState> m_state;
 
-  std::vector<std::unique_ptr<System::RemoteContext<void>>>  m_workers;
+    std::vector<std::unique_ptr<System::RemoteContext<void>>> m_workers;
 
-  Block m_block;
+    Block m_block;
 
-  Logging::LoggerRef m_logger;
+    Logging::LoggerRef m_logger;
 
-  void runWorkers(BlockMiningParameters blockMiningParameters, size_t threadCount);
-  void workerFunc(const Block& blockTemplate, difficulty_type difficulty, uint32_t nonceStep);
-  bool setStateBlockFound();
+    void runWorkers(BlockMiningParameters blockMiningParameters, size_t threadCount);
+    void workerFunc(const Block &blockTemplate, difficulty_type difficulty, uint32_t nonceStep);
+    bool setStateBlockFound();
 };
 
-} //namespace CryptoNote
+} // namespace CryptoNote

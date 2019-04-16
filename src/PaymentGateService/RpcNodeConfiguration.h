@@ -23,15 +23,16 @@
 
 namespace PaymentService {
 
-class RpcNodeConfiguration {
+class RpcNodeConfiguration
+{
 public:
-  RpcNodeConfiguration();
+    RpcNodeConfiguration();
 
-  static void initOptions(boost::program_options::options_description& desc);
-  void init(const boost::program_options::variables_map& options);
+    static void initOptions(boost::program_options::options_description &desc);
+    void init(const boost::program_options::variables_map &options);
 
-  std::string daemonHost;
-  uint16_t daemonPort;
+    std::string daemonHost;
+    uint16_t daemonPort;
 };
 
-} //namespace PaymentService
+} // namespace PaymentService

@@ -25,16 +25,17 @@
 
 namespace PaymentService {
 
-class ConfigurationManager {
+class ConfigurationManager
+{
 public:
-  ConfigurationManager();
-  bool init(int argc, char** argv);
+    ConfigurationManager();
+    bool init(int argc, char **argv);
 
-  bool startInprocess;
-  Configuration gateConfiguration;
-  CryptoNote::NetNodeConfig netNodeConfig;
-  CryptoNote::CoreConfig coreConfig;
-  RpcNodeConfiguration remoteNodeConfig;
+    bool startInprocess;
+    Configuration gateConfiguration;
+    CryptoNote::NetNodeConfig netNodeConfig;
+    CryptoNote::CoreConfig coreConfig;
+    RpcNodeConfiguration remoteNodeConfig;
 };
 
-} //namespace PaymentService
+} // namespace PaymentService
