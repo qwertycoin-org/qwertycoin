@@ -46,6 +46,7 @@
 #include "Common/ConsoleHandler.h"
 #include "CryptoNoteCore/CryptoNoteBasicImpl.h"
 #include "CryptoNoteCore/Currency.h"
+#include "CryptoNoteCore/TransactionExtra.h"
 #include "NodeRpcProxy/NodeRpcProxy.h"
 #include "WalletLegacy/WalletHelper.h"
 #include "WalletLegacy/WalletLegacy.h"
@@ -83,11 +84,11 @@ namespace CryptoNote
 
   private:
 
-    Logging::LoggerMessage success_msg_writer(bool color = false) {
+    Logging::LoggerMessage successMsgWriter(bool color = false) {
       return logger(Logging::INFO, color ? Logging::GREEN : Logging::DEFAULT);
     }
 
-    Logging::LoggerMessage fail_msg_writer() const {
+    Logging::LoggerMessage failMsgWriter() const {
       auto msg = logger(Logging::ERROR, Logging::BRIGHT_RED);
       msg << "Error: ";
       return msg;
@@ -119,7 +120,9 @@ namespace CryptoNote
     bool show_blockchain_height(const std::vector<std::string> &args);
 	bool show_unlocked_outputs_count(const std::vector<std::string> &args);
     bool listTransfers(const std::vector<std::string> &args);
+    bool listMessages(const std::vector<std::string> &args);
     bool transfer(const std::vector<std::string> &args);
+    bool sendMsg(const std::vector<std::string>& args);
     bool print_address(const std::vector<std::string> &args = std::vector<std::string>());
     bool save(const std::vector<std::string> &args);
     bool reset(const std::vector<std::string> &args);
