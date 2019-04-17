@@ -58,6 +58,12 @@ enum class WalletLegacyTransactionState : uint8_t {
   Failed     // --> {}
 };
 
+struct TransactionMessage {
+  std::string message;
+  std::string address;
+};
+
+
 struct WalletLegacyTransaction {
   TransferId       firstTransferId;
   size_t           transferCount;
@@ -72,6 +78,8 @@ struct WalletLegacyTransaction {
   uint64_t         timestamp;
   std::string      extra;
   WalletLegacyTransactionState state;
+  std::vector<std::string> messages;
+
 };
 
 using PaymentId = Crypto::Hash;
@@ -138,8 +146,8 @@ public:
   virtual void getAccountKeys(AccountKeys& keys) = 0;
   virtual bool getSeed(std::string& electrum_words) = 0;
 
-  virtual TransactionId sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
-  virtual TransactionId sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
+  virtual TransactionId sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0, const std::vector<TransactionMessage>& messages = std::vector<TransactionMessage>(), uint64_t ttl = 0, const std::string& sender = "") = 0;
+  virtual TransactionId sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0, const std::vector<TransactionMessage>& messages = std::vector<TransactionMessage>(), uint64_t ttl = 0, const std::string& sender = "") = 0;
   virtual TransactionId sendDustTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
   virtual TransactionId sendFusionTransaction(const std::list<TransactionOutputInformation>& fusionInputs, uint64_t fee, const std::string& extra = "", uint64_t mixIn = 0, uint64_t unlockTimestamp = 0) = 0;
   virtual std::error_code cancelTransaction(size_t transferId) = 0;
