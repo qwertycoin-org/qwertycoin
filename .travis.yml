@@ -2,24 +2,50 @@ language: cpp
 
 matrix:
     include:
-        - os: linux # android
+        - os: linux # Android, Debug
           dist: xenial
           sudo: required
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
               - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
-        - os: linux
+        - os: linux # Android, Release
           dist: xenial
           sudo: required
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Release"
+              - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
+              - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
+        - os: linux # Linux, Debug
+          dist: xenial
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
               - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
-        - os: osx
+        - os: linux # Linux, Release
+          dist: xenial
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Release"
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
+              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+        - os: osx # macOS, Debug
           osx_image: xcode10.1
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
+              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+        - os: osx # macOS, Release
+          osx_image: xcode10.1
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
               - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
 
@@ -38,6 +64,7 @@ addons:
         packages:
             - cmake
             - git
+            - lcov
 
 cache:
     directories:
@@ -55,16 +82,31 @@ before_install:
         fi
 
 script:
-    - mkdir ./build
-    - cd ./build
-    - cmake -G "$CMAKE_GENERATOR_NAME" -DCODE_COVERAGE=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME $CMAKE_ARGS ..
-    - cmake --build . --config Release
-    - cmake --build . --config Release --target package
+    - mkdir ./build && cd ./build
+    - >
+        cmake -G "$CMAKE_GENERATOR_NAME"
+        -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
+        $CMAKE_ARGS
+        ..
+    - cmake --build . --config $CMAKE_BUILD_TYPE
+    - |
+        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
+            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
+        else
+            ctest -R CryptoTests --output-on-errors # TODO: Enable all tests once fixed.
+        fi
+    - cpack -C $CMAKE_BUILD_TYPE
 
 after_success:
-    # Create lcov report
-    - lcov --capture --directory . --output-file coverage.info
-    - lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
-    - lcov --list coverage.info # debug info
-    # Uploading report to CodeCov
-    - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
+    - |
+        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
+            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
+        elif [ "$CMAKE_BUILD_TYPE" = "Release" ]; then
+            echo "Code-coverage is only available for debug builds. Skipping..."
+        else
+            lcov --capture --directory . --output-file coverage.info
+            lcov --remove coverage.info "/usr/*" "*Xcode.app*" "*/tests/*" --output-file coverage.info
+            lcov --list coverage.info
+            bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Upload to codecov.io FAILED"
+        fi

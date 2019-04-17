@@ -1,8 +1,7 @@
-enable_testing()
-
 set(QwertycoinTests_INCLUDE_DIRS
     ${QwertycoinFramework_INCLUDE_DIRS}
-    "${CMAKE_CURRENT_LIST_DIR}")
+    "${CMAKE_CURRENT_LIST_DIR}"
+)
 
 # QwertycoinTests
 
@@ -61,7 +60,7 @@ set(QwertycoinTests_CoreTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CoreTests/double_spend.inl"
 )
 
-set(QwertycoinTests_CoreTests_LIBS "")
+set(QwertycoinTests_CoreTests_LIBS codecov)
 
 add_executable(QwertycoinTests_CoreTests ${QwertycoinTests_CoreTests_SOURCES})
 add_executable(QwertycoinTests::CoreTests ALIAS QwertycoinTests_CoreTests)
@@ -70,10 +69,13 @@ target_link_libraries(QwertycoinTests_CoreTests PRIVATE ${QwertycoinTests_CoreTe
 set_target_properties(QwertycoinTests_CoreTests PROPERTIES
     OUTPUT_NAME "core_tests"
     EXCLUDE_FROM_ALL TRUE
-    EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+    EXCLUDE_FROM_DEFAULT_BUILD TRUE
+)
 
-add_test(NAME CoreTests
-         COMMAND core_tests --generate_and_play_test_data)
+add_test(
+    NAME CoreTests
+    COMMAND core_tests --generate_and_play_test_data
+)
 
 # QwertycoinTests::CryptoTests
 
@@ -87,7 +89,7 @@ set(QwertycoinTests_CryptoTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoTests/random.c"
 )
 
-set(QwertycoinTests_CryptoTests_LIBS "")
+set(QwertycoinTests_CryptoTests_LIBS codecov)
 
 add_executable(QwertycoinTests_CryptoTests ${QwertycoinTests_CryptoTests_SOURCES})
 add_executable(QwertycoinTests::CryptoTests ALIAS QwertycoinTests_CryptoTests)
@@ -95,8 +97,10 @@ target_include_directories(QwertycoinTests_CryptoTests PRIVATE ${QwertycoinTests
 target_link_libraries(QwertycoinTests_CryptoTests PRIVATE ${QwertycoinTests_CryptoTests_LIBS})
 set_target_properties(QwertycoinTests_CryptoTests PROPERTIES OUTPUT_NAME "crypto_tests")
 
-add_test(NAME CryptoTests
-         COMMAND crypto_tests ${CMAKE_CURRENT_LIST_DIR}/CryptoTests/tests.txt)
+add_test(
+    NAME CryptoTests
+    COMMAND crypto_tests ${CMAKE_CURRENT_LIST_DIR}/CryptoTests/tests.txt
+)
 
 # QwertycoinTests::Data (skipped, not a library or executable target)
 
@@ -107,6 +111,7 @@ set(QwertycoinTests_DifficultyTests_SOURCES
 )
 
 set(QwertycoinTests_DifficultyTests_LIBS
+    codecov
     QwertycoinFramework::Logging
     QwertycoinFramework::CryptoNoteCore
 )
@@ -117,8 +122,10 @@ target_include_directories(QwertycoinTests_DifficultyTests PRIVATE ${QwertycoinT
 target_link_libraries(QwertycoinTests_DifficultyTests PRIVATE ${QwertycoinTests_DifficultyTests_LIBS})
 set_target_properties(QwertycoinTests_DifficultyTests PROPERTIES OUTPUT_NAME "difficulty_tests")
 
-add_test(NAME DifficultyTests
-         COMMAND difficulty_tests ${CMAKE_CURRENT_LIST_DIR}/DifficultyTests/data.txt)
+add_test(
+    NAME DifficultyTests
+    COMMAND difficulty_tests ${CMAKE_CURRENT_LIST_DIR}/DifficultyTests/data.txt
+)
 
 # QwertycoinTests::HashTargetTests
 
@@ -127,6 +134,7 @@ set(QwertycoinTests_HashTargetTests_SOURCES
 )
 
 set(QwertycoinTests_HashTargetTests_LIBS
+    codecov
     QwertycoinFramework::CryptoNoteCore
 )
 
@@ -136,8 +144,10 @@ target_include_directories(QwertycoinTests_HashTargetTests PRIVATE ${QwertycoinT
 target_link_libraries(QwertycoinTests_HashTargetTests PRIVATE ${QwertycoinTests_HashTargetTests_LIBS})
 set_target_properties(QwertycoinTests_HashTargetTests PROPERTIES OUTPUT_NAME "hash_target_tests")
 
-add_test(NAME HashTargetTests
-         COMMAND hash_target_tests)
+add_test(
+    NAME HashTargetTests
+    COMMAND hash_target_tests
+)
 
 # QwertycoinTests::HashTests
 
@@ -146,6 +156,7 @@ set(QwertycoinTests_HashTests_SOURCES
 )
 
 set(QwertycoinTests_HashTests_LIBS
+    codecov
     QwertycoinFramework::Crypto
 )
 
@@ -156,8 +167,10 @@ target_link_libraries(QwertycoinTests_HashTests PRIVATE ${QwertycoinTests_HashTe
 set_target_properties(QwertycoinTests_HashTests PROPERTIES OUTPUT_NAME "hash_tests")
 
 foreach(hash IN ITEMS extra-blake extra-groestl extra-jh extra-skein fast slow tree)
-    add_test(NAME HashTests-${hash}
-             COMMAND hash_tests ${hash} ${CMAKE_CURRENT_LIST_DIR}/HashTests/tests-${hash}.txt)
+    add_test(
+        NAME HashTests-${hash}
+        COMMAND hash_tests ${hash} ${CMAKE_CURRENT_LIST_DIR}/HashTests/tests-${hash}.txt
+    )
 endforeach()
 
 # QwertycoinTests::IntegrationTestLib
@@ -185,6 +198,7 @@ set(QwertycoinTests_IntegrationTestLib_SOURCES
 )
 
 set(QwertycoinTests_IntegrationTestLib_LIBS
+    Boost::date_time
     QwertycoinFramework::InProcessNode
 )
 
@@ -207,6 +221,7 @@ set(QwertycoinTests_IntegrationTests_SOURCES
 
 set(QwertycoinTests_IntegrationTests_LIBS
     Boost::program_options
+    codecov
     GTest::main
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::CryptoNoteProtocol
@@ -232,6 +247,7 @@ set(QwertycoinTests_NodeRpcProxyTests_SOURCES
 )
 
 set(QwertycoinTests_NodeRpcProxyTests_LIBS
+    codecov
     QwertycoinFramework::Common
     QwertycoinFramework::Logging
     QwertycoinFramework::NodeRpcProxy
@@ -266,6 +282,7 @@ set(QwertycoinTests_PerformanceTests_SOURCES
 
 set(QwertycoinTests_PerformanceTests_LIBS
     Boost::chrono
+    codecov
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Logging
 )
@@ -298,6 +315,7 @@ set(QwertycoinTests_SystemTests_SOURCES
 )
 
 set(QwertycoinTests_SystemTests_LIBS
+    codecov
     GTest::main
     QwertycoinFramework::System
 )
@@ -308,8 +326,10 @@ target_include_directories(QwertycoinTests_SystemTests PRIVATE ${QwertycoinTests
 target_link_libraries(QwertycoinTests_SystemTests PRIVATE ${QwertycoinTests_SystemTests_LIBS})
 set_target_properties(QwertycoinTests_SystemTests PROPERTIES OUTPUT_NAME "system_tests")
 
-add_test(NAME SystemTests
-         COMMAND system_tests)
+add_test(
+    NAME SystemTests
+    COMMAND system_tests
+)
 
 # QwertycoinTests::TestGenerator
 
@@ -318,7 +338,7 @@ set(QwertycoinTests_TestGenerator_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/TestGenerator/TestGenerator.h"
 )
 
-set(QwertycoinTests_TestGenerator_LIBS "")
+set(QwertycoinTests_TestGenerator_LIBS codecov)
 
 add_library(QwertycoinTests_TestGenerator ${QwertycoinTests_TestGenerator_SOURCES})
 add_library(QwertycoinTests::TestGenerator ALIAS QwertycoinTests_TestGenerator)
@@ -337,6 +357,7 @@ set(QwertycoinTests_TransfersTests_SOURCES
 
 set(QwertycoinTests_TransfersTests_LIBS
     Boost::program_options
+    codecov
     GTest::main
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
@@ -356,8 +377,10 @@ target_include_directories(QwertycoinTests_TransfersTests PRIVATE ${QwertycoinTe
 target_link_libraries(QwertycoinTests_TransfersTests PRIVATE ${QwertycoinTests_TransfersTests_LIBS})
 set_target_properties(QwertycoinTests_TransfersTests PROPERTIES OUTPUT_NAME "transfers_tests")
 
-add_test(NAME TransfersTests
-         COMMAND transfers_tests)
+add_test(
+    NAME TransfersTests
+    COMMAND transfers_tests
+)
 
 # QwertycoinTests::UnitTests
 
@@ -420,6 +443,7 @@ set(QwertycoinTests_UnitTests_SOURCES
 )
 
 set(QwertycoinTests_UnitTests_LIBS
+    codecov
     GTest::main
 )
 
@@ -432,5 +456,7 @@ set_target_properties(QwertycoinTests_UnitTests PROPERTIES
     EXCLUDE_FROM_ALL TRUE
     EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 
-add_test(NAME UnitTests
-         COMMAND unit_tests)
+add_test(
+    NAME UnitTests
+    COMMAND unit_tests
+)
