@@ -224,7 +224,6 @@ namespace CryptoNote {
 
     PaymentIdIndex m_paymentIdIndex;
     TimestampTransactionsIndex m_timestampIndex;
-    std::unordered_map<Crypto::Hash, uint64_t> m_ttlIndex;
   };
 }
 

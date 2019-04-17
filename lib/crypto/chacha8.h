@@ -16,7 +16,6 @@ namespace Crypto {
   extern "C" {
 #endif
     void chacha8(const void* data, size_t length, const uint8_t* key, const uint8_t* iv, char* cipher);
-    void chacha(size_t doubleRounds, const void* data, size_t length, const uint8_t* key, const uint8_t* iv, char* cipher);
 #if defined(__cplusplus)
   }
 
