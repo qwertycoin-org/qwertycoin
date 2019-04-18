@@ -139,7 +139,7 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest& request, C
             { "stop_wallet"      , makeMemberMethod(&wallet_rpc_server::on_stop_wallet)       },
             { "reset"            , makeMemberMethod(&wallet_rpc_server::on_reset)             },
             { "get_payments"     , makeMemberMethod(&wallet_rpc_server::on_get_payments)      },
-			{ "get_messages"	 , makeMemberMethod(&wallet_rpc_server::on_get_messages)	  },
+			      { "get_messages"	   , makeMemberMethod(&wallet_rpc_server::on_get_messages)	    },
             { "get_transfers"    , makeMemberMethod(&wallet_rpc_server::on_get_transfers)     },
             { "get_transaction"  , makeMemberMethod(&wallet_rpc_server::on_get_transaction)   },
             { "get_height"       , makeMemberMethod(&wallet_rpc_server::on_get_height)        },
