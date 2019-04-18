@@ -84,11 +84,11 @@ namespace CryptoNote
 
   private:
 
-    Logging::LoggerMessage successMsgWriter(bool color = false) {
+    Logging::LoggerMessage success_msg_writer(bool color = false) {
       return logger(Logging::INFO, color ? Logging::GREEN : Logging::DEFAULT);
     }
 
-    Logging::LoggerMessage failMsgWriter() const {
+    Logging::LoggerMessage fail_msg_writer() const {
       auto msg = logger(Logging::ERROR, Logging::BRIGHT_RED);
       msg << "Error: ";
       return msg;
