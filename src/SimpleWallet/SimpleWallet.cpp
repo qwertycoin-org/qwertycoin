@@ -487,16 +487,7 @@ struct TransferCommand {
                       }
                   }
 
-                  auto value = ar.next();
-                  bool ok = m_currency.parseAmount(value, de.amount);
-
-                  if (!ok || 0 == de.amount) {
-#if defined(WIN32)
-#undef max
-#undef min
-#endif
-                      de.amount = 1;
-                  }
+                  de.amount = 1000000;
 
 #ifndef __ANDROID__
 
@@ -2581,12 +2572,6 @@ bool simple_wallet::sendMsg(const std::vector<std::string> &args)
                                  << Common::podToHex(txInfo.hash)
                                  << ", key: " << Common::podToHex(txInfo.secretKey);
 
-        try {
-            CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
-        } catch (const std::exception &e) {
-            fail_msg_writer() << e.what();
-            return true;
-        }
     } catch (const std::system_error &e) {
         fail_msg_writer() << e.what();
     } catch (const std::exception &e) {
