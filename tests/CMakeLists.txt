@@ -7,7 +7,7 @@ set(QwertycoinTests_INCLUDE_DIRS
 
 add_custom_target(QwertycoinTests)
 add_dependencies(QwertycoinTests
-    #QwertycoinTests::CoreTests
+    QwertycoinTests::CoreTests
     QwertycoinTests::CryptoTests
     QwertycoinTests::DifficultyTests
     QwertycoinTests::HashTargetTests
@@ -60,17 +60,25 @@ set(QwertycoinTests_CoreTests_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CoreTests/double_spend.inl"
 )
 
-set(QwertycoinTests_CoreTests_LIBS codecov)
+set(QwertycoinTests_CoreTests_LIBS
+    Boost::date_time
+    Boost::program_options
+    Boost::serialization
+    codecov
+    QwertycoinFramework::Common
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::InProcessNode
+    QwertycoinFramework::Logging
+    QwertycoinFramework::Serialization
+    QwertycoinFramework::System
+    QwertycoinTests::TestGenerator
+)
 
 add_executable(QwertycoinTests_CoreTests ${QwertycoinTests_CoreTests_SOURCES})
 add_executable(QwertycoinTests::CoreTests ALIAS QwertycoinTests_CoreTests)
 target_include_directories(QwertycoinTests_CoreTests PRIVATE ${QwertycoinTests_INCLUDE_DIRS})
 target_link_libraries(QwertycoinTests_CoreTests PRIVATE ${QwertycoinTests_CoreTests_LIBS})
-set_target_properties(QwertycoinTests_CoreTests PROPERTIES
-    OUTPUT_NAME "core_tests"
-    EXCLUDE_FROM_ALL TRUE
-    EXCLUDE_FROM_DEFAULT_BUILD TRUE
-)
+set_target_properties(QwertycoinTests_CoreTests PROPERTIES OUTPUT_NAME "core_tests")
 
 add_test(
     NAME CoreTests
