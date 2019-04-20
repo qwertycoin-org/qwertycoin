@@ -11,14 +11,14 @@
 
 # Table of contents
 1. [Project Specs](#coinspecs)
-2. [Downloads](#downloads)
-3. [Useful Links](#usefullinks)
-4. [How to Compile Qwertycoin](#howtocompile)
+2. [How to Compile Qwertycoin](#howtocompile)
     1. [Qwertycoin for Linux](#build-linux)
     2. [Qwertycoin for Windows](#build-windows)
-    3. [Qwertycoin for Apple](#build-apple)
+    3. [Qwertycoin for MacOS](#build-apple)
     4. [Qwertycoin for Android](#build-android)
     5. [Qwertycoin for FreeBSD](#build-freebsd)
+3. [Downloads](#downloads)
+4. [Useful Links](#usefullinks)
 5. [Donate & Thanks](#donate)
 
 ## Installing <a name="installing"></a>
@@ -37,36 +37,6 @@ If you would like to compile yourself, read on.
 <tr><td>Block Reward</td><td>Decrease by each block</td></tr>
 <tr><td>Max Coin Supply </td><td>184,467,440,737 QWC</td></tr>
 <tr><td>P2P | RPC Port</td><td>8196 | 8197</td></tr>
-</table>
-
-### Downloads <a name="downloads"></a>
-| Operating System | Download                                 |
-| ---------------- | ---------------------------------------- |
-| Windows 32       | https://releases.qwertycoin.org/get/cli/latest/win32 |
-| Windows 64       | https://releases.qwertycoin.org/get/cli/latest/win64 |
-| Mac 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
-| Linux 32         | https://releases.qwertycoin.org/get/cli/latest/linux32 |
-| Linux 64         | https://releases.qwertycoin.org/get/cli/latest/linux64 |
-| OpenBSD 64       | https://releases.qwertycoin.org/get/cli/latest/openbsd64 |
-| FreeBSD 64       | https://releases.qwertycoin.org/get/cli/latest/freebsd64 |
-| Linux ARM 64     | https://releases.qwertycoin.org/get/cli/latest/arm64 |
-| More Builds      | https://releases.qwertycoin.org |
-
-### Useful Links <a name="usefullinks"></a>
-<table>
-<tr><td>Website</td><td>https://qwertycoin.org</td></tr>
-<tr><td>Bitcointalk ANN</td><td>https://bitcointalk.org/index.php?topic=2881418.0</td></tr>
-<tr><td>Explorer</td><td>https://explorer.qwertycoin.org</td></tr>
-<tr><td>Pool Explorer</td><td>https://explorer.qwertycoin.org/#network</td></tr>
-<tr><td>Node Map</td><td>https://nodes.qwertycoin.org</td></tr>
-<tr><td>Wallets</td><td>https://releases.qwertycoin.org</td></tr>
-<tr><td>Web Wallet</td><td>https://myqwertycoin.com</td></tr>
-<tr><td>Masternode Setup</td><td>https://github.com/qwertycoin-org/qwertycoin/wiki</td></tr>
-<tr><td>Blockfolio</td><td>https://blockfolio.com/#get-app</td></tr>
-<tr><td>CoinGecko</td><td>https://www.coingecko.com/en/coins/qwertycoin</td></tr>
-<tr><td>Delta</td><td>https://delta.app</td></tr>
-<tr><td>Discord</td><td>https://qwertycoin.org/discord</td></tr>
-<tr><td>Twitter</td><td>https://twitter.com/Qwertycoin_QWC</td></tr>
 </table>
 
 More information at [qwertycoin.org](https://qwertycoin.org/)
@@ -221,6 +191,48 @@ XMR: 47gmN4GMQ17Veur5YEpru7eCQc5A65DaWUThZa9z9bP6jNMYXPKAyjDcAW4RzNYbRChEwnKu1H3
 ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQp31GbG3M2DiVM3qRDSQ5Vwq
 ```
 
+### Downloads <a name="downloads"></a>
+| Operating System | Download                                 |
+| ---------------- | ---------------------------------------- |
+| Windows 32       | https://releases.qwertycoin.org/get/cli/latest/win32 |
+| Windows 64       | https://releases.qwertycoin.org/get/cli/latest/win64 |
+| Mac 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
+| Linux 32         | https://releases.qwertycoin.org/get/cli/latest/linux32 |
+| Linux 64         | https://releases.qwertycoin.org/get/cli/latest/linux64 |
+| OpenBSD 64       | https://releases.qwertycoin.org/get/cli/latest/openbsd64 |
+| FreeBSD 64       | https://releases.qwertycoin.org/get/cli/latest/freebsd64 |
+| Linux ARM 64     | https://releases.qwertycoin.org/get/cli/latest/arm64 |
+| More Builds      | https://releases.qwertycoin.org |
+
+### Useful Links <a name="usefullinks"></a>
+<table>
+<tr><td>Website</td><td>https://qwertycoin.org</td></tr>
+<tr><td>Bitcointalk ANN</td><td>https://bitcointalk.org/index.php?topic=2881418.0</td></tr>
+<tr><td>Explorer</td><td>https://explorer.qwertycoin.org</td></tr>
+<tr><td>Pool Explorer</td><td>https://explorer.qwertycoin.org/#network</td></tr>
+<tr><td>Node Map</td><td>https://nodes.qwertycoin.org</td></tr>
+<tr><td>Wallets</td><td>https://releases.qwertycoin.org</td></tr>
+<tr><td>Web Wallet</td><td>https://myqwertycoin.com</td></tr>
+<tr><td>Masternode Setup</td><td>https://github.com/qwertycoin-org/qwertycoin/wiki</td></tr>
+<tr><td>Blockfolio</td><td>https://blockfolio.com/#get-app</td></tr>
+<tr><td>CoinGecko</td><td>https://www.coingecko.com/en/coins/qwertycoin</td></tr>
+<tr><td>Delta</td><td>https://delta.app</td></tr>
+<tr><td>Discord</td><td>https://qwertycoin.org/discord</td></tr>
+<tr><td>Twitter</td><td>https://twitter.com/Qwertycoin_QWC</td></tr>
+</table>
+
 #### Thanks <a name="thanks"></a>
 
 Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Developers, Qwertycoin Community
+
+### Copypasta for license when editing files
+
+Hi Qwertycoin contributor, thanks for forking and sending back Pull Requests. Extensive docs about contributing are in the works or elsewhere. For now this is the bit we need to get into all the files we touch. Please add it to the top of the files, see [lib/CryptoNoteConfig.h](https://github.com/qwertycoin-org/qwertycoin/blob/master/lib/CryptoNoteConfig.h) for an example.
+
+```
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2018-2019, The Qwertycoin Developers
+//
+// Please see the included LICENSE file for more information.
+```
