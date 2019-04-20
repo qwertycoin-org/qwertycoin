@@ -53,8 +53,20 @@ public:
 
     Crypto::SecretKey key = this->m_miners[this->real_source_idx].getAccountKeys().spendSecretKey;
 
-    if (!constructTransaction(this->m_miners[this->real_source_idx].getAccountKeys(), this->m_sources, destinations, std::vector<uint8_t>(), m_tx, 0, key, this->m_logger))
-      return false;
+    if (!constructTransaction(
+      this->m_miners[this->real_source_idx].getAccountKeys(), 
+      this->m_sources, 
+      destinations, 
+      std::vector<tx_message_entry>(),
+      "", 
+      0, 
+      std::vector<uint8_t>(), 
+      m_tx, 
+      0, 
+      key, 
+      this->m_logger)) {
+        return false;
+    }
 
     getObjectHash(*static_cast<TransactionPrefix*>(&m_tx), m_tx_prefix_hash);
 

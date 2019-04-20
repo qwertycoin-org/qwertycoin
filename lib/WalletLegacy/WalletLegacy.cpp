@@ -679,15 +679,28 @@ std::list<TransactionOutputInformation> WalletLegacy::selectFusionTransfersToSen
   return selectedOutputs;
 }
 
-TransactionId WalletLegacy::sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp) {
+TransactionId WalletLegacy::sendTransaction(const WalletLegacyTransfer& transfer, uint64_t fee, const std::string& extra, uint64_t mixIn, 
+                                            uint64_t unlockTimestamp, 
+                                            const std::vector<TransactionMessage>& messages,
+                                            uint64_t ttl,
+                                            const std::string& sender) {
   std::vector<WalletLegacyTransfer> transfers;
   transfers.push_back(transfer);
   throwIfNotInitialised();
 
-  return sendTransaction(transfers, fee, extra, mixIn, unlockTimestamp);
+  return sendTransaction(transfers, fee, extra, mixIn, unlockTimestamp, messages, ttl, sender);
 }
 
-TransactionId WalletLegacy::sendTransaction(const std::vector<WalletLegacyTransfer>& transfers, uint64_t fee, const std::string& extra, uint64_t mixIn, uint64_t unlockTimestamp) {
+TransactionId WalletLegacy::sendTransaction(
+  const std::vector<WalletLegacyTransfer>& transfers, 
+  uint64_t fee, 
+  const std::string& extra, 
+  uint64_t mixIn, 
+  uint64_t unlockTimestamp, 
+  const std::vector<TransactionMessage>& messages,
+  uint64_t ttl,
+  const std::string& sender
+  ) {
   TransactionId txId = 0;
   std::shared_ptr<WalletRequest> request;
   std::deque<std::shared_ptr<WalletLegacyEvent>> events;
@@ -695,7 +708,7 @@ TransactionId WalletLegacy::sendTransaction(const std::vector<WalletLegacyTransf
 
   {
     std::unique_lock<std::mutex> lock(m_cacheMutex);
-    request = m_sender->makeSendRequest(txId, events, transfers, fee, extra, mixIn, unlockTimestamp);
+    request = m_sender->makeSendRequest(txId, events, transfers, fee, extra, mixIn, unlockTimestamp, messages, ttl, sender);
   }
 
   notifyClients(events);
