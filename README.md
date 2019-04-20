@@ -10,13 +10,16 @@
 
 
 # Table of contents
-1. [Coin Specs & Useful Links](#coinspecs)
-2. [How to Compile Qwertycoin](#howtocompile)
+1. [Project Specs](#coinspecs)
+2. [Downloads](#downloads)
+3. [Useful Links](#usefullinks)
+4. [How to Compile Qwertycoin](#howtocompile)
     1. [Qwertycoin for Linux](#build-linux)
     2. [Qwertycoin for Windows](#build-windows)
     3. [Qwertycoin for Apple](#build-apple)
     4. [Qwertycoin for Android](#build-android)
-3. [Donate & Thanks](#donate)
+    5. [Qwertycoin for FreeBSD](#build-freebsd)
+5. [Donate & Thanks](#donate)
 
 ## Installing <a name="installing"></a>
 We offer binary images of the latest releases here: https://releases.qwertycoin.org
@@ -35,6 +38,19 @@ If you would like to compile yourself, read on.
 <tr><td>Max Coin Supply </td><td>184,467,440,737 QWC</td></tr>
 <tr><td>P2P | RPC Port</td><td>8196 | 8197</td></tr>
 </table>
+
+### Downloads <a name="downloads"></a>
+| Operating System | Download                                 |
+| ---------------- | ---------------------------------------- |
+| Windows 32       | https://releases.qwertycoin.org/get/cli/latest/win32 |
+| Windows 64       | https://releases.qwertycoin.org/get/cli/latest/win64 |
+| Mac 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
+| Linux 32         | https://releases.qwertycoin.org/get/cli/latest/linux32 |
+| Linux 64         | https://releases.qwertycoin.org/get/cli/latest/linux64 |
+| OpenBSD 64       | https://releases.qwertycoin.org/get/cli/latest/openbsd64 |
+| FreeBSD 64       | https://releases.qwertycoin.org/get/cli/latest/freebsd64 |
+| Linux ARM 64     | https://releases.qwertycoin.org/get/cli/latest/arm64 |
+| More Builds      | https://releases.qwertycoin.org |
 
 ### Useful Links <a name="usefullinks"></a>
 <table>
@@ -150,6 +166,29 @@ cd ./qwertycoin
 mkdir ./build
 cd ./build
 cmake -DCMAKE_TOOLCHAIN_FILE=cmake/polly/android-ndk-r18b-api-21-x86-clang-libcxx.cmake -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE -DSTATIC=ON -DBUILD_64=OFF -DANDROID=true -DBUILD_TAG="android" ..
+cmake --build . --config Release
+```
+- If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
+
+#### FreeBSD  <a name="build-freebsd"></a>
+
+##### Prerequisites
+
+- You will need the following packages: cmake (3.10 or higher) and git;
+- Most of these should already be installed on your system. For example on FreeBSD by running:
+```
+sudo pkg install cmake git
+```
+
+##### Building
+
+- After installing dependencies run simple script:
+```
+git clone --recurse-submodules https://github.com/qwertycoin-org/qwertycoin
+cd ./qwertycoin
+mkdir ./build
+cd ./build
+cmake -DBUILD_ALL:BOOL=TRUE ..
 cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.

@@ -77,7 +77,7 @@ set(PROJECT_VENDOR_NAME "The Qwertycoin Group")
 set(PROJECT_VENDOR_URL "https://qwertycoin.org")
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION} LANGUAGES C CXX)
 
-if(APPLE)
+if(APPLE OR FREEBSD)
     # Compile src/Platform/OSX/System/asm.s file.
     enable_language(ASM)
 endif()
