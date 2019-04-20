@@ -86,7 +86,7 @@ namespace Crypto {
   void crypto_ops::generate_deterministic_keys(PublicKey &pub, SecretKey &sec, SecretKey& second) {
     lock_guard<mutex> lock(random_lock);
     ge_p3 point;
-    sec = second;
+	  sec = second;
     sc_reduce32(reinterpret_cast<unsigned char*>(&sec)); // reduce in case second round of keys (sendkeys)
     ge_scalarmult_base(&point, reinterpret_cast<unsigned char*>(&sec));
     ge_p3_tobytes(reinterpret_cast<unsigned char*>(&pub), &point);
@@ -96,10 +96,12 @@ namespace Crypto {
     lock_guard<mutex> lock(random_lock);
     ge_p3 point;
     SecretKey rng;
-    if (recover) {
+    if (recover)
+    {
       rng = recovery_key;
     }
-    else {
+    else
+    {
       random_scalar(reinterpret_cast<EllipticCurveScalar&>(rng));
     }
     sec = rng;
@@ -166,7 +168,7 @@ namespace Crypto {
     size_t bufSize = end - reinterpret_cast<char *>(&buf);
     memcpy(end, suffix, suffixLength);
     hash_to_scalar(&buf, bufSize + suffixLength, res);
-    }
+  }
 
   bool crypto_ops::derive_public_key(const KeyDerivation &derivation, size_t output_index,
     const PublicKey &base, PublicKey &derived_key) {

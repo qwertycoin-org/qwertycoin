@@ -160,6 +160,14 @@ const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //
 
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4734950f414cdb332b28c5ce764beaf";
 
+/*
+*   Modules
+*/
+
+// P2P Messages
+const bool     P2P_MESSAGES                                  =  true;
+const uint16_t P2P_MESSAGES_CHAR_COUNT                       =  160;
+
 const char* const SEED_NODES[] = {
   "node-00.qwertycoin.org:8196",
   "node-01.qwertycoin.org:8196",
