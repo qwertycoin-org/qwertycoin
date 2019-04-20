@@ -24,6 +24,9 @@ elseif(APPLE)
 elseif(ANDROID)
     list(APPEND QwertycoinFramework_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Android")
     list(APPEND QwertycoinFramework_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix")
+elseif(FREEBSD)
+    list(APPEND QwertycoinFramework_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD")
+    list(APPEND QwertycoinFramework_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix")
 else()
     list(APPEND QwertycoinFramework_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Linux")
     list(APPEND QwertycoinFramework_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix")
@@ -646,6 +649,27 @@ elseif(ANDROID)
         "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/TcpListener.h"
         "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Timer.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/Platform/Android/System/Timer.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.h"
+    )
+elseif(FREEBSD)
+    list(APPEND QwertycoinFramework_System_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Context.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Dispatcher.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Dispatcher.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/ErrorMessage.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/ErrorMessage.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Future.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Ipv4Resolver.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Ipv4Resolver.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/TcpConnection.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/TcpConnection.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/TcpConnector.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/TcpConnector.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/TcpListener.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/TcpListener.h"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Timer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Platform/FreeBSD/System/Timer.h"
         "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/Platform/Posix/System/MemoryMappedFile.h"
     )
