@@ -239,6 +239,10 @@ namespace CryptoNote {
       }
       m_paymentIdIndex.add(tx);
       m_timestampIndex.add(txd.receiveTime, txd.id);
+
+      if (ttl.ttl != 0) {
+        m_ttlIndex.emplace(std::make_pair(id, ttl.ttl));
+      }
     }
 
     tvc.m_added_to_pool = true;

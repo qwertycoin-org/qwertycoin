@@ -264,7 +264,7 @@ struct TransferCommand {
         return false;
       }
 
-	  if (fake_outs_count < m_currency.minMixin() && fake_outs_count != 0) {
+	    if (fake_outs_count < m_currency.minMixin() && fake_outs_count != 0) {
           logger(ERROR, BRIGHT_RED) << "mixIn should be equal to or bigger than " << m_currency.minMixin();
           return false;
       }
@@ -302,24 +302,7 @@ struct TransferCommand {
                 << (m_node.getLastLocalBlockHeaderInfo().majorVersion < CryptoNote::BLOCK_MAJOR_VERSION_4 ? m_currency.minimumFee() : m_node.getMinimalFee());
               return false;
             }
-          } else if (arg == "-m") {
-            messages.emplace_back(value);
-          } else if (arg == "-ttl") {
-            ttlFound = true;
-
-            if (feeFound) {
-              logger(ERROR, BRIGHT_RED) << "Transaction with fee can not have TTL";
-              return false;
-            } else {
-              fee = 0;
-            }
-
-            if (!Common::fromString(value, ttl) || ttl < 1 || ttl * 60 > m_currency.mempoolTxLiveTime()) {
-              logger(ERROR, BRIGHT_RED) << "TTL has invalid format: \"" << value << "\", " <<
-                "enter time from 1 to " << (m_currency.mempoolTxLiveTime() / 60) << " minutes";
-              return false;
-            }
-          }
+          } 
         } else {
           WalletLegacyTransfer destination;
           CryptoNote::TransactionDestinationEntry de;
@@ -746,7 +729,8 @@ void printListMessagesItem(LoggerRef &logger, const WalletLegacyTransaction &txI
                            std::vector<std::string> messages, std::vector<std::string> senders)
 {
     std::vector<uint8_t> extraVec = Common::asBinaryArray(txInfo.extra);
-    std::string deliv = "In delivery";
+    std::string deliv   = "In delivery";
+    std::string ttl     = "Self destructing";
     std::string badTime = "1970-01-01 00:00:00";
 
     char timeString[TIMESTAMP_MAX_WIDTH + 1];
@@ -759,6 +743,8 @@ void printListMessagesItem(LoggerRef &logger, const WalletLegacyTransaction &txI
 
     if (std::strcmp(timeString, badTime.c_str()) == 0) {
         std::strcpy(timeString, deliv.c_str());
+    } else if(txInfo.fee == 0) {
+        std::strcpy(timeString, ttl.c_str());
     }
 
     std::string rowColor = messages.size() < 0 ? MAGENTA : GREEN;
@@ -2203,10 +2189,9 @@ bool simple_wallet::listTransfers(const std::vector<std::string>& args) {
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::listMessages(const std::vector<std::string> &args)
-{
+bool simple_wallet::listMessages(const std::vector<std::string> &args) {
     bool haveTransfers = false;
-
+    
     size_t txCount = m_wallet->getTransactionCount();
     for (size_t txNr = 0; txNr < txCount; ++txNr) {
         WalletLegacyTransaction txInfo;
@@ -2530,7 +2515,14 @@ bool simple_wallet::sendMsg(const std::vector<std::string> &args)
         std::vector<TransactionMessage> messages;
         for (auto dst : cmd.dsts) {
             for (auto msg : cmd.messages) {
-                messages.emplace_back(TransactionMessage { msg, dst.address });
+                if (msg.length() > P2P_MESSAGES_CHAR_COUNT) {
+                    logger(INFO) << "Your message is larger than " << P2P_MESSAGES_CHAR_COUNT
+                                 << ". We resize now.";
+                    messages.emplace_back(TransactionMessage {
+                            msg.substr(0, P2P_MESSAGES_CHAR_COUNT), dst.address });
+                } else {
+                    messages.emplace_back(TransactionMessage { msg, dst.address });
+                }
             }
         }
 
