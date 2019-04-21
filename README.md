@@ -14,7 +14,7 @@
 2. [How to Compile Qwertycoin](#howtocompile)
     1. [Qwertycoin for Linux](#build-linux)
     2. [Qwertycoin for Windows](#build-windows)
-    3. [Qwertycoin for MacOS](#build-apple)
+    3. [Qwertycoin for macOS](#build-apple)
     4. [Qwertycoin for Android](#build-android)
     5. [Qwertycoin for FreeBSD](#build-freebsd)
 3. [Downloads](#downloads)
@@ -90,7 +90,7 @@ cmake --build . --config Release
 - If all went well, it will complete successfully, and you will find all your binaries in the `.\build\src\Release` directory;
 - Additionally, a `.sln` file will have been created in the `build` directory. If you wish to open the project in Visual Studio with this, you can.
 
-#### Apple <a name="build-apple"></a>
+#### Apple macOS <a name="build-apple"></a>
 
 ##### Prerequisites
 
@@ -197,13 +197,13 @@ ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQ
 | ---------------- | ---------------------------------------- |
 | Windows 32       | https://releases.qwertycoin.org/get/cli/latest/win32 |
 | Windows 64       | https://releases.qwertycoin.org/get/cli/latest/win64 |
-| Mac 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
+| macOS 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
 | Linux 32         | https://releases.qwertycoin.org/get/cli/latest/linux32 |
 | Linux 64         | https://releases.qwertycoin.org/get/cli/latest/linux64 |
 | OpenBSD 64       | https://releases.qwertycoin.org/get/cli/latest/openbsd64 |
 | FreeBSD 64       | https://releases.qwertycoin.org/get/cli/latest/freebsd64 |
 | Linux ARM 64     | https://releases.qwertycoin.org/get/cli/latest/arm64 |
-| More Builds      | https://releases.qwertycoin.org |
+| Other platforms      | https://releases.qwertycoin.org |
 
 ### Useful Links <a name="usefullinks"></a>
 <table>
