@@ -417,10 +417,16 @@ set(QwertycoinFramework_NodeRpcProxy_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxy/NodeRpcProxy.h"
 )
 
+set(QwertycoinFramework_NodeRpcProxy_LIBS
+    QwertycoinFramework::Http
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::System
+)
+
 add_library(QwertycoinFramework_NodeRpcProxy STATIC ${QwertycoinFramework_NodeRpcProxy_SOURCES})
 add_library(QwertycoinFramework::NodeRpcProxy ALIAS QwertycoinFramework_NodeRpcProxy)
 target_include_directories(QwertycoinFramework_NodeRpcProxy PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
-target_link_libraries(QwertycoinFramework_NodeRpcProxy PRIVATE QwertycoinFramework::System)
+target_link_libraries(QwertycoinFramework_NodeRpcProxy PRIVATE ${QwertycoinFramework_NodeRpcProxy_LIBS})
 
 # QwertycoinFramework::P2p
 
