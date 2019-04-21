@@ -17,7 +17,7 @@ add_dependencies(QwertycoinTests
     QwertycoinTests::PerformanceTests
     QwertycoinTests::SystemTests
     QwertycoinTests::TransfersTests
-    #QwertycoinTests::UnitTests
+    QwertycoinTests::UnitTests
 )
 
 # QwertycoinTests::CoreTests
@@ -453,16 +453,21 @@ set(QwertycoinTests_UnitTests_SOURCES
 set(QwertycoinTests_UnitTests_LIBS
     codecov
     GTest::main
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::CryptoNoteProtocol
+    QwertycoinFramework::Http
+    QwertycoinFramework::InProcessNode
+    QwertycoinFramework::Logging
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::Wallet
+    QwertycoinTests::TestGenerator
 )
 
 add_executable(QwertycoinTests_UnitTests ${QwertycoinTests_UnitTests_SOURCES})
 add_executable(QwertycoinTests::UnitTests ALIAS QwertycoinTests_UnitTests)
 target_include_directories(QwertycoinTests_UnitTests PRIVATE ${QwertycoinTests_INCLUDE_DIRS})
 target_link_libraries(QwertycoinTests_UnitTests PRIVATE ${QwertycoinTests_UnitTests_LIBS})
-set_target_properties(QwertycoinTests_UnitTests PROPERTIES
-    OUTPUT_NAME "unit_tests"
-    EXCLUDE_FROM_ALL TRUE
-    EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+set_target_properties(QwertycoinTests_UnitTests PROPERTIES OUTPUT_NAME "unit_tests")
 
 add_test(
     NAME UnitTests

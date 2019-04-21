@@ -84,7 +84,7 @@ CryptoNote::i_cryptonote_protocol* ICoreStub::get_protocol() {
   return nullptr;
 }
 
-bool ICoreStub::handle_incoming_tx(CryptoNote::BinaryArray const& tx_blob, CryptoNote::tx_verification_context& tvc, bool keeped_by_block) {
+bool ICoreStub::handle_incoming_tx(CryptoNote::BinaryArray const& tx_blob, CryptoNote::tx_verification_context& tvc, bool keeped_by_block, bool loose_check) {
   return true;
 }
 
@@ -159,6 +159,12 @@ bool ICoreStub::queryBlocksLite(const std::vector<Crypto::Hash>& block_ids, uint
   uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<CryptoNote::BlockShortInfo>& entries) {
   //stub
   return true;
+}
+
+bool ICoreStub::queryBlocksDetailed(const std::vector<Crypto::Hash> &knownBlockHashes, uint64_t timestamp,
+  uint32_t &startIndex, uint32_t &currentIndex, uint32_t &fullOffset, std::vector<CryptoNote::BlockFullInfo> &entries) {
+  //stub
+  return false;
 }
 
 std::vector<Crypto::Hash> ICoreStub::buildSparseChain() {
@@ -272,6 +278,10 @@ bool ICoreStub::getBlockDifficulty(uint32_t height, CryptoNote::difficulty_type&
   return true;
 }
 
+bool ICoreStub::getBlockCumulativeDifficulty(uint32_t height, CryptoNote::difficulty_type& difficulty) {
+  return true;
+}
+
 bool ICoreStub::getBlockContainingTx(const Crypto::Hash& txId, Crypto::Hash& blockId, uint32_t& blockHeight) {
   auto iter = blockHashByTxHashIndex.find(txId);
   if (iter == blockHashByTxHashIndex.end()) {
@@ -333,6 +343,10 @@ bool ICoreStub::getTransactionsByPaymentId(const Crypto::Hash& paymentId, std::v
   return true;
 }
 
+std::vector<Crypto::Hash> ICoreStub::getTransactionHashesByPaymentId(const Crypto::Hash& paymentId) {
+    return std::vector<Crypto::Hash>();
+}
+
 std::error_code ICoreStub::executeLocked(const std::function<std::error_code()>& func) {
   return func();
 }
@@ -341,7 +355,7 @@ std::unique_ptr<CryptoNote::IBlock> ICoreStub::getBlock(const Crypto::Hash& bloc
   return std::unique_ptr<CryptoNote::IBlock>(nullptr);
 }
 
-bool ICoreStub::handleIncomingTransaction(const CryptoNote::Transaction& tx, const Crypto::Hash& txHash, size_t blobSize, CryptoNote::tx_verification_context& tvc, bool keptByBlock, uint32_t height) {
+bool ICoreStub::handleIncomingTransaction(const CryptoNote::Transaction& tx, const Crypto::Hash& txHash, size_t blobSize, CryptoNote::tx_verification_context& tvc, bool keptByBlock, uint32_t height, bool loose_check) {
   auto result = transactionPool.emplace(std::make_pair(txHash, tx));
   tvc.m_verification_failed = !poolTxVerificationResult;
   tvc.m_added_to_pool = true;
@@ -375,9 +389,14 @@ uint64_t ICoreStub::getMinimalFeeForHeight(uint32_t height) {
 uint64_t ICoreStub::getMinimalFee() {
 	return 10000000000ULL;
 };
+uint32_t ICoreStub::get_current_blockchain_height() {
+    return (uint32_t)4;
+};
 uint8_t ICoreStub::getBlockMajorVersionForHeight(uint32_t height) {
 	return (uint8_t)4;
 };
 uint8_t ICoreStub::getCurrentBlockMajorVersion() {
 	return (uint8_t)4;
 };
+void ICoreStub::rollbackBlockchain(const uint32_t height) {
+}

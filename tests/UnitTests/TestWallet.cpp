@@ -487,7 +487,10 @@ size_t WalletApi::sendMoneyToRandomAddressFrom(const std::string& address, uint6
   params.destinations = {order};
   params.fee = fee;
   params.changeDestination = changeDestination;
-  return alice.transfer(params);
+
+  auto secretKey = Crypto::SecretKey();
+
+  return alice.transfer(params, secretKey);
 }
 
 size_t WalletApi::sendMoneyToRandomAddressFrom(const std::string& address, const std::string& changeDestination) {
@@ -527,7 +530,9 @@ size_t WalletApi::sendMoney(CryptoNote::WalletGreen& wallet, const std::vector<s
   params.unlockTimestamp = unlockTimestamp;
   params.changeDestination = wallet.getAddress(0);
 
-  return wallet.transfer(params);
+  auto secretKey = Crypto::SecretKey();
+
+  return wallet.transfer(params, secretKey);
 }
 
 size_t WalletApi::sendMoney(CryptoNote::WalletGreen& wallet, const std::string& to, uint64_t amount, uint64_t fee, uint64_t mixIn, const std::string& extra, uint64_t unlockTimestamp) {
@@ -550,7 +555,9 @@ size_t WalletApi::sendMoneyWithDonation(const std::string& to, uint64_t amount, 
   params.extra = extra;
   params.unlockTimestamp = unlockTimestamp;
 
-  return alice.transfer(params);
+  auto secretKey = Crypto::SecretKey();
+
+  return alice.transfer(params, secretKey);
 }
 
 size_t WalletApi::makeTransaction(
@@ -921,7 +928,9 @@ TEST_F(WalletApi, transferTooBigTransaction) {
 
   params.fee = FEE;
 
-  ASSERT_ANY_THROW(wallet.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(wallet.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, transferCanSpendAllWalletOutputsIncludingDustOutputs) {
@@ -958,17 +967,19 @@ TEST_F(WalletApi, transferCanSpendAllWalletOutputsIncludingDustOutputs) {
   params.changeDestination = src;
   params.fee = currency.minimumFee();
 
+  auto secretKey = Crypto::SecretKey();
+
   // Make sure, that transaction will contain dust
   try {
     params.mixIn = 2;
-    wallet.transfer(params);
+    wallet.transfer(params, secretKey);
     ASSERT_FALSE(true);
   } catch (const std::system_error& e) {
     ASSERT_EQ(make_error_code(CryptoNote::error::WRONG_AMOUNT), e.code());
     params.mixIn = 0;
   }
 
-  auto txId = wallet.transfer(params);
+  auto txId = wallet.transfer(params, secretKey);
   ASSERT_NE(WALLET_INVALID_TRANSACTION_ID, txId);
 
   ASSERT_EQ(0, wallet.getActualBalance(src));
@@ -1709,7 +1720,10 @@ TEST_F(WalletApi, walletSendsTransactionUpdatedEventAfterAddingTransfer) {
   params.destinations.emplace_back(CryptoNote::WalletOrder{ bob.getAddress(1), SENT });
   params.destinations.emplace_back(CryptoNote::WalletOrder{ bob.getAddress(2), SENT });
   params.fee = FEE;
-  alice.transfer(params);
+
+  auto secretKey = Crypto::SecretKey();
+
+  alice.transfer(params, secretKey);
 
   node.updateObservers();
   ASSERT_TRUE(waitForWalletEvent(bob, CryptoNote::WalletEventType::TRANSACTION_CREATED, std::chrono::seconds(5)));
@@ -1731,7 +1745,10 @@ TEST_F(WalletApi, walletCreatesTransferForEachTransactionFunding) {
   params.destinations.emplace_back(CryptoNote::WalletOrder{ bob.getAddress(1), 2 * SENT });
 
   params.fee = FEE;
-  alice.transfer(params);
+
+  auto secretKey = Crypto::SecretKey();
+
+  alice.transfer(params, secretKey);
 
   node.updateObservers();
   ASSERT_TRUE(waitForWalletEvent(bob, CryptoNote::WalletEventType::TRANSACTION_CREATED, std::chrono::seconds(5)));
@@ -1769,11 +1786,13 @@ TEST_F(WalletApi, hybridTxTransfer) {
   CryptoNote::WalletOrder tr1 { alice.getAddress(1), SENT };
   CryptoNote::WalletOrder tr2 { alice.getAddress(2), 2 * SENT };
 
+  auto secretKey = Crypto::SecretKey();
   CryptoNote::TransactionParameters params;
   params.destinations = {tr1, tr2};
   params.fee = FEE;
   params.changeDestination = alice.getAddress(0);
-  alice.transfer(params);
+  alice.transfer(params, secretKey);
+
   node.updateObservers();
   dispatcher.yield();
 
@@ -1791,7 +1810,7 @@ TEST_F(WalletApi, hybridTxTransfer) {
     return tr1.address == transfer.address && tr1.amount == transfer.amount && WalletTransferType::USUAL == transfer.type;
   });
   EXPECT_NE(transfersWithTx.transfers.end(), iter);
-  
+
   iter = std::find_if(transfersWithTx.transfers.begin(), transfersWithTx.transfers.end(), [&tr2](const WalletTransfer& transfer) {
     return tr2.address == transfer.address && tr2.amount == transfer.amount && WalletTransferType::USUAL == transfer.type;
   });
@@ -2176,7 +2195,7 @@ TEST_F(WalletApi, createFusionTransactionCreatesValidFusionTransactionWithoutMix
 
   ASSERT_NE(WALLET_INVALID_TRANSACTION_ID, wallet.createFusionTransaction(FUSION_THRESHOLD, 0));
   ASSERT_TRUE(catchNode.caught);
-  ASSERT_TRUE(currency.isFusionTransaction(catchNode.transaction));
+  ASSERT_TRUE(currency.isFusionTransaction(catchNode.transaction, CryptoNote::parameters::UPGRADE_HEIGHT_V5));
 
   wallet.shutdown();
 }
@@ -2191,7 +2210,7 @@ TEST_F(WalletApi, createFusionTransactionCreatesValidFusionTransactionWithMixin)
 
   ASSERT_NE(WALLET_INVALID_TRANSACTION_ID, wallet.createFusionTransaction(FUSION_THRESHOLD, 2));
   ASSERT_TRUE(catchNode.caught);
-  ASSERT_TRUE(currency.isFusionTransaction(catchNode.transaction));
+  ASSERT_TRUE(currency.isFusionTransaction(catchNode.transaction, CryptoNote::parameters::UPGRADE_HEIGHT_V5));
 
   wallet.shutdown();
 }
@@ -2570,7 +2589,7 @@ TEST_F(WalletApi, DISABLED_fusionManagerEstimate) {
       maxOutputIndex = i;
     }
 
-    if (currency.isAmountApplicableInFusionTransactionInput(tx.outputs[i].amount, tx.outputs[i].amount + 1)) {
+    if (currency.isAmountApplicableInFusionTransactionInput(tx.outputs[i].amount, tx.outputs[i].amount + 1, CryptoNote::parameters::UPGRADE_HEIGHT_V5)) {
       ++expectedResult.fusionReadyCount;
     }
   }
@@ -2699,7 +2718,9 @@ TEST_F(WalletApi, donationThrowsIfAddressEmpty) {
   params.fee = FEE;
   params.donation.threshold = DONATION_THRESHOLD;
 
-  ASSERT_ANY_THROW(alice.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(alice.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, donationThrowsIfThresholdZero) {
@@ -2714,7 +2735,9 @@ TEST_F(WalletApi, donationThrowsIfThresholdZero) {
   params.donation.address = RANDOM_ADDRESS;
   params.donation.threshold = 0;
 
-  ASSERT_ANY_THROW(alice.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(alice.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, donationTransactionHaveCorrectFee) {
@@ -2734,7 +2757,9 @@ TEST_F(WalletApi, donationTransactionHaveCorrectFee) {
   params.donation.address = RANDOM_ADDRESS;
   params.donation.threshold = DONATION_THRESHOLD;
 
-  wallet.transfer(params);
+  auto secretKey = Crypto::SecretKey();
+
+  wallet.transfer(params, secretKey);
 
   ASSERT_TRUE(catchNode.caught);
   ASSERT_EQ(FEE, getInputAmount(catchNode.transaction) - getOutputAmount(catchNode.transaction));
@@ -3280,7 +3305,9 @@ TEST_F(WalletApi, getTransactionReturnsCorrectTransaction) {
   params.destinations = { CryptoNote::WalletOrder {RANDOM_ADDRESS, SENT},  CryptoNote::WalletOrder {RANDOM_ADDRESS, SENT + FEE} };
   params.fee = FEE;
 
-  auto txId = alice.transfer(params);
+  auto secretKey = Crypto::SecretKey();
+
+  auto txId = alice.transfer(params, secretKey);
 
   waitForTransactionUpdated(alice, txId); //first notification comes right after inserting transaction. totalAmount at the moment is 0
   waitForTransactionUpdated(alice, txId); //second notification comes after processing the transaction by TransfersContainer
@@ -3377,7 +3404,9 @@ TEST_F(WalletApi, incomingTransactionToTwoAddressesContainsTransfersForEachAddre
 
   waitForWalletEvent(bob, CryptoNote::WalletEventType::SYNC_COMPLETED, std::chrono::seconds(3));
 
-  alice.transfer(params);
+  auto secretKey = Crypto::SecretKey();
+
+  alice.transfer(params, secretKey);
   node.updateObservers();
 
   waitForTransactionCount(bob, 1);
@@ -3843,7 +3872,9 @@ TEST_F(WalletApi, getUnconfirmedTransactionsReturnsOneTransaction) {
   params.fee = FEE;
 
   node.setNextTransactionToPool();
-  auto transaction = makeTransactionWithTransfers(alice, alice.transfer(params));
+
+  auto secretKey = Crypto::SecretKey();
+  auto transaction = makeTransactionWithTransfers(alice, alice.transfer(params, secretKey));
 
   auto unconfirmed = alice.getUnconfirmedTransactions();
   ASSERT_EQ(1, unconfirmed.size());
@@ -3974,7 +4005,9 @@ TEST_F(WalletApi, transferFailsIfWrongChangeAddress) {
   params.fee = FEE;
   params.changeDestination = "Wrong address";
 
-  ASSERT_ANY_THROW(alice.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(alice.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, transferFailsIfChangeAddressDoesntExist) {
@@ -3986,7 +4019,9 @@ TEST_F(WalletApi, transferFailsIfChangeAddressDoesntExist) {
   params.changeDestination = changeAddress;
   alice.deleteAddress(changeAddress);
 
-  ASSERT_ANY_THROW(alice.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(alice.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, transferFailsIfChangeAddressIsNotMine) {
@@ -3995,7 +4030,9 @@ TEST_F(WalletApi, transferFailsIfChangeAddressIsNotMine) {
   params.fee = FEE;
   params.changeDestination = RANDOM_ADDRESS;
 
-  ASSERT_ANY_THROW(alice.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(alice.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, transferFailsIfWalletHasManyAddressesSourceAddressesNotSetAndNoChangeDestination) {
@@ -4004,7 +4041,9 @@ TEST_F(WalletApi, transferFailsIfWalletHasManyAddressesSourceAddressesNotSetAndN
   params.destinations = {{RANDOM_ADDRESS, SENT}};
   params.fee = FEE;
 
-  ASSERT_ANY_THROW(alice.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(alice.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, transferSendsChangeToSingleSpecifiedSourceAddress) {
@@ -4020,7 +4059,9 @@ TEST_F(WalletApi, transferSendsChangeToSingleSpecifiedSourceAddress) {
   params.fee = FEE;
   params.sourceAddresses = {alice.getAddress(1)};
 
-  alice.transfer(params);
+  auto secretKey = Crypto::SecretKey();
+
+  alice.transfer(params, secretKey);
   waitForActualBalance(alice, 0);
 
   EXPECT_EQ(MONEY - SENT - FEE, alice.getPendingBalance());
@@ -4036,7 +4077,9 @@ TEST_F(WalletApi, transferFailsIfNoChangeDestinationAndMultipleSourceAddressesSe
   params.fee = FEE;
   params.sourceAddresses = {aliceAddress, alice.getAddress(1)};
 
-  ASSERT_ANY_THROW(alice.transfer(params));
+  auto secretKey = Crypto::SecretKey();
+
+  ASSERT_ANY_THROW(alice.transfer(params, secretKey));
 }
 
 TEST_F(WalletApi, transferSendsChangeToAddress) {
@@ -4050,7 +4093,9 @@ TEST_F(WalletApi, transferSendsChangeToAddress) {
   params.fee = FEE;
   params.changeDestination = alice.createAddress();
 
-  alice.transfer(params);
+  auto secretKey = Crypto::SecretKey();
+
+  alice.transfer(params, secretKey);
   node.updateObservers();
 
   waitActualBalanceUpdated(MONEY);
