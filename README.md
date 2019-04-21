@@ -20,6 +20,7 @@
 3. [Downloads](#downloads)
 4. [Useful Links](#usefullinks)
 5. [Donate & Thanks](#donate)
+6. [Copyright / License](#copypasta)
 
 ## Installing <a name="installing"></a>
 We offer binary images of the latest releases here: https://releases.qwertycoin.org
@@ -225,7 +226,7 @@ ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQ
 
 Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Developers, Qwertycoin Community
 
-### Copypasta for license when editing files
+### Copypasta for license when editing files  <a name="copypasta"></a>
 
 Hi Qwertycoin contributor, thanks for forking and sending back Pull Requests. Extensive docs about contributing are in the works or elsewhere. For now this is the bit we need to get into all the files we touch. Please add it to the top of the files, see [lib/CryptoNoteConfig.h](https://github.com/qwertycoin-org/qwertycoin/blob/master/lib/CryptoNoteConfig.h) for an example.
 
