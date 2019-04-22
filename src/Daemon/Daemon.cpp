@@ -30,7 +30,7 @@
 #include "Common/StringTools.h"
 #include "Common/PathTools.h"
 #include "crypto/hash.h"
-#include "../lib/CryptoNoteCheckpoints.h"
+#include "CryptoNoteCheckpoints.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/Core.h"
 #include "CryptoNoteCore/CoreConfig.h"

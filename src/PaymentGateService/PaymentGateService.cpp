@@ -28,7 +28,7 @@
 #include "Logging/LoggerRef.h"
 #include "PaymentGate/PaymentServiceJsonRpcServer.h"
 
-#include "../lib/CryptoNoteCheckpoints.h"
+#include "CryptoNoteCheckpoints.h"
 #include "CryptoNoteCore/CoreConfig.h"
 #include "CryptoNoteCore/Core.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"

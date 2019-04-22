@@ -1,6 +1,4 @@
-**/build
-**/build32
-**/build64
+**/bui*
 
 .DS_Store
 /build
