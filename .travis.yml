@@ -106,7 +106,7 @@ after_success:
             echo "Code-coverage is only available for debug builds. Skipping..."
         else
             lcov --capture --directory . --output-file coverage.info
-            lcov --remove coverage.info "/usr/*" "/Applications/Xcode*" "*/tests/*" --output-file coverage.info
+            lcov --remove coverage.info "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/tests/*" "*/_ExternalProjects/*" --output-file coverage.info
             lcov --list coverage.info
             bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Upload to codecov.io FAILED"
         fi
