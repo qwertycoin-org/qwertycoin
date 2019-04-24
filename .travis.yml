@@ -94,7 +94,7 @@ script:
         if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
             echo "TODO: Fix and run tests for Android and remove this 'if' statement."
         else
-            ctest --verbose -R "Tests$"
+            ctest --parallel 2 --verbose -R "Tests$"
         fi
     - cpack -C $CMAKE_BUILD_TYPE
 
