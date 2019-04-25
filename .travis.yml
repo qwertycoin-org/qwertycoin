@@ -100,7 +100,11 @@ script:
         if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
             echo "TODO: Fix and run tests for Android and remove this 'if' statement."
         else
-            ctest --parallel 2 --verbose -R "Tests$"
+            regexp_01="=== EVENT #"
+            regexp_02="\[\(Blockchain\|core\|checkpoints\|currency\|miner\|txpool\|outputs_visitor\)\]"
+            regexp_03="SwappedVector cache hits"
+            logger_regexp="$regexp_01\|$regexp_02\|$regexp_03"
+            ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "Tests$" | grep --line-buffered -i -v "$logger_regexp"
         fi
     - cpack -C $CMAKE_BUILD_TYPE
 
