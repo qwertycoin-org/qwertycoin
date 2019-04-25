@@ -89,7 +89,7 @@ script:
         -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
         $CMAKE_ARGS
         ..
-    - cmake --build . --config $CMAKE_BUILD_TYPE
+    - cmake --build . --config $CMAKE_BUILD_TYPE -- -j 2
     - |
         if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
             echo "TODO: Fix and run tests for Android and remove this 'if' statement."
