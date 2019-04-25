@@ -100,10 +100,7 @@ script:
         if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
             echo "TODO: Fix and run tests for Android and remove this 'if' statement."
         else
-            regexp_01="=== EVENT #"
-            regexp_02="\[\(Blockchain\|core\|checkpoints\|currency\|miner\|txpool\|outputs_visitor\)\]"
-            regexp_03="SwappedVector cache hits"
-            logger_regexp="$regexp_01\|$regexp_02\|$regexp_03"
+            logger_regexp="=== EVENT #\|SwappedVector\|\[\([a-zA-Z]\+\)\(\/[a-zA-Z0-9]\+\)\?\]"
             ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "Tests$" | grep --line-buffered -i -v "$logger_regexp"
         fi
     - cpack -C $CMAKE_BUILD_TYPE
@@ -116,7 +113,7 @@ after_success:
             echo "Code-coverage is only available for debug builds. Skipping..."
         else
             lcov --capture --directory . --output-file coverage.info
-            lcov --remove coverage.info "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/tests/*" "*/_ExternalProjects/*" --output-file coverage.info
-            lcov --list coverage.info
-            bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Upload to codecov.io FAILED"
+            lcov --remove coverage.info "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/tests/*" "*/_ExternalProjects/*" --output-file coverage_clean.info
+            lcov --list coverage_clean.info
+            bash <(curl -s https://codecov.io/bash) -f coverage_clean.info || echo "Upload to codecov.io FAILED"
         fi
