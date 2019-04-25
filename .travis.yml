@@ -112,8 +112,10 @@ after_success:
         elif [ "$CMAKE_BUILD_TYPE" = "Release" ]; then
             echo "Code-coverage is only available for debug builds. Skipping..."
         else
-            lcov --capture --directory . --output-file coverage.info
-            lcov --remove coverage.info "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/tests/*" "*/_ExternalProjects/*" --output-file coverage_clean.info
-            lcov --list coverage_clean.info
-            bash <(curl -s https://codecov.io/bash) -f coverage_clean.info || echo "Upload to codecov.io FAILED"
+            COVERAGE_FILE="$TRAVIS_BUILD_DIR/build/coverage.info"
+            echo "coverage.info: $COVERAGE_FILE"
+            lcov --capture --directory . --output-file $COVERAGE_FILE
+            lcov --remove $COVERAGE_FILE "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/gtest/*" "*/tests/*" "*/_ExternalProjects/*" --output-file $COVERAGE_FILE
+            lcov --list $COVERAGE_FILE
+            bash <(curl -s https://codecov.io/bash) -f $COVERAGE_FILE || echo "Upload to codecov.io FAILED"
         fi
