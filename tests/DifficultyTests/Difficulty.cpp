@@ -28,51 +28,69 @@
 #include "CryptoNoteCore/Currency.h"
 #include "Logging/ConsoleLogger.h"
 
-using namespace std;
-
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     if (argc != 2) {
-        cerr << "Wrong arguments" << endl;
+        std::cerr << "Wrong arguments" << std::endl;
         return 1;
     }
+
     Logging::ConsoleLogger logger;
+
     CryptoNote::CurrencyBuilder currencyBuilder(logger);
     currencyBuilder.difficultyTarget(120);
     currencyBuilder.difficultyWindow(720);
     currencyBuilder.difficultyCut(60);
     currencyBuilder.difficultyLag(15);
     CryptoNote::Currency currency = currencyBuilder.currency();
-    vector<uint64_t> timestamps, cumulative_difficulties;
-    fstream data(argv[1], fstream::in);
-    data.exceptions(fstream::badbit);
+
+    std::fstream data(argv[1], std::fstream::in);
+    data.exceptions(std::fstream::badbit);
     data.clear(data.rdstate());
-    uint64_t timestamp, difficulty, cumulative_difficulty = 0;
+
+    std::vector<uint64_t> cumulativeDifficulties;
+    std::vector<uint64_t> timestamps;
+    uint64_t cumulativeDifficulty = 0;
+    uint64_t timestamp = 0;
+    uint64_t difficulty = 0;
     size_t n = 0;
     while (data >> timestamp >> difficulty) {
-        size_t begin, end;
+        size_t begin;
+        size_t end;
         if (n < currency.difficultyWindow() + currency.difficultyLag()) {
             begin = 0;
-            end = min(n, currency.difficultyWindow());
+            end = std::min(n, currency.difficultyWindow());
         } else {
             end = n - currency.difficultyLag();
             begin = end - currency.difficultyWindow();
         }
-        uint64_t res = currency.nextDifficultyV5(
-			CryptoNote::BLOCK_MAJOR_VERSION_1,
-            vector<uint64_t>(timestamps.begin() + begin, timestamps.begin() + end),
-            vector<uint64_t>(cumulative_difficulties.begin() + begin, cumulative_difficulties.begin() + end));
+
+        uint64_t res = currency.nextDifficultyV1(
+            std::vector<uint64_t>{
+                std::next(std::begin(timestamps), begin),
+                std::next(std::begin(timestamps), begin + end)
+            },
+            std::vector<uint64_t>{
+                std::next(std::begin(cumulativeDifficulties), begin),
+                std::next(std::begin(cumulativeDifficulties), begin + end)
+            }
+        );
         if (res != difficulty) {
-            cerr << "Wrong difficulty for block " << n << endl
-                << "Expected: " << difficulty << endl
-                << "Found: " << res << endl;
+            std::cerr << "Wrong difficulty for block " << n << std::endl
+                      << "Expected: " << difficulty << std::endl
+                      << "Found: " << res << std::endl;
             return 1;
         }
+
+        cumulativeDifficulty += difficulty;
+        cumulativeDifficulties.push_back(cumulativeDifficulty);
         timestamps.push_back(timestamp);
-        cumulative_difficulties.push_back(cumulative_difficulty += difficulty);
         ++n;
     }
+
     if (!data.eof()) {
-        data.clear(fstream::badbit);
+        data.clear(std::fstream::badbit);
     }
+
     return 0;
 }
