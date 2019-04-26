@@ -80,7 +80,7 @@ set_target_properties(QwertycoinTests_CoreTests PROPERTIES OUTPUT_NAME "core_tes
 
 add_test(
     NAME CoreTests
-    COMMAND core_tests --generate_and_play_test_data
+    COMMAND $<TARGET_FILE:QwertycoinTests_CoreTests> --generate_and_play_test_data
 )
 
 # QwertycoinTests::CryptoTests
@@ -105,7 +105,7 @@ set_target_properties(QwertycoinTests_CryptoTests PROPERTIES OUTPUT_NAME "crypto
 
 add_test(
     NAME CryptoTests
-    COMMAND crypto_tests ${CMAKE_CURRENT_LIST_DIR}/CryptoTests/tests.txt
+    COMMAND $<TARGET_FILE:QwertycoinTests_CryptoTests> ${CMAKE_CURRENT_LIST_DIR}/CryptoTests/tests.txt
 )
 
 # QwertycoinTests::Data (skipped, not a library or executable target)
@@ -130,7 +130,7 @@ set_target_properties(QwertycoinTests_DifficultyTests PROPERTIES OUTPUT_NAME "di
 
 add_test(
     NAME DifficultyTests
-    COMMAND difficulty_tests ${CMAKE_CURRENT_LIST_DIR}/DifficultyTests/data.txt
+    COMMAND $<TARGET_FILE:QwertycoinTests_DifficultyTests> ${CMAKE_CURRENT_LIST_DIR}/DifficultyTests/data.txt
 )
 
 # QwertycoinTests::HashTargetTests
@@ -152,7 +152,7 @@ set_target_properties(QwertycoinTests_HashTargetTests PROPERTIES OUTPUT_NAME "ha
 
 add_test(
     NAME HashTargetTests
-    COMMAND hash_target_tests
+    COMMAND $<TARGET_FILE:QwertycoinTests_HashTargetTests>
 )
 
 # QwertycoinTests::HashTests
@@ -175,7 +175,7 @@ set_target_properties(QwertycoinTests_HashTests PROPERTIES OUTPUT_NAME "hash_tes
 foreach(hash IN ITEMS extra-blake extra-groestl extra-jh extra-skein fast slow tree)
     add_test(
         NAME HashTests-${hash}
-        COMMAND hash_tests ${hash} ${CMAKE_CURRENT_LIST_DIR}/HashTests/tests-${hash}.txt
+        COMMAND $<TARGET_FILE:QwertycoinTests_HashTests> ${hash} ${CMAKE_CURRENT_LIST_DIR}/HashTests/tests-${hash}.txt
     )
 endforeach()
 
@@ -202,7 +202,7 @@ set_target_properties(QwertycoinTests_NodeRpcProxyTests PROPERTIES OUTPUT_NAME "
 
 add_test(
     NAME NodeRpcProxyTests
-    COMMAND node_rpc_proxy_tests
+    COMMAND $<TARGET_FILE:QwertycoinTests_NodeRpcProxyTests>
 )
 
 # QwertycoinTests::PerformanceTests
@@ -239,7 +239,7 @@ set_target_properties(QwertycoinTests_PerformanceTests PROPERTIES OUTPUT_NAME "p
 
 add_test(
     NAME PerformanceTests
-    COMMAND performance_tests
+    COMMAND $<TARGET_FILE:QwertycoinTests_PerformanceTests>
 )
 
 # QwertycoinTests::SystemTests
@@ -277,7 +277,7 @@ set_target_properties(QwertycoinTests_SystemTests PROPERTIES OUTPUT_NAME "system
 
 add_test(
     NAME SystemTests
-    COMMAND system_tests
+    COMMAND $<TARGET_FILE:QwertycoinTests_SystemTests>
 )
 
 # QwertycoinTests::TestGenerator
@@ -375,5 +375,5 @@ set_target_properties(QwertycoinTests_UnitTests PROPERTIES OUTPUT_NAME "unit_tes
 
 add_test(
     NAME UnitTests
-    COMMAND unit_tests
+    COMMAND $<TARGET_FILE:QwertycoinTests_UnitTests>
 )
