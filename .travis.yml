@@ -84,20 +84,15 @@ before_install:
 script:
     - mkdir ./build && cd ./build
     - >
-      cmake
-        -G "$CMAKE_GENERATOR_NAME"
+        cmake -G "$CMAKE_GENERATOR_NAME"
         -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
         -DBUILD_ALL:BOOL=TRUE
         ..
     - cmake --build . --config $CMAKE_BUILD_TYPE -- -j 2
 #    - |
-#        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
-#            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
-#        else
-#            logger_regexp="=== EVENT #\|SwappedVector\|\[\([a-zA-Z]\+\)\(\/[a-zA-Z0-9]\+\)\?\]"
-#            ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "Tests$" | grep --line-buffered -i -v "$logger_regexp"
-#        fi
+#        logger_regexp="=== EVENT #\|SwappedVector\|\[\([a-zA-Z]\+\)\(\/[a-zA-Z0-9]\+\)\?\]"
+#        ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "Tests$" | grep --line-buffered -i -v "$logger_regexp"
     - cpack -C $CMAKE_BUILD_TYPE
 
 #after_success:
