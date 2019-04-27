@@ -14,10 +14,12 @@ environment:
           QWC_GENERATOR_NAME: "Visual Studio 15 2017 Win64"
           QWC_BUILD_TYPE: "Debug"
           QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-15-2017-win64.cmake"
+          QWC_TESTS_REGEXP: "NONE"
         - Purpose: "WindowsReleaseBuild"
           QWC_GENERATOR_NAME: "Visual Studio 15 2017 Win64"
           QWC_BUILD_TYPE: "Release"
           QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-15-2017-win64.cmake"
+          QWC_TESTS_REGEXP: "NONE"
 
 install:
     - git submodule update --init --recursive
@@ -32,5 +34,5 @@ build_script:
         -DBUILD_ALL:BOOL=TRUE
         ..
     - cmake --build . --config %QWC_BUILD_TYPE%
-    - ctest -C %QWC_BUILD_TYPE% -R "NONE" -V -j 2
+    - ctest -C %QWC_BUILD_TYPE% -R "%QWC_TESTS_REGEXP%" -V -j 2
     - cpack -C %QWC_BUILD_TYPE%
