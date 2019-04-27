@@ -10,7 +10,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
         - name: "Android, Release"
           os: linux
           dist: xenial
@@ -19,7 +18,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
         - name: "Linux, Debug"
           os: linux
           dist: xenial
@@ -28,7 +26,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
         - name: "Linux, Release"
           os: linux
           dist: xenial
@@ -37,7 +34,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
         - name: "macOS, Debug"
           os: osx
           osx_image: xcode10.1
@@ -45,7 +41,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
         - name: "macOS, Release"
           os: osx
           osx_image: xcode10.1
@@ -53,7 +48,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
 
 addons:
     apt: # Linux
@@ -90,10 +84,11 @@ before_install:
 script:
     - mkdir ./build && cd ./build
     - >
-        cmake -G "$CMAKE_GENERATOR_NAME"
+      cmake
+        -G "$CMAKE_GENERATOR_NAME"
         -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
-        $CMAKE_ARGS
+        -DBUILD_ALL:BOOL=TRUE
         ..
     - cmake --build . --config $CMAKE_BUILD_TYPE -- -j 2
 #    - |
