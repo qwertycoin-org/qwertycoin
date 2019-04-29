@@ -103,17 +103,17 @@ script:
     - ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "$CTEST_REGEXP" | grep --line-buffered -i -v "$CTEST_LOG_REGEXP"
     - cpack -C $CMAKE_BUILD_TYPE
 
-#after_success:
-#    - |
-#        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
-#            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
-#        elif [ "$CMAKE_BUILD_TYPE" = "Release" ]; then
-#            echo "Code-coverage is only available for debug builds. Skipping..."
-#        else
-#            COVERAGE_FILE="$TRAVIS_BUILD_DIR/build/coverage.info"
-#            echo "coverage.info: $COVERAGE_FILE"
-#            lcov --capture --directory . --output-file $COVERAGE_FILE
-#            lcov --remove $COVERAGE_FILE "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/gtest/*" "*/tests/*" "*/_ExternalProjects/*" --output-file $COVERAGE_FILE
-#            lcov --list $COVERAGE_FILE
-#            bash <(curl -s https://codecov.io/bash) -f $COVERAGE_FILE || echo "Upload to codecov.io FAILED"
-#        fi
+after_success:
+    - |
+        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
+            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
+        elif [ "$CMAKE_BUILD_TYPE" = "Release" ]; then
+            echo "Code-coverage is only available for debug builds. Skipping..."
+        else
+            COVERAGE_FILE="$TRAVIS_BUILD_DIR/build/coverage.info"
+            echo "coverage.info: $COVERAGE_FILE"
+            lcov --capture --directory . --output-file $COVERAGE_FILE
+            lcov --remove $COVERAGE_FILE "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/gtest/*" "*/tests/*" "*/_ExternalProjects/*" --output-file $COVERAGE_FILE
+            lcov --list $COVERAGE_FILE
+            bash <(curl -s https://codecov.io/bash) -f $COVERAGE_FILE || echo "Upload to codecov.io FAILED"
+        fi
