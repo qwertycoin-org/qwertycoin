@@ -23,7 +23,7 @@ message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
 
 # Configure Hunter (CMake driven cross-platform package manager for C/C++).
 # WARNING: Must be included before project(...) function call!
-set(HUNTER_CONFIGURATION_TYPES Release CACHE STRING "Hunter configuration types")
+set(HUNTER_CONFIGURATION_TYPES Release;Debug CACHE STRING "Hunter configuration types")
 set(HUNTER_JOBS_NUMBER 4 CACHE STRING "Hunter jobs number")
 include(hunter/HunterGate)
 HunterGate(

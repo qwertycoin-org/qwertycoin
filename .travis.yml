@@ -10,7 +10,7 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
+              - CTEST_REGEXP="NONE"
         - name: "Android, Release"
           os: linux
           dist: xenial
@@ -19,7 +19,7 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CMAKE_ARGS="-DANDROID=TRUE -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE"
+              - CTEST_REGEXP="NONE"
         - name: "Linux, Debug"
           os: linux
           dist: xenial
@@ -28,7 +28,7 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+              - CTEST_REGEXP="Tests$"
         - name: "Linux, Release"
           os: linux
           dist: xenial
@@ -37,7 +37,7 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+              - CTEST_REGEXP="Tests$"
         - name: "macOS, Debug"
           os: osx
           osx_image: xcode10.1
@@ -45,7 +45,7 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+              - CTEST_REGEXP="Tests$"
         - name: "macOS, Release"
           os: osx
           osx_image: xcode10.1
@@ -53,7 +53,11 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
-              - CMAKE_ARGS="-DBUILD_ALL:BOOL=TRUE"
+              - CTEST_REGEXP="Tests$"
+
+env:
+    global:
+        - CTEST_LOG_REGEXP="=== EVENT \#\|SwappedVector\|\[\([a-zA-Z]\+\)\(\/[a-zA-Z0-9]\+\)\?\]"
 
 addons:
     apt: # Linux
@@ -93,16 +97,10 @@ script:
         cmake -G "$CMAKE_GENERATOR_NAME"
         -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
-        $CMAKE_ARGS
+        -DBUILD_ALL:BOOL=TRUE
         ..
     - cmake --build . --config $CMAKE_BUILD_TYPE -- -j 2
-    - |
-        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
-            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
-        else
-            logger_regexp="=== EVENT #\|SwappedVector\|\[\([a-zA-Z]\+\)\(\/[a-zA-Z0-9]\+\)\?\]"
-            ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "Tests$" | grep --line-buffered -i -v "$logger_regexp"
-        fi
+    - ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "$CTEST_REGEXP" | grep --line-buffered -i -v "$CTEST_LOG_REGEXP"
     - cpack -C $CMAKE_BUILD_TYPE
 
 after_success:

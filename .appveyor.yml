@@ -6,8 +6,20 @@ cache:
     - C:\.hunter -> .appveyor.yml
 
 environment:
-    BOOST_ROOT: "C:/Libraries/boost_1_69_0"
-    BOOST_LIBRARYDIR: "C:/Libraries/boost_1_69_0/lib64-msvc-14.1"
+    global:
+        BOOST_ROOT: "C:/Libraries/boost_1_69_0"
+        BOOST_LIBRARYDIR: "C:/Libraries/boost_1_69_0/lib64-msvc-14.1"
+    matrix:
+        - Purpose: "WindowsDebugBuild"
+          QWC_GENERATOR_NAME: "Visual Studio 15 2017 Win64"
+          QWC_BUILD_TYPE: "Debug"
+          QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-15-2017-win64.cmake"
+          QWC_TESTS_REGEXP: "NONE"
+        - Purpose: "WindowsReleaseBuild"
+          QWC_GENERATOR_NAME: "Visual Studio 15 2017 Win64"
+          QWC_BUILD_TYPE: "Release"
+          QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-15-2017-win64.cmake"
+          QWC_TESTS_REGEXP: "NONE"
 
 install:
     - git submodule update --init --recursive
@@ -16,10 +28,11 @@ build_script:
     - md build
     - cd build
     - >
-        cmake -G "Visual Studio 15 2017 Win64"
-        -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_TOOLCHAIN_FILE=cmake/polly/vs-15-2017-win64.cmake
+        cmake -G "%QWC_GENERATOR_NAME%"
+        -DCMAKE_BUILD_TYPE=%QWC_BUILD_TYPE%
+        -DCMAKE_TOOLCHAIN_FILE=%QWC_TOOLCHAIN_FILE_NAME%
         -DBUILD_ALL:BOOL=TRUE
         ..
-    - cmake --build . --config Release
-    - cmake --build . --config Release --target package
+    - cmake --build . --config %QWC_BUILD_TYPE%
+    - ctest -C %QWC_BUILD_TYPE% -R "%QWC_TESTS_REGEXP%" -V -j 2
+    - cpack -C %QWC_BUILD_TYPE%

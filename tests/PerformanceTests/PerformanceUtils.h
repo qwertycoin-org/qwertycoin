@@ -41,16 +41,25 @@ void set_process_affinity(int core)
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(core, &cpuset);
+  #if defined(ANDROID)
+  if (0 != ::sched_setaffinity(::pthread_self(), sizeof(cpuset), &cpuset))
+  {
+    std::cout << "sched_setaffinity - ERROR" << std::endl;
+  }
+  #else
   if (0 != ::pthread_setaffinity_np(::pthread_self(), sizeof(cpuset), &cpuset))
   {
     std::cout << "pthread_setaffinity_np - ERROR" << std::endl;
   }
+  #endif
 #endif
 }
 
 void set_thread_high_priority()
 {
 #if defined(__APPLE__)
+    return;
+#elif defined(ANDROID)
     return;
 #elif defined(BOOST_WINDOWS)
   ::SetPriorityClass(::GetCurrentProcess(), HIGH_PRIORITY_CLASS);
