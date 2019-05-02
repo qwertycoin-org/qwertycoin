@@ -25,7 +25,7 @@
 #include "CryptoNoteCore/Difficulty.h"
 #include "crypto/hash.h"
 
-#include "BlockchainExplorerData2.h"
+#include "BlockchainExplorer/BlockchainExplorerData.h"
 
 #include "Serialization/SerializationOverloads.h"
 #include "Serialization/BlockchainExplorerDataSerialization.h"
