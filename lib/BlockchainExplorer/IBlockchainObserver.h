@@ -18,41 +18,24 @@
 
 #pragma once
 
-#include <string>
-#include <system_error>
+#include <BlockchainExplorer/BlockchainExplorerData.h>
 
 namespace CryptoNote {
 
-namespace error {
-
-enum class BlockchainExplorerErrorCodes : int
+class IBlockchainObserver
 {
-    NOT_INITIALIZED = 1,
-    ALREADY_INITIALIZED,
-    INTERNAL_ERROR,
-    REQUEST_ERROR
-};
-
-class BlockchainExplorerErrorCategory : public std::error_category
-{
-    BlockchainExplorerErrorCategory() = default;
+    typedef std::pair<Crypto::Hash, TransactionRemoveReason> RemovedTransactionDetails;
 
 public:
-    static BlockchainExplorerErrorCategory INSTANCE;
+    virtual ~IBlockchainObserver() = default;
 
-    const char *name() const noexcept override;
+    virtual void blockchainSynchronized(const BlockDetails &topBlock) {}
 
-    std::string message(int ev) const override;
+    virtual void blockchainUpdated(const std::vector<BlockDetails> &newBlocks,
+                                   const std::vector<BlockDetails> &orphanedBlocks) {}
 
-    std::error_condition default_error_condition(int ev) const noexcept override;
+    virtual void poolUpdated(const std::vector<TransactionDetails> &newTransactions,
+                             const std::vector<RemovedTransactionDetails> &removedTransactions) {}
 };
 
-} //namespace error
-
-} //namespace CryptoNote
-
-inline std::error_code make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes e)
-{
-    using namespace CryptoNote;
-    return std::error_code{static_cast<int>(e), error::BlockchainExplorerErrorCategory::INSTANCE};
-}
+} // namespace CryptoNote
