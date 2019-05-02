@@ -65,10 +65,13 @@ add_dependencies(QwertycoinFramework ${QwertycoinFramework_LIBS})
 set(QwertycoinFramework_BlockchainExplorer_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorer.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerData.h"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerDataBuilder.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerDataBuilder.h"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerErrors.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerErrors.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/IBlockchainExplorer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/IBlockchainObserver.h"
 )
 
 add_library(QwertycoinFramework_BlockchainExplorer STATIC ${QwertycoinFramework_BlockchainExplorer_SOURCES})

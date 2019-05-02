@@ -25,8 +25,7 @@
 #include <unordered_map>
 
 // CryptoNote
-#include "BlockchainExplorerData.h"
-#include "BlockchainExplorerData2.h"
+#include "BlockchainExplorer/BlockchainExplorerData.h"
 #include "Common/StringTools.h"
 #include "Common/Base58.h"
 #include "CryptoNoteCore/TransactionUtils.h"
