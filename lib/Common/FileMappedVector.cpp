@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "FileMappedVector.h"
+#include <Common/FileMappedVector.h>
 
 namespace {
+
 char suppressMSVCWarningLNK4221;
-}
+
+} // namespace
