@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "Math.h"
+#include <Common/Math.h>
 
 namespace {
+
 #ifdef MSVC
   char suppressMSVCWarningLNK4221;
 #endif
-}
+
+} // namespace
