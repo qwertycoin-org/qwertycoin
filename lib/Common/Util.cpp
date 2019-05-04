@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "Util.h"
-#include <cstdio>
 
+#include <cstdio>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
-
-#include "CryptoNoteConfig.h"
+#include <Common/Util.h>
+#include <CryptoNoteConfig.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -32,12 +31,11 @@
 #include <sys/utsname.h>
 #endif
 
+namespace Tools {
 
-namespace Tools
-{
 #ifdef WIN32
-  std::string get_windows_version_display_string()
-  {
+std::string get_windows_version_display_string()
+{
     typedef void (WINAPI *PGNSI)(LPSYSTEM_INFO);
     typedef BOOL (WINAPI *PGPI)(DWORD, DWORD, DWORD, DWORD, PDWORD);
 #define BUFSIZE 10000
@@ -259,128 +257,134 @@ namespace Tools
       printf( "This sample does not support this version of Windows.\n");
       return pszOS;
     }
-  }
+}
 #else
 std::string get_nix_version_display_string()
 {
-  utsname un;
+    utsname un;
 
-  if(uname(&un) < 0)
-    return std::string("*nix: failed to get os version");
-  return std::string() + un.sysname + " " + un.version + " " + un.release;
+    if(uname(&un) < 0) {
+        return std::string( "*nix: failed to get os version");
+    }
+
+    return std::string() + un.sysname + " " + un.version + " " + un.release;
 }
 #endif
 
-
-
-  std::string get_os_version_string()
-  {
+std::string get_os_version_string()
+{
 #ifdef WIN32
     return get_windows_version_display_string();
 #else
     return get_nix_version_display_string();
 #endif
-  }
-
-
+}
 
 #ifdef WIN32
-  std::string get_special_folder_path(int nfolder, bool iscreate)
-  {
+std::string get_special_folder_path(int nfolder, bool iscreate)
+{
     namespace fs = boost::filesystem;
     char psz_path[MAX_PATH] = "";
 
     if(SHGetSpecialFolderPathA(NULL, psz_path, nfolder, iscreate)) {
-      return psz_path;
+        return psz_path;
     }
 
     return "";
-  }
+}
 #endif
 
-  std::string getDefaultDataDirectory()
-  {
+std::string getDefaultDataDirectory()
+{
     //namespace fs = boost::filesystem;
     // Windows < Vista: C:\Documents and Settings\Username\Application Data\CRYPTONOTE_NAME
     // Windows >= Vista: C:\Users\Username\AppData\Roaming\CRYPTONOTE_NAME
-    // Mac: ~/Library/Application Support/CRYPTONOTE_NAME
-    // Unix: ~/.CRYPTONOTE_NAME
+    // macOS: ~/Library/Application Support/CRYPTONOTE_NAME
+    // UNIX: ~/.CRYPTONOTE_NAME
     std::string config_folder;
 
 #ifdef _WIN32
     // Windows
-    config_folder = get_special_folder_path(CSIDL_APPDATA, true) + "/" + CryptoNote::CRYPTONOTE_NAME;
+    config_folder = get_special_folder_path(CSIDL_APPDATA,true) + "/" + CryptoNote::CRYPTONOTE_NAME;
 #ifdef USE_LITE_WALLET
     config_folder = "./";
 #endif
 #else
     std::string pathRet;
-    char* pszHome = getenv("HOME");
-    if (pszHome == NULL || strlen(pszHome) == 0)
-      pathRet = "/";
-    else
-      pathRet = pszHome;
+    char *pszHome = getenv("HOME");
+    if (pszHome == nullptr || strlen(pszHome) == 0) {
+        pathRet = "/";
+    } else {
+        pathRet = pszHome;
+    }
 #ifdef __APPLE__
-    // Mac
+    // macOS
     std::string old_config_folder = (pathRet + "/." + CryptoNote::CRYPTONOTE_NAME);
     std::string pathRet2 = (pathRet + "/" + "Library/Application Support");
-    config_folder =  (pathRet2 + "/" + CryptoNote::CRYPTONOTE_NAME);
+    config_folder = (pathRet2 + "/" + CryptoNote::CRYPTONOTE_NAME);
     // move to correct location
     boost::filesystem::path old_path(old_config_folder);
     if (!boost::filesystem::exists(config_folder) && boost::filesystem::is_directory(old_path)) {
-      if (boost::filesystem::create_directory(config_folder)) {
-        for (const auto& entry : boost::filesystem::recursive_directory_iterator{old_path}) {
-          const auto& path = entry.path();
-          auto rel_path_str = path.string();
-          boost::replace_first(rel_path_str, old_path.string(), "");
-          boost::filesystem::copy(path, config_folder + boost::filesystem::path::preferred_separator + rel_path_str);
+        if (boost::filesystem::create_directory(config_folder)) {
+            for (const auto &entry : boost::filesystem::recursive_directory_iterator{old_path}) {
+                const auto &path = entry.path();
+                auto rel_path_str = path.string();
+                boost::replace_first(rel_path_str, old_path.string(), "");
+                boost::filesystem::copy(
+                    path,
+                    config_folder + boost::filesystem::path::preferred_separator + rel_path_str);
+            }
+            boost::filesystem::remove_all(old_path);
         }
-        boost::filesystem::remove_all(old_path);
-      }
     }
 #else
-    // Unix
+    // UNIX
     config_folder = (pathRet + "/." + CryptoNote::CRYPTONOTE_NAME);
 #endif
 #endif
     return config_folder;
-  }
+}
 
-  bool create_directories_if_necessary(const std::string& path)
-  {
+bool create_directories_if_necessary(const std::string &path)
+{
     namespace fs = boost::filesystem;
+
     boost::system::error_code ec;
     fs::path fs_path(path);
     if (fs::is_directory(fs_path, ec)) {
-      return true;
+        return true;
     }
 
     return fs::create_directories(fs_path, ec);
-  }
+}
 
-  std::error_code replace_file(const std::string& replacement_name, const std::string& replaced_name)
-  {
+std::error_code replace_file(const std::string &replacement_name, const std::string &replaced_name)
+{
     int code;
+
 #if defined(WIN32)
     // Maximizing chances for success
     DWORD attributes = ::GetFileAttributes(replaced_name.c_str());
-    if (INVALID_FILE_ATTRIBUTES != attributes)
-    {
-      ::SetFileAttributes(replaced_name.c_str(), attributes & (~FILE_ATTRIBUTE_READONLY));
+    if (INVALID_FILE_ATTRIBUTES != attributes) {
+        ::SetFileAttributes(replaced_name.c_str(), attributes & (~FILE_ATTRIBUTE_READONLY));
     }
 
-    bool ok = 0 != ::MoveFileEx(replacement_name.c_str(), replaced_name.c_str(), MOVEFILE_REPLACE_EXISTING);
+    bool ok = 0 != ::MoveFileEx(replacement_name.c_str(),
+                                replaced_name.c_str(),
+                                MOVEFILE_REPLACE_EXISTING);
     code = ok ? 0 : static_cast<int>(::GetLastError());
 #else
     bool ok = 0 == std::rename(replacement_name.c_str(), replaced_name.c_str());
     code = ok ? 0 : errno;
 #endif
-    return std::error_code(code, std::system_category());
+    return std::error_code{code, std::system_category()};
   }
 
-  bool directoryExists(const std::string& path) {
+bool directoryExists(const std::string &path)
+{
     boost::system::error_code ec;
-    return boost::filesystem::is_directory(path, ec);
-  }
 
+    return boost::filesystem::is_directory(path, ec);
 }
+
+} // namespace Tools
