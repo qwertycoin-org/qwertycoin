@@ -19,18 +19,20 @@
 #pragma once
 
 #include <string>
-#include "IInputStream.h"
+#include <Common/IInputStream.h>
 
 namespace Common {
 
-class StringInputStream : public IInputStream {
+class StringInputStream : public IInputStream
+{
 public:
-  StringInputStream(const std::string& in);
-  size_t readSome(void* data, size_t size) override;
+    explicit StringInputStream(const std::string &in);
+
+    size_t readSome(void *data, size_t size) override;
 
 private:
-  const std::string& in;
-  size_t offset;
+    const std::string &in;
+    size_t offset;
 };
 
-}
+} // namespace Common
