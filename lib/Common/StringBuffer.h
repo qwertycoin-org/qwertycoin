@@ -141,12 +141,12 @@ public:
         return *this;
     }
 
-    explicit operator StringView() const
+    operator StringView() const
     {
         return StringView(data, size);
     }
 
-    explicit operator std::string() const
+    operator std::string() const
     {
         return std::string(data, size);
     }
@@ -324,7 +324,7 @@ public:
     /*!
         Compare two strings character-wise.
     */
-    bool operator<=(const StringView &other) const
+    bool operator<=(StringView other) const
     {
         return !(other < *this);
     }
@@ -332,7 +332,7 @@ public:
     /*!
         Compare two strings character-wise.
     */
-    bool operator>(const StringView &other) const
+    bool operator>(StringView other) const
     {
         return other < *this;
     }
@@ -340,7 +340,7 @@ public:
     /*!
         Compare two strings character-wise.
     */
-    bool operator>=(const StringView &other) const
+    bool operator>=(StringView other) const
     {
         return !(*this < other);
     }
