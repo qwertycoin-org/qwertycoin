@@ -82,7 +82,7 @@ public:
 
     bool getPoolState(const std::vector<Crypto::Hash> &knownPoolTransactionHashes,
                       Crypto::Hash knownBlockchainTop,
-                      bool isBlockchainActual,
+                      bool &isBlockchainActual,
                       std::vector<TransactionDetails> &newTransactions,
                       std::vector<Crypto::Hash> &removedTransactions) override;
     bool getPoolTransactions(uint64_t timestampBegin,
