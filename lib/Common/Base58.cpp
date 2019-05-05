@@ -220,7 +220,7 @@ std::string encode(const std::string &data)
     return res;
 }
 
-bool Base58::decode(const std::string &enc, std::string data)
+bool decode(const std::string &enc, std::string data)
 {
     if (enc.empty()) {
         data.clear();
@@ -270,7 +270,7 @@ std::string encode_addr(uint64_t tag, const std::string &data)
     return encode(buf);
 }
 
-bool Base58::decode_addr(const std::string &addr, uint64_t &tag, std::string data)
+bool decode_addr(const std::string &addr, uint64_t &tag, std::string data)
 {
     std::string addr_data;
 
