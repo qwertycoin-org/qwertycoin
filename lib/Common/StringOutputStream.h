@@ -19,17 +19,19 @@
 #pragma once
 
 #include <string>
-#include "IOutputStream.h"
+#include <Common/IOutputStream.h>
 
 namespace Common {
 
-class StringOutputStream : public IOutputStream {
+class StringOutputStream : public IOutputStream
+{
 public:
-  StringOutputStream(std::string& out);
-  size_t writeSome(const void* data, size_t size) override;
+    explicit StringOutputStream(std::string &out);
+
+    size_t writeSome(const void *data, size_t size) override;
 
 private:
-  std::string& out;
+    std::string &out;
 };
 
-}
+} // namespace Common

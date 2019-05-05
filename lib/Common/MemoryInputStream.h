@@ -18,22 +18,25 @@
 
 #pragma once
 
-#include "IInputStream.h"
+#include <Common/IInputStream.h>
 
 namespace Common {
 
-  class MemoryInputStream : public IInputStream {
-  public:
-    MemoryInputStream(const void* buffer, size_t bufferSize);
+class MemoryInputStream : public IInputStream
+{
+public:
+    MemoryInputStream(const void *buffer, size_t bufferSize);
+
     size_t getPosition() const;
+
     bool endOfStream() const;
 
-    // IInputStream
-    virtual size_t readSome(void* data, size_t size) override;
+    size_t readSome(void* data, size_t size) override;
 
-  private:
-    const char* buffer;
+private:
+    const char *buffer;
     size_t bufferSize;
     size_t position;
-  };
-}
+};
+
+} // namespace Common

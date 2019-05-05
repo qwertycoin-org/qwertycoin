@@ -387,22 +387,23 @@ bool BlockchainExplorer::getBlockchainTop(BlockDetails &topBlock)
 
 bool BlockchainExplorer::getPoolState(const std::vector<Hash> &knownPoolTransactionHashes,
                                       Hash knownBlockchainTopHash,
-                                      bool isBlockchainActual,
+                                      bool &isBlockchainActual,
                                       std::vector<TransactionDetails> &newTransactions,
                                       std::vector<Hash> &removedTransactions)
 {
     if (state.load() != INITIALIZED) {
-        throw std::system_error(make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::NOT_INITIALIZED));
+        throw std::system_error(
+            make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::NOT_INITIALIZED)
+        );
     }
 
     logger(DEBUGGING) << "Get pool state request came.";
     std::vector<std::unique_ptr<ITransactionReader>> rawNewTransactions;
 
-    NodeRequest request([&](const INode::Callback &callback) {
+    NodeRequest request([&](const INode::Callback& callback) {
         std::vector<Hash> hashes;
-        hashes.resize(knownPoolTransactionHashes.size());
         for (Hash hash : knownPoolTransactionHashes) {
-            hashes.push_back(hash);
+            hashes.push_back(std::move(hash));
         }
 
         node.getPoolSymmetricDifference(
@@ -424,7 +425,7 @@ bool BlockchainExplorer::getPoolState(const std::vector<Hash> &knownPoolTransact
     std::vector<Hash> newTransactionsHashes;
     for (const auto &rawTransaction : rawNewTransactions) {
         Hash transactionHash = rawTransaction->getTransactionHash();
-        newTransactionsHashes.push_back(transactionHash);
+        newTransactionsHashes.push_back(std::move(transactionHash));
     }
 
     return getTransactions(newTransactionsHashes, newTransactions);

@@ -22,10 +22,12 @@
 
 namespace Common {
 
-class IInputStream {
+class IInputStream
+{
 public:
-  virtual ~IInputStream() { }
-  virtual size_t readSome(void* data, size_t size) = 0;
+    virtual ~IInputStream() = default;
+
+    virtual size_t readSome(void *data, size_t size) = 0;
 };
 
-}
+} // namespace Common
