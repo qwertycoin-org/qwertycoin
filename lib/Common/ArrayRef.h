@@ -514,7 +514,7 @@ public:
         The behavior is undefined unless 'other' 'ArrayRef' is in defined state,
         that is 'data' != 'nullptr' || 'size' == 0
     */
-    ArrayRef &operator=(const ArrayRef &other)
+    ArrayRef &operator=(ArrayRef other)
     {
         assert(other.m_data != nullptr || other.m_size == 0);
 
@@ -585,7 +585,7 @@ public:
         return *(m_data + index);
     }
 
-    explicit operator ArrayView<Object, Size>() const
+    operator ArrayView<Object, Size>() const
     {
         return ArrayView<Object, Size>(m_data, m_size);
     }
