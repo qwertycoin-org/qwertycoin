@@ -16,28 +16,36 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "LoggerGroup.h"
 #include <algorithm>
+#include <Logging/LoggerGroup.h>
 
 namespace Logging {
 
-LoggerGroup::LoggerGroup(Level level) : CommonLogger(level) {
+LoggerGroup::LoggerGroup(Level level)
+    : CommonLogger(level)
+{
 }
 
-void LoggerGroup::addLogger(ILogger& logger) {
-  loggers.push_back(&logger);
+void LoggerGroup::addLogger(ILogger &logger)
+{
+    m_loggers.push_back(&logger);
 }
 
-void LoggerGroup::removeLogger(ILogger& logger) {
-  loggers.erase(std::remove(loggers.begin(), loggers.end(), &logger), loggers.end());
+void LoggerGroup::removeLogger(ILogger &logger)
+{
+    m_loggers.erase(std::remove(m_loggers.begin(), m_loggers.end(), &logger), m_loggers.end());
 }
 
-void LoggerGroup::operator()(const std::string& category, Level level, boost::posix_time::ptime time, const std::string& body) {
-  if (level <= logLevel && disabledCategories.count(category) == 0) {
-    for (auto& logger : loggers) {
-      (*logger)(category, level, time, body);
+void LoggerGroup::operator()(const std::string &category,
+                             Level level,
+                             boost::posix_time::ptime time,
+                             const std::string &body)
+{
+    if (level <= m_logLevel && m_disabledCategories.count(category) == 0) {
+        for (auto &logger : m_loggers) {
+            (*logger)(category, level, time, body);
+        }
     }
-  }
 }
 
-}
+} // namespace Logging

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "ILogger.h"
+#include <Logging/ILogger.h>
 
 namespace Logging {
 
@@ -38,13 +38,13 @@ const std::string DEFAULT = "\x1F""DEFAULT\x1F";
 
 const char ILogger::COLOR_DELIMETER = '\x1F';
 
-const std::array<std::string, 6> ILogger::LEVEL_NAMES = {
-  {"FATAL",
-  "ERROR",
-  "WARNING",
-  "INFO",
-  "DEBUG",
-  "TRACE"}
-};
+const std::array<std::string, 6> ILogger::LEVEL_NAMES = {{
+    "FATAL",
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "DEBUG",
+    "TRACE"
+}};
 
-}
+} // namespace Logging

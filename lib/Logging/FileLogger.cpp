@@ -16,16 +16,19 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "FileLogger.h"
+#include <Logging/FileLogger.h>
 
 namespace Logging {
 
-FileLogger::FileLogger(Level level) : StreamLogger(level) {
+FileLogger::FileLogger(Level level)
+    : StreamLogger(level)
+{
 }
 
-void FileLogger::init(const std::string& fileName) {
-  fileStream.open(fileName, std::ios::app);
-  StreamLogger::attachToStream(fileStream);
+void FileLogger::init(const std::string &fileName)
+{
+    m_fileStream.open(fileName, std::ios::app);
+    StreamLogger::attachToStream(m_fileStream);
 }
 
-}
+} // namespace Logging

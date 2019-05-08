@@ -18,21 +18,22 @@
 
 #pragma once
 
-#include <string>
 #include <array>
+#include <string>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #undef ERROR
 
 namespace Logging {
 
-enum Level {
-  FATAL = 0,
-  ERROR = 1,
-  WARNING = 2,
-  INFO = 3,
-  DEBUGGING = 4,
-  TRACE = 5
+enum Level
+{
+    FATAL = 0,
+    ERROR = 1,
+    WARNING = 2,
+    INFO = 3,
+    DEBUGGING = 4,
+    TRACE = 5
 };
 
 extern const std::string BLUE;
@@ -51,17 +52,21 @@ extern const std::string BRIGHT_CYAN;
 extern const std::string BRIGHT_MAGENTA;
 extern const std::string DEFAULT;
 
-class ILogger {
+class ILogger
+{
 public:
-  const static char COLOR_DELIMETER;
+    const static char COLOR_DELIMETER;
 
-  const static std::array<std::string, 6> LEVEL_NAMES;
+    const static std::array<std::string, 6> LEVEL_NAMES;
 
-  virtual void operator()(const std::string& category, Level level, boost::posix_time::ptime time, const std::string& body) = 0;
+    virtual void operator()(const std::string &category,
+                            Level level,
+                            boost::posix_time::ptime time,
+                            const std::string &body) = 0;
 };
 
 #ifndef ENDL
 #define ENDL std::endl
 #endif
 
-}
+} // namespace Logging
