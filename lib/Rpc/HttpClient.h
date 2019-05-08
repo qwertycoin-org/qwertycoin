@@ -20,8 +20,8 @@
 
 #include <memory>
 
-#include <HTTP/HttpRequest.h>
-#include <HTTP/HttpResponse.h>
+#include <Http/HttpRequest.h>
+#include <Http/HttpResponse.h>
 #include <System/TcpConnection.h>
 #include <System/TcpStream.h>
 
