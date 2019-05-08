@@ -21,20 +21,26 @@
 #include <list>
 #include <memory>
 #include <mutex>
-#include "../Common/JsonValue.h"
-#include "LoggerGroup.h"
+#include <Common/JsonValue.h>
+#include <Logging/LoggerGroup.h>
 
 namespace Logging {
 
-class LoggerManager : public LoggerGroup {
+class LoggerManager : public LoggerGroup
+{
 public:
-  LoggerManager();
-  void configure(const Common::JsonValue& val);
-  virtual void operator()(const std::string& category, Level level, boost::posix_time::ptime time, const std::string& body) override;
+    LoggerManager() = default;
+
+    void configure(const Common::JsonValue &val);
+
+    void operator()(const std::string &category,
+                    Level level,
+                    boost::posix_time::ptime time,
+                    const std::string &body) override;
 
 private:
-  std::vector<std::unique_ptr<CommonLogger>> loggers;
-  std::mutex reconfigureLock;
+    std::vector<std::unique_ptr<CommonLogger>> loggers;
+    std::mutex reconfigureLock;
 };
 
-}
+} // namespace Logging
