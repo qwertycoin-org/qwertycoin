@@ -16,33 +16,31 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef HTTPPARSER_H_
-#define HTTPPARSER_H_
+#pragma once
 
 #include <iostream>
 #include <map>
 #include <string>
-#include "HttpRequest.h"
-#include "HttpResponse.h"
+#include <Http/HttpRequest.h>
+#include <Http/HttpResponse.h>
 
 namespace CryptoNote {
 
-//Blocking HttpParser
-class HttpParser {
+class HttpParser
+{
 public:
-  HttpParser() {};
+    HttpParser() = default;
 
-  void receiveRequest(std::istream& stream, HttpRequest& request);
-  void receiveResponse(std::istream& stream, HttpResponse& response);
-  static HttpResponse::HTTP_STATUS parseResponseStatusFromString(const std::string& status);
+    void receiveRequest(std::istream &stream, HttpRequest &request);
+    void receiveResponse(std::istream &stream, HttpResponse &response);
+    static HttpResponse::HTTP_STATUS parseResponseStatusFromString(const std::string &status);
+
 private:
-  void readWord(std::istream& stream, std::string& word);
-  void readHeaders(std::istream& stream, HttpRequest::Headers &headers);
-  bool readHeader(std::istream& stream, std::string& name, std::string& value);
-  size_t getBodyLen(const HttpRequest::Headers& headers);
-  void readBody(std::istream& stream, std::string& body, const size_t bodyLen);
+    static void readWord(std::istream &stream, std::string &word);
+    static void readHeaders(std::istream &stream, HttpRequest::Headers &headers);
+    static bool readHeader(std::istream &stream, std::string &name, std::string &value);
+    static void readBody(std::istream &stream, std::string &body, const size_t bodyLen);
+    static size_t getBodyLen(const HttpRequest::Headers &headers);
 };
 
-} //namespace CryptoNote
-
-#endif /* HTTPPARSER_H_ */
+} // namespace CryptoNote
