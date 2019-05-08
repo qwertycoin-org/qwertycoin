@@ -21,8 +21,8 @@
 
 #include <unordered_set>
 
-#include <HTTP/HttpRequest.h>
-#include <HTTP/HttpResponse.h>
+#include <Http/HttpRequest.h>
+#include <Http/HttpResponse.h>
 
 #include <System/ContextGroup.h>
 #include <System/Dispatcher.h>

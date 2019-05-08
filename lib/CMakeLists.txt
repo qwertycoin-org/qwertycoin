@@ -319,14 +319,14 @@ target_include_directories(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${Qwer
 # QwertycoinFramework::Http
 
 set(QwertycoinFramework_Http_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParser.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParser.h"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParserErrorCodes.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParserErrorCodes.h"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpRequest.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpRequest.h"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpResponse.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpResponse.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParser.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParser.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParserErrorCodes.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParserErrorCodes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpRequest.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpRequest.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpResponse.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpResponse.h"
 )
 
 add_library(QwertycoinFramework_Http STATIC ${QwertycoinFramework_Http_SOURCES})

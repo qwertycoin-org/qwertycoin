@@ -24,9 +24,9 @@
 #include <sstream>
 #include <system_error>
 #include <Common/JsonValue.h>
-#include <HTTP/HttpParser.h>
-#include <HTTP/HttpParserErrorCodes.h>
-#include <HTTP/HttpResponse.h>
+#include <Http/HttpParser.h>
+#include <Http/HttpParserErrorCodes.h>
+#include <Http/HttpResponse.h>
 #include <JsonRpcServer/JsonRpcServer.h>
 #include <Rpc/JsonRpc.h>
 #include <Serialization/JsonInputValueSerializer.h>
