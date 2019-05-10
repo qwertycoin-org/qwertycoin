@@ -18,23 +18,22 @@
 
 #pragma once
 
-#include "INode.h"
-
 #include <string>
+#include <INode.h>
 
 namespace PaymentService {
 
-class NodeFactory {
+class NodeFactory
+{
 public:
-  static CryptoNote::INode* createNode(const std::string& daemonAddress, uint16_t daemonPort);
-  static CryptoNote::INode* createNodeStub();
+    static CryptoNote::INode *createNode(const std::string &daemonAddress, uint16_t daemonPort);
+    static CryptoNote::INode *createNodeStub();
+
 private:
-  NodeFactory();
-  ~NodeFactory();
+    NodeFactory() = default;
+    ~NodeFactory() = default;
 
-  CryptoNote::INode* getNode(const std::string& daemonAddress, uint16_t daemonPort);
-
-  static NodeFactory factory;
+    static NodeFactory factory;
 };
 
-} //namespace PaymentService
+} // namespace PaymentService
