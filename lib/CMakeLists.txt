@@ -65,10 +65,13 @@ add_dependencies(QwertycoinFramework ${QwertycoinFramework_LIBS})
 set(QwertycoinFramework_BlockchainExplorer_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorer.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerData.h"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerDataBuilder.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerDataBuilder.h"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerErrors.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/BlockchainExplorerErrors.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/IBlockchainExplorer.h"
+    "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/IBlockchainObserver.h"
 )
 
 add_library(QwertycoinFramework_BlockchainExplorer STATIC ${QwertycoinFramework_BlockchainExplorer_SOURCES})
@@ -94,9 +97,7 @@ set(QwertycoinFramework_Common_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Common/DnsTools.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/FileMappedVector.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/FileMappedVector.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Common/IInputStream.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/IInputStream.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Common/IOutputStream.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/IOutputStream.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/JsonValue.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/JsonValue.h"
@@ -318,14 +319,14 @@ target_include_directories(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${Qwer
 # QwertycoinFramework::Http
 
 set(QwertycoinFramework_Http_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParser.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParser.h"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParserErrorCodes.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpParserErrorCodes.h"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpRequest.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpRequest.h"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpResponse.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/HTTP/HttpResponse.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParser.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParser.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParserErrorCodes.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpParserErrorCodes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpRequest.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpRequest.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpResponse.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Http/HttpResponse.h"
 )
 
 add_library(QwertycoinFramework_Http STATIC ${QwertycoinFramework_Http_SOURCES})
@@ -417,10 +418,16 @@ set(QwertycoinFramework_NodeRpcProxy_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/NodeRpcProxy/NodeRpcProxy.h"
 )
 
+set(QwertycoinFramework_NodeRpcProxy_LIBS
+    QwertycoinFramework::Http
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::System
+)
+
 add_library(QwertycoinFramework_NodeRpcProxy STATIC ${QwertycoinFramework_NodeRpcProxy_SOURCES})
 add_library(QwertycoinFramework::NodeRpcProxy ALIAS QwertycoinFramework_NodeRpcProxy)
 target_include_directories(QwertycoinFramework_NodeRpcProxy PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
-target_link_libraries(QwertycoinFramework_NodeRpcProxy PRIVATE QwertycoinFramework::System)
+target_link_libraries(QwertycoinFramework_NodeRpcProxy PRIVATE ${QwertycoinFramework_NodeRpcProxy_LIBS})
 
 # QwertycoinFramework::P2p
 

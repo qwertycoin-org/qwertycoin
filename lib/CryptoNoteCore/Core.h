@@ -21,8 +21,7 @@
 #include <ctime>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
-#include "BlockchainExplorerData.h"
-#include "BlockchainExplorerData2.h"
+#include "BlockchainExplorer/BlockchainExplorerData.h"
 #include "P2p/NetNodeCommon.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandlerCommon.h"
 #include "Currency.h"

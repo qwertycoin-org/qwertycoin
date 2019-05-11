@@ -16,16 +16,20 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "StringOutputStream.h"
+#include <Common/StringOutputStream.h>
 
 namespace Common {
 
-StringOutputStream::StringOutputStream(std::string& out) : out(out) {
+StringOutputStream::StringOutputStream(std::string &out)
+    : out(out)
+{
 }
 
-size_t StringOutputStream::writeSome(const void* data, size_t size) {
-  out.append(static_cast<const char*>(data), size);
-  return size;
+size_t StringOutputStream::writeSome(const void *data, size_t size)
+{
+    out.append(static_cast<const char *>(data), size);
+
+    return size;
 }
 
-}
+} // namespace Common

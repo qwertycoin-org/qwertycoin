@@ -16,41 +16,14 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#pragma once
+#include <Http/HttpParserErrorCodes.h>
 
-#include <gtest/gtest.h>
-#include <future>
+namespace CryptoNote {
 
-#include <Logging/ConsoleLogger.h>
-#include <System/Dispatcher.h>
-#include "CryptoNoteCore/Currency.h"
+namespace error {
 
-#include "../IntegrationTestLib/TestNetwork.h"
+HttpParserErrorCategory HttpParserErrorCategory::INSTANCE;
 
-namespace Tests {
+} // namespace error
 
-class BaseTest : public testing::Test {
-public:
-
-  BaseTest() :
-    currency(CryptoNote::CurrencyBuilder(logger).testnet(true).currency()),
-    network(dispatcher, currency) {
-  }
-
-protected:
-
-  virtual void TearDown() override {
-    network.shutdown();
-  }
-
-  System::Dispatcher& getDispatcher() {
-    return dispatcher;
-  }
-
-  System::Dispatcher dispatcher;
-  Logging::ConsoleLogger logger;
-  CryptoNote::Currency currency;
-  TestNetwork network;
-};
-
-}
+} // namespace CryptoNote

@@ -16,36 +16,44 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "StreamLogger.h"
 #include <iostream>
 #include <sstream>
+#include <Logging/StreamLogger.h>
 
 namespace Logging {
 
-StreamLogger::StreamLogger(Level level) : CommonLogger(level), stream(nullptr) {
+StreamLogger::StreamLogger(Level level)
+    : CommonLogger(level),
+      m_stream(nullptr)
+{
 }
 
-StreamLogger::StreamLogger(std::ostream& stream, Level level) : CommonLogger(level), stream(&stream) {
+StreamLogger::StreamLogger(std::ostream &stream, Level level)
+    : CommonLogger(level),
+      m_stream(&stream)
+{
 }
 
-void StreamLogger::attachToStream(std::ostream& stream) {
-  this->stream = &stream;
+void StreamLogger::attachToStream(std::ostream &stream)
+{
+    this->m_stream = &stream;
 }
 
-void StreamLogger::doLogString(const std::string& message) {
-  if (stream != nullptr && stream->good()) {
-    std::lock_guard<std::mutex> lock(mutex);
-    bool readingText = true;
-    for (size_t charPos = 0; charPos < message.size(); ++charPos) {
-      if (message[charPos] == ILogger::COLOR_DELIMETER) {
-        readingText = !readingText;
-      } else if (readingText) {
-        *stream << message[charPos];
-      }
+void StreamLogger::doLogString(const std::string &message)
+{
+    if (m_stream != nullptr && m_stream->good()) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        bool readingText = true;
+        for(size_t charPos = 0; charPos < message.size(); ++charPos) {
+            if (message[charPos] == ILogger::COLOR_DELIMETER) {
+                readingText = !readingText;
+            } else if (readingText) {
+                *m_stream << message[charPos];
+            }
+        }
+
+        *m_stream << std::flush;
     }
-
-    *stream << std::flush;
-  }
 }
 
-}
+} // namespace Logging

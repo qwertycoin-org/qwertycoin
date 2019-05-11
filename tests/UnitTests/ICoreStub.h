@@ -42,7 +42,7 @@ public:
       CryptoNote::COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response& res) override;
   virtual bool get_tx_outputs_gindexs(const Crypto::Hash& tx_id, std::vector<uint32_t>& indexs) override;
   virtual CryptoNote::i_cryptonote_protocol* get_protocol() override;
-  virtual bool handle_incoming_tx(CryptoNote::BinaryArray const& tx_blob, CryptoNote::tx_verification_context& tvc, bool keeped_by_block) /*override*/;
+  virtual bool handle_incoming_tx(const CryptoNote::BinaryArray& tx_blob, CryptoNote::tx_verification_context& tvc, bool keeped_by_block, bool loose_check) override;
   virtual std::vector<CryptoNote::Transaction> getPoolTransactions() override;
   virtual bool getPoolChanges(const Crypto::Hash& tailBlockId, const std::vector<Crypto::Hash>& knownTxsIds,
                               std::vector<CryptoNote::Transaction>& addedTxs, std::vector<Crypto::Hash>& deletedTxsIds) override;
@@ -54,6 +54,8 @@ public:
     uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<CryptoNote::BlockFullInfo>& entries) override;
   virtual bool queryBlocksLite(const std::vector<Crypto::Hash>& block_ids, uint64_t timestamp,
     uint32_t& start_height, uint32_t& current_height, uint32_t& full_offset, std::vector<CryptoNote::BlockShortInfo>& entries) override;
+  virtual bool queryBlocksDetailed(const std::vector<Crypto::Hash>& knownBlockHashes, uint64_t timestamp,
+    uint32_t& startIndex, uint32_t& currentIndex, uint32_t& fullOffset, std::vector<CryptoNote::BlockFullInfo>& entries) override;
 
   virtual bool have_block(const Crypto::Hash& id) override;
   std::vector<Crypto::Hash> buildSparseChain() override;
@@ -79,6 +81,7 @@ public:
     uint64_t& reward, int64_t& emissionChange) override;
   virtual bool scanOutputkeysForIndices(const CryptoNote::KeyInput& txInToKey, std::list<std::pair<Crypto::Hash, size_t>>& outputReferences) override;
   virtual bool getBlockDifficulty(uint32_t height, CryptoNote::difficulty_type& difficulty) override;
+  virtual bool getBlockCumulativeDifficulty(uint32_t height, CryptoNote::difficulty_type& difficulty) override;
   virtual bool getBlockContainingTx(const Crypto::Hash& txId, Crypto::Hash& blockId, uint32_t& blockHeight) override;
   virtual bool getMultisigOutputReference(const CryptoNote::MultisignatureInput& txInMultisig, std::pair<Crypto::Hash, size_t>& outputReference) override;
 
@@ -87,8 +90,9 @@ public:
   virtual bool getBlocksByTimestamp(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t blocksNumberLimit, std::vector<CryptoNote::Block>& blocks, uint32_t& blocksNumberWithinTimestamps) override;
   virtual bool getPoolTransactionsByTimestamp(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t transactionsNumberLimit, std::vector<CryptoNote::Transaction>& transactions, uint64_t& transactionsNumberWithinTimestamps) override;
   virtual bool getTransactionsByPaymentId(const Crypto::Hash& paymentId, std::vector<CryptoNote::Transaction>& transactions) override;
+  virtual std::vector<Crypto::Hash> getTransactionHashesByPaymentId(const Crypto::Hash& paymentId) override;
   virtual std::unique_ptr<CryptoNote::IBlock> getBlock(const Crypto::Hash& blockId) override;
-  virtual bool handleIncomingTransaction(const CryptoNote::Transaction& tx, const Crypto::Hash& txHash, size_t blobSize, CryptoNote::tx_verification_context& tvc, bool keptByBlock, uint32_t height) /*override*/;
+  virtual bool handleIncomingTransaction(const CryptoNote::Transaction& tx, const Crypto::Hash& txHash, size_t blobSize, CryptoNote::tx_verification_context& tvc, bool keptByBlock, uint32_t height, bool loose_check) override;
   virtual std::error_code executeLocked(const std::function<std::error_code()>& func) override;
 
   virtual bool addMessageQueue(CryptoNote::MessageQueue<CryptoNote::BlockchainMessage>& messageQueuePtr) override;
@@ -96,8 +100,12 @@ public:
 
   virtual uint64_t getMinimalFeeForHeight(uint32_t height) override;
   virtual uint64_t getMinimalFee() override;
+
+  virtual uint32_t get_current_blockchain_height() override;
   virtual uint8_t getBlockMajorVersionForHeight(uint32_t height) override;
   virtual uint8_t getCurrentBlockMajorVersion() override;
+
+  virtual void rollbackBlockchain(const uint32_t height) override;
 
   void set_blockchain_top(uint32_t height, const Crypto::Hash& top_id);
   void set_outputs_gindexs(const std::vector<uint32_t>& indexs, bool result);

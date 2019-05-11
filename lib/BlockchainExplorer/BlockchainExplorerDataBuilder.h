@@ -18,37 +18,37 @@
 
 #pragma once
 
-#include <vector>
-#include <array>
-
-#include "CryptoNoteProtocol/ICryptoNoteProtocolQuery.h"
-#include "CryptoNoteCore/ICore.h"
-#include "BlockchainExplorerData.h"
+#include <BlockchainExplorer/BlockchainExplorerData.h>
+#include <CryptoNoteCore/ICore.h>
+#include <CryptoNoteProtocol/ICryptoNoteProtocolQuery.h>
 
 namespace CryptoNote {
 
 class BlockchainExplorerDataBuilder
 {
 public:
-  BlockchainExplorerDataBuilder(CryptoNote::ICore& core, CryptoNote::ICryptoNoteProtocolQuery& protocol);
+    BlockchainExplorerDataBuilder(ICore &core, ICryptoNoteProtocolQuery &protocol);
+    BlockchainExplorerDataBuilder(const BlockchainExplorerDataBuilder &) = delete;
+    BlockchainExplorerDataBuilder(BlockchainExplorerDataBuilder &&) = delete;
 
-  BlockchainExplorerDataBuilder(const BlockchainExplorerDataBuilder&) = delete;
-  BlockchainExplorerDataBuilder(BlockchainExplorerDataBuilder&&) = delete;
+    bool fillBlockDetails(const Block &block, BlockDetails &blockDetails);
+    bool fillTransactionDetails(const Transaction &tx,
+                                TransactionDetails &txRpcInfo,
+                                uint64_t timestamp = 0);
 
-  BlockchainExplorerDataBuilder& operator=(const BlockchainExplorerDataBuilder&) = delete;
-  BlockchainExplorerDataBuilder& operator=(BlockchainExplorerDataBuilder&&) = delete;
+    static bool getPaymentId(const Transaction &transaction, Crypto::Hash &paymentId);
 
-  bool fillBlockDetails(const Block& block, BlockDetails& blockDetails);
-  bool fillTransactionDetails(const Transaction &tx, TransactionDetails& txRpcInfo, uint64_t timestamp = 0);
-
-  static bool getPaymentId(const Transaction& transaction, Crypto::Hash& paymentId);
+    BlockchainExplorerDataBuilder &operator=(const BlockchainExplorerDataBuilder &) = delete;
+    BlockchainExplorerDataBuilder &operator=(BlockchainExplorerDataBuilder &&) = delete;
 
 private:
-  bool getMixin(const Transaction& transaction, uint64_t& mixin);
-  bool fillTxExtra(const std::vector<uint8_t>& rawExtra, TransactionExtraDetails& extraDetails);
-  size_t median(std::vector<size_t>& v);
+    static bool getMixin(const Transaction &transaction, uint64_t &mixin);
+    static bool fillTxExtra(const std::vector<uint8_t> &rawExtra,
+                            TransactionExtraDetails &extraDetails);
+    static size_t median(std::vector<size_t> &v);
 
-  CryptoNote::ICore& core;
-  CryptoNote::ICryptoNoteProtocolQuery& protocol;
+    ICore &m_core;
+    ICryptoNoteProtocolQuery &m_protocol; // Not used!
 };
-}
+
+} // namespace CryptoNote

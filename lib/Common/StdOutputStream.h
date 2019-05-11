@@ -19,18 +19,21 @@
 #pragma once
 
 #include <ostream>
-#include "IOutputStream.h"
+#include <Common/IOutputStream.h>
 
 namespace Common {
 
-class StdOutputStream : public IOutputStream {
+class StdOutputStream : public IOutputStream
+{
 public:
-  StdOutputStream(std::ostream& out);
-  StdOutputStream& operator=(const StdOutputStream&) = delete;
-  size_t writeSome(const void* data, size_t size) override;
+    explicit StdOutputStream(std::ostream &out);
+
+    size_t writeSome(const void *data, size_t size) override;
+
+    StdOutputStream &operator=(const StdOutputStream &) = delete;
 
 private:
-  std::ostream& out;
+    std::ostream &out;
 };
 
-}
+} // namespace Common

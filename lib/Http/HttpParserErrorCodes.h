@@ -25,27 +25,22 @@ namespace CryptoNote {
 
 namespace error {
 
-// custom error conditions enum type:
-enum NodeErrorCodes
+enum HttpParserErrorCodes
 {
-    NOT_INITIALIZED = 1,
-    ALREADY_INITIALIZED,
-    NETWORK_ERROR,
-    NODE_BUSY,
-    INTERNAL_NODE_ERROR,
-    REQUEST_ERROR,
-    CONNECT_ERROR
+    STREAM_NOT_GOOD = 1,
+    END_OF_STREAM,
+    UNEXPECTED_SYMBOL,
+    EMPTY_HEADER
 };
 
-// custom category:
-class NodeErrorCategory : public std::error_category
+class HttpParserErrorCategory : public std::error_category
 {
 public:
-    static NodeErrorCategory INSTANCE;
+  static HttpParserErrorCategory INSTANCE;
 
     const char *name() const noexcept override
     {
-        return "NodeErrorCategory";
+        return "HttpParserErrorCategory";
     }
 
     std::error_condition default_error_condition(int ev) const noexcept override
@@ -56,34 +51,31 @@ public:
     std::string message(int ev) const override
     {
         switch (ev) {
-        case NOT_INITIALIZED:
-            return "Object was not initialized";
-        case ALREADY_INITIALIZED:
-            return "Object has been already initialized";
-        case NETWORK_ERROR:
-            return "Network error";
-        case NODE_BUSY:
-            return "Node is busy";
-        case INTERNAL_NODE_ERROR:
-            return "Internal node error";
-        case REQUEST_ERROR:
-            return "Error in request parameters";
-        case CONNECT_ERROR:
-            return "Can't connect to daemon";
+        case STREAM_NOT_GOOD:
+            return "The stream is not good";
+        case END_OF_STREAM:
+            return "The stream is ended";
+        case UNEXPECTED_SYMBOL:
+            return "Unexpected symbol";
+        case EMPTY_HEADER:
+            return "The header name is empty";
         default:
             return "Unknown error";
         }
     }
 
 private:
-    NodeErrorCategory() = default;
+    HttpParserErrorCategory() = default;
 };
 
 } // namespace error
 
 } // namespace CryptoNote
 
-inline std::error_code make_error_code(CryptoNote::error::NodeErrorCodes e)
+inline std::error_code make_error_code(CryptoNote::error::HttpParserErrorCodes e)
 {
-    return std::error_code{static_cast<int>(e), CryptoNote::error::NodeErrorCategory::INSTANCE};
+  return std::error_code{
+      static_cast<int>(e),
+      CryptoNote::error::HttpParserErrorCategory::INSTANCE
+  };
 }

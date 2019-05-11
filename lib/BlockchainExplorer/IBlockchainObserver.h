@@ -16,4 +16,26 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "IOutputStream.h"
+#pragma once
+
+#include <BlockchainExplorer/BlockchainExplorerData.h>
+
+namespace CryptoNote {
+
+class IBlockchainObserver
+{
+    typedef std::pair<Crypto::Hash, TransactionRemoveReason> RemovedTransactionDetails;
+
+public:
+    virtual ~IBlockchainObserver() = default;
+
+    virtual void blockchainSynchronized(const BlockDetails &topBlock) {}
+
+    virtual void blockchainUpdated(const std::vector<BlockDetails> &newBlocks,
+                                   const std::vector<BlockDetails> &orphanedBlocks) {}
+
+    virtual void poolUpdated(const std::vector<TransactionDetails> &newTransactions,
+                             const std::vector<RemovedTransactionDetails> &removedTransactions) {}
+};
+
+} // namespace CryptoNote

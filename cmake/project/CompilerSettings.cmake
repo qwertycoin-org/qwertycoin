@@ -27,4 +27,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     # Intel C++
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     # Visual Studio C++
+
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 endif()

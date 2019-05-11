@@ -16,85 +16,101 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "CommonLogger.h"
+#include <Logging/CommonLogger.h>
 
 namespace Logging {
 
 namespace {
 
-std::string formatPattern(const std::string& pattern, const std::string& category, Level level, boost::posix_time::ptime time) {
-  std::stringstream s;
+std::string formatPattern(const std::string &pattern,
+                          const std::string &category,
+                          Level level,
+                          boost::posix_time::ptime time)
+{
+    std::stringstream s;
 
-  for (const char* p = pattern.c_str(); p && *p != 0; ++p) {
-    if (*p == '%') {
-      ++p;
-      switch (*p) {
-      case 0:
-        break;
-      case 'C':
-        s << category;
-        break;
-      case 'D':
-        s << time.date();
-        break;
-      case 'T':
-        s << time.time_of_day();
-        break;
-      case 'L':
-        s << std::setw(7) << std::left << ILogger::LEVEL_NAMES[level];
-        break;
-      default:
-        s << *p;
-      }
-    } else {
-      s << *p;
-    }
-  }
-
-  return s.str();
-}
-
-}
-
-void CommonLogger::operator()(const std::string& category, Level level, boost::posix_time::ptime time, const std::string& body) {
-  if (level <= logLevel && disabledCategories.count(category) == 0) {
-    std::string body2 = body;
-    if (!pattern.empty()) {
-      size_t insertPos = 0;
-      if (!body2.empty() && body2[0] == ILogger::COLOR_DELIMETER) {
-        size_t delimPos = body2.find(ILogger::COLOR_DELIMETER, 1);
-        if (delimPos != std::string::npos) {
-          insertPos = delimPos + 1;
+    for (const char *p = pattern.c_str(); p && *p != 0; ++p) {
+        if (*p == '%') {
+            ++p;
+            switch (*p) {
+            case 0:
+                break;
+            case 'C':
+                s << category;
+                break;
+            case 'D':
+                s << time.date();
+                break;
+            case 'T':
+                s << time.time_of_day();
+                break;
+            case 'L':
+                s << std::setw(7) << std::left << ILogger::LEVEL_NAMES[level];
+                break;
+            default:
+                s << *p;
+            }
+        } else {
+            s << *p;
         }
-      }
-
-      body2.insert(insertPos, formatPattern(pattern, category, level, time));
     }
 
-    doLogString(body2);
-  }
+    return s.str();
 }
 
-void CommonLogger::setPattern(const std::string& pattern) {
-  this->pattern = pattern;
+} // namespace
+
+void CommonLogger::enableCategory(const std::string &category)
+{
+    m_disabledCategories.erase(category);
 }
 
-void CommonLogger::enableCategory(const std::string& category) {
-  disabledCategories.erase(category);
+void CommonLogger::disableCategory(const std::string &category)
+{
+    m_disabledCategories.insert(category);
 }
 
-void CommonLogger::disableCategory(const std::string& category) {
-  disabledCategories.insert(category);
+void CommonLogger::setMaxLevel(Level level)
+{
+    m_logLevel = level;
 }
 
-void CommonLogger::setMaxLevel(Level level) {
-  logLevel = level;
+void CommonLogger::setPattern(const std::string &pattern)
+{
+    this->m_pattern = pattern;
 }
 
-CommonLogger::CommonLogger(Level level) : logLevel(level), pattern("%D %T %L [%C] ") {
+void CommonLogger::operator()(const std::string &category,
+                              Level level,
+                              boost::posix_time::ptime time,
+                              const std::string &body)
+{
+    if (level <= m_logLevel && m_disabledCategories.count(category) == 0) {
+        std::string body2 = body;
+        if (!m_pattern.empty()) {
+            size_t insertPos = 0;
+            if (!body2.empty() && body2[0] == ILogger::COLOR_DELIMETER) {
+                size_t delimPos = body2.find(ILogger::COLOR_DELIMETER, 1);
+                if (delimPos != std::string::npos) {
+                    insertPos = delimPos + 1;
+                }
+            }
+
+            body2.insert(insertPos, formatPattern(m_pattern, category, level, time));
+        }
+
+        doLogString(body2);
+    }
 }
 
-void CommonLogger::doLogString(const std::string& message) {
+CommonLogger::CommonLogger(Level level)
+    : m_logLevel(level),
+      m_pattern("%D %T %L [%C] ")
+{
 }
 
+void CommonLogger::doLogString(const std::string &message)
+{
 }
+
+} // namespace Logging

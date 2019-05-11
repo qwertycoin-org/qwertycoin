@@ -20,18 +20,21 @@
 
 #include <cstdint>
 #include <vector>
-#include "IOutputStream.h"
+#include <Common/IOutputStream.h>
 
 namespace Common {
 
-class VectorOutputStream : public IOutputStream {
+class VectorOutputStream : public IOutputStream
+{
 public:
-  VectorOutputStream(std::vector<uint8_t>& out);
-  VectorOutputStream& operator=(const VectorOutputStream&) = delete;
-  size_t writeSome(const void* data, size_t size) override;
+    explicit VectorOutputStream(std::vector<uint8_t> &out);
+
+    size_t writeSome(const void *data, size_t size) override;
+
+    VectorOutputStream &operator=(const VectorOutputStream &) = delete;
 
 private:
-  std::vector<uint8_t>& out;
+    std::vector<uint8_t> &out;
 };
 
-}
+} // namespace Common

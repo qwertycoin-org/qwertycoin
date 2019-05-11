@@ -16,10 +16,9 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "SignalHandler.h"
-
-#include <mutex>
 #include <iostream>
+#include <mutex>
+#include <Common/SignalHandler.h>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -33,71 +32,74 @@
 
 namespace {
 
-  std::function<void(void)> m_handler;
+std::function<void(void)> m_handler;
 
-  void handleSignal() {
+void handleSignal()
+{
     static std::mutex m_mutex;
     std::unique_lock<std::mutex> lock(m_mutex, std::try_to_lock);
     if (!lock.owns_lock()) {
-      return;
+        return;
     }
     m_handler();
-  }
-
-
-#if defined(WIN32)
-BOOL WINAPI winHandler(DWORD type) {
-  if (CTRL_C_EVENT == type || CTRL_BREAK_EVENT == type) {
-    handleSignal();
-    return TRUE;
-  } else {
-    std::cerr << "Got control signal " << type << ". Exiting without saving...";
-    return FALSE;
-  }
-  return TRUE;
 }
 
+#if defined(WIN32)
+BOOL WINAPI winHandler(DWORD type)
+{
+    if (CTRL_C_EVENT == type || CTRL_BREAK_EVENT == type) {
+        handleSignal();
+        return TRUE;
+    } else {
+        std::cerr << "Got control signal " << type << ". Exiting without saving...";
+        return FALSE;
+    }
+    return TRUE;
+}
 #else
-
-void posixHandler(int /*type*/) {
-  handleSignal();
+void posixHandler(int /*type*/)
+{
+    handleSignal();
 }
 #endif
 
-}
-
+} // namespace
 
 namespace Tools {
 
-  bool SignalHandler::install(std::function<void(void)> t)
-  {
+bool SignalHandler::install(std::function<void(void)> t)
+{
 #if defined(WIN32)
     bool r = TRUE == ::SetConsoleCtrlHandler(&winHandler, TRUE);
     if (r)  {
-      m_handler = t;
+        m_handler = t;
     }
     return r;
 #else
     struct sigaction newMask;
+
     std::memset(&newMask, 0, sizeof(struct sigaction));
     newMask.sa_handler = posixHandler;
+
     if (sigaction(SIGINT, &newMask, nullptr) != 0) {
-      return false;
+        return false;
     }
 
     if (sigaction(SIGTERM, &newMask, nullptr) != 0) {
-      return false;
+        return false;
     }
 
     std::memset(&newMask, 0, sizeof(struct sigaction));
     newMask.sa_handler = SIG_IGN;
+
     if (sigaction(SIGPIPE, &newMask, nullptr) != 0) {
-      return false;
+        return false;
     }
 
     m_handler = t;
+
     return true;
 #endif
-  }
-
 }
+
+} // namespace Tools

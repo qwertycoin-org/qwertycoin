@@ -16,22 +16,28 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "StringInputStream.h"
 #include <string.h>
+#include <Common/StringInputStream.h>
 
 namespace Common {
 
-StringInputStream::StringInputStream(const std::string& in) : in(in), offset(0) {
+StringInputStream::StringInputStream(const std::string &in)
+    : in(in),
+      offset(0)
+{
 }
 
-size_t StringInputStream::readSome(void* data, size_t size) {
-  if (size > in.size() - offset) {
-    size = in.size() - offset;
-  }
+size_t StringInputStream::readSome(void *data, size_t size)
+{
+    if (size > in.size() - offset) {
+        size = in.size() - offset;
+    }
 
-  memcpy(data, in.data() + offset, size);
-  offset += size;
-  return size;
+    memcpy(data, in.data() + offset, size);
+
+    offset += size;
+
+    return size;
 }
 
-}
+} // namespace Common

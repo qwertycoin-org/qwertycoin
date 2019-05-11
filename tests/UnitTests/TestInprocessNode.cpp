@@ -669,7 +669,7 @@ TEST_F(InProcessNodeTests, getPoolDiffereceActualBC) {
     transactionHashes.insert(CryptoNote::getObjectHash(tx));
     CryptoNote::tx_verification_context tvc = boost::value_initialized<tx_verification_context>();
     bool keptByBlock = false;
-    coreStub.handleIncomingTransaction(tx, CryptoNote::getObjectHash(tx), CryptoNote::getObjectBinarySize(tx), tvc, keptByBlock, node.getLastLocalBlockHeight());
+    coreStub.handleIncomingTransaction(tx, CryptoNote::getObjectHash(tx), CryptoNote::getObjectBinarySize(tx), tvc, keptByBlock, node.getLastLocalBlockHeight(), false);
     ASSERT_TRUE(tvc.m_added_to_pool);
     ASSERT_FALSE(tvc.m_verification_failed);
   }
@@ -708,7 +708,7 @@ TEST_F(InProcessNodeTests, getPoolDiffereceNotActualBC) {
     transactionHashes.insert(CryptoNote::getObjectHash(tx));
     CryptoNote::tx_verification_context tvc = boost::value_initialized<tx_verification_context>();
     bool keptByBlock = false;
-    coreStub.handleIncomingTransaction(tx, CryptoNote::getObjectHash(tx), CryptoNote::getObjectBinarySize(tx), tvc, keptByBlock, node.getLastLocalBlockHeight());
+    coreStub.handleIncomingTransaction(tx, CryptoNote::getObjectHash(tx), CryptoNote::getObjectBinarySize(tx), tvc, keptByBlock, node.getLastLocalBlockHeight(), false);
     ASSERT_TRUE(tvc.m_added_to_pool);
     ASSERT_FALSE(tvc.m_verification_failed);
   }
