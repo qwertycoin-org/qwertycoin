@@ -433,7 +433,6 @@ target_link_libraries(QwertycoinFramework_NodeRpcProxy PRIVATE ${QwertycoinFrame
 
 set(QwertycoinFramework_P2p_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/P2p/ConnectionContext.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/IP2pNodeInternal.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/IP2pNodeInternal.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.h"
