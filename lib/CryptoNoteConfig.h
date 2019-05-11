@@ -60,6 +60,8 @@ const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(1000000
 const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 800000;
 const uint64_t MINIMUM_FEE                                    = MINIMUM_FEE_V2;
 const uint64_t MAXIMUM_FEE                                    = UINT64_C(100000000);
+const uint64_t REMOTE_NODE_FEE_FACTOR                         = 0.25 // percent
+const uint64_t MAX_REMOTE_NODE_FEE                            = UINT64_C(10000000000); //max fee
 
 const uint64_t DEFAULT_DUST_THRESHOLD                         = UINT64_C(100000);
 const uint64_t MIN_TX_MIXIN_SIZE                              = 2;
