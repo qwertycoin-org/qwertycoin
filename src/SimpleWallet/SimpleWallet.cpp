@@ -353,9 +353,9 @@ struct TransferCommand {
 
           if (!remote_fee_address.empty()) {
             destination.address = remote_fee_address;
-            int64_t remote_node_fee = static_cast<int64_t>(de.amount * 0.0025);
-            if (remote_node_fee > 10000000000)
-                remote_node_fee = 10000000000;
+            int64_t remote_node_fee = static_cast<int64_t>(de.amount * (CryptoNote::parameters::REMOTE_NODE_FEE_FACTOR / 100));
+            if (remote_node_fee > CryptoNote::parameters::MAX_REMOTE_NODE_FEE)
+                remote_node_fee = CryptoNote::parameters::MAX_REMOTE_NODE_FEE;
             destination.amount = remote_node_fee;
             dsts.push_back(destination);
           }
@@ -493,9 +493,9 @@ struct TransferCommand {
 
                   if (!remote_fee_address.empty()) {
                       destination.address = remote_fee_address;
-                      int64_t remote_node_fee = static_cast<int64_t>(de.amount * 0.0025);
-                      if (remote_node_fee > 10000000000)
-                          remote_node_fee = 10000000000;
+                      int64_t remote_node_fee = static_cast<int64_t>(de.amount * (CryptoNote::parameters::REMOTE_NODE_FEE_FACTOR / 100));
+                      if (remote_node_fee > CryptoNote::parameters::MAX_REMOTE_NODE_FEE)
+                          remote_node_fee = CryptoNote::parameters::MAX_REMOTE_NODE_FEE;
                       destination.amount = remote_node_fee;
                       dsts.push_back(destination);
                   }
