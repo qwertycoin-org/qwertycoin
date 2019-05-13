@@ -19,18 +19,20 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include "../CryptoNoteConfig.h"
+#include <CryptoNoteConfig.h>
 
 #pragma once
 
-namespace CryptoNote
-{
-	namespace
-	{
-		boost::uuids::uuid name;
-		boost::uuids::name_generator gen(name);
-		boost::uuids::uuid u = gen(GENESIS_COINBASE_TX_FIX);
-	}
-	const static boost::uuids::uuid QWERTYCOIN_NETWORK = u;
-}
+namespace CryptoNote {
 
+namespace {
+
+boost::uuids::uuid name;
+boost::uuids::name_generator gen(name);
+boost::uuids::uuid u = gen(GENESIS_COINBASE_TX_FIX);
+
+} // namespace
+
+const static boost::uuids::uuid QWERTYCOIN_NETWORK = u;
+
+} // namespace CryptoNote
