@@ -22,18 +22,17 @@
 
 namespace CryptoNote {
 
-class RpcServerConfig {
+class RpcServerConfig
+{
 public:
+    RpcServerConfig();
 
-  RpcServerConfig();
+    void init(const boost::program_options::variables_map &options);
+    static void initOptions(boost::program_options::options_description &desc);
+    std::string getBindAddress() const;
 
-  static void initOptions(boost::program_options::options_description& desc);
-  void init(const boost::program_options::variables_map& options);
-
-  std::string getBindAddress() const;
-
-  std::string bindIp;
-  uint16_t bindPort;
+    std::string bindIp;
+    uint16_t bindPort;
 };
 
-}
+} // namespace CryptoNote
