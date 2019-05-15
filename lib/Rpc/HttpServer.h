@@ -20,47 +20,44 @@
 #pragma once
 
 #include <unordered_set>
-
 #include <Http/HttpRequest.h>
 #include <Http/HttpResponse.h>
-
+#include <Logging/LoggerRef.h>
 #include <System/ContextGroup.h>
 #include <System/Dispatcher.h>
-#include <System/TcpListener.h>
-#include <System/TcpConnection.h>
 #include <System/Event.h>
-
-#include <Logging/LoggerRef.h>
+#include <System/TcpConnection.h>
+#include <System/TcpListener.h>
 
 namespace CryptoNote {
 
-class HttpServer {
-
+class HttpServer
+{
 public:
+    HttpServer(System::Dispatcher &dispatcher, Logging::ILogger &log);
 
-  HttpServer(System::Dispatcher& dispatcher, Logging::ILogger& log);
+    void start(const std::string &address,
+               uint16_t port,
+               const std::string &user = "",
+               const std::string &password = "");
+    void stop();
 
-  void start(const std::string& address, uint16_t port, const std::string& user = "", const std::string& password = "");
-  void stop();
-
-  virtual void processRequest(const HttpRequest& request, HttpResponse& response) = 0;
-  virtual size_t get_connections_count() const;
+    virtual void processRequest(const HttpRequest& request, HttpResponse& response) = 0;
+    virtual size_t get_connections_count() const;
 
 protected:
-
-  System::Dispatcher& m_dispatcher;
+    System::Dispatcher &m_dispatcher;
 
 private:
+    bool authenticate(const HttpRequest& request) const;
+    void acceptLoop();
 
-  void acceptLoop();
-  void connectionHandler(System::TcpConnection&& conn);
-  bool authenticate(const HttpRequest& request) const;
-
-  System::ContextGroup workingContextGroup;
-  Logging::LoggerRef logger;
-  System::TcpListener m_listener;
-  std::unordered_set<System::TcpConnection*> m_connections;
-  std::string m_credentials;
+private:
+    System::ContextGroup workingContextGroup;
+    Logging::LoggerRef logger;
+    System::TcpListener m_listener;
+    std::unordered_set<System::TcpConnection *> m_connections;
+    std::string m_credentials;
 };
 
-}
+} // namespace CryptoNote
