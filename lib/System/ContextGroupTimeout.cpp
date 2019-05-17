@@ -16,19 +16,23 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "ContextGroupTimeout.h"
+#include <System/ContextGroupTimeout.h>
 #include <System/InterruptedException.h>
 
 using namespace System;
 
-ContextGroupTimeout::ContextGroupTimeout(Dispatcher& dispatcher, ContextGroup& contextGroup, std::chrono::nanoseconds timeout) :
-  workingContextGroup(dispatcher),
-  timeoutTimer(dispatcher) {
-  workingContextGroup.spawn([&, timeout] {
-    try {
-      timeoutTimer.sleep(timeout);
-      contextGroup.interrupt();
-    } catch (InterruptedException&) {
-    }
-  });
+ContextGroupTimeout::ContextGroupTimeout(Dispatcher &dispatcher,
+                                         ContextGroup &contextGroup,
+                                         std::chrono::nanoseconds timeout)
+    : m_workingContextGroup(dispatcher),
+      m_timeoutTimer(dispatcher)
+{
+    m_workingContextGroup.spawn([&, timeout] {
+        try {
+            m_timeoutTimer.sleep(timeout);
+            contextGroup.interrupt();
+        } catch (InterruptedException &) {
+            // do nothing
+        }
+    });
 }
