@@ -22,25 +22,28 @@ namespace System {
 
 class Dispatcher;
 
-class Event {
+class Event
+{
 public:
-  Event();
-  explicit Event(Dispatcher& dispatcher);
-  Event(const Event&) = delete;
-  Event(Event&& other);
-  ~Event();
-  Event& operator=(const Event&) = delete;
-  Event& operator=(Event&& other);
-  bool get() const;
-  void clear();
-  void set();
-  void wait();
+    Event();
+    explicit Event(Dispatcher &dispatcher);
+    Event(const Event &) = delete;
+    Event(Event &&other) noexcept;
+    ~Event();
+
+    bool get() const;
+    void clear();
+    void set();
+    void wait();
+
+    Event &operator=(const Event &) = delete;
+    Event &operator=(Event &&other) noexcept;
 
 private:
-  Dispatcher* dispatcher;
-  bool state;
-  void* first;
-  void* last;
+    Dispatcher *dispatcher;
+    bool state;
+    void *first;
+    void *last;
 };
 
-}
+} // namespace System
