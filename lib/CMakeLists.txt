@@ -580,7 +580,6 @@ set(QwertycoinFramework_System_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/System/Event.h"
     "${CMAKE_CURRENT_LIST_DIR}/System/EventLock.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/System/EventLock.h"
-    "${CMAKE_CURRENT_LIST_DIR}/System/InterruptedException.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/System/InterruptedException.h"
     "${CMAKE_CURRENT_LIST_DIR}/System/Ipv4Address.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/System/Ipv4Address.h"

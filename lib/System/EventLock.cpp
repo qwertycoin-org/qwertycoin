@@ -16,21 +16,23 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "EventLock.h"
 #include <System/Event.h>
+#include <System/EventLock.h>
 
 namespace System {
 
-EventLock::EventLock(Event& event) : event(event) {
-  while (!event.get()) {
-    event.wait();
-  }
-
-  event.clear();
+EventLock::EventLock(Event &event)
+    : m_event(event)
+{
+    while (!m_event.get()) {
+        m_event.wait();
+    }
+    m_event.clear();
 }
 
-EventLock::~EventLock() {
-  event.set();
+EventLock::~EventLock()
+{
+    m_event.set();
 }
 
-}
+} // namespace System
