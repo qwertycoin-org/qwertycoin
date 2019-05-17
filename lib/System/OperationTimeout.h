@@ -24,28 +24,35 @@
 
 namespace System {
 
-template<typename T> class OperationTimeout {
+template<typename T>
+class OperationTimeout
+{
 public:
-  OperationTimeout(Dispatcher& dispatcher, T& object, std::chrono::nanoseconds timeout) :
-    object(object), timerContext(dispatcher), timeoutTimer(dispatcher) {
-    timerContext.spawn([this, timeout]() {
-      try {
-        timeoutTimer.sleep(timeout);
-        timerContext.interrupt();
-      } catch (std::exception&) {
-      }
-    });
-  }
+    OperationTimeout(Dispatcher &dispatcher, T &object, std::chrono::nanoseconds timeout)
+        : object(object),
+          timerContext(dispatcher),
+          timeoutTimer(dispatcher)
+    {
+        timerContext.spawn([this, timeout]() {
+            try {
+                timeoutTimer.sleep(timeout);
+                timerContext.interrupt();
+            } catch (std::exception &) {
+                // do nothing
+            }
+        });
+    }
 
-  ~OperationTimeout() {
-    timerContext.interrupt();
-    timerContext.wait();
-  }
+    ~OperationTimeout()
+    {
+        timerContext.interrupt();
+        timerContext.wait();
+    }
 
 private:
-  T& object;
-  ContextGroup timerContext;
-  Timer timeoutTimer;
+    T &object;
+    ContextGroup timerContext;
+    Timer timeoutTimer;
 };
 
-}
+} // namespace System
