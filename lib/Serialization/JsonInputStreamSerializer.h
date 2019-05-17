@@ -21,16 +21,16 @@
 #include <iosfwd>
 #include <string>
 #include <vector>
-#include "../Common/JsonValue.h"
-#include "JsonInputValueSerializer.h"
+#include <Common/JsonValue.h>
+#include <Serialization/JsonInputValueSerializer.h>
 
 namespace CryptoNote {
 
-//deserialization
-class JsonInputStreamSerializer : public JsonInputValueSerializer {
+class JsonInputStreamSerializer : public JsonInputValueSerializer
+{
 public:
-  JsonInputStreamSerializer(std::istream& stream);
-  virtual ~JsonInputStreamSerializer();
+    explicit JsonInputStreamSerializer(std::istream &stream);
+    ~JsonInputStreamSerializer() override = default;
 };
 
-}
+} // namespace CryptoNote
