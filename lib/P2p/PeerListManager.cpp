@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-
 #include <time.h>
 #include <boost/foreach.hpp>
 #include <P2p/PeerListManager.h>
-#include <System/Ipv4Address.h>
 #include <Serialization/SerializationOverloads.h>
+#include <System/Ipv4Address.h>
 
 using namespace CryptoNote;
 
@@ -158,7 +157,7 @@ bool PeerlistManager::is_ip_allowed(uint32_t ip) const
         return false;
     }
 
-    return (m_allow_local_ip && addr.isPrivate());
+    return !(!m_allow_local_ip && addr.isPrivate());
 }
 
 bool PeerlistManager::get_peerlist_head(std::list<PeerlistEntry> &bs_head, uint32_t depth) const
