@@ -71,14 +71,14 @@ public:
     bool merge_peerlist(const std::list<PeerlistEntry> &outer_bs);
     bool get_peerlist_head(std::list<PeerlistEntry> &bs_head,
                            uint32_t depth = CryptoNote::P2P_DEFAULT_PEERS_IN_HANDSHAKE) const;
-    bool get_peerlist_full(std::list<PeerlistEntry> &pl_gray, std::list<PeerlistEntry> &pl_white) const;
+    bool get_peerlist_full(std::list<PeerlistEntry> &pl_gray,
+                           std::list<PeerlistEntry> &pl_white) const;
     bool get_white_peer_by_index(PeerlistEntry &p, size_t i) const;
     bool get_gray_peer_by_index(PeerlistEntry &p, size_t i) const;
     bool append_with_peer_white(const PeerlistEntry &pr);
     bool append_with_peer_gray(const PeerlistEntry &pr);
     bool set_peer_just_seen(PeerIdType peer, uint32_t ip, uint32_t port);
     bool set_peer_just_seen(PeerIdType peer, const NetworkAddress &addr);
-    bool set_peer_unreachable(const PeerlistEntry &pr);
     bool is_ip_allowed(uint32_t ip) const;
     void trim_white_peerlist();
     void trim_gray_peerlist();

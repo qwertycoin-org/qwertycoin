@@ -538,8 +538,8 @@ bool gen_tx_check_input_unlock_time::generate(std::vector<test_event_entry>& eve
   make_tx_to_acc(1, blk_3_height - 1);
   make_tx_to_acc(2, blk_3_height);
   make_tx_to_acc(3, blk_3_height + 1);
-  make_tx_to_acc(4, time(0) - 1);
-  make_tx_to_acc(5, time(0) + 60 * 60);
+  make_tx_to_acc(4, blk_1r.timestamp - 1);
+  make_tx_to_acc(5, blk_1r.timestamp + 60 * 60);
   MAKE_NEXT_BLOCK_TX_LIST(events, blk_2, blk_1r, miner_account, txs_0);
 
   std::list<Transaction> txs_1;
