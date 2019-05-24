@@ -27,80 +27,89 @@ namespace System {
 
 struct NativeContextGroup;
 
-struct NativeContext {
-  void* ucontext;
-  void* stackPtr;
-  bool interrupted;
-  NativeContext* next;
-  NativeContextGroup* group;
-  NativeContext* groupPrev;
-  NativeContext* groupNext;
-  std::function<void()> procedure;
-  std::function<void()> interruptProcedure;
+struct NativeContext
+{
+    void *ucontext;
+    void *stackPtr;
+    bool interrupted;
+    bool inExecutionQueue;
+    NativeContext *next;
+    NativeContextGroup *group;
+    NativeContext *groupPrev;
+    NativeContext *groupNext;
+    std::function<void()> procedure;
+    std::function<void()> interruptProcedure;
 };
 
-struct NativeContextGroup {
-  NativeContext* firstContext;
-  NativeContext* lastContext;
-  NativeContext* firstWaiter;
-  NativeContext* lastWaiter;
+struct NativeContextGroup
+{
+    NativeContext *firstContext;
+    NativeContext *lastContext;
+    NativeContext *firstWaiter;
+    NativeContext *lastWaiter;
 };
 
-struct OperationContext {
-  NativeContext *context;
-  bool interrupted;
-  uint32_t events;
+struct OperationContext
+{
+    NativeContext *context;
+    bool interrupted;
+    uint32_t events;
 };
 
-struct ContextPair {
-  OperationContext *readContext;
-  OperationContext *writeContext;
+struct ContextPair
+{
+    OperationContext *readContext;
+    OperationContext *writeContext;
 };
 
-class Dispatcher {
+class Dispatcher
+{
 public:
-  Dispatcher();
-  Dispatcher(const Dispatcher&) = delete;
-  ~Dispatcher();
-  Dispatcher& operator=(const Dispatcher&) = delete;
-  void clear();
-  void dispatch();
-  NativeContext* getCurrentContext() const;
-  void interrupt();
-  void interrupt(NativeContext* context);
-  bool interrupted();
-  void pushContext(NativeContext* context);
-  void remoteSpawn(std::function<void()>&& procedure);
-  void yield();
+    Dispatcher();
+    Dispatcher(const Dispatcher &) = delete;
+    ~Dispatcher();
 
-  // system-dependent
-  int getEpoll() const;
-  NativeContext& getReusableContext();
-  void pushReusableContext(NativeContext&);
-  int getTimer();
-  void pushTimer(int timer);
+    void clear();
+    void dispatch();
+    NativeContext *getCurrentContext() const;
+    void interrupt();
+    void interrupt(NativeContext *context);
+    bool interrupted();
+    void pushContext(NativeContext *context);
+    void remoteSpawn(std::function<void()> &&procedure);
+    void yield();
 
-  static const int SIZEOF_PTHREAD_MUTEX_T = sizeof(pthread_mutex_t);
+    // system-dependent
+    int getEpoll() const;
+    NativeContext &getReusableContext();
+    void pushReusableContext(NativeContext &);
+    int getTimer();
+    void pushTimer(int timer);
+
+    Dispatcher &operator=(const Dispatcher &) = delete;
+
+    static const int SIZEOF_PTHREAD_MUTEX_T = sizeof(pthread_mutex_t);
 
 private:
-  void spawn(std::function<void()>&& procedure);
-  int epoll;
-  alignas(void*) uint8_t mutex[SIZEOF_PTHREAD_MUTEX_T];
-  int remoteSpawnEvent;
-  ContextPair remoteSpawnEventContext;
-  std::queue<std::function<void()>> remoteSpawningProcedures;
-  std::stack<int> timers;
+    void spawn(std::function<void()> &&procedure);
 
-  NativeContext mainContext;
-  NativeContextGroup contextGroup;
-  NativeContext* currentContext;
-  NativeContext* firstResumingContext;
-  NativeContext* lastResumingContext;
-  NativeContext* firstReusableContext;
-  size_t runningContextCount;
+    int epoll;
+    alignas(void *) uint8_t mutex[SIZEOF_PTHREAD_MUTEX_T];
+    int remoteSpawnEvent;
+    ContextPair remoteSpawnEventContext;
+    std::queue<std::function<void()>> remoteSpawningProcedures;
+    std::stack<int> timers;
 
-  void contextProcedure(void* ucontext);
-  static void contextProcedureStatic(void* context);
+    NativeContext mainContext;
+    NativeContextGroup contextGroup;
+    NativeContext *currentContext;
+    NativeContext *firstResumingContext;
+    NativeContext *lastResumingContext;
+    NativeContext *firstReusableContext;
+    size_t runningContextCount;
+
+    void contextProcedure(void *ucontext);
+    static void contextProcedureStatic(void *context);
 };
 
-}
+} // namespace System
