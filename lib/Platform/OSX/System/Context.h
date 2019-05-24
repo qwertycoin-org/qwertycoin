@@ -18,8 +18,8 @@
 
 #pragma once
 
-#define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
-#define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
+#define	setcontext(u) setmcontext(&(u)->uc_mcontext)
+#define	getcontext(u) getmcontext(&(u)->uc_mcontext)
 
 #ifdef __cplusplus
 extern "C" {
