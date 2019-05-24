@@ -16,18 +16,20 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "ErrorMessage.h"
 #include <cerrno>
 #include <cstring>
+#include "ErrorMessage.h"
 
 namespace System {
 
-std::string lastErrorMessage() {
-  return errorMessage(errno);
+std::string lastErrorMessage()
+{
+    return errorMessage(errno);
 }
 
-std::string errorMessage(int err) {
-  return "result=" + std::to_string(err) + ", " + std::strerror(err);
+std::string errorMessage(int err)
+{
+    return "result=" + std::to_string(err) + ", " + std::strerror(err);
 }
 
-}
+} // namespace System
