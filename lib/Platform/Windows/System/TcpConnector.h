@@ -27,20 +27,23 @@ class Dispatcher;
 class Ipv4Address;
 class TcpConnection;
 
-class TcpConnector {
+class TcpConnector
+{
 public:
-  TcpConnector();
-  explicit TcpConnector(Dispatcher& dispatcher);
-  TcpConnector(const TcpConnector&) = delete;
-  TcpConnector(TcpConnector&& other);
-  ~TcpConnector();
-  TcpConnector& operator=(const TcpConnector&) = delete;
-  TcpConnector& operator=(TcpConnector&& other);
-  TcpConnection connect(const Ipv4Address& address, uint16_t port);
+    TcpConnector();
+    explicit TcpConnector(Dispatcher &dispatcher);
+    TcpConnector(const TcpConnector &) = delete;
+    TcpConnector(TcpConnector &&other);
+    ~TcpConnector();
+
+    TcpConnection connect(const Ipv4Address &address, uint16_t port);
+
+    TcpConnector &operator=(const TcpConnector &) = delete;
+    TcpConnector &operator=(TcpConnector &&other);
 
 private:
-  Dispatcher* dispatcher;
-  void* context;
+    Dispatcher *dispatcher;
+    void *context;
 };
 
-}
+} // namespace System
