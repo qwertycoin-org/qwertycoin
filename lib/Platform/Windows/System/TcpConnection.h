@@ -26,28 +26,31 @@ namespace System {
 class Dispatcher;
 class Ipv4Address;
 
-class TcpConnection {
+class TcpConnection
+{
 public:
-  TcpConnection();
-  TcpConnection(const TcpConnection&) = delete;
-  TcpConnection(TcpConnection&& other);
-  ~TcpConnection();
-  TcpConnection& operator=(const TcpConnection&) = delete;
-  TcpConnection& operator=(TcpConnection&& other);
-  size_t read(uint8_t* data, size_t size);
-  size_t write(const uint8_t* data, size_t size);
-  std::pair<Ipv4Address, uint16_t> getPeerAddressAndPort() const;
+    TcpConnection();
+    TcpConnection(const TcpConnection &) = delete;
+    TcpConnection(TcpConnection &&other);
+    ~TcpConnection();
+
+    size_t read(uint8_t *data, size_t size);
+    size_t write(const uint8_t *data, size_t size);
+    std::pair<Ipv4Address, uint16_t> getPeerAddressAndPort() const;
+
+    TcpConnection &operator=(const TcpConnection &) = delete;
+    TcpConnection &operator=(TcpConnection &&other);
 
 private:
-  friend class TcpConnector;
-  friend class TcpListener;
+    TcpConnection(Dispatcher &dispatcher, size_t connection);
 
-  Dispatcher* dispatcher;
-  size_t connection;
-  void* readContext;
-  void* writeContext;
+    Dispatcher *dispatcher;
+    size_t connection;
+    void *readContext;
+    void *writeContext;
 
-  TcpConnection(Dispatcher& dispatcher, size_t connection);
+    friend class TcpConnector;
+    friend class TcpListener;
 };
 
-}
+} // namespace System

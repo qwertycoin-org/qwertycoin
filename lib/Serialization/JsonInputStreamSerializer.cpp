@@ -16,27 +16,28 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "Serialization/JsonInputStreamSerializer.h"
-
 #include <ctype.h>
 #include <exception>
+#include <Serialization/JsonInputStreamSerializer.h>
 
 namespace CryptoNote {
 
 namespace {
 
-Common::JsonValue getJsonValueFromStreamHelper(std::istream& stream) {
-  Common::JsonValue value;
-  stream >> value;
-  return value;
+Common::JsonValue getJsonValueFromStreamHelper(std::istream &stream)
+{
+    Common::JsonValue value;
+
+    stream >> value;
+
+    return value;
 }
 
+} // namespace
+
+JsonInputStreamSerializer::JsonInputStreamSerializer(std::istream &stream)
+    : JsonInputValueSerializer(getJsonValueFromStreamHelper(stream))
+{
 }
 
-JsonInputStreamSerializer::JsonInputStreamSerializer(std::istream& stream) : JsonInputValueSerializer(getJsonValueFromStreamHelper(stream)) {
-}
-
-JsonInputStreamSerializer::~JsonInputStreamSerializer() {
-}
-
-} //namespace CryptoNote
+} // namespace CryptoNote

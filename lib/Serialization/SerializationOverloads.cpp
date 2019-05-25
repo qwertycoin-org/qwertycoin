@@ -16,31 +16,33 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "Serialization/SerializationOverloads.h"
-
 #include <limits>
+#include <Serialization/SerializationOverloads.h>
 
 namespace CryptoNote {
 
-void serializeBlockHeight(ISerializer& s, uint32_t& blockHeight, Common::StringView name) {
-  if (s.type() == ISerializer::INPUT) {
-    uint64_t height;
-    s(height, name);
+void serializeBlockHeight(ISerializer &s, uint32_t &blockHeight, Common::StringView name)
+{
+    if (s.type() == ISerializer::INPUT) {
+        uint64_t height;
+        s(height, name);
 
-    if (height == std::numeric_limits<uint64_t>::max()) {
-      blockHeight = std::numeric_limits<uint32_t>::max();
-    } else if (height > std::numeric_limits<uint32_t>::max() && height < std::numeric_limits<uint64_t>::max()) {
-      throw std::runtime_error("Deserialization error: wrong value");
+        if (height == std::numeric_limits<uint64_t>::max()) {
+            blockHeight = std::numeric_limits<uint32_t>::max();
+        } else if (height > std::numeric_limits<uint32_t>::max()
+                   && height < std::numeric_limits<uint64_t>::max()) {
+            throw std::runtime_error("Deserialization error: wrong value");
+        } else {
+            blockHeight = static_cast<uint32_t>(height);
+        }
     } else {
-      blockHeight = static_cast<uint32_t>(height);
+        s(blockHeight, name);
     }
-  } else {
-    s(blockHeight, name);
-  }
 }
 
-void serializeGlobalOutputIndex(ISerializer& s, uint32_t& globalOutputIndex, Common::StringView name) {
-  serializeBlockHeight(s, globalOutputIndex, name);
+void serializeGlobalOutputIndex(ISerializer &s,uint32_t& globalOutputIndex,Common::StringView name)
+{
+    serializeBlockHeight(s, globalOutputIndex, name);
 }
 
-} //namespace CryptoNote
+} // namespace CryptoNote

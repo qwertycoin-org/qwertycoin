@@ -433,7 +433,6 @@ target_link_libraries(QwertycoinFramework_NodeRpcProxy PRIVATE ${QwertycoinFrame
 
 set(QwertycoinFramework_P2p_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/P2p/ConnectionContext.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/IP2pNodeInternal.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/IP2pNodeInternal.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.h"
@@ -448,7 +447,6 @@ set(QwertycoinFramework_P2p_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContext.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContextOwner.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContextOwner.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pInterfaces.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pInterfaces.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNetworks.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNode.cpp"
@@ -559,7 +557,6 @@ set(QwertycoinFramework_Serialization_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryInputStreamSerializer.h"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryOutputStreamSerializer.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/KVBinaryOutputStreamSerializer.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Serialization/MemoryStream.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/MemoryStream.h"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationOverloads.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationOverloads.h"
@@ -583,7 +580,6 @@ set(QwertycoinFramework_System_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/System/Event.h"
     "${CMAKE_CURRENT_LIST_DIR}/System/EventLock.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/System/EventLock.h"
-    "${CMAKE_CURRENT_LIST_DIR}/System/InterruptedException.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/System/InterruptedException.h"
     "${CMAKE_CURRENT_LIST_DIR}/System/Ipv4Address.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/System/Ipv4Address.h"

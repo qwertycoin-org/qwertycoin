@@ -19,74 +19,77 @@
 #pragma once
 
 #include <memory>
-
 #include <Http/HttpRequest.h>
 #include <Http/HttpResponse.h>
+#include <Serialization/SerializationTools.h>
 #include <System/TcpConnection.h>
 #include <System/TcpStream.h>
 
-#include "Serialization/SerializationTools.h"
-
 namespace CryptoNote {
 
-class ConnectException : public std::runtime_error  {
+class ConnectException : public std::runtime_error
+{
 public:
-  ConnectException(const std::string& whatArg);
+    explicit ConnectException(const std::string &whatArg);
 };
 
-class HttpClient {
+class HttpClient
+{
 public:
+    HttpClient(System::Dispatcher &dispatcher, const std::string &address, uint16_t port);
+    ~HttpClient();
 
-  HttpClient(System::Dispatcher& dispatcher, const std::string& address, uint16_t port);
-  ~HttpClient();
-  void request(const HttpRequest& req, HttpResponse& res);
+    void request(const HttpRequest &req, HttpResponse &res);
 
-  bool isConnected() const;
+    bool isConnected() const;
 
 private:
-  void connect();
-  void disconnect();
+    void connect();
+    void disconnect();
 
-  const std::string m_address;
-  const uint16_t m_port;
+private:
+    const std::string m_address;
+    const uint16_t m_port;
 
-  bool m_connected = false;
-  System::Dispatcher& m_dispatcher;
-  System::TcpConnection m_connection;
-  std::unique_ptr<System::TcpStreambuf> m_streamBuf;
+    bool m_connected = false;
+    System::Dispatcher& m_dispatcher;
+    System::TcpConnection m_connection;
+    std::unique_ptr<System::TcpStreambuf> m_streamBuf;
 };
 
 template <typename Request, typename Response>
-void invokeJsonCommand(HttpClient& client, const std::string& url, const Request& req, Response& res) {
-  HttpRequest hreq;
-  HttpResponse hres;
+void invokeJsonCommand(HttpClient &cli, const std::string &url, const Request &req, Response &res)
+{
+    HttpRequest hreq;
+    HttpResponse hres;
 
-  hreq.addHeader("Content-Type", "application/json");
-  hreq.setUrl(url);
-  hreq.setBody(storeToJson(req));
-  client.request(hreq, hres);
+    hreq.addHeader("Content-Type", "application/json");
+    hreq.setUrl(url);
+    hreq.setBody(storeToJson(req));
+    cli.request(hreq, hres);
 
-  if (hres.getStatus() != HttpResponse::STATUS_200) {
-    throw std::runtime_error("HTTP status: " + std::to_string(hres.getStatus()));
-  }
+    if (hres.getStatus() != HttpResponse::STATUS_200) {
+        throw std::runtime_error("HTTP status: " + std::to_string(hres.getStatus()));
+    }
 
-  if (!loadFromJson(res, hres.getBody())) {
-    throw std::runtime_error("Failed to parse JSON response");
-  }
+    if (!loadFromJson(res, hres.getBody())) {
+        throw std::runtime_error("Failed to parse JSON response");
+    }
 }
 
 template <typename Request, typename Response>
-void invokeBinaryCommand(HttpClient& client, const std::string& url, const Request& req, Response& res) {
-  HttpRequest hreq;
-  HttpResponse hres;
+void invokeBinaryCommand(HttpClient& cli, const std::string& url, const Request& req, Response& res)
+{
+    HttpRequest hreq;
+    HttpResponse hres;
 
-  hreq.setUrl(url);
-  hreq.setBody(storeToBinaryKeyValue(req));
-  client.request(hreq, hres);
+    hreq.setUrl(url);
+    hreq.setBody(storeToBinaryKeyValue(req));
+    cli.request(hreq, hres);
 
-  if (!loadFromBinaryKeyValue(res, hres.getBody())) {
-    throw std::runtime_error("Failed to parse binary response");
-  }
+    if (!loadFromBinaryKeyValue(res, hres.getBody())) {
+        throw std::runtime_error("Failed to parse binary response");
+    }
 }
 
-}
+} // namespace CryptoNote
