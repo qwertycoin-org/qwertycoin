@@ -24,20 +24,23 @@ namespace System {
 
 class Dispatcher;
 
-class Timer {
+class Timer
+{
 public:
-  Timer();
-  explicit Timer(Dispatcher& dispatcher);
-  Timer(const Timer&) = delete;
-  Timer(Timer&& other);
-  ~Timer();
-  Timer& operator=(const Timer&) = delete;
-  Timer& operator=(Timer&& other);
-  void sleep(std::chrono::nanoseconds duration);
+    Timer();
+    explicit Timer(Dispatcher &dispatcher);
+    Timer(const Timer &) = delete;
+    Timer(Timer &&other);
+    ~Timer();
+
+    void sleep(std::chrono::nanoseconds duration);
+
+    Timer &operator=(const Timer &) = delete;
+    Timer &operator=(Timer &&other);
 
 private:
-  Dispatcher* dispatcher;
-  void* context;
+    Dispatcher *dispatcher;
+    void *context;
 };
 
-}
+} // namespace System
