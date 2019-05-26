@@ -22,7 +22,12 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <limits>
+#include <initializer_list>
+#include <boost/uuid/uuid.hpp>
 
 namespace CryptoNote {
 namespace parameters {
@@ -64,10 +69,14 @@ const double   REMOTE_NODE_FEE_FACTOR                         = 0.25; // percent
 const uint64_t MAX_REMOTE_NODE_FEE                            = UINT64_C(10000000000); //max fee
 
 const uint64_t DEFAULT_DUST_THRESHOLD                         = UINT64_C(100000);
+
+/* This section defines our minimum and maximum mixin counts required for transactions */
 const uint64_t MIN_TX_MIXIN_SIZE                              = 2;
 const uint64_t MAX_TX_MIXIN_SIZE_V1                           = 20;
+
 const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
 const uint64_t MAX_TX_MIXIN_SIZE                              = MAX_TX_MIXIN_SIZE_V1;
+
 const uint32_t MIN_TX_MIXIN_V1_HEIGHT                         = 200000;
 const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 800000;
 const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
@@ -169,6 +178,9 @@ const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d3
 // P2P Messages
 const bool     P2P_MESSAGES                                  =  true;
 const uint16_t P2P_MESSAGES_CHAR_COUNT                       =  160;
+
+const char     LATEST_VERSION_URL[]                          = "http://releases.qwertycoin.org";
+const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin/blob/master/LICENSE";
 
 const char* const SEED_NODES[] = {
   "node-00.qwertycoin.org:8196",

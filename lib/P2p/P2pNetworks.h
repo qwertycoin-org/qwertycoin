@@ -19,7 +19,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 #pragma once
 

@@ -32,7 +32,7 @@
 #include <System/Event.h>
 #include "Transfers/TransfersSynchronizer.h"
 #include "Transfers/BlockchainSynchronizer.h"
-#include "../CryptoNoteConfig.h"
+#include "../../src/config/CryptoNoteConfig.h"
 
 namespace CryptoNote {
 

@@ -33,7 +33,7 @@
 #include "CryptoNoteTools.h"
 #include "Currency.h"
 
-#include "CryptoNoteConfig.h"
+#include "../src/config/CryptoNoteConfig.h"
 
 using namespace Logging;
 using namespace Crypto;

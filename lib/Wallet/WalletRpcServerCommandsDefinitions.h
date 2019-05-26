@@ -24,7 +24,7 @@
 #include "crypto/hash.h"
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
 #include "WalletRpcServerErrorCodes.h"
-#include "../CryptoNoteConfig.h"
+#include "../../src/config/CryptoNoteConfig.h"
 
 namespace Tools {
 namespace wallet_rpc {

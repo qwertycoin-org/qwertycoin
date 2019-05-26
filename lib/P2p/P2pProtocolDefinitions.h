@@ -19,7 +19,7 @@
 #pragma once
 
 #include <crypto/crypto.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 #include <CryptoNoteCore/CryptoNoteStatInfo.h>
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
 #include <P2p/P2pProtocolTypes.h>
