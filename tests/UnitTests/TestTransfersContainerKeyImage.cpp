@@ -18,7 +18,7 @@
 
 #include "gtest/gtest.h"
 
-#include "IWalletLegacy.h"
+#include "WalletLegacy/IWalletLegacy.h"
 
 #include "crypto/crypto.h"
 #include "CryptoNoteCore/Account.h"

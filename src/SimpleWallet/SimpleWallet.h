@@ -40,7 +40,7 @@
 #include <boost/program_options/variables_map.hpp>
 
 #include "android.h"
-#include "IWalletLegacy.h"
+#include "WalletLegacy/IWalletLegacy.h"
 #include "PasswordContainer.h"
 
 #include "Common/ConsoleHandler.h"
