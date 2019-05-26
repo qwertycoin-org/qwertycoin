@@ -24,7 +24,7 @@
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/SerializationOverloads.h>
 #include <Transfers/TransfersContainer.h>
-#include <IWalletLegacy.h>
+#include <WalletLegacy/IWalletLegacy.h>
 
 using namespace Common;
 using namespace Crypto;
