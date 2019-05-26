@@ -32,7 +32,7 @@
 namespace CryptoNote {
 namespace parameters {
 
-const uint64_t DIFFICULTY_TARGET                              = 120;
+const uint64_t DIFFICULTY_TARGET                              = 120; // seconds
 const uint64_t CRYPTONOTE_MAX_BLOCK_NUMBER                    = 500000000;
 const size_t   CRYPTONOTE_MAX_BLOCK_BLOB_SIZE                 = 500000000;
 const size_t   CRYPTONOTE_MAX_TX_SIZE                         = 1000000000;
@@ -42,13 +42,16 @@ const size_t   CRYPTONOTE_TX_SPENDABLE_AGE                    = 10;
 
 const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT             = DIFFICULTY_TARGET * 60; // 7200
 const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1          = DIFFICULTY_TARGET * 6;  // 720 //5.0
+
 const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW              = 60;
 const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V1           = 11;                     //5.0
 
+// MONEY_SUPPLY - total number coins to be generated
 const uint64_t MONEY_SUPPLY                                   = (uint64_t)(-1);
 const uint64_t COIN                                           = 100000000;
-const uint64_t TAIL_EMISSION_REWARD                           = 100000000;
+const uint64_t TAIL_EMISSION_REWARD                           = 1000000000; // 10 Coins
 const size_t CRYPTONOTE_COIN_VERSION                          = 1;
+
 const unsigned EMISSION_SPEED_FACTOR                          = 19;
 static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
 
@@ -58,27 +61,40 @@ const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2   = 1000000;        
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1   = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE         = 600;
+
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT               = 8;
 
+const uint64_t MINIMUM_FEE                                    = UINT64_C(100000000);
+
+/* This section defines our minimum and maximum fee counts required for transactions */
 const uint64_t MINIMUM_FEE_V1                                 = UINT64_C(100000000);
 const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(100000000);
 const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 800000;
-const uint64_t MINIMUM_FEE                                    = MINIMUM_FEE_V2;
 const uint64_t MAXIMUM_FEE                                    = UINT64_C(100000000);
+
+/* This section defines the fees are remote node will receive from the sender */
 const double   REMOTE_NODE_FEE_FACTOR                         = 0.25; // percent
-const uint64_t MAX_REMOTE_NODE_FEE                            = UINT64_C(10000000000); //max fee
+const uint64_t MAX_REMOTE_NODE_FEE                            = UINT64_C(10000000000); // this equals 100 Coins
 
 const uint64_t DEFAULT_DUST_THRESHOLD                         = UINT64_C(100000);
 
 /* This section defines our minimum and maximum mixin counts required for transactions */
-const uint64_t MIN_TX_MIXIN_SIZE                              = 2;
+const uint64_t MIN_TX_MIXIN_SIZE                              = 0;
+const uint64_t MAX_TX_MIXIN_SIZE                              = 20;
+
+const uint64_t MIN_TX_MIXIN_SIZE_V1                           = 2;
 const uint64_t MAX_TX_MIXIN_SIZE_V1                           = 20;
 
+const uint64_t MIN_TX_MIXIN_SIZE_V2                           = 2;
 const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
-const uint64_t MAX_TX_MIXIN_SIZE                              = MAX_TX_MIXIN_SIZE_V1;
 
-const uint32_t MIN_TX_MIXIN_V1_HEIGHT                         = 200000;
-const uint32_t MIN_TX_MIXIN_V2_HEIGHT                         = 800000;
+const uint64_t MIN_TX_MIXIN_SIZE_V3                           = 3;
+const uint64_t MAX_TX_MIXIN_SIZE_V3                           = 3;
+
+/* The heights to activate the mixin limits at */
+const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200000;
+const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 800000;
+
 const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY              = 24 * 60 * 60 / DIFFICULTY_TARGET;
@@ -133,7 +149,10 @@ const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
 const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.5.1.2";
 
-const uint8_t  CURRENT_TRANSACTION_VERSION                   =  1;
+const uint8_t  TRANSACTION_VERSION_1                         =  1;
+const uint8_t  TRANSACTION_VERSION_2                         =  2;
+const uint8_t  CURRENT_TRANSACTION_VERSION                   =  TRANSACTION_VERSION_1;
+
 const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
 const uint8_t  BLOCK_MAJOR_VERSION_2                         =  2;
 const uint8_t  BLOCK_MAJOR_VERSION_3                         =  3;
@@ -144,12 +163,13 @@ const uint8_t  BLOCK_MAJOR_VERSION_6                         =  6;
 const uint8_t  BLOCK_MINOR_VERSION_0                         =  0;
 const uint8_t  BLOCK_MINOR_VERSION_1                         =  1;
 
-const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  10000;
-const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  128;
+const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  10000; // by default, blocks ids count in synchronizing
+const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  128; // by default, blocks count in blocks downloading
 const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         =  1000;
 
 const int      P2P_DEFAULT_PORT                              =  8196;
 const int      RPC_DEFAULT_PORT                              =  8197;
+const int      SERVICE_DEFAULT_PORT                          =  8198;
 
 const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                =  1000;
 const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
@@ -168,19 +188,16 @@ const uint32_t P2P_FAILED_ADDR_FORGET_SECONDS                = (60 * 60);     //
 const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//24 hour
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
-
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4734950f414cdb332b28c5ce764beaf";
 
-/*
-*   Modules
-*/
+const char     LATEST_VERSION_URL[]                          = "https://releases.qwertycoin.org";
+const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin/blob/master/LICENSE";
 
-// P2P Messages
+/* Modules */
+
+// P2P encrypted blockchain messenger settings:
 const bool     P2P_MESSAGES                                  =  true;
 const uint16_t P2P_MESSAGES_CHAR_COUNT                       =  160;
-
-const char     LATEST_VERSION_URL[]                          = "http://releases.qwertycoin.org";
-const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin/blob/master/LICENSE";
 
 const char* const SEED_NODES[] = {
   "node-00.qwertycoin.org:8196",
