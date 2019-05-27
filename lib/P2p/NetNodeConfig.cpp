@@ -72,7 +72,7 @@ const command_line::arg_descriptor<bool> arg_p2p_hide_my_port = {
 };
 const command_line::arg_descriptor<std::string> arg_p2p_exclusive_version = {
     "exclusive-version",
-    "Refuse connections from nodes not running the specified version (specify version as 5.1.4.3031, etc...)"
+    "Refuse connections from nodes not running the specified version (specify version in short format, i.e. 5.1.4)"
 };
 
 bool parsePeerFromString(NetworkAddress &pe, const std::string &node_addr)
