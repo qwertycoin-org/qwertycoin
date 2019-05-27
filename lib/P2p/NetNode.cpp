@@ -766,6 +766,14 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
         return false;
     }
 
+    if (rsp.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
+        logger(Logging::DEBUGGING) << context << "COMMAND_HANDSHAKE Failed, peer is wrong version! (" << std::to_string(rsp.node_data.version) << "), closing connection.";
+        return false;
+    } else if ((rsp.node_data.version - CryptoNote::P2P_CURRENT_VERSION) >= CryptoNote::P2P_UPGRADE_WINDOW) {
+        logger(Logging::WARNING) << context << "COMMAND_HANDSHAKE Warning, your software may be out of date. Please visit: "
+        << CryptoNote::LATEST_VERSION_URL << " for the latest version.";
+    }
+
     if (!handle_remote_peerlist(rsp.local_peerlist, rsp.node_data.local_time, context)) {
         add_host_fail(context.m_remote_ip);
         logger(Logging::ERROR)
@@ -1214,7 +1222,7 @@ bool NodeServer::handle_remote_peerlist(const std::list<PeerlistEntry> &peerlist
 
 bool NodeServer::get_local_node_data(basic_node_data &node_data)
 {
-    node_data.version = P2PProtocolVersion::CURRENT;
+    node_data.version = CryptoNote::P2P_CURRENT_VERSION;
     time_t local_time;
     time(&local_time);
     node_data.local_time = local_time;
@@ -1459,6 +1467,15 @@ int NodeServer::handle_handshake(int command,
             << "WRONG NETWORK AGENT CONNECTED! id=" << arg.node_data.network_id;
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
+    }
+
+    if (arg.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
+        logger(Logging::DEBUGGING) << context << "UNSUPPORTED NETWORK AGENT VERSION CONNECTED! version=" << std::to_string(arg.node_data.version);
+        context.m_state = CryptoNoteConnectionContext::state_shutdown;
+        return 1;
+    } else if (arg.node_data.version > CryptoNote::P2P_CURRENT_VERSION) {
+        logger(Logging::WARNING) << context << "Our software may be out of date. Please visit: "
+        << CryptoNote::LATEST_VERSION_URL << " for the latest version.";
     }
 
     if(!context.m_is_income) {

@@ -52,13 +52,6 @@ struct network_config
     uint32_t send_peerlist_sz;
 };
 
-enum P2PProtocolVersion : uint8_t
-{
-    V0 = 0,
-    V1 = 1,
-    CURRENT = V1
-};
-
 struct basic_node_data
 {
     void serialize(ISerializer &s)

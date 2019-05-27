@@ -93,8 +93,10 @@ const uint64_t MAX_TX_MIXIN_SIZE_V3                           = 3;
 
 /* The heights to activate the mixin limits at */
 const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200000;
-const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 800000;
+const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 1000000;
+const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 1200000;
 
+/* Maximum transaction size in byte */
 const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 
 const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY              = 24 * 60 * 60 / DIFFICULTY_TARGET;
@@ -173,6 +175,15 @@ const int      SERVICE_DEFAULT_PORT                          =  8198;
 
 const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                =  1000;
 const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
+
+// P2P Network Configuration Section - This defines our current P2P network version
+// and the minimum version for communication between nodes
+const uint8_t  P2P_CURRENT_VERSION                           = 5;
+const uint8_t  P2P_MINIMUM_VERSION                           = 4;
+
+// This defines the number of versions ahead we must see peers before we start displaying
+// warning messages that we need to upgrade our software.
+const uint8_t  P2P_UPGRADE_WINDOW                            = 2;
 
 const size_t   P2P_CONNECTION_MAX_WRITE_BUFFER_SIZE          = 64 * 1024 * 1024; // 64 MB
 const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 8;
