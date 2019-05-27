@@ -22,7 +22,7 @@
 #include <queue>
 #include <system_error>
 
-#include <IWallet.h>
+#include <Wallet/IWallet.h>
 
 #include "CryptoNoteCore/Currency.h"
 #include "Logging/LoggerGroup.h"

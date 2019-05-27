@@ -26,8 +26,8 @@
 #include <CryptoNoteCore/TransactionApi.h>
 #include <Transfers/CommonTypes.h>
 #include <Transfers/TransfersConsumer.h>
+#include <Wallet/IWallet.h>
 #include <INode.h>
-#include <IWallet.h>
 
 using namespace Crypto;
 using namespace Logging;
