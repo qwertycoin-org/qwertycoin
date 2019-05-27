@@ -46,6 +46,7 @@ public:
     std::vector<NetworkAddress> getSeedNodes() const;
     bool getHideMyPort() const;
     std::string getConfigFolder() const;
+    std::string getExclusiveVersion() const;
 
     void setP2pStateFilename(const std::string &filename);
     void setTestnet(bool isTestnet);
@@ -59,6 +60,8 @@ public:
     void setSeedNodes(const std::vector<NetworkAddress> &addresses);
     void setHideMyPort(bool hide);
     void setConfigFolder(const std::string &folder);
+    void setExclusiveVersion(std::string& nodeVersion);
+    std::string exclusiveVersion;
 
 private:
     std::string bindIp;

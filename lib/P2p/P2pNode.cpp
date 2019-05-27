@@ -507,6 +507,7 @@ basic_node_data P2pNode::getNodeData() const
     nodeData.version = P2PProtocolVersion::CURRENT;
     nodeData.local_time = time(nullptr);
     nodeData.peer_id = m_myPeerId;
+    nodeData.node_version = PROJECT_VERSION;
 
     if (m_cfg.getHideMyPort()) {
         nodeData.my_port = 0;
