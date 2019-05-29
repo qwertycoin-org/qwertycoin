@@ -454,15 +454,6 @@ bool P2pNode::fetchPeerList(ContextPtr connection)
             return false;
         }
 
-        if (response.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
-            logger(DEBUGGING) << *connection << "COMMAND_HANDSHAKE Failed, peer is wrong version: "
-            << std::to_string(response.node_data.version);
-            return false;
-        } else if ((response.node_data.version - CryptoNote::P2P_CURRENT_VERSION) >= CryptoNote::P2P_UPGRADE_WINDOW) {
-            logger(WARNING) << *connection << "COMMAND_HANDSHAKE Warning, your software may be out of date. Please visit: "
-            << CryptoNote::LATEST_VERSION_URL << " for the latest version.";
-        }
-
         return handleRemotePeerList(response.local_peerlist, response.node_data.local_time);
     } catch (std::exception &e) {
         logger(INFO) << *connection << "Failed to obtain peer list: " << e.what();
@@ -513,9 +504,10 @@ basic_node_data P2pNode::getNodeData() const
 {
     basic_node_data nodeData;
     nodeData.network_id = m_cfg.getNetworkId();
-    nodeData.version = CryptoNote::P2P_CURRENT_VERSION;
+    nodeData.version = P2PProtocolVersion::CURRENT;
     nodeData.local_time = time(nullptr);
     nodeData.peer_id = m_myPeerId;
+    nodeData.node_version = PROJECT_VERSION;
 
     if (m_cfg.getHideMyPort()) {
         nodeData.my_port = 0;
@@ -618,12 +610,6 @@ void P2pNode::handleNodeData(const basic_node_data &node, P2pContext &context)
     if (node.network_id != m_cfg.getNetworkId()) {
         std::ostringstream msg;
         msg << context << "COMMAND_HANDSHAKE Failed, wrong network!  (" << node.network_id << ")";
-        throw std::runtime_error(msg.str());
-    }
-
-        if (node.version < CryptoNote::P2P_MINIMUM_VERSION) {
-        std::ostringstream msg;
-        msg << context << "COMMAND_HANDSHAKE Failed, peer is wrong version! (" << std::to_string(node.version) << ")";
         throw std::runtime_error(msg.str());
     }
 

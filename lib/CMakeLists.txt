@@ -736,6 +736,7 @@ target_link_libraries(QwertycoinFramework_Transfers PRIVATE QwertycoinFramework:
 
 set(QwertycoinFramework_Wallet_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Wallet/IFusionManager.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Wallet/IWallet.h"
     "${CMAKE_CURRENT_LIST_DIR}/Wallet/LegacyKeysImporter.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Wallet/LegacyKeysImporter.h"
     "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletAsyncContextCounter.cpp"
@@ -755,6 +756,7 @@ set(QwertycoinFramework_Wallet_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletSerializationV2.h"
     "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletUtils.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Wallet/WalletUtils.h"
+    "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/IWalletLegacy.h"
     "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/KeysStorage.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/KeysStorage.h"
     "${CMAKE_CURRENT_LIST_DIR}/WalletLegacy/WalletHelper.cpp"

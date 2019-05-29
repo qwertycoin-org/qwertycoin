@@ -30,7 +30,7 @@
 #include <System/ContextGroup.h>
 #include <System/Dispatcher.h>
 #include <System/Event.h>
-#include <IWallet.h>
+#include <Wallet/IWallet.h>
 #include <INode.h>
 #undef ERROR // TODO: workaround for windows build. Fix it!
 #include <Logging/LoggerRef.h>

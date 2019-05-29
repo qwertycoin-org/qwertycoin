@@ -17,7 +17,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <Transfers/TransfersSubscription.h>
-#include <IWalletLegacy.h>
+#include <WalletLegacy/IWalletLegacy.h>
 
 using namespace Crypto;
 

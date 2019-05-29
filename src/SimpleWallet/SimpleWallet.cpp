@@ -70,7 +70,6 @@
 #include "Common/PathTools.h"
 #include "Common/DnsTools.h"
 #include "Common/Util.h"
-#include "../config/WalletConfig.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
 #include "NodeRpcProxy/NodeRpcProxy.h"
@@ -784,11 +783,9 @@ bool writeAddressFile(const std::string& addressFilename, const std::string& add
 bool processServerAliasResponse(const std::string& s, std::string& address) {
 	try {
 
-    const std::string tickerLowerCase = boost::algorithm::to_lower_copy(WalletConfig::ticker);
-
 		// Courtesy of Monero Project
 		// make sure the txt record has "oa1:qwc" and find it
-		auto pos = s.find("oa1:"+tickerLowerCase);
+		auto pos = s.find("oa1:qwc");
 		if (pos == std::string::npos)
 			return false;
 		// search from there to find "recipient_address="

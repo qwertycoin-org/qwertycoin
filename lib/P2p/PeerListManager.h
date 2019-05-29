@@ -90,6 +90,7 @@ public:
 
 private:
     std::string m_config_folder;
+    const std::string m_node_version;
     bool m_allow_local_ip;
     peers_indexed m_peers_gray;
     peers_indexed m_peers_white;
