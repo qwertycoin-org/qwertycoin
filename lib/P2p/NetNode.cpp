@@ -161,6 +161,10 @@ const command_line::arg_descriptor<bool> arg_p2p_hide_my_port = {
     false,
     true
 };
+const command_line::arg_descriptor<std::string> arg_p2p_exclusive_version = {
+    "exclusive-version",
+    "Refuse connections from nodes that are not running the specified version. (specify version in short format, i.e. 5.1.4)"
+};
 
 std::string print_peerlist_to_string(const std::list<PeerlistEntry> &pl)
 {
@@ -357,6 +361,7 @@ void NodeServer::init_options(boost::program_options::options_description &desc)
     command_line::add_arg(desc, arg_p2p_add_exclusive_node);
     command_line::add_arg(desc, arg_p2p_seed_node);
     command_line::add_arg(desc, arg_p2p_hide_my_port);
+    command_line::add_arg(desc, arg_p2p_exclusive_version);
 }
 
 bool NodeServer::init_config()
@@ -515,6 +520,7 @@ bool NodeServer::handle_command_line(const boost::program_options::variables_map
     m_port = command_line::get_arg(vm, arg_p2p_bind_port);
     m_external_port = command_line::get_arg(vm, arg_p2p_external_port);
     m_allow_local_ip = command_line::get_arg(vm, arg_p2p_allow_local_ip);
+    m_node_version = command_line::get_arg(vm, arg_p2p_exclusive_version);
 
     if (command_line::has_arg(vm, arg_p2p_add_peer)) {
         std::vector<std::string> perrs = command_line::get_arg(vm, arg_p2p_add_peer);
@@ -559,6 +565,7 @@ bool NodeServer::handleConfig(const NetNodeConfig &config)
     m_port = std::to_string(config.getBindPort());
     m_external_port = config.getExternalPort();
     m_allow_local_ip = config.getAllowLocalIp();
+    m_node_version = config.getExclusiveVersion();
 
     auto peers = config.getPeers();
     std::copy(peers.begin(), peers.end(), std::back_inserter(m_command_line_peers));
@@ -633,6 +640,9 @@ bool NodeServer::init(const NetNodeConfig &config)
     for(auto &p : m_command_line_peers) {
         m_peerlist.append_with_peer_white(p);
     }
+
+    if (!m_node_version.empty())
+      logger(INFO, BRIGHT_GREEN) << "[VERSION BLOCKING] Daemon Version: " << m_node_version << " - blocking daemons that do not reply with this specified version.";
 
     // only in case if we really sure that we have external visible ip
     m_have_address = true;
@@ -765,6 +775,14 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
             << "), closing connection.";
         return false;
     }
+
+  if(!m_node_version.empty()) {
+    if (rsp.node_data.node_version != m_node_version) {
+      logger(Logging::ERROR) << context << "COMMAND_HANDSHAKE: invoked, but peer is not running the exclusive version specified, dropping connection!";
+      return false;
+    }
+  }
+
 
     if (!handle_remote_peerlist(rsp.local_peerlist, rsp.node_data.local_time, context)) {
         add_host_fail(context.m_remote_ip);
@@ -1224,6 +1242,7 @@ bool NodeServer::get_local_node_data(basic_node_data &node_data)
     } else {
         node_data.my_port = 0;
     }
+    node_data.node_version = m_node_version;
     node_data.network_id = m_network_id;
     return true;
 }

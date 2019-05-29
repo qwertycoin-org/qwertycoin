@@ -70,6 +70,10 @@ const command_line::arg_descriptor<bool> arg_p2p_hide_my_port = {
     false,
     true
 };
+const command_line::arg_descriptor<std::string> arg_p2p_exclusive_version = {
+    "exclusive-version",
+    "Refuse connections from nodes not running the specified version (specify version in short format, i.e. 5.1.4)"
+};
 
 bool parsePeerFromString(NetworkAddress &pe, const std::string &node_addr)
 {
@@ -105,6 +109,7 @@ NetNodeConfig::NetNodeConfig()
     hideMyPort = false;
     configFolder = Tools::getDefaultDataDirectory();
     testnet = false;
+    exclusiveVersion = "";
 }
 
 void NetNodeConfig::initOptions(boost::program_options::options_description &desc)
@@ -118,6 +123,7 @@ void NetNodeConfig::initOptions(boost::program_options::options_description &des
     command_line::add_arg(desc, arg_p2p_add_exclusive_node);
     command_line::add_arg(desc, arg_p2p_seed_node);
     command_line::add_arg(desc, arg_p2p_hide_my_port);
+    command_line::add_arg(desc, arg_p2p_exclusive_version);
 }
 
 bool NetNodeConfig::init(const boost::program_options::variables_map &vm)
@@ -147,6 +153,10 @@ bool NetNodeConfig::init(const boost::program_options::variables_map &vm)
             || configFolder == Tools::getDefaultDataDirectory())) {
         configFolder = command_line::get_arg(vm, command_line::arg_data_dir);
     }
+
+  if (vm.count(arg_p2p_exclusive_version.name) != 0 && (!vm[arg_p2p_exclusive_version.name].defaulted() || exclusiveVersion.empty())) {
+    exclusiveVersion = command_line::get_arg(vm, arg_p2p_exclusive_version);
+  }
 
     p2pStateFilename = CryptoNote::parameters::P2P_NET_DATA_FILENAME;
 
@@ -257,6 +267,10 @@ std::string NetNodeConfig::getConfigFolder() const
     return configFolder;
 }
 
+std::string NetNodeConfig::getExclusiveVersion() const {
+  return exclusiveVersion;
+}
+
 void NetNodeConfig::setP2pStateFilename(const std::string &filename)
 {
     p2pStateFilename = filename;
@@ -310,6 +324,10 @@ void NetNodeConfig::setHideMyPort(bool hide)
 void NetNodeConfig::setConfigFolder(const std::string &folder)
 {
     configFolder = folder;
+}
+
+void NetNodeConfig::setExclusiveVersion(std::string& nodeVersion) {
+  exclusiveVersion = nodeVersion;
 }
 
 } // namespace CryptoNote

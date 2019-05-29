@@ -42,6 +42,7 @@
 #include <System/Timer.h>
 #include <System/TcpConnection.h>
 #include <System/TcpListener.h>
+#include "version.h"
 
 namespace System {
 
@@ -303,6 +304,7 @@ private:
     bool m_allow_local_ip;
     bool m_hide_my_port;
     std::string m_p2p_state_filename;
+    std::string m_node_version;
 
     System::Dispatcher &m_dispatcher;
     System::ContextGroup m_workingContextGroup;
