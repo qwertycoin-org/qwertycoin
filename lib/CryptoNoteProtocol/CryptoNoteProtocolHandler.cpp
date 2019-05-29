@@ -29,6 +29,9 @@
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <P2p/LevinProtocol.h>
 #include <System/Dispatcher.h>
+#include "../src/config/Ascii.h"
+#include "../src/config/CryptoNoteConfig.h"
+#include "../src/config/WalletConfig.h"
 
 using namespace Logging;
 using namespace Common;
@@ -703,16 +706,15 @@ bool CryptoNoteProtocolHandler::on_connection_synchronized()
 
     if (m_synchronized.compare_exchange_strong(val_expected, true)) {
         logger(Logging::INFO)
-        << ENDL
-        << "**********************************************************************" << ENDL
-        << "You are now synchronized with the network. You may now start simplewallet." << ENDL
-        << ENDL
-        << "Please note, that the blockchain will be saved only after you quit the daemon" << ENDL
-        << "with \"exit\" command or if you use \"save\" command." << ENDL
-        << "Otherwise, you will possibly need to synchronize the blockchain again." << ENDL
-        << ENDL
-        << "Use \"help\" command to see the list of available commands." << ENDL
-        << "**********************************************************************";
+        << ENDL ;
+        logger(INFO, BRIGHT_MAGENTA) << "===[ " + std::string(CryptoNote::CRYPTONOTE_NAME) + " Tip! ]=============================" << ENDL ;
+        logger(INFO, WHITE) << " Always exit " + WalletConfig::daemonName + " and " + WalletConfig::walletName + " with the \"exit\" command to preserve your chain and wallet data." << ENDL ;
+        logger(INFO, WHITE) << " Use the \"help\" command to see a list of available commands." << ENDL ;
+        logger(INFO, WHITE) << " Use the \"backup\" command in " + WalletConfig::walletName + " to display your keys/seed for restoring a corrupted wallet." << ENDL ;
+        logger(INFO, WHITE) << " If you need more assistance, you can contact us for support at " + WalletConfig::contactLink << ENDL;
+        logger(INFO, BRIGHT_MAGENTA) << "===================================================" << ENDL << ENDL ;
+
+        logger(INFO, BRIGHT_GREEN) << asciiArt << ENDL;
         m_core.on_synchronized();
 
         uint32_t height;
