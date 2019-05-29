@@ -24,7 +24,7 @@
 #include <crypto/hash.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Wallet/WalletRpcServerErrorCodes.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 #define WALLET_RPC_STATUS_OK "OK"
 #define WALLET_RPC_STATUS_BUSY "BUSY"

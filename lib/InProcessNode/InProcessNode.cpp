@@ -26,7 +26,7 @@
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandlerCommon.h>
 #include <InProcessNode/InProcessNode.h>
 #include <InProcessNode/InProcessNodeErrors.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 using namespace Crypto;
 using namespace Common;

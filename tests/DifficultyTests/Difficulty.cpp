@@ -23,7 +23,7 @@
 #include <vector>
 #include <algorithm>
 
-#include "CryptoNoteConfig.h"
+#include "../src/config/CryptoNoteConfig.h"
 #include "CryptoNoteCore/Difficulty.h"
 #include "CryptoNoteCore/Currency.h"
 #include "Logging/ConsoleLogger.h"

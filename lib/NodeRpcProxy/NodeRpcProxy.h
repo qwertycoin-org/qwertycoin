@@ -26,7 +26,7 @@
 #include <thread>
 #include <unordered_set>
 #include <Common/ObserverManager.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 #include <INode.h>
 
 namespace System {

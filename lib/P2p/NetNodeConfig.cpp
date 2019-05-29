@@ -22,7 +22,7 @@
 #include <Common/StringTools.h>
 #include <crypto/crypto.h>
 #include <P2p/NetNodeConfig.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

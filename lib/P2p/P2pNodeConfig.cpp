@@ -18,7 +18,7 @@
 
 #include <P2p/P2pNodeConfig.h>
 #include <P2p/P2pNetworks.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 
