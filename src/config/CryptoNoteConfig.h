@@ -64,13 +64,18 @@ const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE         = 600;
 
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT               = 8;
 
-const uint64_t MINIMUM_FEE                                    = UINT64_C(100000000);
-
 /* This section defines our minimum and maximum fee counts required for transactions */
-const uint64_t MINIMUM_FEE_V1                                 = UINT64_C(100000000);
-const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(100000000);
-const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 800000;
+const uint64_t MINIMUM_FEE                                    = UINT64_C(100000000);
 const uint64_t MAXIMUM_FEE                                    = UINT64_C(100000000);
+
+const uint64_t MINIMUM_FEE_V1                                 = UINT64_C(100000000);
+const uint64_t MAXIMUM_FEE_V1                                 = UINT64_C(100000000);
+
+const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(10000);
+const uint64_t MAXIMUM_FEE_V2                                 = UINT64_C(10000);
+
+const uint32_t MINIMUM_FEE_V1_HEIGHT                          = 800000;
+const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 1000000;
 
 /* This section defines the fees are remote node will receive from the sender */
 const double   REMOTE_NODE_FEE_FACTOR                         = 0.25; // percent
@@ -94,7 +99,7 @@ const uint64_t MAX_TX_MIXIN_SIZE_V3                           = 3;
 /* The heights to activate the mixin limits at */
 const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200000;
 const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 1000000;
-const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 1200000;
+const uint32_t MIXIN_LIMITS_V3_HEIGHT                         = 1200000;
 
 /* Maximum transaction size in byte */
 const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;

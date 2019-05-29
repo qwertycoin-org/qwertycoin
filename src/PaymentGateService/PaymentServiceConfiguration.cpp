@@ -56,7 +56,7 @@ Configuration::Configuration() {
 void Configuration::initOptions(boost::program_options::options_description& desc) {
   desc.add_options()
       ("bind-address", po::value<std::string>()->default_value("127.0.0.1"), "payment service bind address")
-      ("bind-port", po::value<uint16_t>()->default_value(std::to_string(CryptoNote::SERVICE_DEFAULT_PORT)), "payment service bind port")
+      ("bind-port", po::value<uint16_t>()->default_value(CryptoNote::SERVICE_DEFAULT_PORT), "payment service bind port")
       ("rpc-user", po::value<std::string>(), "Username to use with the RPC server. If empty, no server authorization will be done")
       ("rpc-password", po::value<std::string>(), "Password to use with the RPC server. If empty, no server authorization will be done")
       ("container-file,w", po::value<std::string>(), "container file")
