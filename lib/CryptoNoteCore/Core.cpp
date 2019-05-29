@@ -22,7 +22,7 @@
 #include <unordered_set>
 #include <boost/utility/value_init.hpp>
 #include <boost/range/combine.hpp>
-#include "../../src/config/CryptoNoteConfig.h"
+#include "../src/config/CryptoNoteConfig.h"
 #include "../Common/CommandLine.h"
 #include "../Common/Util.h"
 #include "../Common/Math.h"

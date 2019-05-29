@@ -31,7 +31,7 @@
 #include <iterator>
 
 #include "Checkpoints.h"
-#include "../../src/config/CryptoNoteConfig.h"
+#include "../src/config/CryptoNoteConfig.h"
 #include "Common/StringTools.h"
 #include "Common/DnsTools.h"
 
