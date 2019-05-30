@@ -29,7 +29,7 @@
 #include <System/Event.h>
 #include <System/TcpConnection.h>
 #include <System/Timer.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

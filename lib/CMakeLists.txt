@@ -1,6 +1,6 @@
 # Generate version.h header
 configure_file(
-    "${CMAKE_CURRENT_LIST_DIR}/version.h.in"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/config/version.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/version.h"
     @ONLY
 )

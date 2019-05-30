@@ -33,7 +33,8 @@
 #include "CryptoNoteTools.h"
 #include "Currency.h"
 
-#include "CryptoNoteConfig.h"
+#include <../src/config/CryptoNoteConfig.h>
+#include <../src/config/Constants.h>
 
 using namespace Logging;
 using namespace Crypto;
@@ -613,8 +614,8 @@ Hash get_tx_tree_hash(const Block& b) {
 }
 
 bool is_valid_decomposed_amount(uint64_t amount) {
-  auto it = std::lower_bound(Currency::PRETTY_AMOUNTS.begin(), Currency::PRETTY_AMOUNTS.end(), amount);
-  if (it == Currency::PRETTY_AMOUNTS.end() || amount != *it) {
+  auto it = std::lower_bound(Constants::PRETTY_AMOUNTS.begin(), Constants::PRETTY_AMOUNTS.end(), amount);
+  if (it == Constants::PRETTY_AMOUNTS.end() || amount != *it) {
 	  return false;
   }
   return true;

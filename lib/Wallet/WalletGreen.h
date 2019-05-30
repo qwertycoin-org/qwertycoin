@@ -29,7 +29,7 @@
 #include <Wallet/IFusionManager.h>
 #include <Wallet/IWallet.h>
 #include <Wallet/WalletIndices.h>
-#include <CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

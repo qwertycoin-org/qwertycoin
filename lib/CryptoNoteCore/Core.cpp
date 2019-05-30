@@ -22,7 +22,7 @@
 #include <unordered_set>
 #include <boost/utility/value_init.hpp>
 #include <boost/range/combine.hpp>
-#include "../CryptoNoteConfig.h"
+#include "../src/config/CryptoNoteConfig.h"
 #include "../Common/CommandLine.h"
 #include "../Common/Util.h"
 #include "../Common/Math.h"
@@ -261,8 +261,8 @@ bool core::check_tx_mixin(const Transaction& tx, uint32_t height) {
     assert(inputIndex < tx.signatures.size());
     if (txin.type() == typeid(KeyInput)) {
       uint64_t txMixin = boost::get<KeyInput>(txin).outputIndexes.size();
-      if (height > CryptoNote::parameters::MIN_TX_MIXIN_V1_HEIGHT && height < CryptoNote::parameters::MIN_TX_MIXIN_V2_HEIGHT && txMixin > CryptoNote::parameters::MAX_TX_MIXIN_SIZE_V1
-       || height > CryptoNote::parameters::MIN_TX_MIXIN_V2_HEIGHT && txMixin > CryptoNote::parameters::MAX_TX_MIXIN_SIZE_V2) {
+      if (height > CryptoNote::parameters::MIXIN_LIMITS_V1_HEIGHT && height < CryptoNote::parameters::MIXIN_LIMITS_V2_HEIGHT && txMixin > CryptoNote::parameters::MAX_TX_MIXIN_SIZE_V1
+       || height > CryptoNote::parameters::MIXIN_LIMITS_V2_HEIGHT && txMixin > CryptoNote::parameters::MAX_TX_MIXIN_SIZE_V2) {
         logger(ERROR) << "Transaction " << getObjectHash(tx) << " has too large mixIn count, rejected";
         return false;
       }

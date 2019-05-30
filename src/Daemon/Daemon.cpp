@@ -21,6 +21,8 @@
 
 #include "version.h"
 
+#include <config/CliHeader.h>
+
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
@@ -30,7 +32,7 @@
 #include "Common/StringTools.h"
 #include "Common/PathTools.h"
 #include "crypto/hash.h"
-#include "CryptoNoteCheckpoints.h"
+#include "config/CryptoNoteCheckpoints.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/Core.h"
 #include "CryptoNoteCore/CoreConfig.h"
@@ -78,12 +80,15 @@ namespace
 }
 
 bool command_line_preprocessor(const boost::program_options::variables_map& vm, LoggerRef& logger);
-void print_genesis_tx_hex(const po::variables_map& vm, LoggerManager& logManager) {
-  CryptoNote::Transaction tx = CryptoNote::CurrencyBuilder(logManager).generateGenesisTransaction();
-  std::string tx_hex = Common::toHex(CryptoNote::toBinaryArray(tx));
-  std::cout << "Add this line into your coin configuration file as is: " << std::endl;
-  std::cout << "\"GENESIS_COINBASE_TX_HEX\":\"" << tx_hex << "\"," << std::endl;
-  return;
+void print_genesis_tx_hex(const po::variables_map& vm, LoggerManager& logManager)
+{
+    CryptoNote::Transaction tx = CryptoNote::CurrencyBuilder(logManager).generateGenesisTransaction();
+    std::string tx_hex = Common::toHex(CryptoNote::toBinaryArray(tx));
+    std::cout << getProjectCLIHeader() << std::endl << std::endl
+    << "Replace the current GENESIS_COINBASE_TX_HEX line in src/config/CryptoNoteConfig.h with this one:" << std::endl
+    << "const char GENESIS_COINBASE_TX_HEX[] = \"" << tx_hex << "\";" << std::endl;
+
+    return;
 }
 
 JsonValue buildLoggerConfiguration(Level level, const std::string& logfile) {
@@ -203,8 +208,6 @@ int main(int argc, char* argv[])
     // configure logging
     logManager.configure(buildLoggerConfiguration(cfgLogLevel, cfgLogFile));
 
-    logger(INFO) << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG;
-
     if (command_line_preprocessor(vm, logger)) {
       return 0;
     }
@@ -215,30 +218,9 @@ int main(int argc, char* argv[])
       return 1;
     }
 
-	std::cout <<
-#ifdef _WIN32
-  "\n                                                              \n"
-  "                         _                   _                  \n"
-  "                        | |                 (_)                 \n"
-  "  __ ___      _____ _ __| |_ _   _  ___ ___  _ _ __             \n"
-  " / _` \\ \\ /\\ / / _ \\ '__| __| | | |/ __/ _ \\| | '_\\       \n"
-  "| (_| |\\ V  V /  __/ |  | |_| |_| | (_| (_) | | | | |          \n"
-  " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|   \n"
-  "    | |                       __/ |                             \n"
-  "    |_|                      |___/                              \n"
-  "                                                                \n"<< ENDL;
-#else
-  "\n                                                                                 \n"
-  " ██████╗ ██╗    ██╗███████╗██████╗ ████████╗██╗   ██╗ ██████╗ ██████╗ ██╗███╗   ██╗\n"
-  "██╔═══██╗██║    ██║██╔════╝██╔══██╗╚══██╔══╝╚██╗ ██╔╝██╔════╝██╔═══██╗██║████╗  ██║\n"
-  "██║   ██║██║ █╗ ██║█████╗  ██████╔╝   ██║    ╚████╔╝ ██║     ██║   ██║██║██╔██╗ ██║\n"
-  "██║▄▄ ██║██║███╗██║██╔══╝  ██╔══██╗   ██║     ╚██╔╝  ██║     ██║   ██║██║██║╚██╗██║\n"
-  "╚██████╔╝╚███╔███╔╝███████╗██║  ██║   ██║      ██║   ╚██████╗╚██████╔╝██║██║ ╚████║\n"
-  " ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝   ╚═╝      ╚═╝    ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝\n"
-  "                                                                                   \n" << ENDL;
-#endif
+    logger(INFO, BRIGHT_YELLOW) << getProjectCLIHeader() << std::endl;
 
-    logger(INFO) << "Module folder: " << argv[0];
+    logger(INFO) << "Program Working Directory: " << argv[0];
 
     bool testnet_mode = command_line::get_arg(vm, arg_testnet_on);
     if (testnet_mode) {

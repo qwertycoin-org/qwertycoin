@@ -36,7 +36,7 @@
 
 #include "CryptoNoteFormatUtils.h"
 #include "CryptoNoteTools.h"
-#include "CryptoNoteConfig.h"
+#include "../src/config/CryptoNoteConfig.h"
 #include "TransactionExtra.h" 
 
 using namespace Logging;
