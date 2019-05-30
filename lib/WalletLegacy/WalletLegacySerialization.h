@@ -18,21 +18,21 @@
 
 #pragma once
 
-#include <stdexcept>
 #include <algorithm>
+#include <stdexcept>
 #include <string>
-
-#include "IWalletLegacy.h"
+#include <WalletLegacy/IWalletLegacy.h>
 
 namespace CryptoNote {
+
 class ISerializer;
 
 struct UnconfirmedTransferDetails;
 struct WalletLegacyTransaction;
 struct WalletLegacyTransfer;
 
-void serialize(UnconfirmedTransferDetails& utd, ISerializer& serializer);
-void serialize(WalletLegacyTransaction& txi, ISerializer& serializer);
-void serialize(WalletLegacyTransfer& tr, ISerializer& serializer);
+void serialize(UnconfirmedTransferDetails &utd, ISerializer &serializer);
+void serialize(WalletLegacyTransaction &txi, ISerializer &serializer);
+void serialize(WalletLegacyTransfer &tr, ISerializer &serializer);
 
-}
+} // namespace CryptoNote
