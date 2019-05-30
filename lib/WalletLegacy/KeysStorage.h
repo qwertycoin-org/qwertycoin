@@ -18,25 +18,24 @@
 
 #pragma once
 
-#include "crypto/crypto.h"
-
 #include <stdint.h>
+#include <crypto/crypto.h>
 
 namespace CryptoNote {
 
 class ISerializer;
 
-//This is DTO structure. Do not change it.
+// This is DTO structure. Do not change it.
 struct KeysStorage {
-  uint64_t creationTimestamp;
+    void serialize(ISerializer &serializer, const std::string &name);
 
-  Crypto::PublicKey spendPublicKey;
-  Crypto::SecretKey spendSecretKey;
+    uint64_t creationTimestamp;
 
-  Crypto::PublicKey viewPublicKey;
-  Crypto::SecretKey viewSecretKey;
+    Crypto::PublicKey spendPublicKey;
+    Crypto::SecretKey spendSecretKey;
 
-  void serialize(ISerializer& serializer, const std::string& name);
+    Crypto::PublicKey viewPublicKey;
+    Crypto::SecretKey viewSecretKey;
 };
 
-} //namespace CryptoNote
+} // namespace CryptoNote

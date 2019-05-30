@@ -22,28 +22,34 @@
 
 namespace Crypto {
 
-struct Hash {
-  uint8_t data[32];
+struct Hash
+{
+    uint8_t data[32];
 };
 
-struct PublicKey {
-  uint8_t data[32];
+struct PublicKey
+{
+    uint8_t data[32];
 };
 
-struct SecretKey {
-  uint8_t data[32];
+struct SecretKey
+{
+    uint8_t data[32];
 };
 
-struct KeyDerivation {
-  uint8_t data[32];
+struct KeyDerivation
+{
+    uint8_t data[32];
 };
 
-struct KeyImage {
-  uint8_t data[32];
+struct KeyImage
+{
+    uint8_t data[32];
 };
 
-struct Signature {
-  uint8_t data[64];
+struct Signature
+{
+    uint8_t data[64];
 };
 
-}
+} // namespace CryptoNote
