@@ -2,15 +2,14 @@
 
 #ifdef ANDROID
 
-#include <string>
-#include <sstream>
-#include <stdexcept>
-#include <cstdlib>
-#include <climits>
 #include <cerrno>
+#include <climits>
+#include <cstdlib>
+#include <stdexcept>
+#include <sstream>
+#include <string>
 
-namespace std
-{
+namespace std {
 
 template <typename T>
 string to_string(T value)
@@ -21,21 +20,25 @@ string to_string(T value)
 }
 
 /*
-inline unsigned long stoul (std::string const& str, size_t *idx = 0, int base = 10)
+inline unsigned long stoul (std::string const &str, size_t *idx = 0, int base = 10)
 {
     char *endp;
     unsigned long value = strtoul(str.c_str(), &endp, base);
-    if (endp == str.c_str())
+    if (endp == str.c_str()) {
         throw std::invalid_argument("my_stoul");
+    }
 
-    if (value == ULONG_MAX && errno == ERANGE)
+    if (value == ULONG_MAX && errno == ERANGE) {
         throw std::out_of_range("my_stoul");
+    }
 
-    if (idx)
+    if (idx) {
         *idx = endp - str.c_str();
+    }
 
     return value;
 }
 */
-}// namespace std
+} // namespace std
+
 #endif
