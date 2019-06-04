@@ -24,12 +24,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
-#include <limits>
 #include <initializer_list>
+#include <limits>
+#include <string>
 #include <boost/uuid/uuid.hpp>
 
 namespace CryptoNote {
+
 namespace parameters {
 
 const uint64_t DIFFICULTY_TARGET                              = 120; // seconds
@@ -140,7 +141,7 @@ const uint32_t UPGRADE_HEIGHT_V6                              = 4294967295;
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
 const uint32_t UPGRADE_VOTING_WINDOW                         = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
 const uint32_t UPGRADE_WINDOW                                = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
-static_assert(0 < UPGRADE_VOTING_THRESHOLD && UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
+static_assert(UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
 const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.bin";
@@ -150,7 +151,8 @@ const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "poolstate.dat";
 const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.dat";
 const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.bin";
 const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json";
-} // parameters
+
+} // namespace parameters
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
@@ -206,7 +208,7 @@ const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4734950f414cdb332b28c5ce764beaf";
 
-const char     LATEST_VERSION_URL[]                          = "https://releases.qwertycoin.org";
+const char        LATEST_VERSION_URL[]                       = "https://releases.qwertycoin.org";
 const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin/blob/master/LICENSE";
 
 /* Modules */
@@ -215,17 +217,17 @@ const std::string LICENSE_URL                                = "https://github.c
 const bool     P2P_MESSAGES                                  =  true;
 const uint16_t P2P_MESSAGES_CHAR_COUNT                       =  160;
 
-const char* const SEED_NODES[] = {
-  "node-00.qwertycoin.org:8196",
-  "node-01.qwertycoin.org:8196",
-  "node-02.qwertycoin.org:8196",
-  "node-03.qwertycoin.org:8196",
-  "node-04.qwertycoin.org:8196",
-  "node-05.qwertycoin.org:8196",
-  "198.147.30.115:8196",  //loop
-  "198.147.30.116:8196"   //pool
+const char *const SEED_NODES[] = {
+    "node-00.qwertycoin.org:8196",
+    "node-01.qwertycoin.org:8196",
+    "node-02.qwertycoin.org:8196",
+    "node-03.qwertycoin.org:8196",
+    "node-04.qwertycoin.org:8196",
+    "node-05.qwertycoin.org:8196",
+    "198.147.30.115:8196",  //loop
+    "198.147.30.116:8196"   //pool
 };
 
-} // CryptoNote
+} // namespace CryptoNote
 
 #define ALLOW_DEBUG_COMMANDS
