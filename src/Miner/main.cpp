@@ -16,38 +16,36 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "Common/SignalHandler.h"
-
-#include "Logging/LoggerGroup.h"
-#include "Logging/ConsoleLogger.h"
-#include "Logging/LoggerRef.h"
-
+#include <Common/SignalHandler.h>
+#include <Logging/ConsoleLogger.h>
+#include <Logging/LoggerGroup.h>
+#include <Logging/LoggerRef.h>
+#include <System/Dispatcher.h>
 #include "MinerManager.h"
 
-#include <System/Dispatcher.h>
+int main(int argc, char **argv)
+{
+    try {
+        CryptoNote::MiningConfig config;
+        config.parse(argc, argv);
 
-int main(int argc, char** argv) {
-  try {
-    CryptoNote::MiningConfig config;
-    config.parse(argc, argv);
+        if (config.help) {
+            config.printHelp();
+            return 0;
+        }
 
-    if (config.help) {
-      config.printHelp();
-      return 0;
+        Logging::LoggerGroup loggerGroup;
+        Logging::ConsoleLogger consoleLogger(static_cast<Logging::Level>(config.logLevel));
+        loggerGroup.addLogger(consoleLogger);
+
+        System::Dispatcher dispatcher;
+        Miner::MinerManager app(dispatcher, config, loggerGroup);
+
+        app.start();
+    } catch (std::exception &e) {
+        std::cerr << "Fatal: " << e.what() << std::endl;
+        return 1;
     }
 
-    Logging::LoggerGroup loggerGroup;
-    Logging::ConsoleLogger consoleLogger(static_cast<Logging::Level>(config.logLevel));
-    loggerGroup.addLogger(consoleLogger);
-
-    System::Dispatcher dispatcher;
-    Miner::MinerManager app(dispatcher, config, loggerGroup);
-
-    app.start();
-  } catch (std::exception& e) {
-    std::cerr << "Fatal: " << e.what() << std::endl;
-    return 1;
-  }
-
-  return 0;
+    return 0;
 }

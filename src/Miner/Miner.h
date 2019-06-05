@@ -20,49 +20,50 @@
 
 #include <atomic>
 #include <thread>
-
+#include <CryptoNoteCore/Difficulty.h>
+#include <Logging/LoggerRef.h>
 #include <System/Dispatcher.h>
 #include <System/Event.h>
 #include <System/RemoteContext.h>
-
-#include "CryptoNote.h"
-#include "CryptoNoteCore/Difficulty.h"
-
-#include "Logging/LoggerRef.h"
+#include <CryptoNote.h>
 
 namespace CryptoNote {
 
-struct BlockMiningParameters {
-  Block blockTemplate;
-  difficulty_type difficulty;
+struct BlockMiningParameters
+{
+    Block blockTemplate;
+    difficulty_type difficulty;
 };
 
-class Miner {
+class Miner
+{
+    enum class MiningState : uint8_t
+    {
+        MINING_STOPPED,
+        BLOCK_FOUND,
+        MINING_IN_PROGRESS
+    };
+
 public:
-  Miner(System::Dispatcher& dispatcher, Logging::ILogger& logger);
-  ~Miner();
+    Miner(System::Dispatcher &dispatcher, Logging::ILogger &logger);
+    ~Miner();
 
-  Block mine(const BlockMiningParameters& blockMiningParameters, size_t threadCount);
+    Block mine(const BlockMiningParameters &blockMiningParameters, size_t threadCount);
 
-  //NOTE! this is blocking method
-  void stop();
+    void stop(); // !IMPORTANT! This is blocking method!
 
 private:
-  System::Dispatcher& m_dispatcher;
-  System::Event m_miningStopped;
+    void runWorkers(BlockMiningParameters blockMiningParameters, size_t threadCount);
+    void workerFunc(const Block &blockTemplate, difficulty_type difficulty, uint32_t nonceStep);
+    bool setStateBlockFound();
 
-  enum class MiningState : uint8_t { MINING_STOPPED, BLOCK_FOUND, MINING_IN_PROGRESS};
-  std::atomic<MiningState> m_state;
-
-  std::vector<std::unique_ptr<System::RemoteContext<void>>>  m_workers;
-
-  Block m_block;
-
-  Logging::LoggerRef m_logger;
-
-  void runWorkers(BlockMiningParameters blockMiningParameters, size_t threadCount);
-  void workerFunc(const Block& blockTemplate, difficulty_type difficulty, uint32_t nonceStep);
-  bool setStateBlockFound();
+private:
+    System::Dispatcher &m_dispatcher;
+    System::Event m_miningStopped;
+    std::atomic<MiningState> m_state;
+    std::vector<std::unique_ptr<System::RemoteContext<void>>>  m_workers;
+    Block m_block;
+    Logging::LoggerRef m_logger;
 };
 
-} //namespace CryptoNote
+} // namespace CryptoNote
