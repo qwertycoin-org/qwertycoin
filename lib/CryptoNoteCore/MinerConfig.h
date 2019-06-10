@@ -20,21 +20,21 @@
 
 #include <cstdint>
 #include <string>
-
 #include <boost/program_options.hpp>
 
 namespace CryptoNote {
 
-class MinerConfig {
+class MinerConfig
+{
 public:
-  MinerConfig();
+    MinerConfig();
 
-  static void initOptions(boost::program_options::options_description& desc);
-  void init(const boost::program_options::variables_map& options);
+    static void initOptions(boost::program_options::options_description &desc);
+    void init(const boost::program_options::variables_map &options);
 
-  std::string extraMessages;
-  std::string startMining;
-  uint32_t miningThreads;
+    std::string extraMessages;
+    std::string startMining;
+    uint32_t miningThreads;
 };
 
-} //namespace CryptoNote
+} // namespace CryptoNote
