@@ -254,7 +254,6 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ICore.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ICoreObserver.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IMinerHandler.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITimeProvider.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITimeProvider.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITransactionValidator.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ITxPoolObserver.h"
