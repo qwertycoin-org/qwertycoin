@@ -19,11 +19,13 @@
 #pragma once
 
 namespace CryptoNote {
-class ITxPoolObserver {
-public:
-  virtual ~ITxPoolObserver() {
-  }
 
-  virtual void txDeletedFromPool() = 0;
+class ITxPoolObserver
+{
+public:
+    virtual ~ITxPoolObserver() = default;
+
+    virtual void txDeletedFromPool() = 0;
 };
-}
+
+} // namespace CryptoNote
