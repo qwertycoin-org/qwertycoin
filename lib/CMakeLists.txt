@@ -249,7 +249,6 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Currency.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Difficulty.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Difficulty.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlock.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlock.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlockchainStorageObserver.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ICore.h"
