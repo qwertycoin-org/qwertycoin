@@ -264,7 +264,6 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/MinerConfig.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/MinerConfig.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/OnceInInterval.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedMap.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedMap.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedVector.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/SwappedVector.h"
