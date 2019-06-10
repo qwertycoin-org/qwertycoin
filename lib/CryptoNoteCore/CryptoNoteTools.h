@@ -19,109 +19,128 @@
 #pragma once
 
 #include <limits>
-#include "Common/MemoryInputStream.h"
-#include "Common/StringTools.h"
-#include "Common/VectorOutputStream.h"
-#include "Serialization/BinaryOutputStreamSerializer.h"
-#include "Serialization/BinaryInputStreamSerializer.h"
-#include "CryptoNoteSerialization.h"
+#include <Common/MemoryInputStream.h>
+#include <Common/StringTools.h>
+#include <Common/VectorOutputStream.h>
+#include <CryptoNoteCore/CryptoNoteSerialization.h>
+#include <Serialization/BinaryOutputStreamSerializer.h>
+#include <Serialization/BinaryInputStreamSerializer.h>
 
 namespace CryptoNote {
 
-void getBinaryArrayHash(const BinaryArray& binaryArray, Crypto::Hash& hash);
-Crypto::Hash getBinaryArrayHash(const BinaryArray& binaryArray);
+void getBinaryArrayHash(const BinaryArray &binaryArray, Crypto::Hash &hash);
+Crypto::Hash getBinaryArrayHash(const BinaryArray &binaryArray);
 
 template<class T>
-bool toBinaryArray(const T& object, BinaryArray& binaryArray) {
-  try {
-    ::Common::VectorOutputStream stream(binaryArray);
-    BinaryOutputStreamSerializer serializer(stream);
-    serialize(const_cast<T&>(object), serializer);
-  } catch (std::exception&) {
-    return false;
-  }
+bool toBinaryArray(const T &object, BinaryArray &binaryArray)
+{
+    try {
+        ::Common::VectorOutputStream stream(binaryArray);
+        BinaryOutputStreamSerializer serializer(stream);
+        serialize(const_cast<T &>(object), serializer);
+    } catch (std::exception &) {
+        return false;
+    }
 
-  return true;
+    return true;
 }
 
 template<>
-bool toBinaryArray(const BinaryArray& object, BinaryArray& binaryArray);
+bool toBinaryArray(const BinaryArray &object, BinaryArray &binaryArray);
 
 template<class T>
-BinaryArray toBinaryArray(const T& object) {
-  BinaryArray ba;
-  toBinaryArray(object, ba);
-  return ba;
-}
+BinaryArray toBinaryArray(const T &object)
+{
+    BinaryArray ba;
+    toBinaryArray(object, ba);
 
-template<class T>
-bool fromBinaryArray(T& object, const BinaryArray& binaryArray) {
-  bool result = false;
-  try {
-    Common::MemoryInputStream stream(binaryArray.data(), binaryArray.size());
-    BinaryInputStreamSerializer serializer(stream);
-    serialize(object, serializer);
-    result = stream.endOfStream(); // check that all data was consumed
-  } catch (std::exception&) {
-  }
-
-  return result;
+    return ba;
 }
 
 template<class T>
-bool getObjectBinarySize(const T& object, size_t& size) {
-  BinaryArray ba;
-  if (!toBinaryArray(object, ba)) {
-    size = (std::numeric_limits<size_t>::max)();
-    return false;
-  }
+bool fromBinaryArray(T &object, const BinaryArray &binaryArray)
+{
+    bool result = false;
+    try {
+        Common::MemoryInputStream stream(binaryArray.data(), binaryArray.size());
+        BinaryInputStreamSerializer serializer(stream);
+        serialize(object, serializer);
+        result = stream.endOfStream(); // check that all data was consumed
+    } catch (std::exception &) {
+        // do nothing
+    }
 
-  size = ba.size();
-  return true;
+    return result;
 }
 
 template<class T>
-size_t getObjectBinarySize(const T& object) {
-  size_t size;
-  getObjectBinarySize(object, size);
-  return size;
+bool getObjectBinarySize(const T &object, size_t &size)
+{
+    BinaryArray ba;
+    if (!toBinaryArray(object, ba)) {
+        size = (std::numeric_limits<size_t>::max)();
+        return false;
+    }
+
+    size = ba.size();
+
+    return true;
 }
 
 template<class T>
-bool getObjectHash(const T& object, Crypto::Hash& hash) {
-  BinaryArray ba;
-  if (!toBinaryArray(object, ba)) {
-    hash = NULL_HASH;
-    return false;
-  }
+size_t getObjectBinarySize(const T &object)
+{
+    size_t size;
+    getObjectBinarySize(object, size);
 
-  hash = getBinaryArrayHash(ba);
-  return true;
+    return size;
 }
 
 template<class T>
-bool getObjectHash(const T& object, Crypto::Hash& hash, size_t& size) {
-  BinaryArray ba;
-  if (!toBinaryArray(object, ba)) {
-    hash = NULL_HASH;
-    size = (std::numeric_limits<size_t>::max)();
-    return false;
-  }
+bool getObjectHash(const T &object, Crypto::Hash &hash)
+{
+    BinaryArray ba;
+    if (!toBinaryArray(object, ba)) {
+        hash = NULL_HASH;
+        return false;
+    }
 
-  size = ba.size();
-  hash = getBinaryArrayHash(ba);
-  return true;
+    hash = getBinaryArrayHash(ba);
+
+    return true;
 }
 
 template<class T>
-Crypto::Hash getObjectHash(const T& object) {
-  Crypto::Hash hash;
-  getObjectHash(object, hash);
-  return hash;
+bool getObjectHash(const T &object, Crypto::Hash &hash, size_t &size)
+{
+    BinaryArray ba;
+    if (!toBinaryArray(object, ba)) {
+        hash = NULL_HASH;
+        size = (std::numeric_limits<size_t>::max)();
+        return false;
+    }
+
+    size = ba.size();
+    hash = getBinaryArrayHash(ba);
+
+    return true;
 }
 
-uint64_t getInputAmount(const Transaction& transaction);
-std::vector<uint64_t> getInputsAmounts(const Transaction& transaction);
-uint64_t getOutputAmount(const Transaction& transaction);
-void decomposeAmount(uint64_t amount, uint64_t dustThreshold, std::vector<uint64_t>& decomposedAmounts);
+template<class T>
+Crypto::Hash getObjectHash(const T &object)
+{
+    Crypto::Hash hash;
+    getObjectHash(object, hash);
+
+    return hash;
 }
+
+uint64_t getInputAmount(const Transaction &transaction);
+std::vector<uint64_t> getInputsAmounts(const Transaction &transaction);
+uint64_t getOutputAmount(const Transaction &transaction);
+void decomposeAmount(
+    uint64_t amount,
+    uint64_t dustThreshold,
+    std::vector<uint64_t> &decomposedAmounts);
+
+} // namespace CryptoNote
