@@ -22,54 +22,59 @@
 #include <list>
 #include <mutex>
 #include <thread>
-
-#include "CryptoNoteCore/CryptoNoteBasic.h"
-#include "CryptoNoteCore/Currency.h"
-#include "CryptoNoteCore/Difficulty.h"
-#include "CryptoNoteCore/IMinerHandler.h"
-#include "CryptoNoteCore/MinerConfig.h"
-#include "CryptoNoteCore/OnceInInterval.h"
-
+#include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <CryptoNoteCore/Currency.h>
+#include <CryptoNoteCore/Difficulty.h>
+#include <CryptoNoteCore/IMinerHandler.h>
+#include <CryptoNoteCore/MinerConfig.h>
+#include <CryptoNoteCore/OnceInInterval.h>
 #include <Logging/LoggerRef.h>
-
-#include "Serialization/ISerializer.h"
+#include <Serialization/ISerializer.h>
 
 namespace CryptoNote {
-  class miner {
-  public:
-    miner(const Currency& currency, IMinerHandler& handler, Logging::ILogger& log);
+
+class miner
+{
+    struct miner_config
+    {
+        void serialize(ISerializer &s)
+        {
+            KV_MEMBER(current_extra_message_index)
+        }
+
+        uint64_t current_extra_message_index;
+    };
+
+public:
+    miner(const Currency &currency, IMinerHandler &handler, Logging::ILogger &log);
     ~miner();
 
-    bool init(const MinerConfig& config);
-    bool set_block_template(const Block& bl, const difficulty_type& diffic);
+    bool init(const MinerConfig &config);
+    bool set_block_template(const Block &bl, const difficulty_type &diffic);
     bool on_block_chain_update();
-    bool start(const AccountPublicAddress& adr, size_t threads_count);
+    bool start(const AccountPublicAddress &adr, size_t threads_count);
     uint64_t get_speed();
     void send_stop_signal();
     bool stop();
     bool is_mining();
     bool on_idle();
     void on_synchronized();
-    //synchronous analog (for fast calls)
-    static bool find_nonce_for_given_block(Crypto::cn_context &context, Block& bl, const difficulty_type& diffic);
+    // synchronous analog (for fast calls)
+    static bool find_nonce_for_given_block(
+        Crypto::cn_context &context,
+        Block &bl,
+        const difficulty_type &diffic);
     void pause();
     void resume();
     void do_print_hashrate(bool do_hr);
 
-  private:
+private:
     bool worker_thread(uint32_t th_local_index);
     bool request_block_template();
     void  merge_hr();
 
-    struct miner_config
-    {
-      uint64_t current_extra_message_index;
-      void serialize(ISerializer& s) {
-        KV_MEMBER(current_extra_message_index)
-      }
-    };
-
-    const Currency& m_currency;
+private:
+    const Currency &m_currency;
     Logging::LoggerRef logger;
 
     std::atomic<bool> m_stop;
@@ -85,7 +90,7 @@ namespace CryptoNote {
 
     std::list<std::thread> m_threads;
     std::mutex m_threads_lock;
-    IMinerHandler& m_handler;
+    IMinerHandler &m_handler;
     AccountPublicAddress m_mine_address;
     OnceInInterval m_update_block_template_interval;
     OnceInInterval m_update_merge_hr_interval;
@@ -100,5 +105,6 @@ namespace CryptoNote {
     std::list<uint64_t> m_last_hash_rates;
     bool m_do_print_hashrate;
     bool m_do_mining;
-  };
-}
+};
+
+} // namespace CryptoNote
