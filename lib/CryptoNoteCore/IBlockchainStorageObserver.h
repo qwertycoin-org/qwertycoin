@@ -19,11 +19,13 @@
 #pragma once
 
 namespace CryptoNote {
-  class IBlockchainStorageObserver {
-  public:
-    virtual ~IBlockchainStorageObserver() {
-    }
+
+class IBlockchainStorageObserver
+{
+public:
+    virtual ~IBlockchainStorageObserver() = default;
 
     virtual void blockchainUpdated() = 0;
-  };
-}
+};
+
+} // namespace CryptoNote
