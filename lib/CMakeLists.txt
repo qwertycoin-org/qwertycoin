@@ -277,7 +277,6 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionPrefixImpl.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/UpgradeDetector.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/UpgradeDetector.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/VerificationContext.h"
 )
