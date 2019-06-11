@@ -24,10 +24,10 @@
 #include <Common/ObserverManager.h>
 #include <CryptoNoteCore/ICore.h>
 #include <CryptoNoteCore/ICoreObserver.h>
+#include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteProtocol/ICryptoNoteProtocolQuery.h>
 #include <CryptoNoteProtocol/ICryptoNoteProtocolObserver.h>
 #include <INode.h>
-#include <ITransaction.h>
 
 namespace CryptoNote {
 

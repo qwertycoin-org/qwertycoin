@@ -22,8 +22,8 @@
 #include <BlockchainExplorer/BlockchainExplorer.h>
 #include <BlockchainExplorer/BlockchainExplorerErrors.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
+#include <CryptoNoteCore/ITransaction.h>
 #include <../src/config/CryptoNoteConfig.h>
-#include "ITransaction.h"
 
 using namespace Logging;
 using namespace Crypto;

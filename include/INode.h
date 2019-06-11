@@ -25,9 +25,9 @@
 #include <BlockchainExplorer/BlockchainExplorerData.h>
 #include <crypto/crypto.h>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
-#include <ITransaction.h>
 
 namespace CryptoNote {
 
