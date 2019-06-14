@@ -85,7 +85,6 @@ set(QwertycoinFramework_Common_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Common/ArrayView.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/Base58.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/Base58.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Common/BlockingQueue.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/BlockingQueue.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/CommandLine.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/CommandLine.h"
