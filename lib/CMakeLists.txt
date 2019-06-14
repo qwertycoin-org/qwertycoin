@@ -94,7 +94,6 @@ set(QwertycoinFramework_Common_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Common/ConsoleTools.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/DnsTools.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/DnsTools.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Common/FileMappedVector.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/FileMappedVector.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/IInputStream.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/IOutputStream.h"
