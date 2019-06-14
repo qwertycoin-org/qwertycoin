@@ -101,7 +101,6 @@ set(QwertycoinFramework_Common_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Common/JsonValue.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/JsonValue.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/Lazy.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Common/Math.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/Math.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/MemoryInputStream.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/MemoryInputStream.h"
