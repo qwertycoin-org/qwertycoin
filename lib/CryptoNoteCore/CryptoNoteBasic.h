@@ -57,7 +57,7 @@ inline ParentBlockSerializer makeParentBlockSerializer(
     bool hashingSerialization,
     bool headerOnly)
 {
-    auto blockRef = const_cast<Block &>(b);
+    auto &blockRef = const_cast<Block &>(b);
     return ParentBlockSerializer{
         blockRef.parentBlock,
         blockRef.timestamp,
