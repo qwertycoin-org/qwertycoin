@@ -16,95 +16,127 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "CryptoNoteCore/BlockchainMessages.h"
+#include <CryptoNoteCore/BlockchainMessages.h>
 
 namespace CryptoNote {
 
-NewBlockMessage::NewBlockMessage(const Crypto::Hash& hash) : blockHash(hash) {}
-
-void NewBlockMessage::get(Crypto::Hash& hash) const {
-  hash = blockHash;
+NewBlockMessage::NewBlockMessage(const Crypto::Hash &hash)
+    : blockHash(hash)
+{
 }
 
-NewAlternativeBlockMessage::NewAlternativeBlockMessage(const Crypto::Hash& hash) : blockHash(hash) {}
-
-void NewAlternativeBlockMessage::get(Crypto::Hash& hash) const {
-  hash = blockHash;
+void NewBlockMessage::get(Crypto::Hash &hash) const
+{
+    hash = blockHash;
 }
 
-ChainSwitchMessage::ChainSwitchMessage(std::vector<Crypto::Hash>&& hashes) : blocksFromCommonRoot(std::move(hashes)) {}
-
-ChainSwitchMessage::ChainSwitchMessage(const ChainSwitchMessage& other) : blocksFromCommonRoot(other.blocksFromCommonRoot) {}
-
-void ChainSwitchMessage::get(std::vector<Crypto::Hash>& hashes) const {
-  hashes = blocksFromCommonRoot;
+NewAlternativeBlockMessage::NewAlternativeBlockMessage(const Crypto::Hash &hash)
+    : blockHash(hash)
+{
 }
 
-BlockchainMessage::BlockchainMessage(NewBlockMessage&& message) : type(MessageType::NEW_BLOCK_MESSAGE), newBlockMessage(std::move(message)) {}
-
-BlockchainMessage::BlockchainMessage(NewAlternativeBlockMessage&& message) : type(MessageType::NEW_ALTERNATIVE_BLOCK_MESSAGE), newAlternativeBlockMessage(std::move(message)) {}
-
-BlockchainMessage::BlockchainMessage(ChainSwitchMessage&& message) : type(MessageType::CHAIN_SWITCH_MESSAGE) {
-	chainSwitchMessage = new ChainSwitchMessage(std::move(message));
+void NewAlternativeBlockMessage::get(Crypto::Hash &hash) const
+{
+    hash = blockHash;
 }
 
-BlockchainMessage::BlockchainMessage(const BlockchainMessage& other) : type(other.type) {
-  switch (type) {
+ChainSwitchMessage::ChainSwitchMessage(std::vector<Crypto::Hash> &&hashes)
+    : blocksFromCommonRoot(std::move(hashes))
+{
+}
+
+ChainSwitchMessage::ChainSwitchMessage(const ChainSwitchMessage &other)
+    : blocksFromCommonRoot(other.blocksFromCommonRoot)
+{
+}
+
+void ChainSwitchMessage::get(std::vector<Crypto::Hash> &hashes) const
+{
+    hashes = blocksFromCommonRoot;
+}
+
+BlockchainMessage::BlockchainMessage(NewBlockMessage &&message)
+    : type(MessageType::NEW_BLOCK_MESSAGE),
+      newBlockMessage(message)
+{
+}
+
+BlockchainMessage::BlockchainMessage(NewAlternativeBlockMessage &&message)
+    : type(MessageType::NEW_ALTERNATIVE_BLOCK_MESSAGE),
+      newAlternativeBlockMessage(message)
+{
+}
+
+BlockchainMessage::BlockchainMessage(ChainSwitchMessage &&message)
+    : type(MessageType::CHAIN_SWITCH_MESSAGE)
+{
+    chainSwitchMessage = new ChainSwitchMessage(message);
+}
+
+BlockchainMessage::BlockchainMessage(const BlockchainMessage &o)
+    : type(o.type)
+{
+    switch (type) {
     case MessageType::NEW_BLOCK_MESSAGE:
-      new (&newBlockMessage) NewBlockMessage(other.newBlockMessage);
-      break;
+        new (&newBlockMessage)NewBlockMessage(o.newBlockMessage);
+        break;
     case MessageType::NEW_ALTERNATIVE_BLOCK_MESSAGE:
-      new (&newAlternativeBlockMessage) NewAlternativeBlockMessage(other.newAlternativeBlockMessage);
-      break;
+        new (&newAlternativeBlockMessage)NewAlternativeBlockMessage(o.newAlternativeBlockMessage);
+        break;
     case MessageType::CHAIN_SWITCH_MESSAGE:
-	  chainSwitchMessage = new ChainSwitchMessage(*other.chainSwitchMessage);
-      break;
-  }
+        chainSwitchMessage = new ChainSwitchMessage(*o.chainSwitchMessage);
+        break;
+    }
 }
 
-BlockchainMessage::~BlockchainMessage() {
-  switch (type) {
+BlockchainMessage::~BlockchainMessage()
+{
+    switch (type) {
     case MessageType::NEW_BLOCK_MESSAGE:
-      newBlockMessage.~NewBlockMessage();
-      break;
+        newBlockMessage.~NewBlockMessage();
+        break;
     case MessageType::NEW_ALTERNATIVE_BLOCK_MESSAGE:
-      newAlternativeBlockMessage.~NewAlternativeBlockMessage();
-      break;
+        newAlternativeBlockMessage.~NewAlternativeBlockMessage();
+        break;
     case MessageType::CHAIN_SWITCH_MESSAGE:
-	  delete chainSwitchMessage;
-      break;
-  }
+        delete chainSwitchMessage;
+        break;
+    }
 }
 
-BlockchainMessage::MessageType BlockchainMessage::getType() const {
-  return type;
+BlockchainMessage::MessageType BlockchainMessage::getType() const
+{
+    return type;
 }
 
-bool BlockchainMessage::getNewBlockHash(Crypto::Hash& hash) const {
-  if (type == MessageType::NEW_BLOCK_MESSAGE) {
-    newBlockMessage.get(hash);
-    return true;
-  } else {
-    return false;
-  }
+bool BlockchainMessage::getNewBlockHash(Crypto::Hash &hash) const
+{
+    if (type == MessageType::NEW_BLOCK_MESSAGE) {
+        newBlockMessage.get(hash);
+        return true;
+    } else {
+        return false;
+    }
 }
 
-bool BlockchainMessage::getNewAlternativeBlockHash(Crypto::Hash& hash) const {
-  if (type == MessageType::NEW_ALTERNATIVE_BLOCK_MESSAGE) {
-    newAlternativeBlockMessage.get(hash);
-    return true;
-  } else {
-    return false;
-  }
+bool BlockchainMessage::getNewAlternativeBlockHash(Crypto::Hash &hash) const
+{
+    if (type == MessageType::NEW_ALTERNATIVE_BLOCK_MESSAGE) {
+        newAlternativeBlockMessage.get(hash);
+        return true;
+    } else {
+        return false;
+    }
 }
 
-bool BlockchainMessage::getChainSwitch(std::vector<Crypto::Hash>& hashes) const {
-  if (type == MessageType::CHAIN_SWITCH_MESSAGE) {
-    chainSwitchMessage->get(hashes);
-    return true;
-  } else {
-    return false;
-  }
+bool BlockchainMessage::getChainSwitch(std::vector<Crypto::Hash> &hashes) const
+{
+    if (type == MessageType::CHAIN_SWITCH_MESSAGE) {
+        chainSwitchMessage->get(hashes);
+        return true;
+    } else {
+        return false;
+    }
 }
 
-}
+} // namespace CryptoNote

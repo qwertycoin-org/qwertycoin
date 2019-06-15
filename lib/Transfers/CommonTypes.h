@@ -22,8 +22,8 @@
 #include <cstdint>
 #include <memory>
 #include <boost/optional.hpp>
+#include <CryptoNoteCore/ITransaction.h>
 #include <INode.h>
-#include <ITransaction.h>
 
 namespace CryptoNote {
 

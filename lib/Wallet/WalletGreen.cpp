@@ -35,14 +35,15 @@
 #include <Common/StreamTools.h>
 #include <Common/StringOutputStream.h>
 #include <Common/StringTools.h>
+#include <crypto/crypto.h>
 #include <CryptoNoteCore/Account.h>
 #include <CryptoNoteCore/Currency.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
+#include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteCore/TransactionApi.h>
-#include <crypto/crypto.h>
 #include <System/EventLock.h>
 #include <System/RemoteContext.h>
 #include <Transfers/TransfersContainer.h>
@@ -51,7 +52,6 @@
 #include <Wallet/WalletSerializationV1.h>
 #include <Wallet/WalletSerializationV2.h>
 #include <Wallet/WalletUtils.h>
-#include <ITransaction.h>
 
 #ifdef USE_LITE_WALLET
 #include <boost/date_time/posix_time/posix_time.hpp>

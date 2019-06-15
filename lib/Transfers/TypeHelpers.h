@@ -20,7 +20,7 @@
 
 #include <cstring>
 #include <functional>
-#include <ITransaction.h>
+#include <CryptoNoteCore/ITransaction.h>
 
 namespace CryptoNote {
 

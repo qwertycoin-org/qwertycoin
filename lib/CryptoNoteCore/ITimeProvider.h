@@ -22,15 +22,19 @@
 
 namespace CryptoNote {
 
-  struct ITimeProvider {
+struct ITimeProvider
+{
+    virtual ~ITimeProvider() = default;
+
     virtual time_t now() = 0;
-    virtual ~ITimeProvider() {}
-  };
+};
 
-  struct RealTimeProvider : public ITimeProvider {
-    virtual time_t now() override {
-      return time(nullptr);
+struct RealTimeProvider : public ITimeProvider
+{
+    time_t now() override
+    {
+        return time(nullptr);
     }
-  };
+};
 
-}
+} // namespace CryptoNote

@@ -23,10 +23,10 @@
 #include <functional>
 #include <unordered_map>
 #include <Common/Math.h>
+#include <CryptoNoteCore/ITransaction.h>
 #include <Logging/LoggerRef.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Rpc/HttpServer.h>
-#include <ITransaction.h>
 
 namespace CryptoNote {
 

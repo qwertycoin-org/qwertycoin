@@ -18,41 +18,49 @@
 
 #pragma once
 
-#include "CryptoNoteCore/CryptoNoteBasic.h"
-#include "crypto/crypto.h"
+#include <crypto/crypto.h>
+#include <CryptoNoteCore/CryptoNoteBasic.h>
 
 namespace CryptoNote {
 
-  class ISerializer;
+class ISerializer;
 
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  class AccountBase {
-  public:
+class AccountBase
+{
+public:
     AccountBase();
+
     void generate();
     void generateDeterministic();
-    Crypto::SecretKey generate_key(const Crypto::SecretKey& recovery_key = Crypto::SecretKey(), bool recover = false, bool two_random = false);
-    
-    static void generateViewFromSpend(Crypto::SecretKey&, Crypto::SecretKey&, Crypto::PublicKey&);
-    static void generateViewFromSpend(Crypto::SecretKey&, Crypto::SecretKey&);
-    
-    const AccountKeys& getAccountKeys() const;
+    Crypto::SecretKey generate_key(
+        const Crypto::SecretKey &recovery_key = Crypto::SecretKey(),
+        bool recover = false,
+        bool two_random = false);
+
+    static void generateViewFromSpend(Crypto::SecretKey &, Crypto::SecretKey &,Crypto::PublicKey &);
+    static void generateViewFromSpend(Crypto::SecretKey &, Crypto::SecretKey &);
+
+    const AccountKeys &getAccountKeys() const;
     void setAccountKeys(const AccountKeys& keys);
+
     uint64_t get_createtime() const { return m_creation_timestamp; }
     void set_createtime(uint64_t val) { m_creation_timestamp = val; }
-    void serialize(ISerializer& s);
+
+    void serialize(ISerializer &s);
 
     template <class t_archive>
-    inline void serialize(t_archive &a, const unsigned int /*ver*/) {
-      a & m_keys;
-      a & m_creation_timestamp;
+    inline void serialize(t_archive &a, const unsigned int)
+    {
+        a & m_keys;
+        a & m_creation_timestamp;
     }
 
-  private:
+private:
     void setNull();
+
+private:
     AccountKeys m_keys;
     uint64_t m_creation_timestamp;
-  };
-}
+};
+
+} // namespace CryptoNote
