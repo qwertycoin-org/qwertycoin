@@ -164,13 +164,6 @@ cmake --build . --config Release
 ```
 - If all went well, it will complete successfully, and you will find all your binaries in the `./build/src` directory.
 
-#### Advanced options (for all platforms)
-
-* Parallel build: run `make -j<number of threads>` instead of `make`;
-* Debug build: run `make build-debug`;
-* Test suite: run `make test-release` to run tests in addition to building. Running `make test-debug` will do the same to the debug version;
-* Building with Clang: it may be possible to use Clang instead of GCC, but this may not work everywhere. To build, run `export CC=clang CXX=clang++` before running `make`.
-
 ## Donate <a name="donate"></a>
 
 ```
@@ -200,8 +193,6 @@ ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQ
 | macOS 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
 | Linux 32         | https://releases.qwertycoin.org/get/cli/latest/linux32 |
 | Linux 64         | https://releases.qwertycoin.org/get/cli/latest/linux64 |
-| OpenBSD 64       | https://releases.qwertycoin.org/get/cli/latest/openbsd64 |
-| FreeBSD 64       | https://releases.qwertycoin.org/get/cli/latest/freebsd64 |
 | Linux ARM 64     | https://releases.qwertycoin.org/get/cli/latest/arm64 |
 | Other platforms      | https://releases.qwertycoin.org |
 
@@ -228,12 +219,10 @@ Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Developers,
 
 ### Copypasta for license when editing files  <a name="copypasta"></a>
 
-Hi Qwertycoin contributor, thanks for forking and sending back Pull Requests. Extensive docs about contributing are in the works or elsewhere. For now this is the bit we need to get into all the files we touch. Please add it to the top of the files, see [lib/CryptoNoteConfig.h](https://github.com/qwertycoin-org/qwertycoin/blob/master/lib/CryptoNoteConfig.h) for an example.
+Hi Qwertycoin contributor, thanks for forking and sending back Pull Requests. Extensive docs about contributing are in the works or elsewhere. For now this is the bit we need to get into all the files we touch. Please add it to the top of the files, see [lib/CryptoNoteConfig.h](https://github.com/qwertycoin-org/qwertycoin/blob/master/src/config/CryptoNoteConfig.h) for an example.
 
 ```
-// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2019, The Qwertycoin Developers
-//
-// Please see the included LICENSE file for more information.
+# Copyright 2018-2019 (c) The Qwertycoin Group.
+# Licensed under the GNU General Public License, Version 3.
+# See the file LICENSE from this package for details.
 ```
