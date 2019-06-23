@@ -152,6 +152,11 @@ const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.dat";
 const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.bin";
 const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json";
 
+/* Governance Fee and range */
+const uint16_t GOVERNANCE_PERCENT                            = 10; // 10 percent of base block reward
+const uint32_t GOVERNANCE_HEIGHT_START                       = 400000;
+const uint32_t GOVERNANCE_HEIGHT_END                         = 4000000;
+
 } // namespace parameters
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
@@ -216,6 +221,13 @@ const std::string LICENSE_URL                                = "https://github.c
 // P2P encrypted blockchain messenger settings:
 const bool     P2P_MESSAGES                                  =  true;
 const uint16_t P2P_MESSAGES_CHAR_COUNT                       =  160;
+
+/* Governance Fee receiving Qwertycoin Foundation Wallet */
+std::string const GOVERNANCE_WALLET_ADDRESS                  = "QWC1g8rrozb3tboXu9p4ZXE8wfNnQmLeETPcE2oQVPU7EmboD96qHS11AdMnmPYQhPeLfnLRhL8syerx4PsPxPgL2sF5jws3AX";
+std::string const GOVERNANCE_VIEW_SECRET_KEY                 = "07420b13ea50a3e28de21784ff3c455756eb8467445eacd3adb09f2bb1167a0c";
+
+std::string const TESTNET_GOVERNANCE_WALLET_ADDRESS          = "QWC1EFX1Y8xMBMiG6FXZsXGb96AN2eZ5jMPF37o3A6oDGiqRiByWZttF2WWQjfM645i1cfD8XEzGVhwFNcNYZPT12gtehpEhxn";
+std::string const TESTNET_GOVERNANCE_VIEW_SECRET_KEY         = "cdc5e87660a4d40375e31910eaa6d66bac23e328b5ab753029bed6b2fa9a2b09";
 
 const char *const SEED_NODES[] = {
     "node-00.qwertycoin.org:8196",

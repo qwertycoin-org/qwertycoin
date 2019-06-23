@@ -59,6 +59,9 @@ bool Currency::init()
         m_upgradeHeightV4 = 70;
         m_upgradeHeightV5 = 80;
         m_upgradeHeightV6 = 100;
+        m_governancePercent = 10;
+        m_governanceHeightStart = 1;
+        m_governanceHeightEnd = 100;
         m_blocksFileName = "testnet_" + m_blocksFileName;
         m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
         m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
@@ -185,6 +188,59 @@ size_t Currency::maxBlockCumulativeSize(uint64_t height) const
     return maxSize;
 }
 
+bool Currency::isGovernanceEnabled(uint32_t height) const
+{
+    if (height >= m_governanceHeightStart && height <= m_governanceHeightEnd) {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+uint64_t Currency::getGovernanceReward(uint64_t base_reward) const
+{
+    // minimum is 1% to avoid zero amount and maximum is 50%
+    uint16_t percent = (m_governancePercent < 1) ? 1 : (m_governancePercent > 50) ? 50 : m_governancePercent;
+    return (uint64_t)(base_reward * (percent * 0.01));
+}
+
+bool Currency::getGovernanceAddressAndKey(AccountKeys& governanceKeys) const
+{
+  std::string address;
+  std::string viewSecretkey;
+
+  if (isTestnet())
+  {
+    address = TESTNET_GOVERNANCE_WALLET_ADDRESS;
+    viewSecretkey = TESTNET_GOVERNANCE_VIEW_SECRET_KEY;
+  }
+  else
+  {
+    address = GOVERNANCE_WALLET_ADDRESS;
+    viewSecretkey = GOVERNANCE_VIEW_SECRET_KEY;
+  }
+
+  AccountPublicAddress governanceAddress = boost::value_initialized<AccountPublicAddress>();
+  if (!parseAccountAddressString(address, governanceAddress)) {
+    logger(Logging::ERROR) << "failed to parse governance wallet address";
+    return false;
+  }
+
+  Crypto::SecretKey governanceViewSecretKey;
+  if (!Common::podFromHex(viewSecretkey, governanceViewSecretKey)) {
+    logger(Logging::ERROR) << "failed to parse governance view secret key";
+    return false;
+  }
+
+  governanceKeys.address = governanceAddress;
+  governanceKeys.viewSecretKey = governanceViewSecretKey;
+
+  return true;
+}
+
+
 bool Currency::constructMinerTx(
     uint8_t blockMajorVersion,
     uint32_t height,
@@ -212,8 +268,11 @@ bool Currency::constructMinerTx(
     BaseInput in;
     in.blockIndex = height;
 
+    uint64_t governanceReward = 0;
+    uint64_t totalRewardWGR = 0; //totalRewardWithoutGovernanceReward
     uint64_t blockReward;
     int64_t emissionChange;
+
     if (!getBlockReward(
             blockMajorVersion,
             medianSize,
@@ -225,6 +284,21 @@ bool Currency::constructMinerTx(
         ) {
         logger(INFO) << "Block is too big";
         return false;
+    }
+
+    totalRewardWGR = blockReward;
+
+    // If Governance Fee blockReward is decreased by GOVERNANCE_PERCENT
+    bool enabledGovernace = isGovernanceEnabled(height);
+    if (enabledGovernace)
+    {
+        governanceReward = getGovernanceReward(blockReward);
+
+        if (alreadyGeneratedCoins != 0)
+        {
+            blockReward -= governanceReward;
+            totalRewardWGR  = blockReward + governanceReward;
+        }
     }
 
     std::vector<uint64_t> outAmounts;
@@ -283,12 +357,49 @@ bool Currency::constructMinerTx(
         tx.outputs.push_back(out);
     }
 
-    if (summaryAmounts != blockReward) {
+    if (enabledGovernace)
+    {
+        AccountKeys governanceKeys;
+        getGovernanceAddressAndKey(governanceKeys);
+
+        Crypto::KeyDerivation derivation = boost::value_initialized<Crypto::KeyDerivation>();
+        Crypto::PublicKey outEphemeralPubKey = boost::value_initialized<Crypto::PublicKey>();
+
+        bool r = Crypto::generate_key_derivation(governanceKeys.address.viewPublicKey, txkey.secretKey, derivation);
+        if (!(r))
+        {
+            logger(ERROR, BRIGHT_RED)
+                << "while creating outs: failed to generate_key_derivation("
+                << governanceKeys.address.viewPublicKey << ", " << txkey.secretKey << ")";
+            return false;
+        }
+        size_t pos = tx.outputs.size();
+        r = Crypto::derive_public_key(derivation, pos++, governanceKeys.address.spendPublicKey, outEphemeralPubKey);
+
+        if (!(r))
+        {
+            logger(ERROR, BRIGHT_RED)
+                << "while creating outs: failed to derive_public_key("
+                << derivation << ", " << 0 << ", "
+                << governanceKeys.address.spendPublicKey << ")";
+            return false;
+        }
+
+        KeyOutput tk;
+        tk.key = outEphemeralPubKey;
+
+        TransactionOutput out;
+        summaryAmounts += out.amount = governanceReward;
+        out.target = tk;
+        tx.outputs.push_back(out);
+    }
+
+    if (summaryAmounts != totalRewardWGR) {
         logger(ERROR, BRIGHT_RED)
             << "Failed to construct miner tx, summaryAmounts = "
             << summaryAmounts
             << " not equal blockReward = "
-            << blockReward;
+            << totalRewardWGR;
         return false;
     }
 
@@ -952,6 +1063,10 @@ CurrencyBuilder::CurrencyBuilder(Logging::ILogger &log)
     blockGrantedFullRewardZone(parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE);
     minerTxBlobReservedSize(parameters::CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE);
     maxTransactionSizeLimit(parameters::MAX_TRANSACTION_SIZE_LIMIT);
+
+    governancePercent(parameters::GOVERNANCE_PERCENT);
+    governanceHeightStart(parameters::GOVERNANCE_HEIGHT_START);
+    governanceHeightEnd(parameters::GOVERNANCE_HEIGHT_END);
 
     minMixin(parameters::MIN_TX_MIXIN_SIZE);
     maxMixin(parameters::MAX_TX_MIXIN_SIZE);
