@@ -222,9 +222,9 @@ const std::string LICENSE_URL                                = "https://github.c
 const bool     P2P_MESSAGES                                  =  true;
 const uint16_t P2P_MESSAGES_CHAR_COUNT                       =  160;
 
-/* Governance Fee receiving Qwertycoin Foundation Wallet */
-std::string const GOVERNANCE_WALLET_ADDRESS                  = "QWC1g8rrozb3tboXu9p4ZXE8wfNnQmLeETPcE2oQVPU7EmboD96qHS11AdMnmPYQhPeLfnLRhL8syerx4PsPxPgL2sF5jws3AX";
-std::string const GOVERNANCE_VIEW_SECRET_KEY                 = "07420b13ea50a3e28de21784ff3c455756eb8467445eacd3adb09f2bb1167a0c";
+/* Governance Fee Wallets // The Qwertycoin Foundation */
+std::string const GOVERNANCE_WALLET_ADDRESS                  = ""; // TODO
+std::string const GOVERNANCE_VIEW_SECRET_KEY                 = ""; // TODO
 
 std::string const TESTNET_GOVERNANCE_WALLET_ADDRESS          = "QWC1EFX1Y8xMBMiG6FXZsXGb96AN2eZ5jMPF37o3A6oDGiqRiByWZttF2WWQjfM645i1cfD8XEzGVhwFNcNYZPT12gtehpEhxn";
 std::string const TESTNET_GOVERNANCE_VIEW_SECRET_KEY         = "cdc5e87660a4d40375e31910eaa6d66bac23e328b5ab753029bed6b2fa9a2b09";

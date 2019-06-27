@@ -201,45 +201,44 @@ bool Currency::isGovernanceEnabled(uint32_t height) const
 
 uint64_t Currency::getGovernanceReward(uint64_t base_reward) const
 {
-    // minimum is 1% to avoid zero amount and maximum is 50%
+    // minimum is 1% to avoid a zero amount and maximum is 50%
     uint16_t percent = (m_governancePercent < 1) ? 1 : (m_governancePercent > 50) ? 50 : m_governancePercent;
     return (uint64_t)(base_reward * (percent * 0.01));
 }
 
 bool Currency::getGovernanceAddressAndKey(AccountKeys& governanceKeys) const
 {
-  std::string address;
-  std::string viewSecretkey;
+    std::string address;
+    std::string viewSecretkey;
 
-  if (isTestnet())
-  {
-    address = TESTNET_GOVERNANCE_WALLET_ADDRESS;
-    viewSecretkey = TESTNET_GOVERNANCE_VIEW_SECRET_KEY;
-  }
-  else
-  {
-    address = GOVERNANCE_WALLET_ADDRESS;
-    viewSecretkey = GOVERNANCE_VIEW_SECRET_KEY;
-  }
+    if (isTestnet())
+    {
+        address = TESTNET_GOVERNANCE_WALLET_ADDRESS;
+        viewSecretkey = TESTNET_GOVERNANCE_VIEW_SECRET_KEY;
+    }
+    else
+    {
+        address = GOVERNANCE_WALLET_ADDRESS;
+        viewSecretkey = GOVERNANCE_VIEW_SECRET_KEY;
+    }
 
-  AccountPublicAddress governanceAddress = boost::value_initialized<AccountPublicAddress>();
-  if (!parseAccountAddressString(address, governanceAddress)) {
-    logger(Logging::ERROR) << "failed to parse governance wallet address";
-    return false;
-  }
+    AccountPublicAddress governanceAddress = boost::value_initialized<AccountPublicAddress>();
+    if (!parseAccountAddressString(address, governanceAddress)) {
+        logger(Logging::ERROR) << "failed to parse governance wallet address";
+        return false;
+    }
 
-  Crypto::SecretKey governanceViewSecretKey;
-  if (!Common::podFromHex(viewSecretkey, governanceViewSecretKey)) {
-    logger(Logging::ERROR) << "failed to parse governance view secret key";
-    return false;
-  }
+    Crypto::SecretKey governanceViewSecretKey;
+    if (!Common::podFromHex(viewSecretkey, governanceViewSecretKey)) {
+        logger(Logging::ERROR) << "failed to parse governance view secret key";
+        return false;
+    }
 
-  governanceKeys.address = governanceAddress;
-  governanceKeys.viewSecretKey = governanceViewSecretKey;
+    governanceKeys.address = governanceAddress;
+    governanceKeys.viewSecretKey = governanceViewSecretKey;
 
-  return true;
+    return true;
 }
-
 
 bool Currency::constructMinerTx(
     uint8_t blockMajorVersion,
@@ -311,12 +310,13 @@ bool Currency::constructMinerTx(
         return false;
     }
     while (maxOuts < outAmounts.size()) {
-    outAmounts[outAmounts.size() - 2] += outAmounts.back();
-    outAmounts.resize(outAmounts.size() - 1);
+        outAmounts[outAmounts.size() - 2] += outAmounts.back();
+        outAmounts.resize(outAmounts.size() - 1);
     }
 
     uint64_t summaryAmounts = 0;
-    for (size_t no = 0; no < outAmounts.size(); no++) {
+    for (size_t no = 0; no < outAmounts.size(); no++)
+    {
         Crypto::KeyDerivation derivation = boost::value_initialized<Crypto::KeyDerivation>();
         Crypto::PublicKey outEphemeralPubKey = boost::value_initialized<Crypto::PublicKey>();
 
@@ -398,7 +398,7 @@ bool Currency::constructMinerTx(
         logger(ERROR, BRIGHT_RED)
             << "Failed to construct miner tx, summaryAmounts = "
             << summaryAmounts
-            << " not equal blockReward = "
+            << " not equal full blockReward = "
             << totalRewardWGR;
         return false;
     }
