@@ -144,18 +144,6 @@ bool Currency::getBlockReward(
 
     // Tail emission
 
-    uint64_t consistency;
-    if (difficultyTarget() == 0) {
-        consistency = 1;
-    } else {
-        // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
-        consistency = blockTarget / difficultyTarget();
-
-        // consistency range is 0..2
-        consistency = std::max<uint64_t>(consistency, 0);
-        consistency = std::min<uint64_t>(consistency, 2);
-    }
-
     uint64_t baseReward = (m_moneySupply - alreadyGeneratedCoins) >> m_emissionSpeedFactor;
     if (alreadyGeneratedCoins + CryptoNote::parameters::TAIL_EMISSION_REWARD >= m_moneySupply
         || baseReward < CryptoNote::parameters::TAIL_EMISSION_REWARD) {
@@ -177,6 +165,16 @@ bool Currency::getBlockReward(
                             : fee;
     if (cryptonoteCoinVersion() == 1) {
         penalizedFee = getPenalizedAmount(fee, medianSize, currentBlockSize);
+    }
+
+    uint64_t consistency = 1;
+    if (difficultyTarget() != 0) {
+        // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
+        consistency = blockTarget / difficultyTarget();
+
+        // consistency range is 0..2
+        consistency = std::max<uint64_t>(consistency, 0);
+        consistency = std::min<uint64_t>(consistency, 2);
     }
 
     emissionChange = penalizedBaseReward - (fee - penalizedFee);
