@@ -108,7 +108,8 @@ public:
         uint64_t alreadyGeneratedCoins,
         uint64_t fee,
         uint64_t &reward,
-        int64_t &emissionChange) override;
+        int64_t &emissionChange,
+        uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET) override;
     bool scanOutputkeysForIndices(
         const KeyInput &txInToKey,
         std::list<std::pair<Crypto::Hash, size_t>> &outputReferences) override;
@@ -153,6 +154,7 @@ public:
     std::error_code executeLocked(const std::function<std::error_code()> &func) override;
     uint64_t getMinimalFeeForHeight(uint32_t height) override;
     uint64_t getMinimalFee() override;
+    uint64_t getBlockTimestamp(uint32_t height) override;
 
     bool addMessageQueue(MessageQueue<BlockchainMessage> &messageQueue) override;
     bool removeMessageQueue(MessageQueue<BlockchainMessage> &messageQueue) override;
