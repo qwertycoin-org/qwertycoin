@@ -27,7 +27,6 @@
 #include "CryptoNoteCore/ICoreObserver.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h"
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
-#include "../../src/config/CryptoNoteConfig.h"
 
 class ICoreStub: public CryptoNote::ICore {
 public:
@@ -79,7 +78,7 @@ public:
   virtual bool getBlockSize(const Crypto::Hash& hash, size_t& size) override;
   virtual bool getAlreadyGeneratedCoins(const Crypto::Hash& hash, uint64_t& generatedCoins) override;
   virtual bool getBlockReward(uint8_t blockMajorVersion, size_t medianSize, size_t currentBlockSize, uint64_t alreadyGeneratedCoins, uint64_t fee,
-    uint64_t& reward, int64_t& emissionChange, uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET) override;
+    uint64_t& reward, int64_t& emissionChange) override;
   virtual bool scanOutputkeysForIndices(const CryptoNote::KeyInput& txInToKey, std::list<std::pair<Crypto::Hash, size_t>>& outputReferences) override;
   virtual bool getBlockDifficulty(uint32_t height, CryptoNote::difficulty_type& difficulty) override;
   virtual bool getBlockCumulativeDifficulty(uint32_t height, CryptoNote::difficulty_type& difficulty) override;
@@ -101,7 +100,6 @@ public:
 
   virtual uint64_t getMinimalFeeForHeight(uint32_t height) override;
   virtual uint64_t getMinimalFee() override;
-  virtual uint64_t getBlockTimestamp(uint32_t height) override;
 
   virtual uint32_t get_current_blockchain_height() override;
   virtual uint8_t getBlockMajorVersionForHeight(uint32_t height) override;

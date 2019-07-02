@@ -1426,18 +1426,13 @@ bool RpcServer::f_on_block_json(
     size_t blockGrantedFullRewardZone =  CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2;
     res.block.effectiveSizeMedian = std::max(res.block.sizeMedian, blockGrantedFullRewardZone);
 
-    uint32_t previousBlockHeight;
-    m_core.getBlockHeight(blk.previousBlockHash, previousBlockHeight);
-    uint64_t blockTarget = blk.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
-
     if (!m_core.getBlockReward(res.block.major_version,
                                res.block.sizeMedian,
                                0,
                                prevBlockGeneratedCoins,
                                0,
                                maxReward,
-                               emissionChange,
-                               blockTarget)) {
+                               emissionChange)) {
         return false;
     }
     if (!m_core.getBlockReward(res.block.major_version,
@@ -1446,8 +1441,7 @@ bool RpcServer::f_on_block_json(
                                prevBlockGeneratedCoins,
                                0,
                                currentReward,
-                               emissionChange,
-                               blockTarget)) {
+                               emissionChange)) {
         return false;
     }
 

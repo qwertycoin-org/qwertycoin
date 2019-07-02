@@ -97,10 +97,6 @@ bool BlockchainExplorerDataBuilder::fillBlockDetails(const Block &block, BlockDe
         }
     }
 
-    uint32_t previousBlockHeight;
-    m_core.getBlockHeight(block.previousBlockHash, previousBlockHeight);
-    uint64_t blockTarget = block.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
-
     uint64_t maxReward = 0;
     uint64_t currentReward = 0;
     int64_t emissionChange = 0;
@@ -110,8 +106,7 @@ bool BlockchainExplorerDataBuilder::fillBlockDetails(const Block &block, BlockDe
                                prevBlockGeneratedCoins,
                                0,
                                maxReward,
-                               emissionChange,
-                               blockTarget)) {
+                               emissionChange)) {
         return false;
     }
 
@@ -121,8 +116,7 @@ bool BlockchainExplorerDataBuilder::fillBlockDetails(const Block &block, BlockDe
                                prevBlockGeneratedCoins,
                                0,
                                currentReward,
-                               emissionChange,
-                               blockTarget)) {
+                               emissionChange)) {
         return false;
     }
 

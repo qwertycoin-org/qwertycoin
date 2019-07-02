@@ -136,8 +136,7 @@ bool Currency::getBlockReward(
     uint64_t alreadyGeneratedCoins,
     uint64_t fee,
     uint64_t &reward,
-    int64_t &emissionChange,
-    uint64_t blockTarget) const
+    int64_t &emissionChange) const
 {
     // assert(alreadyGeneratedCoins <= m_moneySupply);
     assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
@@ -167,18 +166,8 @@ bool Currency::getBlockReward(
         penalizedFee = getPenalizedAmount(fee, medianSize, currentBlockSize);
     }
 
-    uint64_t consistency = 1;
-    if (difficultyTarget() != 0) {
-        // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
-        consistency = blockTarget / difficultyTarget();
-
-        // consistency range is 0..2
-        consistency = std::max<uint64_t>(consistency, 0);
-        consistency = std::min<uint64_t>(consistency, 2);
-    }
-
     emissionChange = penalizedBaseReward - (fee - penalizedFee);
-    reward = (penalizedBaseReward + penalizedFee) * consistency;
+    reward = penalizedBaseReward + penalizedFee;
 
     return true;
 }
@@ -232,28 +221,24 @@ bool Currency::constructMinerTx(
             alreadyGeneratedCoins,
             fee,
             blockReward,
-            emissionChange,
-            difficultyTarget())
+            emissionChange)
         ) {
         logger(INFO) << "Block is too big";
         return false;
     }
 
     std::vector<uint64_t> outAmounts;
-    decompose_amount_into_digits(
-        blockReward,
-        UINT64_C(0),
-        [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
-        [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); }
-    );
+    decompose_amount_into_digits(blockReward, UINT64_C(0),
+    [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
+    [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
 
     if (maxOuts < 1) {
         logger(ERROR, BRIGHT_RED) << "max_out must be non-zero";
         return false;
     }
     while (maxOuts < outAmounts.size()) {
-        outAmounts[outAmounts.size() - 2] += outAmounts.back();
-        outAmounts.resize(outAmounts.size() - 1);
+    outAmounts[outAmounts.size() - 2] += outAmounts.back();
+    outAmounts.resize(outAmounts.size() - 1);
     }
 
     uint64_t summaryAmounts = 0;
