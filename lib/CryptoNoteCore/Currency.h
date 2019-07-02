@@ -161,7 +161,8 @@ public:
         uint64_t alreadyGeneratedCoins,
         uint64_t fee,
         uint64_t &reward,
-        int64_t &emissionChange) const;
+        int64_t &emissionChange,
+        uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET) const;
     size_t maxBlockCumulativeSize(uint64_t height) const;
 
     bool constructMinerTx(

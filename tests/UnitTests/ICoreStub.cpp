@@ -266,7 +266,7 @@ bool ICoreStub::getAlreadyGeneratedCoins(const Crypto::Hash& hash, uint64_t& gen
 }
 
 bool ICoreStub::getBlockReward(uint8_t blockMajorVersion, size_t medianSize, size_t currentBlockSize, uint64_t alreadyGeneratedCoins, uint64_t fee,
-    uint64_t& reward, int64_t& emissionChange) {
+    uint64_t& reward, int64_t& emissionChange, uint64_t blockTarget) {
   return true;
 }
 
@@ -389,6 +389,9 @@ uint64_t ICoreStub::getMinimalFeeForHeight(uint32_t height) {
 uint64_t ICoreStub::getMinimalFee() {
 	return 10000000000ULL;
 };
+uint64_t ICoreStub::getBlockTimestamp(uint32_t height) {
+    return (uint64_t)4;
+}
 uint32_t ICoreStub::get_current_blockchain_height() {
     return (uint32_t)4;
 };
