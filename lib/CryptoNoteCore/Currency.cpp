@@ -178,7 +178,12 @@ bool Currency::getBlockReward(
     }
 
     emissionChange = penalizedBaseReward - (fee - penalizedFee);
-    reward = (penalizedBaseReward + penalizedFee) * consistency;
+
+    if (height < CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
+        reward = penalizedBaseReward + penalizedFee;
+    } else {
+        reward = (penalizedBaseReward + penalizedFee) * consistency;
+    }
 
     return true;
 }
