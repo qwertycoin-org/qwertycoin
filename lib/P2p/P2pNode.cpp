@@ -447,7 +447,7 @@ bool P2pNode::fetchPeerList(ContextPtr connection)
         }
 
         if (response.node_data.network_id != request.node_data.network_id) {
-            logger(ERROR,BRIGHT_RED)
+            logger(ERROR)
                 << *connection
                 << "COMMAND_HANDSHAKE failed, wrong network: "
                 << response.node_data.network_id;
@@ -455,7 +455,7 @@ bool P2pNode::fetchPeerList(ContextPtr connection)
         }
 
         if (response.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
-            logger(ERROR,BRIGHT_RED)
+            logger(ERROR)
                 << *connection
                 << "COMMAND_HANDSHAKE Failed, peer is wrong version: "
                 << std::to_string(response.node_data.version);

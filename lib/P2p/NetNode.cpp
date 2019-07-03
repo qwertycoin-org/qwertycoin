@@ -759,7 +759,7 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
     m_payload_handler.get_payload_sync_data(arg.payload_data);
 
     if (!proto.invoke(COMMAND_HANDSHAKE::ID, arg, rsp)) {
-        logger(Logging::ERROR,BRIGHT_RED)
+        logger(Logging::ERROR)
             << context
             << "Failed to invoke COMMAND_HANDSHAKE, closing connection.";
         return false;
@@ -768,7 +768,7 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
     context.version = rsp.node_data.version;
 
     if (rsp.node_data.network_id != m_network_id) {
-        logger(Logging::ERROR,BRIGHT_RED)
+        logger(Logging::ERROR)
             << context
             << "COMMAND_HANDSHAKE Failed, wrong network!  ("
             << rsp.node_data.network_id
@@ -802,7 +802,7 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
 
     if (!handle_remote_peerlist(rsp.local_peerlist, rsp.node_data.local_time, context)) {
         add_host_fail(context.m_remote_ip);
-        logger(Logging::ERROR,BRIGHT_RED)
+        logger(Logging::ERROR)
             << context
             << "COMMAND_HANDSHAKE: failed to handle_remote_peerlist(...), closing connection.";
         return false;
@@ -1482,7 +1482,11 @@ int NodeServer::handle_handshake(int command,
     context.version = arg.node_data.version;
 
 	if (!is_remote_host_allowed(context.m_remote_ip)) {
-        logger(Logging::DEBUGGING) << context << "Banned node connected " << Common::ipAddressToString(context.m_remote_ip) << ", dropping connection.";
+        logger(Logging::DEBUGGING)
+            << context
+            << "Banned node connected "
+            << Common::ipAddressToString(context.m_remote_ip)
+            << ", dropping connection.";
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
 	}
