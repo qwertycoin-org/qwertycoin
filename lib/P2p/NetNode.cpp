@@ -776,13 +776,29 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
         return false;
     }
 
-  if(!m_node_version.empty()) {
-    if (rsp.node_data.node_version != m_node_version) {
-      logger(Logging::ERROR) << context << "COMMAND_HANDSHAKE: invoked, but peer is not running the exclusive version specified, dropping connection!";
-      return false;
+    if(!m_node_version.empty()) {
+        if (rsp.node_data.node_version != m_node_version) {
+            logger(Logging::ERROR,BRIGHT_RED)
+                << context
+                << "COMMAND_HANDSHAKE: invoked, but peer is not running the exclusive version specified, dropping connection!";
+            return false;
+        }
     }
-  }
 
+    if (rsp.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
+        logger(Logging::ERROR,BRIGHT_RED)
+            << context
+            << "COMMAND_HANDSHAKE Failed, peer is wrong version! ("
+            << std::to_string(rsp.node_data.version)
+            << "), closing connection.";
+        return false;
+    } else if ((rsp.node_data.version - CryptoNote::P2P_CURRENT_VERSION) >= CryptoNote::P2P_UPGRADE_WINDOW) {
+        logger(Logging::WARNING)
+            << context
+            << "COMMAND_HANDSHAKE Warning, your software may be out of date. Please visit: "
+            << CryptoNote::LATEST_VERSION_URL
+            << " for the latest version.";
+    }
 
     if (!handle_remote_peerlist(rsp.local_peerlist, rsp.node_data.local_time, context)) {
         add_host_fail(context.m_remote_ip);
@@ -1232,7 +1248,7 @@ bool NodeServer::handle_remote_peerlist(const std::list<PeerlistEntry> &peerlist
 
 bool NodeServer::get_local_node_data(basic_node_data &node_data)
 {
-    node_data.version = P2PProtocolVersion::CURRENT;
+    node_data.version = CryptoNote::P2P_CURRENT_VERSION;
     time_t local_time;
     time(&local_time);
     node_data.local_time = local_time;
@@ -1466,7 +1482,11 @@ int NodeServer::handle_handshake(int command,
     context.version = arg.node_data.version;
 
 	if (!is_remote_host_allowed(context.m_remote_ip)) {
-        logger(Logging::DEBUGGING) << context << "Banned node connected " << Common::ipAddressToString(context.m_remote_ip) << ", dropping connection.";
+        logger(Logging::DEBUGGING)
+            << context
+            << "Banned node connected "
+            << Common::ipAddressToString(context.m_remote_ip)
+            << ", dropping connection.";
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
 	}
@@ -1478,6 +1498,21 @@ int NodeServer::handle_handshake(int command,
             << "WRONG NETWORK AGENT CONNECTED! id=" << arg.node_data.network_id;
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
+    }
+
+    if (arg.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
+        logger(Logging::DEBUGGING)
+            << context
+            << "UNSUPPORTED NETWORK AGENT VERSION CONNECTED! version="
+            << std::to_string(arg.node_data.version);
+        context.m_state = CryptoNoteConnectionContext::state_shutdown;
+        return 1;
+    } else if (arg.node_data.version > CryptoNote::P2P_CURRENT_VERSION) {
+        logger(Logging::WARNING)
+            << context
+            << "Our software may be out of date. Please visit: "
+            << CryptoNote::LATEST_VERSION_URL
+            << " for the latest version.";
     }
 
     if(!context.m_is_income) {
