@@ -139,7 +139,7 @@ bool Currency::getBlockReward(
     int64_t &emissionChange,
     uint64_t blockTarget) const
 {
-    // assert(alreadyGeneratedCoins <= m_moneySupply);
+    assert(alreadyGeneratedCoins <= m_moneySupply);
     assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
 
     // Tail emission
@@ -152,18 +152,16 @@ bool Currency::getBlockReward(
 
     size_t blockGrantedFullRewardZone = blockGrantedFullRewardZoneByBlockVersion(blockMajorVersion);
     medianSize = std::max(medianSize, blockGrantedFullRewardZone);
-    if (currentBlockSize > UINT64_C(2) * medianSize) {
+    if (currentBlockSize > medianSize * UINT64_C(2)) {
         logger(TRACE)
             << "Block cumulative size is too big: " << currentBlockSize
-            << ", expected less than " << medianSize * 2;
+            << ", expected less than " << medianSize * UINT64_C(2);
         return false;
     }
 
     uint64_t penalizedBaseReward = getPenalizedAmount(baseReward, medianSize, currentBlockSize);
-    uint64_t penalizedFee = blockMajorVersion >= BLOCK_MAJOR_VERSION_2
-                            ? getPenalizedAmount(fee, medianSize, currentBlockSize)
-                            : fee;
-    if (cryptonoteCoinVersion() == 1) {
+    uint64_t penalizedFee = fee;
+    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_2 || cryptonoteCoinVersion() == 1) {
         penalizedFee = getPenalizedAmount(fee, medianSize, currentBlockSize);
     }
 
