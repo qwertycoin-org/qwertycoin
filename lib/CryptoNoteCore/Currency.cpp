@@ -165,14 +165,14 @@ bool Currency::getBlockReward(
         penalizedFee = getPenalizedAmount(fee, medianSize, currentBlockSize);
     }
 
-    uint64_t consistency = 1;
+    double consistency = 1.0;
     if (difficultyTarget() != 0) {
         // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
         consistency = blockTarget / difficultyTarget();
 
         // consistency range is 0..2
-        consistency = std::max<uint64_t>(consistency, 0);
-        consistency = std::min<uint64_t>(consistency, 2);
+        consistency = std::max<uint64_t>(consistency, 0.0);
+        consistency = std::min<uint64_t>(consistency, 2.0);
     }
 
     emissionChange = penalizedBaseReward - (fee - penalizedFee);
