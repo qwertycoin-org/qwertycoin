@@ -167,7 +167,7 @@ std::vector<uint32_t> Checkpoints::getCheckpointHeights() const
 #ifndef __ANDROID__
 bool Checkpoints::load_checkpoints_from_dns()
 {
-    std::string domain("checkpoints.qwertycoin.org");
+    std::string domain(CryptoNote::DNS_CHECKPOINTS_HOST);
     std::vector<std::string>records;
 
     logger(Logging::DEBUGGING) << "Fetching DNS checkpoint records from " << domain;
