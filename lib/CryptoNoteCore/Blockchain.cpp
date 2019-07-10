@@ -1312,15 +1312,20 @@ bool Blockchain::validate_miner_transaction(
     get_last_n_blocks_sizes(lastBlocksSizes, m_currency.rewardBlocksWindow());
     size_t blocksSizeMedian = Common::medianValue(lastBlocksSizes);
 
-    auto blockMajorVersion = getBlockMajorVersionForHeight(height);
+    uint32_t previousBlockHeight;
+    getBlockHeight(b.previousBlockHash, previousBlockHeight);
+    uint64_t blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
+
     auto br = m_currency.getBlockReward(
-        blockMajorVersion,
+        getBlockMajorVersionForHeight(height),
         blocksSizeMedian,
         cumulativeBlockSize,
         alreadyGeneratedCoins,
         fee,
         reward,
-        emissionChange
+        emissionChange,
+        height,
+        blockTarget
     );
     if (!br) {
         logger(INFO, BRIGHT_WHITE)
