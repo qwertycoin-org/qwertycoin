@@ -1434,7 +1434,9 @@ bool core::getBlockReward(
     uint64_t alreadyGeneratedCoins,
     uint64_t fee,
     uint64_t &reward,
-    int64_t &emissionChange)
+    int64_t &emissionChange,
+    uint32_t height,
+    uint64_t blockTarget)
 {
     return m_currency.getBlockReward(
         blockMajorVersion,
@@ -1443,7 +1445,9 @@ bool core::getBlockReward(
         alreadyGeneratedCoins,
         fee,
         reward,
-        emissionChange
+        emissionChange,
+        height,
+        blockTarget
     );
 }
 
@@ -1643,6 +1647,11 @@ uint64_t core::getMinimalFee()
     return getMinimalFeeForHeight(get_current_blockchain_height() - 1);
 }
 
+uint64_t core::getBlockTimestamp(uint32_t height)
+{
+    return m_blockchain.getBlockTimestamp(height);
+}
+
 uint64_t core::getMinimalFeeForHeight(uint32_t height)
 {
     return m_blockchain.getMinimalFee(height);
@@ -1782,6 +1791,10 @@ bool core::fillBlockDetails(const Block &block, BlockDetails2 &blockDetails)
         }
     }
 
+    uint32_t previousBlockHeight;
+    getBlockHeight(block.previousBlockHash, previousBlockHeight);
+    uint64_t blockTarget = block.timestamp - getBlockTimestamp(previousBlockHeight);
+
     uint64_t maxReward = 0;
     uint64_t currentReward = 0;
     int64_t emissionChange = 0;
@@ -1792,7 +1805,9 @@ bool core::fillBlockDetails(const Block &block, BlockDetails2 &blockDetails)
             prevBlockGeneratedCoins,
             0,
             maxReward,
-            emissionChange)
+            emissionChange,
+            blockDetails.height,
+            blockTarget)
         ) {
         return false;
     }
@@ -1804,7 +1819,9 @@ bool core::fillBlockDetails(const Block &block, BlockDetails2 &blockDetails)
             prevBlockGeneratedCoins,
             0,
             currentReward,
-            emissionChange)
+            emissionChange,
+            blockDetails.height,
+            blockTarget)
         ) {
         return false;
     }
