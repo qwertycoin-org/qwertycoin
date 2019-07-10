@@ -1316,15 +1316,15 @@ bool Blockchain::validate_miner_transaction(
     getBlockHeight(b.previousBlockHash, previousBlockHeight);
     uint64_t blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
 
-    auto blockMajorVersion = getBlockMajorVersionForHeight(height);
     auto br = m_currency.getBlockReward(
-        blockMajorVersion,
+        getBlockMajorVersionForHeight(height),
         blocksSizeMedian,
         cumulativeBlockSize,
         alreadyGeneratedCoins,
         fee,
         reward,
         emissionChange,
+        height,
         blockTarget
     );
     if (!br) {

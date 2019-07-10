@@ -111,6 +111,7 @@ bool BlockchainExplorerDataBuilder::fillBlockDetails(const Block &block, BlockDe
                                0,
                                maxReward,
                                emissionChange,
+                               blockDetails.height,
                                blockTarget)) {
         return false;
     }
@@ -122,6 +123,7 @@ bool BlockchainExplorerDataBuilder::fillBlockDetails(const Block &block, BlockDe
                                0,
                                currentReward,
                                emissionChange,
+                               blockDetails.height,
                                blockTarget)) {
         return false;
     }

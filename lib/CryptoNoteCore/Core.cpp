@@ -1435,6 +1435,7 @@ bool core::getBlockReward(
     uint64_t fee,
     uint64_t &reward,
     int64_t &emissionChange,
+    uint32_t height,
     uint64_t blockTarget)
 {
     return m_currency.getBlockReward(
@@ -1445,6 +1446,7 @@ bool core::getBlockReward(
         fee,
         reward,
         emissionChange,
+        height,
         blockTarget
     );
 }
@@ -1804,6 +1806,7 @@ bool core::fillBlockDetails(const Block &block, BlockDetails2 &blockDetails)
             0,
             maxReward,
             emissionChange,
+            blockDetails.height,
             blockTarget)
         ) {
         return false;
@@ -1817,6 +1820,7 @@ bool core::fillBlockDetails(const Block &block, BlockDetails2 &blockDetails)
             0,
             currentReward,
             emissionChange,
+            blockDetails.height,
             blockTarget)
         ) {
         return false;

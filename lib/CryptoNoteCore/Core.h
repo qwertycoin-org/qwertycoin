@@ -109,6 +109,7 @@ public:
         uint64_t fee,
         uint64_t &reward,
         int64_t &emissionChange,
+        uint32_t height,
         uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET) override;
     bool scanOutputkeysForIndices(
         const KeyInput &txInToKey,

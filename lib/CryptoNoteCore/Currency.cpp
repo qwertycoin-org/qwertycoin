@@ -137,6 +137,7 @@ bool Currency::getBlockReward(
     uint64_t fee,
     uint64_t &reward,
     int64_t &emissionChange,
+    uint32_t height,
     uint64_t blockTarget) const
 {
     assert(alreadyGeneratedCoins <= m_moneySupply);
@@ -166,17 +167,19 @@ bool Currency::getBlockReward(
     }
 
     double consistency = 1.0;
-    if (difficultyTarget() != 0) {
+    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME && difficultyTarget() != 0) {
         // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
         consistency = blockTarget / difficultyTarget();
 
         // consistency range is 0..2
-        consistency = std::max<uint64_t>(consistency, 0.0);
-        consistency = std::min<uint64_t>(consistency, 2.0);
+        consistency = std::max<double>(consistency, 0.0);
+        consistency = std::min<double>(consistency, 2.0);
     }
 
+    double penalizedReward = static_cast<double>(penalizedBaseReward + penalizedFee);
+
     emissionChange = penalizedBaseReward - (fee - penalizedFee);
-    reward = (penalizedBaseReward + penalizedFee) * consistency;
+    reward = static_cast<uint64_t>(penalizedReward * consistency);
 
     return true;
 }
@@ -231,6 +234,7 @@ bool Currency::constructMinerTx(
             fee,
             blockReward,
             emissionChange,
+            height,
             difficultyTarget())
         ) {
         logger(INFO) << "Block is too big";

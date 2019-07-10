@@ -56,7 +56,7 @@ protected:
 
 #define TEST_ALREADY_GENERATED_COINS(alreadyGeneratedCoins, expectedReward) \
     m_blockTooBig = !m_currency.getBlockReward(BLOCK_MAJOR_VERSION_4, 0, currentBlockSize, \
-      alreadyGeneratedCoins, 0, m_blockReward, m_emissionChange); \
+      alreadyGeneratedCoins, 0, m_blockReward, m_emissionChange, 0); \
     ASSERT_FALSE(m_blockTooBig); \
     ASSERT_EQ(UINT64_C(expectedReward), m_blockReward); \
     ASSERT_EQ(UINT64_C(expectedReward), m_emissionChange);
@@ -108,7 +108,8 @@ protected:
             alreadyGeneratedCoins,
             0,
             m_standardBlockReward,
-            m_emissionChange
+            m_emissionChange,
+            0
         );
 
         ASSERT_FALSE(m_blockTooBig);
@@ -124,7 +125,8 @@ protected:
             alreadyGeneratedCoins,
             0,
             m_blockReward,
-            m_emissionChange
+            m_emissionChange,
+            0
         );
     }
 
@@ -225,7 +227,8 @@ protected:
             alreadyGeneratedCoins,
             0,
             m_standardBlockReward,
-            m_emissionChange
+            m_emissionChange,
+            0
         );
 
         ASSERT_FALSE(m_blockTooBig);
@@ -240,7 +243,8 @@ protected:
             alreadyGeneratedCoins,
             0,
             m_blockReward,
-            m_emissionChange
+            m_emissionChange,
+            0
         );
     }
 
@@ -353,7 +357,8 @@ protected:
             0,
             0,
             blockReward,
-            emissionChange
+            emissionChange,
+            0
         );
 
         ASSERT_FALSE(m_blockTooBig);
@@ -370,7 +375,8 @@ protected:
             alreadyGeneratedCoins,
             fee,
             m_blockReward,
-            m_emissionChange
+            m_emissionChange,
+            0
         );
     }
 
@@ -383,7 +389,8 @@ protected:
             alreadyGeneratedCoins,
             fee,
             m_blockReward,
-            m_emissionChange
+            m_emissionChange,
+            0
         );
     }
 

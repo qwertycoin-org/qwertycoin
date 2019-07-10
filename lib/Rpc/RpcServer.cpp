@@ -1437,6 +1437,7 @@ bool RpcServer::f_on_block_json(
                                0,
                                maxReward,
                                emissionChange,
+                               res.block.height,
                                blockTarget)) {
         return false;
     }
@@ -1447,6 +1448,7 @@ bool RpcServer::f_on_block_json(
                                0,
                                currentReward,
                                emissionChange,
+                               res.block.height,
                                blockTarget)) {
         return false;
     }
