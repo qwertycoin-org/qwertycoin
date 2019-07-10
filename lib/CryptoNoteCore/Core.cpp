@@ -196,7 +196,7 @@ bool core::init(const CoreConfig &config, const MinerConfig &minerConfig, bool l
 
     r = m_miner->init(minerConfig);
     if (!(r)) {
-        logger(ERROR, BRIGHT_RED) << "Failed to initialize blockchain storage";
+        logger(ERROR, BRIGHT_RED) << "Failed to initialize miner";
         return false;
     }
 
