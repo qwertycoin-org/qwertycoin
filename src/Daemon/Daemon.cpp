@@ -38,7 +38,7 @@
 #include <Rpc/RpcServer.h>
 #include <Rpc/RpcServerConfig.h>
 #include <config/CliHeader.h>
-#include <config/CryptoNoteCheckpoints.h>
+#include <config/Checkpoints.h>
 #include <version.h>
 #include "DaemonCommandsHandler.h"
 

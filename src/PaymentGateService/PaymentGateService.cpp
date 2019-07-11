@@ -31,7 +31,7 @@
 #include <Rpc/RpcServer.h>
 #include <System/Context.h>
 #include <Wallet/WalletGreen.h>
-#include <config/CryptoNoteCheckpoints.h>
+#include <config/Checkpoints.h>
 #include "PaymentGateService.h"
 
 #ifdef ERROR
