@@ -68,7 +68,7 @@ public:
     bool get_payload_sync_data(CORE_SYNC_DATA &hshd);
     bool process_payload_sync_data(const CORE_SYNC_DATA &hshd,
                                    CryptoNoteConnectionContext &context,
-                                   bool is_inital);
+                                   bool is_initial);
     int handleCommand(bool is_notify,
                       int command,
                       const BinaryArray &in_buff,

@@ -228,12 +228,14 @@ private:
                              const BinaryArray &data_buff,
                              const net_connection_id *excludeConnection) override;
     bool invoke_notify_to_peer(int command,
-                               const BinaryArray &req_buff,
-                               const CryptoNoteConnectionContext &context) override;
+                             const BinaryArray &req_buff,
+                             const CryptoNoteConnectionContext &context) override;
     void drop_connection(CryptoNoteConnectionContext &context, bool add_fail) override;
     void for_each_connection(
         std::function<void(CryptoNote::CryptoNoteConnectionContext &, PeerIdType)> f) override;
-    void externalRelayNotifyToAll(int command, const BinaryArray &data_buff) override;
+    void externalRelayNotifyToAll(int command,
+                             const BinaryArray& data_buff,
+                             const net_connection_id* excludeConnection) override;
 
     bool add_host_fail(const uint32_t address_ip);
 	bool block_host(const uint32_t address_ip, time_t seconds = P2P_IP_BLOCKTIME);
