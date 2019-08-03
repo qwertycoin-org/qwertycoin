@@ -11,6 +11,11 @@ if(POLICY CMP0074)
     cmake_policy(SET CMP0074 NEW)
 endif()
 
+if(POLICY CMP0087)
+    # Install CODE|SCRIPT allow the use of generator expressions.
+    cmake_policy(SET CMP0087 NEW)
+endif()
+
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_LIST_DIR}/cmake")
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_LIST_DIR}/cmake/find")
 
@@ -69,12 +74,14 @@ if(GIT_FOUND)
 endif()
 
 set(PROJECT_DISPLAY_NAME "Qwertycoin")
+set(PROJECT_SHORT_NAME "qwcc")
 set(PROJECT_NAME "qwertycoin")
 set(PROJECT_DESCRIPTION "Safe. Simple. Seamless. Secure.")
 set(PROJECT_VERSION "${PROJECT_GIT_TAG}")
 set(PROJECT_COPYRIGHT "Copyright 2019 The Qwertycoin Group")
 set(PROJECT_VENDOR_NAME "The Qwertycoin Group")
 set(PROJECT_VENDOR_URL "https://qwertycoin.org")
+set(PROJECT_VENDOR_DOMAIN_REVERSED "org.qwertycoin")
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION} LANGUAGES C CXX)
 
 if(APPLE OR FREEBSD)

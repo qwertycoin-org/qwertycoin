@@ -4,6 +4,7 @@
 /build
 /build32
 /build64
+/cmake-build-debug
 /tags
 .idea
 .ycm_extra_conf.py

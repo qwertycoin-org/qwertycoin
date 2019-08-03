@@ -10,7 +10,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CTEST_REGEXP="NONE"
         - name: "Android, Release"
           os: linux
           dist: xenial
@@ -19,7 +18,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CTEST_REGEXP="NONE"
         - name: "Linux, Debug"
           os: linux
           dist: xenial
@@ -28,7 +26,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CTEST_REGEXP="Tests$"
         - name: "Linux, Release"
           os: linux
           dist: xenial
@@ -37,27 +34,21 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
-              - CTEST_REGEXP="Tests$"
         - name: "macOS, Debug"
           os: osx
-          osx_image: xcode10.1
+          osx_image: xcode10.2
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
-              - CTEST_REGEXP="Tests$"
         - name: "macOS, Release"
           os: osx
-          osx_image: xcode10.1
+          osx_image: xcode10.2
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
               - CTEST_REGEXP="Tests$"
-
-env:
-    global:
-        - CTEST_LOG_REGEXP="=== EVENT \#\|SwappedVector\|\[\([a-zA-Z]\+\)\(\/[a-zA-Z0-9]\+\)\?\]"
 
 addons:
     apt: # Linux
@@ -68,6 +59,7 @@ addons:
             - unzip
             - wget
             - lcov
+            - rpm
         sources:
             - ubuntu-toolchain-r-test
     homebrew: # macOS
@@ -100,20 +92,17 @@ script:
         -DBUILD_ALL:BOOL=TRUE
         ..
     - cmake --build . --config $CMAKE_BUILD_TYPE -- -j 2
-    - ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "$CTEST_REGEXP" | grep --line-buffered -i -v "$CTEST_LOG_REGEXP"
     - cpack -C $CMAKE_BUILD_TYPE
 
-after_success:
-    - |
-        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
-            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
-        elif [ "$CMAKE_BUILD_TYPE" = "Release" ]; then
-            echo "Code-coverage is only available for debug builds. Skipping..."
-        else
-            COVERAGE_FILE="$TRAVIS_BUILD_DIR/build/coverage.info"
-            echo "coverage.info: $COVERAGE_FILE"
-            lcov --capture --directory . --output-file $COVERAGE_FILE
-            lcov --remove $COVERAGE_FILE "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/gtest/*" "*/tests/*" "*/_ExternalProjects/*" --output-file $COVERAGE_FILE
-            lcov --list $COVERAGE_FILE
-            bash <(curl -s https://codecov.io/bash) -f $COVERAGE_FILE || echo "Upload to codecov.io FAILED"
-        fi
+deploy:
+    provider: releases # GitHub Releases
+    api_key:
+        secure: "hRqB7OCjXxa91Jh6gvUgAevHfkR7e1Or/2kFVbKzI+BXCCrqdlV/G940/lcXu80qKzvtqD1usH0RGqhRLSGWTOmJixeZ1/zSNKp1c88OT1YcMyCGhHAx+68BPQp6yaGoKnkZncf+Ge9qkuIoboX8ayFRVeRnBbnf/VhNS/AHXrQZExAkY4UKCTSmKrUb8vmSsGlgFJ9VgCVEprlzUM9qIvZDcXf2f5mMOLgPS5M1h28mIFxjjqn2BBEvGnItf3sihloR51EN5DGCHdjeLWJv6pUoT67cElJJ1aOKECPSnfaIKLILOXMlckBUYcNT3EO9Fs8nfT+hMN/vqr8xFkNfY45UuCgkbute8/GPkfT2R3JsoeJ1df9z1yu8zpYYAvhPettilWIrjtPyg7ekXy2c8+Lzaut/iogokVCwZXy5yGAozU7RUYyLZvB+iZT/L4e4TnrkRM9Y9T2lSefrBql273wuc/X1n7pf3mMsalmMNwnEEyleCHE8KeJGzeFjdQu1Srmu41E61PIPBiHPsF9VQuFWXuVj6usqY/zvxJnoa4o/4uJ3NMWHFxCAiPmH559ElXwFAifN5LZ/6Dxu40MYjSkeDqJRT4uvhtVgCC73VWFRWgKAZjepP6tpohO/Xcab+00LFbYdHvDyK5LlABLwJFAix8prDJvyCKisq8+Rd24="
+    file: dist/qwertycoin-*
+    file_glob: true
+    draft: true
+    on:
+        branch: master
+        tags: true
+        condition: $CMAKE_BUILD_TYPE = "Release"
+    skip_cleanup: true

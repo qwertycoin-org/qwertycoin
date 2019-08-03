@@ -36,3 +36,19 @@ build_script:
     - cmake --build . --config %QWC_BUILD_TYPE%
     - ctest -C %QWC_BUILD_TYPE% -R "%QWC_TESTS_REGEXP%" -V -j 2
     - cpack -C %QWC_BUILD_TYPE%
+
+artifacts:
+    - path: build\*\qwertycoin-*.exe
+      name: Releases
+
+deploy:
+    description: "Qwertycoin CLI release"
+    provider: GitHub
+    auth_token:
+        secure: "4VgHg760VN6gCaRp6++fnkyxTe/p4vZ8DCNry0YDRhI6O4Pml9+29kfBv2WIjROA"
+    artifact: /qwertycoin-.*\.exe/
+    draft: true
+    prerelease: true
+    on:
+        APPVEYOR_REPO_TAG: true
+        QWC_BUILD_TYPE: "Release"
