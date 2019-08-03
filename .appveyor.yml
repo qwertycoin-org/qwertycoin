@@ -45,7 +45,7 @@ deploy:
     description: "Qwertycoin CLI release"
     provider: GitHub
     auth_token:
-        secure: "4VgHg760VN6gCaRp6++fnkyxTe/p4vZ8DCNry0YDRhI6O4Pml9+29kfBv2WIjROA"
+        secure: "2+Ji3AkIi/6n3bNzeQNvr7ZKetnvNC/K5czk1iDU5OQHiozVan1ksMw3Nk1GTssO"
     artifact: /qwertycoin-.*\.exe/
     draft: true
     prerelease: true
