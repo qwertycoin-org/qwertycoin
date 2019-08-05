@@ -191,9 +191,9 @@ ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQ
 | Windows 32       | https://releases.qwertycoin.org/get/cli/latest/win32 |
 | Windows 64       | https://releases.qwertycoin.org/get/cli/latest/win64 |
 | macOS 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
-| Linux 32         | https://releases.qwertycoin.org/get/cli/latest/linux32 |
-| Linux 64         | https://releases.qwertycoin.org/get/cli/latest/linux64 |
-| Linux ARM 64     | https://releases.qwertycoin.org/get/cli/latest/arm64 |
+| Linux DEB         | https://releases.qwertycoin.org/get/cli/latest/linux/deb |
+| Linux RPM         | https://releases.qwertycoin.org/get/cli/latest/linux/rpm |
+| Android    | https://releases.qwertycoin.org/get/cli/latest/arm64 |
 | Other platforms      | https://releases.qwertycoin.org |
 
 ### Useful Links <a name="usefullinks"></a>
@@ -219,7 +219,7 @@ Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Developers,
 
 ### Copypasta for license when editing files  <a name="copypasta"></a>
 
-Hi Qwertycoin contributor, thanks for forking and sending back Pull Requests. Extensive docs about contributing are in the works or elsewhere. For now this is the bit we need to get into all the files we touch. Please add it to the top of the files, see [lib/CryptoNoteConfig.h](https://github.com/qwertycoin-org/qwertycoin/blob/master/src/config/CryptoNoteConfig.h) for an example.
+Hi Qwertycoin contributor, thanks for forking and sending back Pull Requests. Extensive docs about contributing are in the works or elsewhere. For now this is the bit we need to get into all the files we touch. Please add it to the top of the files, see [src/config/CryptoNoteConfig.h](https://github.com/qwertycoin-org/qwertycoin/blob/master/src/config/CryptoNoteConfig.h) for an example.
 
 ```
 # Copyright 2018-2019 (c) The Qwertycoin Group.
