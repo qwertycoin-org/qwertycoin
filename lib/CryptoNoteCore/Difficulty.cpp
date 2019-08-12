@@ -24,7 +24,7 @@
 #include <Common/int-util.h>
 #include <crypto/hash.h>
 #include <CryptoNoteCore/Difficulty.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <...> path.
+#include <Global/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

@@ -26,8 +26,8 @@
 #include "CryptoNoteCore/ICore.h"
 #include "CryptoNoteCore/ICoreObserver.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h"
+#include <Global/CryptoNoteConfig.h>
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
-#include "../../src/config/CryptoNoteConfig.h"
 
 class ICoreStub: public CryptoNote::ICore {
 public:

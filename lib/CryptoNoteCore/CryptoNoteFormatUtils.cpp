@@ -27,10 +27,10 @@
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/Currency.h>
 #include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Logging/LoggerRef.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <> path.
 
 using namespace Logging;
 using namespace Crypto;

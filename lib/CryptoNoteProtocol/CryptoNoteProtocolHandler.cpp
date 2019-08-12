@@ -22,6 +22,7 @@
 #include <boost/scope_exit.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
@@ -30,7 +31,6 @@
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <P2p/LevinProtocol.h>
 #include <System/Dispatcher.h>
-#include "../src/config/CryptoNoteConfig.h"
 #include "../src/config/WalletConfig.h"
 
 using namespace Logging;

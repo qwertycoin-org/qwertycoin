@@ -17,10 +17,10 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <Common/StringTools.h>
-#include <config/CryptoNoteConfig.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/TransactionExtra.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Rpc/HttpClient.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Rpc/JsonRpc.h>

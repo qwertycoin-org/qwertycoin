@@ -75,9 +75,14 @@ set(QwertycoinFramework_BlockchainExplorer_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/BlockchainExplorer/IBlockchainObserver.h"
 )
 
+set(QwertycoinFramework_BlockchainExplorer_LIBS
+    QwertycoinFramework::Global
+)
+
 add_library(QwertycoinFramework_BlockchainExplorer STATIC ${QwertycoinFramework_BlockchainExplorer_SOURCES})
 add_library(QwertycoinFramework::BlockchainExplorer ALIAS QwertycoinFramework_BlockchainExplorer)
 target_include_directories(QwertycoinFramework_BlockchainExplorer PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
+target_link_libraries(QwertycoinFramework_BlockchainExplorer PRIVATE ${QwertycoinFramework_BlockchainExplorer_LIBS})
 
 # QwertycoinFramework::Common
 
@@ -143,6 +148,7 @@ set(QwertycoinFramework_Common_SOURCES
 set(QwertycoinFramework_Common_LIBS
     Threads::Threads
     QwertycoinFramework::Crypto
+    QwertycoinFramework::Global
 )
 
 add_library(QwertycoinFramework_Common STATIC ${QwertycoinFramework_Common_SOURCES})
@@ -322,6 +328,7 @@ set(QwertycoinFramework_Global_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Global/Checkpoints.h"
     "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Global/CryptoNoteConfig.h"
 )
 
 add_library(QwertycoinFramework_Global STATIC ${QwertycoinFramework_Global_SOURCES})
@@ -480,6 +487,7 @@ set(QwertycoinFramework_P2p_SOURCES
 set(QwertycoinFramework_P2p_LIBS
     MiniUPnP::miniupnpc
     QwertycoinFramework::CryptoNoteProtocol
+    QwertycoinFramework::Global
 )
 
 if(WIN32 AND MSVC)

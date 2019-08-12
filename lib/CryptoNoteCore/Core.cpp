@@ -34,9 +34,9 @@
 #include <CryptoNoteCore/Miner.h>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Logging/LoggerRef.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: User absoute paths instead of relative path.
 
 #undef ERROR
 

@@ -20,6 +20,7 @@
 
 #include <chrono>
 #include <vector>
+#include <Global/CryptoNoteConfig.h>
 #include <P2p/LevinProtocol.h>
 #include <P2p/P2pInterfaces.h>
 #include <P2p/P2pProtocolDefinitions.h>
@@ -29,7 +30,6 @@
 #include <System/Event.h>
 #include <System/TcpConnection.h>
 #include <System/Timer.h>
-#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

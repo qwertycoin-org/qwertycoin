@@ -6,8 +6,8 @@
 #pragma once
 
 #include <sstream>
-#include <config/CryptoNoteConfig.h>
 #include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
 #include <version.h>
 
 namespace CryptoNote {

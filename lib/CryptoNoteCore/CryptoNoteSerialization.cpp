@@ -28,11 +28,11 @@
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/ISerializer.h>
 #include <Serialization/SerializationOverloads.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: Use <...> path instead.
 
 namespace {
 

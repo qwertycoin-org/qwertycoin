@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "CryptoNoteConfig.h"
+#include <Global/CryptoNoteConfig.h>
 
 /*!
     Make sure everything in here is const - or it won't compile!

@@ -32,7 +32,7 @@
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/Checkpoints.h>
 #include <Global/Constants.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: Replace relative include path.
+#include <Global/CryptoNoteConfig.h>
 
 using namespace Logging;
 
