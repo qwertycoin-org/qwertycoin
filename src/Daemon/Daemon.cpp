@@ -32,13 +32,13 @@
 #include <CryptoNoteCore/MinerConfig.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <CryptoNoteProtocol/ICryptoNoteProtocolQuery.h>
+#include <Global/Checkpoints.h>
 #include <Logging/LoggerManager.h>
 #include <P2p/NetNode.h>
 #include <P2p/NetNodeConfig.h>
 #include <Rpc/RpcServer.h>
 #include <Rpc/RpcServerConfig.h>
 #include <config/CliHeader.h>
-#include <config/Checkpoints.h>
 #include <version.h>
 #include "DaemonCommandsHandler.h"
 

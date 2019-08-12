@@ -307,18 +307,19 @@ set(QwertycoinFramework_CryptoNoteProtocol_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteProtocol/ICryptoNoteProtocolQuery.h"
 )
 
-set(QwertycoinFramework_Global_LIBS
+set(QwertycoinFramework_CryptoNoteProtocol_LIBS
     QwertycoinFramework::Global
 )
 
 add_library(QwertycoinFramework_CryptoNoteProtocol STATIC ${QwertycoinFramework_CryptoNoteProtocol_SOURCES})
 add_library(QwertycoinFramework::CryptoNoteProtocol ALIAS QwertycoinFramework_CryptoNoteProtocol)
 target_include_directories(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
-target_link_libraries(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${QwertycoinFramework_Global_LIBS})
+target_link_libraries(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${QwertycoinFramework_CryptoNoteProtocol_LIBS})
 
 # QwertycoinFramework::Global
 
 set(QwertycoinFramework_Global_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Global/Checkpoints.h"
     "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.h"
 )
