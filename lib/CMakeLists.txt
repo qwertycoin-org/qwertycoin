@@ -42,6 +42,7 @@ set(QwertycoinFramework_LIBS
     QwertycoinFramework_Crypto
     QwertycoinFramework_CryptoNoteCore
     QwertycoinFramework_CryptoNoteProtocol
+    QwertycoinFramework_Global
     QwertycoinFramework_Http
     QwertycoinFramework_InProcessNode
     QwertycoinFramework_JsonRpcServer
@@ -308,6 +309,17 @@ set(QwertycoinFramework_CryptoNoteProtocol_SOURCES
 add_library(QwertycoinFramework_CryptoNoteProtocol STATIC ${QwertycoinFramework_CryptoNoteProtocol_SOURCES})
 add_library(QwertycoinFramework::CryptoNoteProtocol ALIAS QwertycoinFramework_CryptoNoteProtocol)
 target_include_directories(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
+
+# QwertycoinFramework::Global
+
+set(QwertycoinFramework_Global_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.h"
+)
+
+add_library(QwertycoinFramework_Global STATIC ${QwertycoinFramework_Global_SOURCES})
+add_library(QwertycoinFramework::Global ALIAS QwertycoinFramework_Global)
+target_include_directories(QwertycoinFramework_Global PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
 
 # QwertycoinFramework::Http
 
