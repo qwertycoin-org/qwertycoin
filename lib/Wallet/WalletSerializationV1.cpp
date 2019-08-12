@@ -22,6 +22,7 @@
 #include <Common/MemoryInputStream.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <Global/Constants.h>
 #include <Wallet/WalletErrors.h>
 #include <Wallet/WalletSerializationV1.h>
 #include <Wallet/WalletUtils.h>
@@ -100,7 +101,7 @@ struct WalletTransactionDto
     uint64_t creationTime;
     uint64_t unlockTime;
     std::string extra;
-    boost::optional<Crypto::SecretKey> secretKey = CryptoNote::NULL_SECRET_KEY;
+    boost::optional<Crypto::SecretKey> secretKey = Qwertycoin::Constants::nullSecretKey();
 };
 
 // DO NOT CHANGE IT
@@ -508,16 +509,16 @@ void WalletSerializerV1::loadWallets(Common::IInputStream &source, CryptoContext
         cryptoContext.incIv();
 
         if (i == 0) {
-            isTrackingMode = dto.spendSecretKey == NULL_SECRET_KEY;
-        } else if ((isTrackingMode && dto.spendSecretKey != NULL_SECRET_KEY)
-                   || (!isTrackingMode && dto.spendSecretKey == NULL_SECRET_KEY)) {
+            isTrackingMode = dto.spendSecretKey == Qwertycoin::Constants::nullSecretKey();
+        } else if ((isTrackingMode && dto.spendSecretKey != Qwertycoin::Constants::nullSecretKey())
+                   || (!isTrackingMode && dto.spendSecretKey == Qwertycoin::Constants::nullSecretKey())) {
             throw std::system_error(
                 make_error_code(error::BAD_ADDRESS),
                 "All addresses must be whether tracking or not"
             );
         }
 
-        if (dto.spendSecretKey != NULL_SECRET_KEY) {
+        if (dto.spendSecretKey != Qwertycoin::Constants::nullSecretKey()) {
             throwIfKeysMissmatch(dto.spendSecretKey,
                                  dto.spendPublicKey,
                                  "Restored spend public key doesn't correspond to secret key");

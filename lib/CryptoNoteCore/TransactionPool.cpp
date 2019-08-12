@@ -30,9 +30,9 @@
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/TransactionPool.h>
+#include <Global/Constants.h>
 #include <Serialization/SerializationTools.h>
 #include <Serialization/BinarySerializationTools.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <...> path.
 
 #define CURRENT_MEMPOOL_ARCHIVE_VER 1
 
@@ -278,7 +278,7 @@ bool tx_memory_pool::add_tx(
 
 bool tx_memory_pool::add_tx(const Transaction &tx,tx_verification_context &tvc,bool keeped_by_block)
 {
-    Crypto::Hash h = NULL_HASH;
+    Crypto::Hash h = Qwertycoin::Constants::nullHash();
     size_t blobSize = 0;
     getObjectHash(tx, h, blobSize);
 

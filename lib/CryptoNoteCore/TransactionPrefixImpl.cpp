@@ -23,6 +23,7 @@
 #include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteCore/TransactionApiExtra.h>
 #include <CryptoNoteCore/TransactionUtils.h>
+#include <Global/Constants.h>
 
 using namespace Crypto;
 
@@ -109,7 +110,7 @@ Hash TransactionPrefixImpl::getTransactionPrefixHash() const
 
 PublicKey TransactionPrefixImpl::getTransactionPublicKey() const
 {
-    Crypto::PublicKey pk(NULL_PUBLIC_KEY);
+    Crypto::PublicKey pk(Qwertycoin::Constants::nullPublicKey());
     m_extra.getPublicKey(pk);
     return pk;
 }

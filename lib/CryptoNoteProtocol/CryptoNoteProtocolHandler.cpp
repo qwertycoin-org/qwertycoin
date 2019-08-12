@@ -21,6 +21,7 @@
 #include <future>
 #include <boost/scope_exit.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <Global/Constants.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
@@ -29,7 +30,6 @@
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <P2p/LevinProtocol.h>
 #include <System/Dispatcher.h>
-#include "../src/config/Ascii.h"
 #include "../src/config/CryptoNoteConfig.h"
 #include "../src/config/WalletConfig.h"
 
@@ -735,7 +735,7 @@ bool CryptoNoteProtocolHandler::on_connection_synchronized()
         logger(INFO, WHITE) << " If you need more assistance, you can contact us for support at " + WalletConfig::contactLink << ENDL;
         logger(INFO, BRIGHT_MAGENTA) << "===================================================" << ENDL << ENDL ;
 
-        logger(INFO, BRIGHT_GREEN) << asciiArt << ENDL;
+        logger(INFO, BRIGHT_GREEN) << Qwertycoin::Constants::asciiArt() << ENDL;
         m_core.on_synchronized();
 
         uint32_t height;

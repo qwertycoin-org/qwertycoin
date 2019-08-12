@@ -66,6 +66,7 @@
 #include <Common/Util.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
+#include <Global/Constants.h>
 #include <Logging/LoggerManager.h>
 #include <Mnemonics/electrum-words.h>
 #include <NodeRpcProxy/NodeRpcProxy.h>
@@ -815,7 +816,7 @@ void printListTransfersItem(
     Crypto::Hash paymentId;
     std::string paymentIdStr = (
         getPaymentIdFromTxExtra(extraVec, paymentId)
-        && paymentId != NULL_HASH
+        && paymentId != Qwertycoin::Constants::nullHash()
         ? Common::podToHex(paymentId)
         : ""
     );
@@ -1268,7 +1269,7 @@ bool simple_wallet::get_tx_key(const std::vector<std::string> &args)
     }
 
     Crypto::SecretKey tx_key = m_wallet->getTxKey(txid);
-    if (tx_key != NULL_SECRET_KEY) {
+    if (tx_key != Qwertycoin::Constants::nullSecretKey()) {
         success_msg_writer() << "Tx key: " << Common::podToHex(tx_key);
         return true;
     } else {
