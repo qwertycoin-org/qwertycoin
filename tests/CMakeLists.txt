@@ -65,6 +65,7 @@ set(QwertycoinTests_CoreTests_LIBS
     codecov
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::Global
     QwertycoinFramework::InProcessNode
     QwertycoinFramework::Logging
     QwertycoinFramework::Serialization
@@ -287,7 +288,10 @@ set(QwertycoinTests_TestGenerator_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/TestGenerator/TestGenerator.h"
 )
 
-set(QwertycoinTests_TestGenerator_LIBS codecov)
+set(QwertycoinTests_TestGenerator_LIBS
+    codecov
+    QwertycoinFramework::Global
+)
 
 add_library(QwertycoinTests_TestGenerator ${QwertycoinTests_TestGenerator_SOURCES})
 add_library(QwertycoinTests::TestGenerator ALIAS QwertycoinTests_TestGenerator)
@@ -359,6 +363,7 @@ set(QwertycoinTests_UnitTests_LIBS
     GTest::main
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::CryptoNoteProtocol
+    QwertycoinFramework::Global
     QwertycoinFramework::Http
     QwertycoinFramework::InProcessNode
     QwertycoinFramework::Logging
