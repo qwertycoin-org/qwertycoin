@@ -33,6 +33,30 @@ public:
     static std::string asciiArt();
     static std::string unixAsciiArt();
     static std::string windowsAsciiArt();
+
+    static std::string daemonCliHeader();
+
+    // Wallet config
+    static uint64_t addressPrefix();
+    static std::string ticker();
+    static std::string walletCsvFilename();
+    static std::string walletAddressBookFilename();
+    static std::string daemonName();
+    static std::string walletName();
+    static std::string walletdName();
+    static std::string coinName();
+    static std::string contactLink();
+    static uint8_t numDecimalPlaces();
+    static uint16_t standardAddressLength();
+    static uint16_t integratedAddressLength();
+    static uint64_t defaultFee();
+    static uint64_t minimumFee();
+    static uint64_t minimumSend();
+    static bool mixinZeroDisabled();
+    static uint64_t mixinZeroDisabledHeight();
+    static bool processCoinbaseTransactions();
+    static size_t maxBodyResponseSize();
+    static size_t blockStoreMemoryLimit();
 };
 
 QWC_END_NAMESPACE

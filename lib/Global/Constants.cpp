@@ -1,4 +1,7 @@
+#include <sstream>
 #include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
+#include <version.h>
 
 QWC_BEGIN_NAMESPACE
 
@@ -135,6 +138,201 @@ std::string Constants::windowsAsciiArt()
     };
 
     return retval;
+}
+
+std::string Constants::daemonCliHeader()
+{
+    std::stringstream retval;
+
+    retval
+        << std::endl
+        << Qwertycoin::Constants::asciiArt() << std::endl
+        << " " << CryptoNote::CRYPTONOTE_NAME << " v" << PROJECT_VERSION_LONG << std::endl
+        << " This software is distributed under the General Public License v3.0" << std::endl
+        << std::endl
+        << " " << PROJECT_COPYRIGHT << std::endl
+        << std::endl
+        << " Additional Copyright(s) may apply, please see the included LICENSE file for more information." << std::endl
+        << " If you did not receive a copy of the LICENSE, please visit:" << std::endl
+        << " " << CryptoNote::LICENSE_URL << std::endl
+        << std::endl;
+
+    return retval.str();
+}
+
+/*!
+    The prefix your coins address starts with
+*/
+uint64_t Constants::addressPrefix()
+{
+    return 0x14820c;
+}
+
+/*!
+    Your coins "Ticker", e.g. Monero = XMR, Bitcoin = BTC
+*/
+std::string Constants::ticker()
+{
+    return "QWC";
+}
+
+/*!
+    The filename to output the CSV to in save_csv
+*/
+std::string Constants::walletCsvFilename()
+{
+    return "transactions.csv";
+}
+
+/*!
+    The filename to read+write the address book to - consider starting with
+    a leading '.' to make it hidden under Linux and macOS
+*/
+std::string Constants::walletAddressBookFilename()
+{
+    return ".addressBook.json";
+}
+
+/*!
+    The name of your deamon
+*/
+std::string Constants::daemonName()
+{
+    return "qwertycoind";
+}
+
+/*!
+    The name to call this wallet
+*/
+std::string Constants::walletName()
+{
+    return "simplewallet";
+}
+
+/*!
+    The name of service/walletd, the programmatic rpc interface to a wallet
+*/
+std::string Constants::walletdName()
+{
+    return "qwertycoin-service";
+}
+
+/*!
+    The full name of your crypto
+*/
+std::string Constants::coinName()
+{
+    return std::string(CryptoNote::CRYPTONOTE_NAME);
+}
+
+/*!
+    Where can your users contact you for support? E.g. discord
+*/
+std::string Constants::contactLink()
+{
+    return "http://chat.qwertycoin.org";
+}
+
+/*!
+    The number of decimals your coin has
+*/
+uint8_t Constants::numDecimalPlaces()
+{
+    return CryptoNote::parameters::CRYPTONOTE_DISPLAY_DECIMAL_POINT;
+}
+
+/*!
+    The length of a standard address for your coin
+*/
+uint16_t Constants::standardAddressLength()
+{
+    return 98;
+}
+
+/*!
+    The length of an integrated address for your coin - It's the same as
+    a normal address, but there is a paymentID included in there - since
+    payment ID's are 64 chars, and base58 encoding is done by encoding
+    chunks of 8 chars at once into blocks of 11 chars, we can calculate
+    this automatically
+*/
+uint16_t Constants::integratedAddressLength()
+{
+    return Constants::standardAddressLength() + ((64 * 11) / 8);
+}
+
+/*!
+    The default fee value to use with transactions (in ATOMIC units!)
+*/
+uint64_t Constants::defaultFee()
+{
+    return CryptoNote::parameters::MINIMUM_FEE;
+}
+
+/*!
+    The minimum fee value to allow with transactions (in ATOMIC units!)
+*/
+uint64_t Constants::minimumFee()
+{
+    return CryptoNote::parameters::MINIMUM_FEE;
+}
+
+/*!
+    The minimum amount allowed to be sent - usually 1 (in ATOMIC units!)
+*/
+uint64_t Constants::minimumSend()
+{
+    return 1;
+}
+
+/*!
+    Is a mixin of zero disabled on your network?
+*/
+bool Constants::mixinZeroDisabled()
+{
+    return false;
+}
+
+/*!
+    If a mixin of zero is disabled, at what height was it disabled?
+    E.g. fork height, or 0, if never allowed. This is ignored if a
+    mixin of zero is allowed
+*/
+uint64_t Constants::mixinZeroDisabledHeight()
+{
+    return CryptoNote::parameters::MIXIN_LIMITS_V2_HEIGHT;
+}
+
+/*!
+    Should we process coinbase transactions? We can skip them to speed up
+    syncing, as most people don't have solo mined transactions
+*/
+bool Constants::processCoinbaseTransactions()
+{
+    return true;
+}
+
+
+/*!
+    Max size of a post body response - 10MB
+    Will decrease the amount of blocks requested from the daemon if this
+    is exceeded.
+    Note - blockStoreMemoryLimit - maxBodyResponseSize should be greater
+    than zero, or no data will get cached.
+    Further note: Currently blocks request are not decreased if this is
+    exceeded. Needs to be implemented in future?
+*/
+size_t Constants::maxBodyResponseSize()
+{
+    return 1024 * 1024 * 10;
+}
+
+/*!
+    The amount of memory to use storing downloaded blocks - 50MB
+*/
+size_t Constants::blockStoreMemoryLimit()
+{
+    return 1024 * 1024 * 50;
 }
 
 QWC_END_NAMESPACE

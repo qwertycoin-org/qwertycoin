@@ -31,7 +31,6 @@
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <P2p/LevinProtocol.h>
 #include <System/Dispatcher.h>
-#include "../src/config/WalletConfig.h"
 
 using namespace Logging;
 using namespace Common;
@@ -729,10 +728,10 @@ bool CryptoNoteProtocolHandler::on_connection_synchronized()
         logger(Logging::INFO)
         << ENDL ;
         logger(INFO, BRIGHT_MAGENTA) << "===[ " + std::string(CryptoNote::CRYPTONOTE_NAME) + " Tip! ]=============================" << ENDL ;
-        logger(INFO, WHITE) << " Always exit " + WalletConfig::daemonName + " and " + WalletConfig::walletName + " with the \"exit\" command to preserve your chain and wallet data." << ENDL ;
+        logger(INFO, WHITE) << " Always exit " + Qwertycoin::Constants::daemonName() + " and " + Qwertycoin::Constants::walletName() + " with the \"exit\" command to preserve your chain and wallet data." << ENDL ;
         logger(INFO, WHITE) << " Use the \"help\" command to see a list of available commands." << ENDL ;
-        logger(INFO, WHITE) << " Use the \"backup\" command in " + WalletConfig::walletName + " to display your keys/seed for restoring a corrupted wallet." << ENDL ;
-        logger(INFO, WHITE) << " If you need more assistance, you can contact us for support at " + WalletConfig::contactLink << ENDL;
+        logger(INFO, WHITE) << " Use the \"backup\" command in " + Qwertycoin::Constants::walletName() + " to display your keys/seed for restoring a corrupted wallet." << ENDL ;
+        logger(INFO, WHITE) << " If you need more assistance, you can contact us for support at " + Qwertycoin::Constants::contactLink() << ENDL;
         logger(INFO, BRIGHT_MAGENTA) << "===================================================" << ENDL << ENDL ;
 
         logger(INFO, BRIGHT_GREEN) << Qwertycoin::Constants::asciiArt() << ENDL;
