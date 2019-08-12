@@ -158,7 +158,7 @@ void print_genesis_tx_hex(const po::variables_map &vm, LoggerManager &logManager
     std::cout
         << Qwertycoin::Constants::daemonCliHeader() << std::endl
         << std::endl
-        << "Replace the current GENESIS_COINBASE_TX_HEX line in src/config/CryptoNoteConfig.h with this one:" << std::endl
+        << "Replace the current GENESIS_COINBASE_TX_HEX line in lib/Global/CryptoNoteConfig.h with this one:" << std::endl
         << "const char GENESIS_COINBASE_TX_HEX[] = \"" << tx_hex << "\";" << std::endl;
 }
 
