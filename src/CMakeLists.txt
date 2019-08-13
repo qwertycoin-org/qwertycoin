@@ -52,16 +52,29 @@ set_target_properties(QwertycoinTools_ConnectivityTool PROPERTIES OUTPUT_NAME "c
 
 # QwertycoinTools::Daemon
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(QwertycoinTools_Daemon_SOURCES
+      "${CMAKE_CURRENT_LIST_DIR}/Daemon/Daemon.cpp"
+      "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.cpp"
+      "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.h"
+      "${CMAKE_CURRENT_LIST_DIR}/../external/Backward/backward.cpp"
+  )
+else()
 set(QwertycoinTools_Daemon_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Daemon/Daemon.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Daemon/DaemonCommandsHandler.h"
 )
+endif()
 
 if(WIN32)
     list(APPEND QwertycoinTools_Daemon_SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/daemon.rc"
     )
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  find_package(Backward)
 endif()
 
 set(QwertycoinTools_Daemon_LIBS
@@ -77,8 +90,15 @@ set(QwertycoinTools_Daemon_LIBS
 
 add_executable(QwertycoinTools_Daemon ${QwertycoinTools_Daemon_SOURCES})
 add_executable(QwertycoinTools::Daemon ALIAS QwertycoinTools_Daemon)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_backward(QwertycoinTools_Daemon)
+endif()
 target_include_directories(QwertycoinTools_Daemon PRIVATE ${QwertycoinTools_INCLUDE_DIRS})
-target_link_libraries(QwertycoinTools_Daemon PRIVATE ${QwertycoinTools_Daemon_LIBS})
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  target_link_libraries(QwertycoinTools_Daemon PRIVATE ${QwertycoinTools_Daemon_LIBS} PUBLIC Backward::Backward)
+else()
+  target_link_libraries(QwertycoinTools_Daemon PRIVATE ${QwertycoinTools_Daemon_LIBS})
+endif()
 set_target_properties(QwertycoinTools_Daemon PROPERTIES OUTPUT_NAME "qwertycoind")
 
 # QwertycoinTools::Miner

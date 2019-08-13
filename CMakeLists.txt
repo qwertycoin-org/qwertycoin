@@ -117,3 +117,17 @@ endif()
 if(BUILD_WITH_PACKAGE)
     include(project/CPackConfig)
 endif()
+
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  # binutils-dev deps for backward-cpp
+  find_library(BFD_LIBRARY bfd)
+  if(BFD_LIBRARY)
+    set(BFD_LIBRARY "${BFD_LIBRARY}")
+    message(STATUS "Found BFD_LIBRARY located at ${BFD_LIBRARY}")
+    include_directories(BFD_INCLUDE_DIR /usr/include)
+  endif()
+  if(NOT BFD_LIBRARY)
+   message(FATAL_ERROR "Could not find required libbfd from binutils package.")
+  endif()
+endif()
