@@ -20,6 +20,7 @@
 #include <Common/StdOutputStream.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
+#include <Global/Constants.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/SerializationOverloads.h>
@@ -277,7 +278,7 @@ void TransfersContainer::addTransaction(const TransactionBlockInfo &block,
     txInfo.extra = tx.getExtra();
 
     if (!tx.getPaymentId(txInfo.paymentId)) {
-        txInfo.paymentId = NULL_HASH;
+        txInfo.paymentId = Qwertycoin::Constants::nullHash();
     }
 
     auto result = m_transactions.emplace(std::move(txInfo));

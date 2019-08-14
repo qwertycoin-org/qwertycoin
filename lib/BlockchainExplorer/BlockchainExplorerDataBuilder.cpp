@@ -23,7 +23,7 @@
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
-#include <../src/config/CryptoNoteConfig.h>
+#include <Global/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

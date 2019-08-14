@@ -22,9 +22,9 @@
 #include <algorithm>
 #include <iostream>
 #include <boost/program_options.hpp>
+#include <Global/CryptoNoteConfig.h>
 #include <Logging/ILogger.h>
 #include <SimpleWallet/PasswordContainer.cpp>
-#include <config/CryptoNoteConfig.h>
 #include "PaymentServiceConfiguration.h"
 
 namespace po = boost::program_options;

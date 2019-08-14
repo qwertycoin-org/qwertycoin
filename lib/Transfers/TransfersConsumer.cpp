@@ -24,6 +24,7 @@
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/TransactionApi.h>
+#include <Global/Constants.h>
 #include <Transfers/CommonTypes.h>
 #include <Transfers/TransfersConsumer.h>
 #include <Wallet/IWallet.h>
@@ -266,7 +267,7 @@ bool TransfersConsumer::onNewBlocks(const CompleteBlock *blocks,uint32_t startHe
 
             for (const auto &tx : blocks[i].transactions) {
                 auto pubKey = tx->getTransactionPublicKey();
-                if (pubKey == NULL_PUBLIC_KEY) {
+                if (pubKey == Qwertycoin::Constants::nullPublicKey()) {
                     ++blockInfo.transactionIndex;
                     continue;
                 }

@@ -26,11 +26,11 @@
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/Currency.h>
+#include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Logging/LoggerRef.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <> path.
-#include "../src/config/Constants.h" // TODO: Replace with <> path.
 
 using namespace Logging;
 using namespace Crypto;
@@ -551,7 +551,7 @@ bool lookup_acc_outs(
     uint64_t &money_transfered)
 {
     PublicKey transactionPublicKey = getTransactionPublicKeyFromExtra(tx.extra);
-    if (transactionPublicKey == NULL_PUBLIC_KEY) {
+    if (transactionPublicKey == Qwertycoin::Constants::nullPublicKey()) {
         return false;
     }
     return lookup_acc_outs(acc, tx, transactionPublicKey, outs, money_transfered);
@@ -634,7 +634,7 @@ bool get_block_hash(const Block &b, Hash &res)
 
 Hash get_block_hash(const Block &b)
 {
-    Hash p = NULL_HASH;
+    Hash p = Qwertycoin::Constants::nullHash();
     get_block_hash(b, p);
     return p;
 }
@@ -704,7 +704,7 @@ void get_tx_tree_hash(const std::vector<Hash> &tx_hashes, Hash &h)
 
 Hash get_tx_tree_hash(const std::vector<Hash> &tx_hashes)
 {
-    Hash h = NULL_HASH;
+    Hash h = Qwertycoin::Constants::nullHash();
     get_tx_tree_hash(tx_hashes, h);
     return h;
 }
@@ -712,7 +712,7 @@ Hash get_tx_tree_hash(const std::vector<Hash> &tx_hashes)
 Hash get_tx_tree_hash(const Block &b)
 {
     std::vector<Hash> txs_ids;
-    Hash h = NULL_HASH;
+    Hash h = Qwertycoin::Constants::nullHash();
     getObjectHash(b.baseTransaction, h);
     txs_ids.push_back(h);
     for (auto &th : b.transactionHashes) {
@@ -723,10 +723,11 @@ Hash get_tx_tree_hash(const Block &b)
 
 bool is_valid_decomposed_amount(uint64_t amount) {
     auto it = std::lower_bound(
-        Constants::PRETTY_AMOUNTS.begin(),
-        Constants::PRETTY_AMOUNTS.end(), amount
+        Qwertycoin::Constants::prettyAmounts().begin(),
+        Qwertycoin::Constants::prettyAmounts().end(),
+        amount
     );
-    if (it == Constants::PRETTY_AMOUNTS.end() || amount != *it) {
+    if (it == Qwertycoin::Constants::prettyAmounts().end() || amount != *it) {
         return false;
     }
     return true;

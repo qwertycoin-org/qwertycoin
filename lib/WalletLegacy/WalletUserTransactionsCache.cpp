@@ -61,7 +61,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
 
 bool paymentIdIsSet(const PaymentId &paymentId)
 {
-    return paymentId != NULL_HASH;
+    return paymentId != Qwertycoin::Constants::nullHash();
 }
 
 bool canInsertTransactionToIndex(const WalletLegacyTransaction &info)
@@ -146,7 +146,7 @@ TransactionId WalletUserTransactionsCache::addNewTransaction(
     transaction.blockHeight = WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT;
     transaction.state = WalletLegacyTransactionState::Sending;
     transaction.unlockTime = unlockTime;
-    transaction.secretKey = NULL_SECRET_KEY;
+    transaction.secretKey = Qwertycoin::Constants::nullSecretKey();
 
     return insertTransaction(std::move(transaction));
 }
@@ -178,7 +178,7 @@ TransactionId WalletUserTransactionsCache::addNewTransaction(
     transaction.blockHeight = WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT;
     transaction.state = WalletLegacyTransactionState::Sending;
     transaction.unlockTime = unlockTime;
-    transaction.secretKey = NULL_SECRET_KEY;
+    transaction.secretKey = Qwertycoin::Constants::nullSecretKey();
 
     for (const TransactionMessage &message : messages) {
         transaction.messages.push_back(message.message);
@@ -246,7 +246,7 @@ std::shared_ptr<WalletLegacyEvent> WalletUserTransactionsCache::onTransactionUpd
         transaction.extra.assign(txInfo.extra.begin(), txInfo.extra.end());
         transaction.state = WalletLegacyTransactionState::Active;
         transaction.unlockTime = txInfo.unlockTime;
-        transaction.secretKey = NULL_SECRET_KEY;
+        transaction.secretKey = Qwertycoin::Constants::nullSecretKey();
 
         id = insertTransaction(std::move(transaction));
         // notification event

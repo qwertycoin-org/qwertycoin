@@ -17,8 +17,8 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <Common/CommandLine.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Rpc/RpcServerConfig.h>
-#include <../src/config/CryptoNoteConfig.h>
 #include <android.h>
 
 namespace CryptoNote {
