@@ -141,7 +141,7 @@ bool Currency::getBlockReward(
     uint32_t height,
     uint64_t blockTarget) const
 {
-    assert(alreadyGeneratedCoins <= m_moneySupply);
+    //assert(alreadyGeneratedCoins <= m_moneySupply);
     assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
 
     // Tail emission
