@@ -1316,7 +1316,7 @@ bool Blockchain::validate_miner_transaction(
     uint32_t previousBlockHeight = 0;
     uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
 
-    if (height >= CryptoNote::parameter::UPGRADE_HEIGHT_REWARD_SCHEME) {
+    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
         getBlockHeight(b.previousBlockHash, previousBlockHeight);
         blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
     }

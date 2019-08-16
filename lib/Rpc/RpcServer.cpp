@@ -1423,7 +1423,7 @@ bool RpcServer::f_on_block_json(
         }
     }
 
-    if (res.block.height >= CryptoNote::parameter::UPGRADE_HEIGHT_REWARD_SCHEME) {
+    if (res.block.height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
         m_core.getBlockHeight(blk.previousBlockHash, previousBlockHeight);
         blockTarget = blk.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
     }
