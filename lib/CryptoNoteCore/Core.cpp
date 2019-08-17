@@ -1785,15 +1785,18 @@ bool core::fillBlockDetails(const Block &block, BlockDetails2 &blockDetails)
     }
 
     uint64_t prevBlockGeneratedCoins = 0;
+    uint32_t previousBlockHeight = 0;
+    uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
     if (blockDetails.height > 0) {
         if (!getAlreadyGeneratedCoins(block.previousBlockHash, prevBlockGeneratedCoins)) {
             return false;
         }
     }
 
-    uint32_t previousBlockHeight;
-    getBlockHeight(block.previousBlockHash, previousBlockHeight);
-    uint64_t blockTarget = block.timestamp - getBlockTimestamp(previousBlockHeight);
+    if (blockDetails.height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
+        getBlockHeight(block.previousBlockHash, previousBlockHeight);
+        blockTarget = block.timestamp - getBlockTimestamp(previousBlockHeight);
+    }
 
     uint64_t maxReward = 0;
     uint64_t currentReward = 0;
