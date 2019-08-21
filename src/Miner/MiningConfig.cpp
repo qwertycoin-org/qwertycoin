@@ -22,8 +22,8 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/program_options.hpp>
+#include <Global/CryptoNoteConfig.h>
 #include <Logging/ILogger.h>
-#include <config/CryptoNoteConfig.h>
 #include "MiningConfig.h"
 
 namespace po = boost::program_options;

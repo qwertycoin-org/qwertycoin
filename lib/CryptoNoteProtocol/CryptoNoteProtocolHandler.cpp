@@ -28,10 +28,10 @@
 #include <CryptoNoteCore/VerificationContext.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
 #include <P2p/LevinProtocol.h>
 #include <System/Dispatcher.h>
 #include "../src/config/Ascii.h"
-#include "../src/config/CryptoNoteConfig.h"
 #include "../src/config/WalletConfig.h"
 
 using namespace Logging;

@@ -23,8 +23,8 @@
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/identity.hpp>
 #include <boost/multi_index/member.hpp>
+#include <Global/CryptoNoteConfig.h>
 #include <P2p/P2pProtocolTypes.h>
-#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

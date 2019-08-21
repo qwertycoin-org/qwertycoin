@@ -31,9 +31,9 @@
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/TransactionPool.h>
 #include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Serialization/SerializationTools.h>
 #include <Serialization/BinarySerializationTools.h>
-#include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <...> path.
 
 #define CURRENT_MEMPOOL_ARCHIVE_VER 1
 

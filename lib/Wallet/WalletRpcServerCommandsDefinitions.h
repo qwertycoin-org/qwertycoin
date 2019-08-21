@@ -22,9 +22,9 @@
 #include <CryptoNoteCore/CryptoNoteBasic.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h>
 #include <crypto/hash.h>
+#include <Global/CryptoNoteConfig.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Wallet/WalletRpcServerErrorCodes.h>
-#include <../src/config/CryptoNoteConfig.h>
 
 #define WALLET_RPC_STATUS_OK "OK"
 #define WALLET_RPC_STATUS_BUSY "BUSY"

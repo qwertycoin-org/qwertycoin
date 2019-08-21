@@ -7,7 +7,7 @@
 
 #include <sstream>
 #include <config/Ascii.h>
-#include <config/CryptoNoteConfig.h>
+#include <Global/CryptoNoteConfig.h>
 #include <version.h>
 
 namespace CryptoNote {
