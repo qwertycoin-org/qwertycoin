@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <CryptoNoteCore/TransactionExtra.h>
+#include <Global/Constants.h>
 #include <Serialization/ISerializer.h>
 #include <Serialization/SerializationOverloads.h>
 #include <Wallet/WalletErrors.h>
@@ -61,7 +62,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
 
 bool paymentIdIsSet(const PaymentId &paymentId)
 {
-    return paymentId != Qwertycoin::Constants::nullHash();
+    return paymentId != NULL_HASH;
 }
 
 bool canInsertTransactionToIndex(const WalletLegacyTransaction &info)
@@ -146,7 +147,7 @@ TransactionId WalletUserTransactionsCache::addNewTransaction(
     transaction.blockHeight = WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT;
     transaction.state = WalletLegacyTransactionState::Sending;
     transaction.unlockTime = unlockTime;
-    transaction.secretKey = Qwertycoin::Constants::nullSecretKey();
+    transaction.secretKey = NULL_SECRET_KEY;
 
     return insertTransaction(std::move(transaction));
 }
@@ -178,7 +179,7 @@ TransactionId WalletUserTransactionsCache::addNewTransaction(
     transaction.blockHeight = WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT;
     transaction.state = WalletLegacyTransactionState::Sending;
     transaction.unlockTime = unlockTime;
-    transaction.secretKey = Qwertycoin::Constants::nullSecretKey();
+    transaction.secretKey = NULL_SECRET_KEY;
 
     for (const TransactionMessage &message : messages) {
         transaction.messages.push_back(message.message);
@@ -246,7 +247,7 @@ std::shared_ptr<WalletLegacyEvent> WalletUserTransactionsCache::onTransactionUpd
         transaction.extra.assign(txInfo.extra.begin(), txInfo.extra.end());
         transaction.state = WalletLegacyTransactionState::Active;
         transaction.unlockTime = txInfo.unlockTime;
-        transaction.secretKey = Qwertycoin::Constants::nullSecretKey();
+        transaction.secretKey = NULL_SECRET_KEY;
 
         id = insertTransaction(std::move(transaction));
         // notification event

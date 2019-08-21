@@ -29,6 +29,8 @@
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Rpc/HttpServer.h>
 
+using namespace Qwertycoin;
+
 namespace CryptoNote {
 
 class core;
@@ -238,7 +240,7 @@ private:
     std::string m_cors_domain;
     std::string m_fee_address;
     std::string m_contact_info;
-    Crypto::SecretKey m_view_key = Qwertycoin::Constants::nullSecretKey();
+    Crypto::SecretKey m_view_key = NULL_SECRET_KEY;
     AccountPublicAddress m_fee_acc;
 };
 

@@ -24,7 +24,6 @@
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <Global/CryptoNoteConfig.h>
-
 namespace CryptoNote {
 
 BlockchainExplorerDataBuilder::BlockchainExplorerDataBuilder(ICore &core,
@@ -93,6 +92,7 @@ bool BlockchainExplorerDataBuilder::fillBlockDetails(const Block &block, BlockDe
     uint64_t prevBlockGeneratedCoins = 0;
     uint32_t previousBlockHeight = 0;
     uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
+
     if (blockDetails.height > 0) {
         if (!m_core.getAlreadyGeneratedCoins(block.previousBlockHash, prevBlockGeneratedCoins)) {
             return false;

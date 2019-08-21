@@ -816,7 +816,7 @@ void printListTransfersItem(
     Crypto::Hash paymentId;
     std::string paymentIdStr = (
         getPaymentIdFromTxExtra(extraVec, paymentId)
-        && paymentId != Qwertycoin::Constants::nullHash()
+        && paymentId != NULL_HASH
         ? Common::podToHex(paymentId)
         : ""
     );
@@ -1269,7 +1269,7 @@ bool simple_wallet::get_tx_key(const std::vector<std::string> &args)
     }
 
     Crypto::SecretKey tx_key = m_wallet->getTxKey(txid);
-    if (tx_key != Qwertycoin::Constants::nullSecretKey()) {
+    if (tx_key != NULL_SECRET_KEY) {
         success_msg_writer() << "Tx key: " << Common::podToHex(tx_key);
         return true;
     } else {

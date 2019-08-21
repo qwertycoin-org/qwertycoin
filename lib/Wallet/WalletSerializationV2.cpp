@@ -25,6 +25,7 @@
 
 using namespace Common;
 using namespace Crypto;
+using namespace Qwertycoin;
 
 namespace {
 
@@ -68,7 +69,7 @@ struct WalletTransactionDtoV2
     uint64_t unlockTime;
     std::string extra;
     bool isBase;
-    boost::optional<Crypto::SecretKey> secretKey = Qwertycoin::Constants::nullSecretKey();
+    boost::optional<Crypto::SecretKey> secretKey = NULL_SECRET_KEY;
 };
 
 // DO NOT CHANGE IT

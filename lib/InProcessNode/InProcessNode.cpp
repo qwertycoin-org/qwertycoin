@@ -31,6 +31,7 @@
 
 using namespace Crypto;
 using namespace Common;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 
@@ -557,8 +558,8 @@ void InProcessNode::resetLastLocalBlockHeaderInfo()
     lastLocalBlockHeaderInfo.majorVersion = 0;
     lastLocalBlockHeaderInfo.minorVersion = 0;
     lastLocalBlockHeaderInfo.timestamp = 0;
-    lastLocalBlockHeaderInfo.hash = Qwertycoin::Constants::nullHash();
-    lastLocalBlockHeaderInfo.prevHash = Qwertycoin::Constants::nullHash();
+    lastLocalBlockHeaderInfo.hash = NULL_HASH;
+    lastLocalBlockHeaderInfo.prevHash = NULL_HASH;
     lastLocalBlockHeaderInfo.nonce = 0;
     lastLocalBlockHeaderInfo.isAlternative = false;
     lastLocalBlockHeaderInfo.depth = 0;

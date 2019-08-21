@@ -23,7 +23,6 @@
 #include <Common/StdOutputStream.h>
 #include <CryptoNoteCore/Account.h>
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
-#include <Global/Constants.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
 #include <Wallet/WalletErrors.h>
@@ -151,7 +150,7 @@ void WalletLegacySerializer::deserialize(
         account.getAccountKeys().address.viewPublicKey
     );
 
-    if (account.getAccountKeys().spendSecretKey != Qwertycoin::Constants::nullSecretKey()) {
+    if (account.getAccountKeys().spendSecretKey != NULL_SECRET_KEY) {
         throwIfKeysMissmatch(
             account.getAccountKeys().spendSecretKey,
             account.getAccountKeys().address.spendPublicKey

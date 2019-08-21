@@ -28,7 +28,6 @@
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/TransactionExtra.h"
 #include "CryptoNoteCore/TransactionPool.h"
-#include <Global/Constants.h>
 #include "ICoreStub.h"
 #include <Logging/ConsoleLogger.h>
 #include <Logging/LoggerGroup.h>
@@ -217,7 +216,7 @@ namespace
     bl.minorVersion = 0;
     bl.nonce = 0;
     bl.timestamp = time(0);
-    bl.previousBlockHash = Qwertycoin::Constants::nullHash();
+    bl.previousBlockHash = NULL_HASH;
   }
 
 }

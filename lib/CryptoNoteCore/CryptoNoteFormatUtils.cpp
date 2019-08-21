@@ -35,6 +35,7 @@
 using namespace Logging;
 using namespace Crypto;
 using namespace Common;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 
@@ -551,7 +552,7 @@ bool lookup_acc_outs(
     uint64_t &money_transfered)
 {
     PublicKey transactionPublicKey = getTransactionPublicKeyFromExtra(tx.extra);
-    if (transactionPublicKey == Qwertycoin::Constants::nullPublicKey()) {
+    if (transactionPublicKey == NULL_PUBLIC_KEY) {
         return false;
     }
     return lookup_acc_outs(acc, tx, transactionPublicKey, outs, money_transfered);
@@ -634,7 +635,7 @@ bool get_block_hash(const Block &b, Hash &res)
 
 Hash get_block_hash(const Block &b)
 {
-    Hash p = Qwertycoin::Constants::nullHash();
+    Hash p = NULL_HASH;
     get_block_hash(b, p);
     return p;
 }
@@ -704,7 +705,7 @@ void get_tx_tree_hash(const std::vector<Hash> &tx_hashes, Hash &h)
 
 Hash get_tx_tree_hash(const std::vector<Hash> &tx_hashes)
 {
-    Hash h = Qwertycoin::Constants::nullHash();
+    Hash h = NULL_HASH;
     get_tx_tree_hash(tx_hashes, h);
     return h;
 }
@@ -712,7 +713,7 @@ Hash get_tx_tree_hash(const std::vector<Hash> &tx_hashes)
 Hash get_tx_tree_hash(const Block &b)
 {
     std::vector<Hash> txs_ids;
-    Hash h = Qwertycoin::Constants::nullHash();
+    Hash h = NULL_HASH;
     getObjectHash(b.baseTransaction, h);
     txs_ids.push_back(h);
     for (auto &th : b.transactionHashes) {
@@ -723,11 +724,10 @@ Hash get_tx_tree_hash(const Block &b)
 
 bool is_valid_decomposed_amount(uint64_t amount) {
     auto it = std::lower_bound(
-        Qwertycoin::Constants::prettyAmounts().begin(),
-        Qwertycoin::Constants::prettyAmounts().end(),
-        amount
+        Constants::PRETTY_AMOUNTS.begin(),
+        Constants::PRETTY_AMOUNTS.end(), amount
     );
-    if (it == Qwertycoin::Constants::prettyAmounts().end() || amount != *it) {
+    if (it == Constants::PRETTY_AMOUNTS.end() || amount != *it) {
         return false;
     }
     return true;

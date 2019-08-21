@@ -35,6 +35,8 @@
 #include <CryptoTypes.h>
 #include <ITransfersContainer.h>
 
+using namespace Qwertycoin;
+
 namespace CryptoNote {
 
 typedef size_t TransactionId;
@@ -76,7 +78,7 @@ struct WalletLegacyTransaction
     uint64_t sentTime;
     uint64_t unlockTime;
     Crypto::Hash hash;
-    boost::optional<Crypto::SecretKey> secretKey = Qwertycoin::Constants::nullSecretKey();
+    boost::optional<Crypto::SecretKey> secretKey = NULL_SECRET_KEY;
     bool isCoinbase;
     uint32_t blockHeight;
     uint64_t timestamp;

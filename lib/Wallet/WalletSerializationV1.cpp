@@ -33,6 +33,7 @@
 using namespace Common;
 using namespace Crypto;
 using namespace CryptoNote;
+using namespace Qwertycoin;
 
 namespace {
 
@@ -101,7 +102,7 @@ struct WalletTransactionDto
     uint64_t creationTime;
     uint64_t unlockTime;
     std::string extra;
-    boost::optional<Crypto::SecretKey> secretKey = Qwertycoin::Constants::nullSecretKey();
+    boost::optional<Crypto::SecretKey> secretKey = NULL_SECRET_KEY;
 };
 
 // DO NOT CHANGE IT
@@ -509,16 +510,16 @@ void WalletSerializerV1::loadWallets(Common::IInputStream &source, CryptoContext
         cryptoContext.incIv();
 
         if (i == 0) {
-            isTrackingMode = dto.spendSecretKey == Qwertycoin::Constants::nullSecretKey();
-        } else if ((isTrackingMode && dto.spendSecretKey != Qwertycoin::Constants::nullSecretKey())
-                   || (!isTrackingMode && dto.spendSecretKey == Qwertycoin::Constants::nullSecretKey())) {
+            isTrackingMode = dto.spendSecretKey == NULL_SECRET_KEY;
+        } else if ((isTrackingMode && dto.spendSecretKey != NULL_SECRET_KEY)
+                   || (!isTrackingMode && dto.spendSecretKey == NULL_SECRET_KEY)) {
             throw std::system_error(
                 make_error_code(error::BAD_ADDRESS),
                 "All addresses must be whether tracking or not"
             );
         }
 
-        if (dto.spendSecretKey != Qwertycoin::Constants::nullSecretKey()) {
+        if (dto.spendSecretKey != NULL_SECRET_KEY) {
             throwIfKeysMissmatch(dto.spendSecretKey,
                                  dto.spendPublicKey,
                                  "Restored spend public key doesn't correspond to secret key");

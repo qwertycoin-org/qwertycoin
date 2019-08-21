@@ -21,9 +21,9 @@
 
 #pragma once
 
+#include <CryptoNote.h>
 #include <Global/CryptoNoteConfig.h>
 #include <P2p/P2pProtocolTypes.h>
-#include <CryptoNote.h>
 
 namespace CryptoNote {
 
