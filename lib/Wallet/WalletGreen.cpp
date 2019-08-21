@@ -992,16 +992,16 @@ void WalletGreen::loadSpendKeys()
         wallet.creationTimestamp = creationTimestamp;
 
         if (i == 0) {
-            isTrackingMode = wallet.spendSecretKey == Qwertycoin::Constants::nullSecretKey();
-        } else if ((isTrackingMode && wallet.spendSecretKey != Qwertycoin::Constants::nullSecretKey())
-                   || (!isTrackingMode && wallet.spendSecretKey == Qwertycoin::Constants::nullSecretKey())) {
+            isTrackingMode = wallet.spendSecretKey == Qwertycoin::NULL_SECRET_KEY;
+        } else if ((isTrackingMode && wallet.spendSecretKey != Qwertycoin::NULL_SECRET_KEY)
+                   || (!isTrackingMode && wallet.spendSecretKey == Qwertycoin::NULL_SECRET_KEY)) {
             throw std::system_error(
                 make_error_code(error::BAD_ADDRESS),
                 "All addresses must be whether tracking or not"
             );
         }
 
-        if (wallet.spendSecretKey != Qwertycoin::Constants::nullSecretKey()) {
+        if (wallet.spendSecretKey != Qwertycoin::NULL_SECRET_KEY) {
             throwIfKeysMissmatch(
                 wallet.spendSecretKey,
                 wallet.spendPublicKey,
@@ -1309,7 +1309,7 @@ std::string WalletGreen::createAddress(const Crypto::PublicKey &spendPublicKey)
         throw std::system_error(make_error_code(error::WRONG_PARAMETERS),"Wrong public key format");
     }
 
-    return doCreateAddress(spendPublicKey, Qwertycoin::Constants::nullSecretKey(), 0);
+    return doCreateAddress(spendPublicKey, Qwertycoin::NULL_SECRET_KEY, 0);
 }
 
 std::vector<std::string> WalletGreen::createAddressList(
@@ -1420,13 +1420,13 @@ std::string WalletGreen::addWallet(const Crypto::PublicKey &spendPublicKey,
 
     auto trackingMode = getTrackingMode();
 
-    if ((trackingMode == WalletTrackingMode::TRACKING && spendSecretKey != Qwertycoin::Constants::nullSecretKey())
-        || (trackingMode == WalletTrackingMode::NOT_TRACKING && spendSecretKey == Qwertycoin::Constants::nullSecretKey())){
+    if ((trackingMode == WalletTrackingMode::TRACKING && spendSecretKey != Qwertycoin::NULL_SECRET_KEY)
+        || (trackingMode == WalletTrackingMode::NOT_TRACKING && spendSecretKey == Qwertycoin::NULL_SECRET_KEY)){
         m_logger(ERROR, BRIGHT_RED)
             << "Failed to add wallet:incompatible tracking mode and spend secret key,tracking mode="
             << trackingMode
             << ", spendSecretKey "
-            << (spendSecretKey == Qwertycoin::Constants::nullSecretKey() ? "is null" : "is not null");
+            << (spendSecretKey == Qwertycoin::NULL_SECRET_KEY ? "is null" : "is not null");
         throw std::system_error(make_error_code(error::WRONG_PARAMETERS));
     }
 
@@ -3481,7 +3481,7 @@ void WalletGreen::transactionUpdated(
         << ", block " << transactionInfo.blockHeight
         << ", totalAmountIn " << m_currency.formatAmount(transactionInfo.totalAmountIn)
         << ", totalAmountOut " << m_currency.formatAmount(transactionInfo.totalAmountOut)
-        << (transactionInfo.paymentId == Qwertycoin::Constants::nullHash()
+        << (transactionInfo.paymentId == Qwertycoin::NULL_HASH
             ? "" : ", paymentId " + podToHex(transactionInfo.paymentId));
 
     if (m_state == WalletState::NOT_INITIALIZED) {
@@ -3827,7 +3827,7 @@ WalletGreen::WalletTrackingMode WalletGreen::getTrackingMode() const
         return WalletTrackingMode::NO_ADDRESSES;
     }
 
-    return m_walletsContainer.get<RandomAccessIndex>().begin()->spendSecretKey == Qwertycoin::Constants::nullSecretKey()
+    return m_walletsContainer.get<RandomAccessIndex>().begin()->spendSecretKey == Qwertycoin::NULL_SECRET_KEY
            ? WalletTrackingMode::TRACKING : WalletTrackingMode::NOT_TRACKING;
 }
 

@@ -380,7 +380,7 @@ bool find_block_chain(const std::vector<test_event_entry>& events, std::vector<C
     {
         blockchain.push_back(*it->second);
         id = it->second->previousBlockHash;
-        if (id == Qwertycoin::Constants::nullHash())
+        if (id == Qwertycoin::NULL_HASH)
         {
             b_success = true;
             break;

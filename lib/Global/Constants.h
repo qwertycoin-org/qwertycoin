@@ -6,12 +6,17 @@
 
 #include <string>
 #include <vector>
+#include <boost/utility/value_init.hpp>
 #include <CryptoTypes.h>
 
 #define QWC_BEGIN_NAMESPACE namespace Qwertycoin {
 #define QWC_END_NAMESPACE }
 
 QWC_BEGIN_NAMESPACE
+
+const Crypto::Hash NULL_HASH = boost::value_initialized<Crypto::Hash>();
+const Crypto::PublicKey NULL_PUBLIC_KEY = boost::value_initialized<Crypto::PublicKey>();
+const Crypto::SecretKey NULL_SECRET_KEY = boost::value_initialized<Crypto::SecretKey>();
 
 class Constants
 {
@@ -24,10 +29,6 @@ public:
     static uint8_t txExtraPaymentIdIdentifier();
     static uint8_t txExtraPubkeyIdentifier();
     static uint8_t txExtraNonceIdentifier();
-
-    static Crypto::Hash nullHash();
-    static Crypto::PublicKey nullPublicKey();
-    static Crypto::SecretKey nullSecretKey();
 
     // ASCII art
     static std::string asciiArt();

@@ -267,7 +267,7 @@ bool TransfersConsumer::onNewBlocks(const CompleteBlock *blocks,uint32_t startHe
 
             for (const auto &tx : blocks[i].transactions) {
                 auto pubKey = tx->getTransactionPublicKey();
-                if (pubKey == Qwertycoin::Constants::nullPublicKey()) {
+                if (pubKey == Qwertycoin::NULL_PUBLIC_KEY) {
                     ++blockInfo.transactionIndex;
                     continue;
                 }

@@ -58,7 +58,7 @@ struct SendTransactionContext
     std::vector<tx_message_entry> messages;
     uint64_t ttl;
     std::string sender;
-    Crypto::SecretKey tx_key = Qwertycoin::Constants::nullSecretKey();
+    Crypto::SecretKey tx_key = Qwertycoin::NULL_SECRET_KEY;
 };
 
 } // namespace CryptoNote

@@ -278,7 +278,7 @@ bool tx_memory_pool::add_tx(
 
 bool tx_memory_pool::add_tx(const Transaction &tx,tx_verification_context &tvc,bool keeped_by_block)
 {
-    Crypto::Hash h = Qwertycoin::Constants::nullHash();
+    Crypto::Hash h = Qwertycoin::NULL_HASH;
     size_t blobSize = 0;
     getObjectHash(tx, h, blobSize);
 

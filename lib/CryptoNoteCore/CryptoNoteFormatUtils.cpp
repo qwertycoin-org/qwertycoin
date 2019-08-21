@@ -551,7 +551,7 @@ bool lookup_acc_outs(
     uint64_t &money_transfered)
 {
     PublicKey transactionPublicKey = getTransactionPublicKeyFromExtra(tx.extra);
-    if (transactionPublicKey == Qwertycoin::Constants::nullPublicKey()) {
+    if (transactionPublicKey == Qwertycoin::NULL_PUBLIC_KEY) {
         return false;
     }
     return lookup_acc_outs(acc, tx, transactionPublicKey, outs, money_transfered);
@@ -634,7 +634,7 @@ bool get_block_hash(const Block &b, Hash &res)
 
 Hash get_block_hash(const Block &b)
 {
-    Hash p = Qwertycoin::Constants::nullHash();
+    Hash p = Qwertycoin::NULL_HASH;
     get_block_hash(b, p);
     return p;
 }
@@ -704,7 +704,7 @@ void get_tx_tree_hash(const std::vector<Hash> &tx_hashes, Hash &h)
 
 Hash get_tx_tree_hash(const std::vector<Hash> &tx_hashes)
 {
-    Hash h = Qwertycoin::Constants::nullHash();
+    Hash h = Qwertycoin::NULL_HASH;
     get_tx_tree_hash(tx_hashes, h);
     return h;
 }
@@ -712,7 +712,7 @@ Hash get_tx_tree_hash(const std::vector<Hash> &tx_hashes)
 Hash get_tx_tree_hash(const Block &b)
 {
     std::vector<Hash> txs_ids;
-    Hash h = Qwertycoin::Constants::nullHash();
+    Hash h = Qwertycoin::NULL_HASH;
     getObjectHash(b.baseTransaction, h);
     txs_ids.push_back(h);
     for (auto &th : b.transactionHashes) {

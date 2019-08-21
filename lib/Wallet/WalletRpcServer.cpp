@@ -434,8 +434,8 @@ bool wallet_rpc_server::on_get_transfers(
                       [&extraVec](const char el) { extraVec.push_back(el); });
 
         Crypto::Hash paymentId;
-        transfer.paymentId = (getPaymentIdFromTxExtra(extraVec, paymentId) && paymentId != Qwertycoin::Constants::nullHash() ? Common::podToHex(paymentId) : "");
-        transfer.txKey = (txInfo.secretKey != Qwertycoin::Constants::nullSecretKey() ? Common::podToHex(txInfo.secretKey) : "");
+        transfer.paymentId = (getPaymentIdFromTxExtra(extraVec, paymentId) && paymentId != Qwertycoin::NULL_HASH ? Common::podToHex(paymentId) : "");
+        transfer.txKey = (txInfo.secretKey != Qwertycoin::NULL_SECRET_KEY ? Common::podToHex(txInfo.secretKey) : "");
 
         res.transfers.push_back(transfer);
     }
@@ -495,9 +495,9 @@ bool wallet_rpc_server::on_get_transaction(
                           [&extraVec](const char el) { extraVec.push_back(el); });
 
             Crypto::Hash paymentId;
-            transfer.paymentId = (getPaymentIdFromTxExtra(extraVec, paymentId) && paymentId != Qwertycoin::Constants::nullHash() ? Common::podToHex(paymentId) : "");
+            transfer.paymentId = (getPaymentIdFromTxExtra(extraVec, paymentId) && paymentId != Qwertycoin::NULL_HASH ? Common::podToHex(paymentId) : "");
 
-            transfer.txKey = (txInfo.secretKey != Qwertycoin::Constants::nullSecretKey() ? Common::podToHex(txInfo.secretKey) : "");
+            transfer.txKey = (txInfo.secretKey != Qwertycoin::NULL_SECRET_KEY ? Common::podToHex(txInfo.secretKey) : "");
 
             res.transaction_details = transfer;
 
@@ -644,7 +644,7 @@ bool wallet_rpc_server::on_get_tx_key(
     }
 
     Crypto::SecretKey tx_key = m_wallet.getTxKey(txid);
-    if (tx_key != Qwertycoin::Constants::nullSecretKey()) {
+    if (tx_key != Qwertycoin::NULL_SECRET_KEY) {
         res.tx_key = Common::podToHex(tx_key);
     } else {
         throw JsonRpc::JsonRpcError(

@@ -60,36 +60,6 @@ uint8_t Constants::txExtraNonceIdentifier()
     return 0x02;
 }
 
-Crypto::Hash Constants::nullHash()
-{
-    return Crypto::Hash({
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-    });
-}
-
-Crypto::PublicKey Constants::nullPublicKey()
-{
-    return Crypto::PublicKey({
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-    });
-}
-
-Crypto::SecretKey Constants::nullSecretKey()
-{
-    return Crypto::SecretKey({
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-    });
-}
-
 std::string Constants::asciiArt()
 {
     /*!

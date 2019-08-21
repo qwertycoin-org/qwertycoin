@@ -110,7 +110,7 @@ Hash TransactionPrefixImpl::getTransactionPrefixHash() const
 
 PublicKey TransactionPrefixImpl::getTransactionPublicKey() const
 {
-    Crypto::PublicKey pk(Qwertycoin::Constants::nullPublicKey());
+    Crypto::PublicKey pk(Qwertycoin::NULL_PUBLIC_KEY);
     m_extra.getPublicKey(pk);
     return pk;
 }

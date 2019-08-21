@@ -2078,7 +2078,7 @@ TEST_F(WalletApi, getAddressSpendKeyForTrackingKeyReturnsNullSecretKey) {
   wallet.createAddress(publicKey);
 
   KeyPair spendKeys = wallet.getAddressSpendKey(0);
-  ASSERT_EQ(Qwertycoin::Constants::nullSecretKey(), spendKeys.secretKey);
+  ASSERT_EQ(Qwertycoin::NULL_SECRET_KEY, spendKeys.secretKey);
 
   wallet.shutdown();
 }

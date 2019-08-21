@@ -27,19 +27,19 @@ struct BlockInfo
 {
     BlockInfo()
         : height(0),
-          id(Qwertycoin::Constants::nullHash())
+          id(Qwertycoin::NULL_HASH)
     {
     }
 
     void clear()
     {
         height = 0;
-        id = Qwertycoin::Constants::nullHash();
+        id = Qwertycoin::NULL_HASH;
     }
 
     bool empty() const
     {
-        return id == Qwertycoin::Constants::nullHash();
+        return id == Qwertycoin::NULL_HASH;
     }
 
     uint32_t height;
