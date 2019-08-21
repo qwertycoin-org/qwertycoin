@@ -34,6 +34,8 @@
 #include "TestBlockchainGenerator.h"
 #include <Logging/ConsoleLogger.h>
 
+using namespace Qwertycoin;
+
 class TrivialWalletObserver : public CryptoNote::IWalletLegacyObserver
 {
 public:
@@ -1842,7 +1844,7 @@ TEST_F(WalletLegacyApi, walletLoadsNullSpendSecretKey) {
 
   Crypto::generate_keys(accountKeys.address.spendPublicKey, accountKeys.spendSecretKey);
   Crypto::generate_keys(accountKeys.address.viewPublicKey, accountKeys.viewSecretKey);
-  accountKeys.spendSecretKey = CryptoNote::NULL_SECRET_KEY;
+  accountKeys.spendSecretKey = NULL_SECRET_KEY;
 
   alice->initWithKeys(accountKeys, "pass");
   WaitWalletSync(aliceWalletObserver.get());
