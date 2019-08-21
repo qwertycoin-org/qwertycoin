@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <CryptoNoteCore/TransactionExtra.h>
+#include <Global/Constants.h>
 #include <Serialization/ISerializer.h>
 #include <Serialization/SerializationOverloads.h>
 #include <Wallet/WalletErrors.h>

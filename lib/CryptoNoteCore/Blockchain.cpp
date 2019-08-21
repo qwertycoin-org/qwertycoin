@@ -31,11 +31,13 @@
 #include <CryptoNoteCore/Blockchain.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
+#include <Global/Constants.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Serialization/BinarySerializationTools.h>
 
 using namespace Logging;
 using namespace Common;
+using namespace Qwertycoin;
 
 namespace {
 

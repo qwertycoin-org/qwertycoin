@@ -22,6 +22,7 @@
 #include <Common/MemoryInputStream.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <Global/Constants.h>
 #include <Wallet/WalletErrors.h>
 #include <Wallet/WalletSerializationV1.h>
 #include <Wallet/WalletUtils.h>
@@ -32,6 +33,7 @@
 using namespace Common;
 using namespace Crypto;
 using namespace CryptoNote;
+using namespace Qwertycoin;
 
 namespace {
 
@@ -100,7 +102,7 @@ struct WalletTransactionDto
     uint64_t creationTime;
     uint64_t unlockTime;
     std::string extra;
-    boost::optional<Crypto::SecretKey> secretKey = CryptoNote::NULL_SECRET_KEY;
+    boost::optional<Crypto::SecretKey> secretKey = NULL_SECRET_KEY;
 };
 
 // DO NOT CHANGE IT

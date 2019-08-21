@@ -66,6 +66,7 @@
 #include <Common/Util.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
+#include <Global/Constants.h>
 #include <Logging/LoggerManager.h>
 #include <Mnemonics/electrum-words.h>
 #include <NodeRpcProxy/NodeRpcProxy.h>

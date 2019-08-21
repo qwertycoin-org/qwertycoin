@@ -23,8 +23,11 @@
 #include <Common/StringTools.h>
 #include <Common/VectorOutputStream.h>
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
+#include <Global/Constants.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
+
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

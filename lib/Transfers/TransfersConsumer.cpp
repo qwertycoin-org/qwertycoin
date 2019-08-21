@@ -24,6 +24,7 @@
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/TransactionApi.h>
+#include <Global/Constants.h>
 #include <Transfers/CommonTypes.h>
 #include <Transfers/TransfersConsumer.h>
 #include <Wallet/IWallet.h>
@@ -32,6 +33,7 @@
 using namespace Crypto;
 using namespace Logging;
 using namespace Common;
+using namespace Qwertycoin;
 
 std::unordered_set<Crypto::Hash> transactions_hash_seen;
 std::unordered_set<Crypto::PublicKey> public_keys_seen;

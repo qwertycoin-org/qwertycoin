@@ -32,12 +32,13 @@
 #include <CryptoNoteCore/Currency.h>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/UpgradeDetector.h>
-#include "../src/config/Constants.h" // TODO: Replace with <...> path.
+#include <Global/Constants.h>
 
 #undef ERROR
 
 using namespace Logging;
 using namespace Common;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

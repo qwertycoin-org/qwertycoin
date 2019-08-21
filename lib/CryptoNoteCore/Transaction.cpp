@@ -24,9 +24,11 @@
 #include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteCore/TransactionApiExtra.h>
 #include <CryptoNoteCore/TransactionUtils.h>
+#include <Global/Constants.h>
 #include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <...> path.
 
 using namespace Crypto;
+using namespace Qwertycoin;
 
 namespace {
 

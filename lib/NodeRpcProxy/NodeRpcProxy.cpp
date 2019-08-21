@@ -23,6 +23,7 @@
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionApi.h>
+#include <Global/Constants.h>
 #include <Http/HttpRequest.h>
 #include <Http/HttpResponse.h>
 #include <NodeRpcProxy/NodeErrors.h>
@@ -43,6 +44,7 @@
 using namespace Crypto;
 using namespace Common;
 using namespace System;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 
@@ -142,8 +144,8 @@ void NodeRpcProxy::resetInternalState()
     lastLocalBlockHeaderInfo.majorVersion = 0;
     lastLocalBlockHeaderInfo.minorVersion = 0;
     lastLocalBlockHeaderInfo.timestamp = 0;
-    lastLocalBlockHeaderInfo.hash = CryptoNote::NULL_HASH;
-    lastLocalBlockHeaderInfo.prevHash = CryptoNote::NULL_HASH;
+    lastLocalBlockHeaderInfo.hash = NULL_HASH;
+    lastLocalBlockHeaderInfo.prevHash = NULL_HASH;
     lastLocalBlockHeaderInfo.nonce = 0;
     lastLocalBlockHeaderInfo.isAlternative = false;
     lastLocalBlockHeaderInfo.depth = 0;

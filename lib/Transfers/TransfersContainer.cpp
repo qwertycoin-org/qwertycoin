@@ -20,6 +20,7 @@
 #include <Common/StdOutputStream.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
+#include <Global/Constants.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/SerializationOverloads.h>
@@ -29,6 +30,7 @@
 using namespace Common;
 using namespace Crypto;
 using namespace Logging;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

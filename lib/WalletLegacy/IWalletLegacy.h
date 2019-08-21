@@ -29,10 +29,13 @@
 #include <boost/optional.hpp>
 #include <crypto/crypto.h>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <Global/Constants.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <CryptoNote.h>
 #include <CryptoTypes.h>
 #include <ITransfersContainer.h>
+
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 
@@ -75,7 +78,7 @@ struct WalletLegacyTransaction
     uint64_t sentTime;
     uint64_t unlockTime;
     Crypto::Hash hash;
-    boost::optional<Crypto::SecretKey> secretKey = CryptoNote::NULL_SECRET_KEY;
+    boost::optional<Crypto::SecretKey> secretKey = NULL_SECRET_KEY;
     bool isCoinbase;
     uint32_t blockHeight;
     uint64_t timestamp;

@@ -18,6 +18,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
+#include <Global/Constants.h>
 #include <Serialization/ISerializer.h>
 #include <Serialization/SerializationOverloads.h>
 #include <WalletLegacy/IWalletLegacy.h>

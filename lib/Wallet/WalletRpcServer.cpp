@@ -29,6 +29,7 @@
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/Account.h>
+#include <Global/Constants.h>
 #include <Rpc/JsonRpc.h>
 #include <Wallet/WalletRpcServer.h>
 #include <WalletLegacy/WalletHelper.h>

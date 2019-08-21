@@ -23,6 +23,7 @@
 #include <vector>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
+#include <Global/Constants.h>
 #include <WalletLegacy/IWalletLegacy.h>
 #include <ITransfersContainer.h>
 

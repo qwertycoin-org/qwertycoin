@@ -23,8 +23,10 @@
 #include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteCore/TransactionApiExtra.h>
 #include <CryptoNoteCore/TransactionUtils.h>
+#include <Global/Constants.h>
 
 using namespace Crypto;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

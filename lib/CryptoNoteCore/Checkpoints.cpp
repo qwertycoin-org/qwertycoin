@@ -31,9 +31,11 @@
 #include <Common/DnsTools.h>
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/Checkpoints.h>
+#include <Global/Constants.h>
 #include "../src/config/CryptoNoteConfig.h" // TODO: Replace relative include path.
 
 using namespace Logging;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

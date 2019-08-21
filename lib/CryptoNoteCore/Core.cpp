@@ -41,8 +41,8 @@
 #undef ERROR
 
 using namespace Logging;
-
 using namespace  Common;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

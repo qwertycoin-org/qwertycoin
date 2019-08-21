@@ -42,6 +42,7 @@
 #include <Common/ShuffleGenerator.h>
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
+#include <Global/Constants.h>
 #include <Logging/ConsoleLogger.h>
 #include <Mnemonics/electrum-words.h>
 #include <WalletLegacy/WalletHelper.h>

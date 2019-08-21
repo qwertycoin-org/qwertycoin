@@ -44,6 +44,7 @@
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteCore/TransactionApi.h>
+#include <Global/Constants.h>
 #include <System/EventLock.h>
 #include <System/RemoteContext.h>
 #include <Transfers/TransfersContainer.h>
@@ -3426,7 +3427,7 @@ void WalletGreen::unlockBalances(uint32_t height)
     }
 }
 
-void WalletGreen::onTransactionUpdated(ITransfersSubscription */*object*/,
+void WalletGreen::onTransactionUpdated(ITransfersSubscription* /*object*/,
                                        const Crypto::Hash &/*transactionHash*/)
 {
   // Deprecated, ignore it.

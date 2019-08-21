@@ -30,6 +30,7 @@
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/TransactionPool.h>
+#include <Global/Constants.h>
 #include <Serialization/SerializationTools.h>
 #include <Serialization/BinarySerializationTools.h>
 #include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <...> path.
@@ -39,6 +40,7 @@
 #undef ERROR
 
 using namespace Logging;
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

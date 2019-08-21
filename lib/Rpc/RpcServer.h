@@ -24,9 +24,12 @@
 #include <unordered_map>
 #include <Common/Math.h>
 #include <CryptoNoteCore/ITransaction.h>
+#include <Global/Constants.h>
 #include <Logging/LoggerRef.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Rpc/HttpServer.h>
+
+using namespace Qwertycoin;
 
 namespace CryptoNote {
 

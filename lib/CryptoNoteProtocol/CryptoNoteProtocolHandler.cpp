@@ -27,6 +27,7 @@
 #include <CryptoNoteCore/Currency.h>
 #include <CryptoNoteCore/VerificationContext.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
+#include <Global/Constants.h>
 #include <P2p/LevinProtocol.h>
 #include <System/Dispatcher.h>
 #include "../src/config/Ascii.h"

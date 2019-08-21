@@ -178,6 +178,7 @@ set(QwertycoinTools_SimpleWallet_LIBS
     Boost::filesystem
     Boost::program_options
     QwertycoinFramework::Common
+    QwertycoinFramework::Global
     QwertycoinFramework::Logging
     QwertycoinFramework::NodeRpcProxy
     QwertycoinFramework::Rpc
