@@ -25,8 +25,8 @@
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/Currency.h>
-#include <Global/CryptoNoteConfig.h>
 #include <Logging/LoggerRef.h>
+#include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <...> path.
 
 namespace CryptoNote {
 

@@ -21,7 +21,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include <Common/Util.h>
-#include <Global/CryptoNoteConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 #ifdef _WIN32
 #include <windows.h>

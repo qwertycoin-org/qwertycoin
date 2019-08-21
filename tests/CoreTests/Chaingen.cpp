@@ -34,7 +34,6 @@
 #include "CryptoNoteCore/Core.h"
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/UpgradeDetector.h"
-#include <Global/Constants.h>
 
 //#include "AccountBoostSerialization.h"
 //#include "cryptonote_boost_serialization.h"
@@ -380,7 +379,7 @@ bool find_block_chain(const std::vector<test_event_entry>& events, std::vector<C
     {
         blockchain.push_back(*it->second);
         id = it->second->previousBlockHash;
-        if (id == Qwertycoin::Constants::nullHash())
+        if (NULL_HASH == id)
         {
             b_success = true;
             break;

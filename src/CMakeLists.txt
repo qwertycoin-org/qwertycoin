@@ -68,7 +68,6 @@ set(QwertycoinTools_Daemon_LIBS
     Boost::filesystem
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
-    QwertycoinFramework::Global
     QwertycoinFramework::Logging
     QwertycoinFramework::P2p
     QwertycoinFramework::Rpc
@@ -148,7 +147,6 @@ set(QwertycoinTools_PaymentGateService_LIBS
     Boost::program_options
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
-    QwertycoinFramework::Global
     QwertycoinFramework::InProcessNode
     QwertycoinFramework::Logging
     QwertycoinFramework::Rpc
@@ -180,7 +178,6 @@ set(QwertycoinTools_SimpleWallet_LIBS
     Boost::filesystem
     Boost::program_options
     QwertycoinFramework::Common
-    QwertycoinFramework::Global
     QwertycoinFramework::Logging
     QwertycoinFramework::NodeRpcProxy
     QwertycoinFramework::Rpc

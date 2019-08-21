@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <Global/CryptoNoteConfig.h>
 #include <P2p/P2pNodeConfig.h>
 #include <P2p/P2pNetworks.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

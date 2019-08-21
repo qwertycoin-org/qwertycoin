@@ -19,7 +19,6 @@
 #pragma once
 
 #include <CryptoNoteCore/CryptoNoteBasic.h>
-#include <Global/Constants.h>
 
 namespace CryptoNote {
 
@@ -27,19 +26,19 @@ struct BlockInfo
 {
     BlockInfo()
         : height(0),
-          id(Qwertycoin::Constants::nullHash())
+          id(CryptoNote::NULL_HASH)
     {
     }
 
     void clear()
     {
         height = 0;
-        id = Qwertycoin::Constants::nullHash();
+        id = CryptoNote::NULL_HASH;
     }
 
     bool empty() const
     {
-        return id == Qwertycoin::Constants::nullHash();
+        return id == CryptoNote::NULL_HASH;
     }
 
     uint32_t height;

@@ -31,7 +31,6 @@
 #include <CryptoNoteCore/Blockchain.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
-#include <Global/Constants.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Serialization/BinarySerializationTools.h>
 
@@ -733,7 +732,7 @@ Crypto::Hash Blockchain::getTailId(uint32_t &height)
 Crypto::Hash Blockchain::getTailId()
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    return m_blocks.empty() ? Qwertycoin::Constants::nullHash() : m_blockIndex.getTailId();
+    return m_blocks.empty() ? NULL_HASH : m_blockIndex.getTailId();
 }
 
 std::vector<Crypto::Hash> Blockchain::buildSparseChain()
@@ -1026,7 +1025,7 @@ bool Blockchain::switch_to_alternative_blockchain(
         uint64_t failed_checks = 0, i = 1;
         for (; i <= CryptoNote::parameters::POISSON_CHECK_DEPTH; i++) {
             // This means we reached the genesis block
-            if (low_block == Qwertycoin::Constants::nullHash()) {
+            if (low_block == NULL_HASH) {
                 break;
             }
 
@@ -1499,7 +1498,7 @@ bool Blockchain::handle_alternative_block(
                 return false;
             }
             // make sure block connects correctly to the main chain
-            Crypto::Hash h = Qwertycoin::Constants::nullHash();
+            Crypto::Hash h = NULL_HASH;
             get_block_hash(m_blocks[alt_chain.front()->second.height - 1].bl, h);
             if (!(h == alt_chain.front()->second.bl.previousBlockHash)) {
                 logger(ERROR, BRIGHT_RED)<<"alternative chain have wrong connection to main chain";
@@ -1560,7 +1559,7 @@ bool Blockchain::handle_alternative_block(
             logger(ERROR, BRIGHT_RED) << "!!!!!!! DIFFICULTY OVERHEAD !!!!!!!";
             return false;
         }
-        Crypto::Hash proof_of_work = Qwertycoin::Constants::nullHash();
+        Crypto::Hash proof_of_work = NULL_HASH;
         if (!m_currency.checkProofOfWork(m_cn_context, bei.bl, current_diff, proof_of_work)) {
             logger(INFO, BRIGHT_RED)
             << "Block with id: " << id << ENDL
@@ -2601,7 +2600,7 @@ bool Blockchain::pushBlock(
     }
 
     auto longhashTimeStart = std::chrono::steady_clock::now();
-    Crypto::Hash proof_of_work = Qwertycoin::Constants::nullHash();
+    Crypto::Hash proof_of_work = NULL_HASH;
     if (m_checkpoints.is_in_checkpoint_zone(getCurrentBlockchainHeight())) {
         if (!m_checkpoints.check_block(getCurrentBlockchainHeight(), blockHash)) {
             logger(ERROR, BRIGHT_RED) << "CHECKPOINT VALIDATION FAILED";

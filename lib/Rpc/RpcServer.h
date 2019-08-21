@@ -24,7 +24,6 @@
 #include <unordered_map>
 #include <Common/Math.h>
 #include <CryptoNoteCore/ITransaction.h>
-#include <Global/Constants.h>
 #include <Logging/LoggerRef.h>
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 #include <Rpc/HttpServer.h>
@@ -238,7 +237,7 @@ private:
     std::string m_cors_domain;
     std::string m_fee_address;
     std::string m_contact_info;
-    Crypto::SecretKey m_view_key = Qwertycoin::Constants::nullSecretKey();
+    Crypto::SecretKey m_view_key = NULL_SECRET_KEY;
     AccountPublicAddress m_fee_acc;
 };
 

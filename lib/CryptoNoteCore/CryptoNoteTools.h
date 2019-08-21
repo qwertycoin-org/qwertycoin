@@ -23,7 +23,6 @@
 #include <Common/StringTools.h>
 #include <Common/VectorOutputStream.h>
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
-#include <Global/Constants.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
 
@@ -102,7 +101,7 @@ bool getObjectHash(const T &object, Crypto::Hash &hash)
 {
     BinaryArray ba;
     if (!toBinaryArray(object, ba)) {
-        hash = Qwertycoin::Constants::nullHash();
+        hash = NULL_HASH;
         return false;
     }
 
@@ -116,7 +115,7 @@ bool getObjectHash(const T &object, Crypto::Hash &hash, size_t &size)
 {
     BinaryArray ba;
     if (!toBinaryArray(object, ba)) {
-        hash = Qwertycoin::Constants::nullHash();
+        hash = NULL_HASH;
         size = (std::numeric_limits<size_t>::max)();
         return false;
     }

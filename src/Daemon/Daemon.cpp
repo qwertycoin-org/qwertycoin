@@ -32,13 +32,13 @@
 #include <CryptoNoteCore/MinerConfig.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <CryptoNoteProtocol/ICryptoNoteProtocolQuery.h>
-#include <Global/Checkpoints.h>
-#include <Global/Constants.h>
 #include <Logging/LoggerManager.h>
 #include <P2p/NetNode.h>
 #include <P2p/NetNodeConfig.h>
 #include <Rpc/RpcServer.h>
 #include <Rpc/RpcServerConfig.h>
+#include <config/CliHeader.h>
+#include <config/Checkpoints.h>
 #include <version.h>
 #include "DaemonCommandsHandler.h"
 
@@ -156,9 +156,9 @@ void print_genesis_tx_hex(const po::variables_map &vm, LoggerManager &logManager
     CryptoNote::Transaction tx = CryptoNote::CurrencyBuilder(logManager).generateGenesisTransaction();
     std::string tx_hex = Common::toHex(CryptoNote::toBinaryArray(tx));
     std::cout
-        << Qwertycoin::Constants::daemonCliHeader() << std::endl
+        << getProjectCLIHeader() << std::endl
         << std::endl
-        << "Replace the current GENESIS_COINBASE_TX_HEX line in lib/Global/CryptoNoteConfig.h with this one:" << std::endl
+        << "Replace the current GENESIS_COINBASE_TX_HEX line in src/config/CryptoNoteConfig.h with this one:" << std::endl
         << "const char GENESIS_COINBASE_TX_HEX[] = \"" << tx_hex << "\";" << std::endl;
 }
 
@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        logger(INFO, BRIGHT_YELLOW) << Qwertycoin::Constants::daemonCliHeader() << std::endl;
+        logger(INFO, BRIGHT_YELLOW) << getProjectCLIHeader() << std::endl;
 
         logger(INFO) << "Program Working Directory: " << argv[0];
 

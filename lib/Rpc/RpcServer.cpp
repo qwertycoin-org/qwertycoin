@@ -484,8 +484,8 @@ bool RpcServer::isCoreReady()
 
 bool RpcServer::masternode_check_incoming_tx(const BinaryArray &tx_blob)
 {
-    Crypto::Hash tx_hash = Qwertycoin::Constants::nullHash();
-    Crypto::Hash tx_prefixt_hash = Qwertycoin::Constants::nullHash();
+    Crypto::Hash tx_hash = NULL_HASH;
+    Crypto::Hash tx_prefixt_hash = NULL_HASH;
     Transaction tx;
     if (!parseAndValidateTransactionFromBinaryArray(tx_blob, tx, tx_hash, tx_prefixt_hash)) {
         logger(INFO) << "Could not parse tx from blob";
@@ -1139,7 +1139,7 @@ bool RpcServer::on_send_raw_tx(
         return true;
     }
 
-    if (!m_fee_address.empty() && m_view_key != Qwertycoin::Constants::nullSecretKey()) {
+    if (!m_fee_address.empty() && m_view_key != NULL_SECRET_KEY) {
         if (!masternode_check_incoming_tx(tx_blob)) {
             logger(INFO) << "Transaction not relayed due to lack of masternode fee";
             res.status = "Not relayed due to lack of node fee";
@@ -1761,7 +1761,7 @@ bool RpcServer::on_getblockhash(
 
     uint32_t h = static_cast<uint32_t>(req[0]);
     Crypto::Hash blockId = m_core.getBlockIdByHeight(h);
-    if (blockId == Qwertycoin::Constants::nullHash()) {
+    if (blockId == NULL_HASH) {
         throw JsonRpc::JsonRpcError{
             CORE_RPC_ERROR_CODE_TOO_BIG_HEIGHT,
             std::string("To big height: ")
@@ -1830,7 +1830,7 @@ bool RpcServer::on_getblocktemplate(
 
     BinaryArray block_blob = toBinaryArray(b);
     PublicKey tx_pub_key = CryptoNote::getTransactionPublicKeyFromExtra(b.baseTransaction.extra);
-    if (tx_pub_key == Qwertycoin::Constants::nullPublicKey()) {
+    if (tx_pub_key == NULL_PUBLIC_KEY) {
         logger(ERROR) << "Failed to find tx pub key in coinbase extra";
         throw JsonRpc::JsonRpcError{
             CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
@@ -2292,7 +2292,7 @@ bool RpcServer::k_on_check_tx_proof(
     CryptoNote::TransactionPrefix transaction = *static_cast<const TransactionPrefix*>(&tx);
 
     Crypto::PublicKey R = getTransactionPublicKeyFromExtra(transaction.extra);
-    if (R == Qwertycoin::Constants::nullPublicKey()) {
+    if (R == NULL_PUBLIC_KEY) {
         throw JsonRpc::JsonRpcError{
             CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
             "Tx pubkey was not found"

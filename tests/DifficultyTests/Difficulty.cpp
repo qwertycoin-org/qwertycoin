@@ -23,9 +23,9 @@
 #include <vector>
 #include <algorithm>
 
+#include "../src/config/CryptoNoteConfig.h"
 #include "CryptoNoteCore/Difficulty.h"
 #include "CryptoNoteCore/Currency.h"
-#include <Global/CryptoNoteConfig.h>
 #include "Logging/ConsoleLogger.h"
 
 int main(int argc, char *argv[])

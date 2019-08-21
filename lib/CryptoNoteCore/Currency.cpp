@@ -32,7 +32,7 @@
 #include <CryptoNoteCore/Currency.h>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/UpgradeDetector.h>
-#include <Global/Constants.h>
+#include "../src/config/Constants.h" // TODO: Replace with <...> path.
 
 #undef ERROR
 
@@ -419,17 +419,15 @@ bool Currency::isAmountApplicableInFusionTransactionInput(
     }
 
     auto it = std::lower_bound(
-        Qwertycoin::Constants::prettyAmounts().begin(),
-        Qwertycoin::Constants::prettyAmounts().end(),
+        Constants::PRETTY_AMOUNTS.begin(),
+        Constants::PRETTY_AMOUNTS.end(),
         amount
     );
-    if (it == Qwertycoin::Constants::prettyAmounts().end() || amount != *it) {
+    if (it == Constants::PRETTY_AMOUNTS.end() || amount != *it) {
         return false;
     }
 
-    amountPowerOfTen = static_cast<uint8_t>(
-        std::distance(Qwertycoin::Constants::prettyAmounts().begin(), it) / 9
-    );
+    amountPowerOfTen = static_cast<uint8_t>(std::distance(Constants::PRETTY_AMOUNTS.begin(), it)/9);
 
     return true;
 }

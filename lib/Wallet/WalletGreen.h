@@ -21,7 +21,6 @@
 
 #include <queue>
 #include <unordered_map>
-#include <Global/CryptoNoteConfig.h>
 #include <Logging/LoggerRef.h>
 #include <System/Dispatcher.h>
 #include <System/Event.h>
@@ -30,6 +29,7 @@
 #include <Wallet/IFusionManager.h>
 #include <Wallet/IWallet.h>
 #include <Wallet/WalletIndices.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 

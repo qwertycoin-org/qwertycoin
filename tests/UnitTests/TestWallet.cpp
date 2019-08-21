@@ -28,7 +28,6 @@
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/TransactionApi.h"
 #include "CryptoNoteCore/TransactionApiExtra.h"
-#include <Global/Constants.h>
 #include "INodeStubs.h"
 #include "TestBlockchainGenerator.h"
 #include "TransactionApiHelpers.h"
@@ -2078,7 +2077,7 @@ TEST_F(WalletApi, getAddressSpendKeyForTrackingKeyReturnsNullSecretKey) {
   wallet.createAddress(publicKey);
 
   KeyPair spendKeys = wallet.getAddressSpendKey(0);
-  ASSERT_EQ(Qwertycoin::Constants::nullSecretKey(), spendKeys.secretKey);
+  ASSERT_EQ(NULL_SECRET_KEY, spendKeys.secretKey);
 
   wallet.shutdown();
 }

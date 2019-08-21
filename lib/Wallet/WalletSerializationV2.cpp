@@ -18,7 +18,6 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
-#include <Global/Constants.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Wallet/WalletSerializationV2.h>
@@ -68,7 +67,7 @@ struct WalletTransactionDtoV2
     uint64_t unlockTime;
     std::string extra;
     bool isBase;
-    boost::optional<Crypto::SecretKey> secretKey = Qwertycoin::Constants::nullSecretKey();
+    boost::optional<Crypto::SecretKey> secretKey = CryptoNote::NULL_SECRET_KEY;
 };
 
 // DO NOT CHANGE IT

@@ -24,10 +24,9 @@
 #include <CryptoNoteCore/IBlock.h>
 #include <CryptoNoteCore/VerificationContext.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandlerCommon.h>
-#include <Global/Constants.h>
-#include <Global/CryptoNoteConfig.h>
 #include <InProcessNode/InProcessNode.h>
 #include <InProcessNode/InProcessNodeErrors.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 using namespace Crypto;
 using namespace Common;
@@ -557,8 +556,8 @@ void InProcessNode::resetLastLocalBlockHeaderInfo()
     lastLocalBlockHeaderInfo.majorVersion = 0;
     lastLocalBlockHeaderInfo.minorVersion = 0;
     lastLocalBlockHeaderInfo.timestamp = 0;
-    lastLocalBlockHeaderInfo.hash = Qwertycoin::Constants::nullHash();
-    lastLocalBlockHeaderInfo.prevHash = Qwertycoin::Constants::nullHash();
+    lastLocalBlockHeaderInfo.hash = CryptoNote::NULL_HASH;
+    lastLocalBlockHeaderInfo.prevHash = CryptoNote::NULL_HASH;
     lastLocalBlockHeaderInfo.nonce = 0;
     lastLocalBlockHeaderInfo.isAlternative = false;
     lastLocalBlockHeaderInfo.depth = 0;

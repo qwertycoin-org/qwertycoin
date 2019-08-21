@@ -23,7 +23,6 @@
 #include <vector>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
-#include <Global/Constants.h>
 #include <WalletLegacy/IWalletLegacy.h>
 #include <ITransfersContainer.h>
 
@@ -58,7 +57,7 @@ struct SendTransactionContext
     std::vector<tx_message_entry> messages;
     uint64_t ttl;
     std::string sender;
-    Crypto::SecretKey tx_key = Qwertycoin::Constants::nullSecretKey();
+    Crypto::SecretKey tx_key = NULL_SECRET_KEY;
 };
 
 } // namespace CryptoNote

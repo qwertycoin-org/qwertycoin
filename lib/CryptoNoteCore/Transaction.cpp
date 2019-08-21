@@ -24,8 +24,7 @@
 #include <CryptoNoteCore/ITransaction.h>
 #include <CryptoNoteCore/TransactionApiExtra.h>
 #include <CryptoNoteCore/TransactionUtils.h>
-#include <Global/Constants.h>
-#include <Global/CryptoNoteConfig.h>
+#include "../src/config/CryptoNoteConfig.h" // TODO: Replace with <...> path.
 
 using namespace Crypto;
 
@@ -230,7 +229,7 @@ Hash TransactionImpl::getTransactionPrefixHash() const
 
 PublicKey TransactionImpl::getTransactionPublicKey() const
 {
-    PublicKey pk(Qwertycoin::Constants::nullPublicKey());
+    PublicKey pk(NULL_PUBLIC_KEY);
     extra.getPublicKey(pk);
     return pk;
 }

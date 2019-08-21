@@ -21,8 +21,8 @@
 #include <Common/CommandLine.h>
 #include <Common/StringTools.h>
 #include <crypto/crypto.h>
-#include <Global/CryptoNoteConfig.h>
 #include <P2p/NetNodeConfig.h>
+#include <../src/config/CryptoNoteConfig.h>
 
 namespace CryptoNote {
 
