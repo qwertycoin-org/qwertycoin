@@ -325,6 +325,7 @@ target_link_libraries(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${Qwertycoi
 
 set(QwertycoinFramework_Global_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Global/Checkpoints.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.h"
     "${CMAKE_CURRENT_LIST_DIR}/Global/CryptoNoteConfig.h"
 )
