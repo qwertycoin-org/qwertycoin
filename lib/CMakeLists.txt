@@ -1,6 +1,6 @@
 # Generate version.h header
 configure_file(
-    "${CMAKE_CURRENT_LIST_DIR}/../src/config/version.h.in"
+    "${CMAKE_CURRENT_LIST_DIR}/Global/version.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/version.h"
     @ONLY
 )
@@ -325,7 +325,6 @@ target_link_libraries(QwertycoinFramework_CryptoNoteProtocol PRIVATE ${Qwertycoi
 
 set(QwertycoinFramework_Global_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Global/Checkpoints.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Global/Constants.h"
     "${CMAKE_CURRENT_LIST_DIR}/Global/CryptoNoteConfig.h"
 )

@@ -38,7 +38,6 @@
 #include <P2p/NetNodeConfig.h>
 #include <Rpc/RpcServer.h>
 #include <Rpc/RpcServerConfig.h>
-#include <config/CliHeader.h>
 #include <version.h>
 #include "DaemonCommandsHandler.h"
 
@@ -49,6 +48,7 @@
 using Common::JsonValue;
 using namespace CryptoNote;
 using namespace Logging;
+using namespace Qwertycoin;
 
 namespace po = boost::program_options;
 
@@ -158,7 +158,7 @@ void print_genesis_tx_hex(const po::variables_map &vm, LoggerManager &logManager
     std::cout
         << getProjectCLIHeader() << std::endl
         << std::endl
-        << "Replace the current GENESIS_COINBASE_TX_HEX line in src/config/CryptoNoteConfig.h with this one:" << std::endl
+        << "Replace the current GENESIS_COINBASE_TX_HEX line in lib/Global/CryptoNoteConfig.h with this one:" << std::endl
         << "const char GENESIS_COINBASE_TX_HEX[] = \"" << tx_hex << "\";" << std::endl;
 }
 
