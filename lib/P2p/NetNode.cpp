@@ -418,11 +418,10 @@ void NodeServer::for_each_connection(std::function<void(CryptoNoteConnectionCont
     }
 }
 
-void NodeServer::externalRelayNotifyToAll(int command, const BinaryArray& data_buff,
-    const net_connection_id* excludeConnection)
+void NodeServer::externalRelayNotifyToAll(int command, const BinaryArray &data_buff)
 {
-    m_dispatcher.remoteSpawn([this, command, data_buff, excludeConnection] {
-        relay_notify_to_all(command, data_buff, excludeConnection);
+    m_dispatcher.remoteSpawn([this, command, data_buff] {
+        relay_notify_to_all(command, data_buff, nullptr);
     });
 }
 

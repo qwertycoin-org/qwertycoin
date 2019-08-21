@@ -44,9 +44,7 @@ struct IP2pEndpoint
     virtual std::map<uint32_t, time_t> get_blocked_hosts() = 0;
     virtual void for_each_connection(
         std::function<void(CryptoNote::CryptoNoteConnectionContext &, PeerIdType)> f) = 0;
-    virtual void externalRelayNotifyToAll(int command,
-                                     const BinaryArray& data_buff,
-                                     const net_connection_id* excludeConnection) = 0;
+    virtual void externalRelayNotifyToAll(int command, const BinaryArray& data_buff) = 0;
 };
 
 struct p2p_endpoint_stub: public IP2pEndpoint
@@ -93,8 +91,7 @@ struct p2p_endpoint_stub: public IP2pEndpoint
         return 0;
     }
 
-    void externalRelayNotifyToAll(
-        int command, const BinaryArray& data_buff, const net_connection_id* excludeConnection) override
+    void externalRelayNotifyToAll(int command, const BinaryArray &data_buff) override
     {
     }
 };
