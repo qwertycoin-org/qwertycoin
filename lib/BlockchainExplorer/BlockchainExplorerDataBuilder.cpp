@@ -91,18 +91,15 @@ bool BlockchainExplorerDataBuilder::fillBlockDetails(const Block &block, BlockDe
     }
 
     uint64_t prevBlockGeneratedCoins = 0;
-    uint32_t previousBlockHeight = 0;
-    uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
     if (blockDetails.height > 0) {
         if (!m_core.getAlreadyGeneratedCoins(block.previousBlockHash, prevBlockGeneratedCoins)) {
-            return false;
+          return false;
         }
     }
 
-    if (blockDetails.height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
-        m_core.getBlockHeight(block.previousBlockHash, previousBlockHeight);
-        blockTarget = block.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
-    }
+    uint32_t previousBlockHeight;
+    m_core.getBlockHeight(block.previousBlockHash, previousBlockHeight);
+    uint64_t blockTarget = block.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
 
     uint64_t maxReward = 0;
     uint64_t currentReward = 0;

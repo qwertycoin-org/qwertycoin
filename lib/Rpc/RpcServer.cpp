@@ -1415,24 +1415,20 @@ bool RpcServer::f_on_block_json(
     }
 
     uint64_t prevBlockGeneratedCoins = 0;
-    uint32_t previousBlockHeight = 0;
-    uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
     if (res.block.height > 0) {
         if (!m_core.getAlreadyGeneratedCoins(blk.previousBlockHash, prevBlockGeneratedCoins)) {
             return false;
         }
     }
-
-    if (res.block.height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
-        m_core.getBlockHeight(blk.previousBlockHash, previousBlockHeight);
-        blockTarget = blk.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
-    }
-
     uint64_t maxReward = 0;
     uint64_t currentReward = 0;
     int64_t emissionChange = 0;
     size_t blockGrantedFullRewardZone =  CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2;
     res.block.effectiveSizeMedian = std::max(res.block.sizeMedian, blockGrantedFullRewardZone);
+
+    uint32_t previousBlockHeight;
+    m_core.getBlockHeight(blk.previousBlockHash, previousBlockHeight);
+    uint64_t blockTarget = blk.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
 
     if (!m_core.getBlockReward(res.block.major_version,
                                res.block.sizeMedian,
