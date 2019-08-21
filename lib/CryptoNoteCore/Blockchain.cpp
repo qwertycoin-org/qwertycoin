@@ -1312,9 +1312,13 @@ bool Blockchain::validate_miner_transaction(
     get_last_n_blocks_sizes(lastBlocksSizes, m_currency.rewardBlocksWindow());
     size_t blocksSizeMedian = Common::medianValue(lastBlocksSizes);
 
-    uint32_t previousBlockHeight;
-    getBlockHeight(b.previousBlockHash, previousBlockHeight);
-    uint64_t blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
+    uint32_t previousBlockHeight = 0;
+    uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
+
+    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
+        getBlockHeight(b.previousBlockHash, previousBlockHeight);
+        blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
+    }
 
     auto br = m_currency.getBlockReward(
         getBlockMajorVersionForHeight(height),
