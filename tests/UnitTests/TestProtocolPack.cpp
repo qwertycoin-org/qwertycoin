@@ -30,7 +30,7 @@ TEST(protocol_pack, protocol_pack_command)
   r.start_height = 1;
   r.total_height = 3;
   for(int i = 1; i < 10000; i += i*10) {
-    r.m_block_ids.resize(i, Qwertycoin::Constants::nullHash());
+    r.m_block_ids.resize(i, CryptoNote::NULL_HASH);
     buff = CryptoNote::storeToBinaryKeyValue(r);
 
     CryptoNote::NOTIFY_RESPONSE_CHAIN_ENTRY::request r2;

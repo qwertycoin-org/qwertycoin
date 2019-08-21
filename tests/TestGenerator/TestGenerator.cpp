@@ -35,7 +35,7 @@ using namespace CryptoNote;
 
 void test_generator::getBlockchain(std::vector<BlockInfo>& blockchain, const Crypto::Hash& head, size_t n) const {
   Crypto::Hash curr = head;
-  while (curr != Qwertycoin::Constants::nullHash() && blockchain.size() < n) {
+  while (curr != NULL_HASH && blockchain.size() < n) {
     auto it = m_blocksInfo.find(curr);
     if (m_blocksInfo.end() == it) {
       throw std::runtime_error("block hash wasn't found");
@@ -174,7 +174,7 @@ bool test_generator::constructBlock(CryptoNote::Block& blk, uint32_t height, con
 bool test_generator::constructBlock(CryptoNote::Block& blk, const CryptoNote::AccountBase& minerAcc, uint64_t timestamp) {
   std::vector<size_t> blockSizes;
   std::list<CryptoNote::Transaction> txList;
-  return constructBlock(blk, 0, Qwertycoin::Constants::nullHash(), minerAcc, timestamp, 0, blockSizes, txList);
+  return constructBlock(blk, 0, NULL_HASH, minerAcc, timestamp, 0, blockSizes, txList);
 }
 
 bool test_generator::constructBlock(CryptoNote::Block& blk, const CryptoNote::Block& blkPrev,

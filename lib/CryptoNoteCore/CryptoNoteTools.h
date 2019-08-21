@@ -102,7 +102,7 @@ bool getObjectHash(const T &object, Crypto::Hash &hash)
 {
     BinaryArray ba;
     if (!toBinaryArray(object, ba)) {
-        hash = Qwertycoin::Constants::nullHash();
+        hash = NULL_HASH;
         return false;
     }
 
@@ -116,7 +116,7 @@ bool getObjectHash(const T &object, Crypto::Hash &hash, size_t &size)
 {
     BinaryArray ba;
     if (!toBinaryArray(object, ba)) {
-        hash = Qwertycoin::Constants::nullHash();
+        hash = NULL_HASH;
         size = (std::numeric_limits<size_t>::max)();
         return false;
     }

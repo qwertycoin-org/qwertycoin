@@ -1843,7 +1843,7 @@ TEST_F(WalletLegacyApi, walletLoadsNullSpendSecretKey) {
 
   Crypto::generate_keys(accountKeys.address.spendPublicKey, accountKeys.spendSecretKey);
   Crypto::generate_keys(accountKeys.address.viewPublicKey, accountKeys.viewSecretKey);
-  accountKeys.spendSecretKey = Qwertycoin::Constants::nullSecretKey();
+  accountKeys.spendSecretKey = CryptoNote::NULL_SECRET_KEY;
 
   alice->initWithKeys(accountKeys, "pass");
   WaitWalletSync(aliceWalletObserver.get());

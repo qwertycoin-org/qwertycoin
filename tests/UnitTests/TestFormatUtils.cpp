@@ -136,7 +136,7 @@ TEST(parse_and_validate_tx_extra, is_valid_tx_extra_parsed)
   CryptoNote::BinaryArray b = Common::asBinaryArray("dsdsdfsdfsf");
   ASSERT_TRUE(currency.constructMinerTx(CryptoNote::BLOCK_MAJOR_VERSION_1, 0, 0, 10000000000000, 1000, currency.minimumFee(), acc.getAccountKeys().address, tx, b, 1));
   Crypto::PublicKey tx_pub_key = CryptoNote::getTransactionPublicKeyFromExtra(tx.extra);
-  ASSERT_NE(tx_pub_key, Qwertycoin::Constants::nullPublicKey());
+  ASSERT_NE(tx_pub_key, CryptoNote::NULL_PUBLIC_KEY);
 }
 TEST(parse_and_validate_tx_extra, fails_on_big_extra_nonce)
 {

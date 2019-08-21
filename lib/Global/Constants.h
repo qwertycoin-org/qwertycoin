@@ -25,10 +25,6 @@ public:
     static uint8_t txExtraPubkeyIdentifier();
     static uint8_t txExtraNonceIdentifier();
 
-    static Crypto::Hash nullHash();
-    static Crypto::PublicKey nullPublicKey();
-    static Crypto::SecretKey nullSecretKey();
-
     // ASCII art
     static std::string asciiArt();
     static std::string unixAsciiArt();

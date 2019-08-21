@@ -68,7 +68,7 @@ struct WalletTransactionDtoV2
     uint64_t unlockTime;
     std::string extra;
     bool isBase;
-    boost::optional<Crypto::SecretKey> secretKey = Qwertycoin::Constants::nullSecretKey();
+    boost::optional<Crypto::SecretKey> secretKey = CryptoNote::NULL_SECRET_KEY;
 };
 
 // DO NOT CHANGE IT

@@ -217,7 +217,7 @@ namespace
     bl.minorVersion = 0;
     bl.nonce = 0;
     bl.timestamp = time(0);
-    bl.previousBlockHash = Qwertycoin::Constants::nullHash();
+    bl.previousBlockHash = NULL_HASH;
   }
 
 }

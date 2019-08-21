@@ -191,7 +191,7 @@ size_t ICoreStub::addChain(const std::vector<const CryptoNote::IBlock*>& chain) 
   for (const CryptoNote::IBlock* block : chain) {
     for (size_t txNumber = 0; txNumber < block->getTransactionCount(); ++txNumber) {
       const CryptoNote::Transaction& tx = block->getTransaction(txNumber);
-      Crypto::Hash txHash = Qwertycoin::Constants::nullHash();
+      Crypto::Hash txHash = CryptoNote::NULL_HASH;
       size_t blobSize = 0;
       getObjectHash(tx, txHash, blobSize);
       addTransaction(tx);
@@ -206,7 +206,7 @@ size_t ICoreStub::addChain(const std::vector<const CryptoNote::IBlock*>& chain) 
 Crypto::Hash ICoreStub::getBlockIdByHeight(uint32_t height) {
   auto iter = blockHashByHeightIndex.find(height);
   if (iter == blockHashByHeightIndex.end()) {
-    return Qwertycoin::Constants::nullHash();
+    return CryptoNote::NULL_HASH;
   }
   return iter->second;
 }

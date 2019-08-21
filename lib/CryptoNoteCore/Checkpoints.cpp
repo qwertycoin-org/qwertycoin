@@ -45,7 +45,7 @@ Checkpoints::Checkpoints(Logging::ILogger &log)
 
 bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str)
 {
-    Crypto::Hash h = Qwertycoin::Constants::nullHash();
+    Crypto::Hash h = NULL_HASH;
 
     if (!Common::podFromHex(hash_str, h)) {
         logger(WARNING) << "Wrong hash in checkpoint for height " << height;
@@ -179,7 +179,7 @@ bool Checkpoints::load_checkpoints_from_dns()
 
     for (const auto &record : records) {
         uint32_t height;
-        Crypto::Hash hash = Qwertycoin::Constants::nullHash();
+        Crypto::Hash hash = NULL_HASH;
         std::stringstream ss;
         size_t del = record.find_first_of(':');
         std::string height_str = record.substr(0, del), hash_str = record.substr(del + 1, 64);

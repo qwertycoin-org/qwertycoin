@@ -278,7 +278,7 @@ void TransfersContainer::addTransaction(const TransactionBlockInfo &block,
     txInfo.extra = tx.getExtra();
 
     if (!tx.getPaymentId(txInfo.paymentId)) {
-        txInfo.paymentId = Qwertycoin::Constants::nullHash();
+        txInfo.paymentId = NULL_HASH;
     }
 
     auto result = m_transactions.emplace(std::move(txInfo));

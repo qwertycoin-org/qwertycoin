@@ -230,7 +230,7 @@ Hash TransactionImpl::getTransactionPrefixHash() const
 
 PublicKey TransactionImpl::getTransactionPublicKey() const
 {
-    PublicKey pk(Qwertycoin::Constants::nullPublicKey());
+    PublicKey pk(NULL_PUBLIC_KEY);
     extra.getPublicKey(pk);
     return pk;
 }

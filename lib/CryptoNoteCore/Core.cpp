@@ -234,7 +234,7 @@ size_t core::addChain(const std::vector<const IBlock *> &chain)
         for (size_t txNumber = 0; txNumber < block->getTransactionCount(); ++txNumber) {
             const Transaction &tx = block->getTransaction(txNumber);
 
-            Crypto::Hash txHash = Qwertycoin::Constants::nullHash();
+            Crypto::Hash txHash = NULL_HASH;
             size_t blobSize = 0;
             getObjectHash(tx, txHash, blobSize);
             tx_verification_context tvc = boost::value_initialized<tx_verification_context>();
@@ -301,8 +301,8 @@ bool core::handle_incoming_tx(
         return false;
     }
 
-    Crypto::Hash tx_hash = Qwertycoin::Constants::nullHash();
-    Crypto::Hash tx_prefixt_hash = Qwertycoin::Constants::nullHash();
+    Crypto::Hash tx_hash = NULL_HASH;
+    Crypto::Hash tx_prefixt_hash = NULL_HASH;
     Transaction tx;
 
     if (!parse_tx_from_blob(tx, tx_hash, tx_prefixt_hash, tx_blob)) {
@@ -398,7 +398,7 @@ bool core::check_tx_fee(
         return false;
     }
 
-    Crypto::Hash h = Qwertycoin::Constants::nullHash();
+    Crypto::Hash h = NULL_HASH;
     getObjectHash(tx, h, blobSize);
     const uint64_t fee = inputs_amount - outputs_amount;
     bool isFusionTransaction = fee == 0 && m_currency.isFusionTransaction(tx, blobSize, height);
@@ -1093,7 +1093,7 @@ Crypto::Hash core::getBlockIdByHeight(uint32_t height)
     if (height < m_blockchain.getCurrentBlockchainHeight()) {
         return m_blockchain.getBlockIdByHeight(height);
     } else {
-        return Qwertycoin::Constants::nullHash();
+        return NULL_HASH;
     }
 }
 
