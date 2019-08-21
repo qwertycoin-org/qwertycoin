@@ -24,6 +24,7 @@
 #include <CryptoNoteCore/CoreConfig.h>
 #include <CryptoNoteCore/Core.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
+#include <Global/Checkpoints.h>
 #include <InProcessNode/InProcessNode.h>
 #include <Logging/LoggerRef.h>
 #include <P2p/NetNode.h>
@@ -31,7 +32,6 @@
 #include <Rpc/RpcServer.h>
 #include <System/Context.h>
 #include <Wallet/WalletGreen.h>
-#include <config/Checkpoints.h>
 #include "PaymentGateService.h"
 
 #ifdef ERROR
