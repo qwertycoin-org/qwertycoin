@@ -75,6 +75,10 @@ const uint64_t MAXIMUM_FEE_V1                                 = UINT64_C(1000000
 const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(10000);
 const uint64_t MAXIMUM_FEE_V2                                 = UINT64_C(10000);
 
+// We changed the fee from 0.01 to 1.00 QWC at this height
+const uint32_t MINIMUM_FEE_V0_HEIGHT                          = 50710;
+
+// TODO: Check fee Upgrade heights
 const uint32_t MINIMUM_FEE_V1_HEIGHT                          = 800000;
 const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 1000000;
 

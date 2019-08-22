@@ -411,25 +411,30 @@ bool core::check_tx_fee(
         if (!findTransactionExtraFieldByType(txExtraFields, ttl)) {
             ttl.ttl = 0;
 
-            // TODO: simplify overcomplecated expression.
+            // TODO: simplify overcomplicated expression.
             if (height < CryptoNote::parameters::MINIMUM_FEE_V2_HEIGHT ? fee < CryptoNote::parameters::MINIMUM_FEE_V1 : (getBlockMajorVersionForHeight(height) < BLOCK_MAJOR_VERSION_6 ? fee < m_currency.minimumFee() : fee < getMinimalFeeForHeight(loose_check ? height - CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY : height))) {
-                logger(ERROR)
-                    << "[Core] Transaction fee is not enough: "
-                    << m_currency.formatAmount(fee)
-                    << ", minimum fee: "
-                    // TODO: simplify overcomplecated expression.
-                    << m_currency.formatAmount(getBlockMajorVersionForHeight(height) < BLOCK_MAJOR_VERSION_6 ? m_currency.minimumFee() : getMinimalFeeForHeight(loose_check ? height - CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY : height));
+                if (height < CryptoNote::parameters::MINIMUM_FEE_V0_HEIGHT) {
+                    // We changed the minimum fee to a higher one (0.01 -> 1 QWC in the past to fix some floods)
+                    // Now we have to fix this in a future PR with a proper fee check
+                    return true;
+                } else {
+                    logger(ERROR)
+                        << "[Core] Transaction fee is not enough: "
+                        << m_currency.formatAmount(fee)
+                        << ", minimum fee: "
+                        // TODO: simplify overcomplicated expression.
+                        << m_currency.formatAmount(getBlockMajorVersionForHeight(height) < BLOCK_MAJOR_VERSION_6 ? m_currency.minimumFee() : getMinimalFeeForHeight(loose_check ? height - CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY : height));
 
-                tvc.m_verification_failed = true;
-                tvc.m_tx_fee_too_small = true;
+                    tvc.m_verification_failed = true;
+                    tvc.m_tx_fee_too_small = true;
 
-                return false;
+                    return false;
+                }
             }
         } else {
             return true;
         }
     }
-
     return true;
 }
 
