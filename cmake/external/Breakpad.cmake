@@ -26,11 +26,13 @@ FetchContent_Populate(LinuxSyscallSupport)
 
 set(Breakpad_INCLUDE_DIRS "${breakpad_SOURCE_DIR}/src")
 
-set(Breakpad_SOURCES
-    "${breakpad_SOURCE_DIR}/src/common/string_conversion.cc"
-    "${breakpad_SOURCE_DIR}/src/common/convert_UTF.cc"
-    "${breakpad_SOURCE_DIR}/src/common/md5.cc"
-)
+if (NOT ANDROID)
+    set(Breakpad_SOURCES
+        "${breakpad_SOURCE_DIR}/src/common/string_conversion.cc"
+        "${breakpad_SOURCE_DIR}/src/common/convert_UTF.cc"
+        "${breakpad_SOURCE_DIR}/src/common/md5.cc"
+    )
+endif()
 
 if(LINUX)
     set(Breakpad_SOURCES
