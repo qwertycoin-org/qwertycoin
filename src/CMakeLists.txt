@@ -32,6 +32,7 @@ endif()
 
 set(QwertycoinTools_ConnectivityTool_LIBS
     Boost::program_options
+    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::P2p
