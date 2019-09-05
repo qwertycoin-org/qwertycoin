@@ -5,7 +5,7 @@
 #include <iostream>
 #include <Breakpad/Breakpad.h>
 
-#if defined(__linux__) // Linux
+#if defined(__linux__) && !defined(__ANDROID__) // Linux
 #include <client/linux/handler/exception_handler.h>
 #elif defined(__APPLE__) // macOS
 #include <client/mac/handler/exception_handler.h>
@@ -15,7 +15,7 @@
 #define QWERTYCOIN_BREAKPAD_UNAVAILABLE 1 // Silently disable Google Breakpad if not supported.
 #endif
 
-#if defined(__linux__) // Linux
+#if defined(__linux__) && !defined(__ANDROID__) // Linux
 static bool exceptionHandlerCallback(
     const google_breakpad::MinidumpDescriptor &descriptor,
     void *context,
@@ -71,7 +71,7 @@ Qwertycoin::Breakpad::ExceptionHandler::ExceptionHandler(const std::string &dump
     m_exceptionHandler = nullptr;
 #else // in case breakpad is available
     m_exceptionHandler = new google_breakpad::ExceptionHandler{
-#   if defined(__linux__) // Linux
+#   if defined(__linux__) && !defined(__ANDROID__) // Linux
         google_breakpad::MinidumpDescriptor(validDumpPath),
         nullptr,
         exceptionHandlerCallback,
