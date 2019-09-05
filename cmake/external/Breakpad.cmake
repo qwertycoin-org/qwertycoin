@@ -12,6 +12,18 @@ FetchContent_Declare(
 )
 FetchContent_Populate(Breakpad)
 
+FetchContent_Declare(
+    LinuxSyscallSupport
+    GIT_REPOSITORY "https://chromium.googlesource.com/linux-syscall-support.git"
+    GIT_TAG master
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS FALSE
+
+    UPDATE_COMMAND ""
+    PATCH_COMMAND ""
+)
+FetchContent_Populate(LinuxSyscallSupport)
+
 set(Breakpad_INCLUDE_DIRS "${breakpad_SOURCE_DIR}/src")
 
 set(Breakpad_SOURCES
@@ -40,6 +52,14 @@ if(LINUX)
         "${breakpad_SOURCE_DIR}/src/common/linux/linux_libc_support.cc"
         "${breakpad_SOURCE_DIR}/src/common/linux/memory_mapped_file.cc"
         "${breakpad_SOURCE_DIR}/src/common/linux/safe_readlink.cc"
+    )
+
+    set(LINUX_SYSCALL_SUPPORT_HEADER_IN "${linuxsyscallsupport_SOURCE_DIR}/linux_syscall_support.h")
+    set(LINUX_SYSCALL_SUPPORT_HEADER_OUT "${breakpad_SOURCE_DIR}/src/third_party/lss/linux_syscall_support.h")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E echo "Copied linux_syscall_support.h to ${breakpad_SOURCE_DIR}/src/third_party/lss"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${breakpad_SOURCE_DIR}/src/third_party/lss"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LINUX_SYSCALL_SUPPORT_HEADER_IN}" "${LINUX_SYSCALL_SUPPORT_HEADER_OUT}"
     )
 elseif(APPLE)
     set(Breakpad_SOURCES
