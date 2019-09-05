@@ -65,31 +65,31 @@ Qwertycoin::Breakpad::ExceptionHandler::ExceptionHandler(const std::string &dump
 
 #ifdef QWERTYCOIN_BREAKPAD_UNAVAILABLE
     m_exceptionHandler = nullptr;
-#else
+#else // in case breakpad is available
     m_exceptionHandler = new google_breakpad::ExceptionHandler{
-#if defined(__linux__) // Linux
+#   if defined(__linux__) // Linux
         google_breakpad::MinidumpDescriptor(validDumpPath),
         nullptr,
         exceptionHandlerCallback,
         nullptr,
         true,
         -1
-#elif defined(__APPLE__) // macOS
+#   elif defined(__APPLE__) // macOS
         validDumpPath,
         nullptr,
         exceptionHandlerCallback,
         nullptr,
         true,
         nullptr
-#elif defined(_WIN32) || defined(WIN32) // Windows
+#   elif defined(_WIN32) || defined(WIN32) // Windows
         std::wstring(validDumpPath.begin(), validDumpPath.end())
         NULL,
         exceptionHandlerCallback,
         NULL,
         google_breakpad::ExceptionHandler::HANDLER_ALL
-#endif
+#   endif
     };
-#endif
+#endif // QWERTYCOIN_BREAKPAD_UNAVAILABLE
 }
 
 Qwertycoin::Breakpad::ExceptionHandler::~ExceptionHandler()
