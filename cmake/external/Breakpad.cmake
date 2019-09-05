@@ -26,7 +26,7 @@ FetchContent_Populate(LinuxSyscallSupport)
 
 set(Breakpad_INCLUDE_DIRS "${breakpad_SOURCE_DIR}/src")
 
-if (NOT ANDROID)
+if(NOT ANDROID)
     set(Breakpad_SOURCES
         "${breakpad_SOURCE_DIR}/src/common/string_conversion.cc"
         "${breakpad_SOURCE_DIR}/src/common/convert_UTF.cc"
@@ -34,7 +34,8 @@ if (NOT ANDROID)
     )
 endif()
 
-if(LINUX)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
+    message(STATUS "Configuring Google Breakpad sources for Linux...")
     set(Breakpad_SOURCES
         ${Breakpad_SOURCES}
         "${breakpad_SOURCE_DIR}/src/client/linux/crash_generation/crash_generation_client.cc"
@@ -63,7 +64,10 @@ if(LINUX)
         COMMAND ${CMAKE_COMMAND} -E make_directory "${breakpad_SOURCE_DIR}/src/third_party/lss"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LINUX_SYSCALL_SUPPORT_HEADER_IN}" "${LINUX_SYSCALL_SUPPORT_HEADER_OUT}"
     )
+    unset(LINUX_SYSCALL_SUPPORT_HEADER_IN)
+    unset(LINUX_SYSCALL_SUPPORT_HEADER_OUT)
 elseif(APPLE)
+    message(STATUS "Configuring Google Breakpad sources for macOS...")
     set(Breakpad_SOURCES
         ${Breakpad_SOURCES}
         "${breakpad_SOURCE_DIR}/src/client/mac/crash_generation/crash_generation_client.cc"
@@ -83,6 +87,7 @@ elseif(APPLE)
         "${breakpad_SOURCE_DIR}/src/common/mac/string_utilities.cc"
     )
 elseif(WIN32)
+    message(STATUS "Configuring Google Breakpad sources for Windows...")
     set(Breakpad_SOURCES
         ${Breakpad_SOURCES}
         "${breakpad_SOURCE_DIR}/src/client/windows/crash_generation/client_info.cc"
@@ -91,4 +96,6 @@ elseif(WIN32)
         "${breakpad_SOURCE_DIR}/src/client/windows/handler/exception_handler.cc"
         "${breakpad_SOURCE_DIR}/src/common/windows/guid_string.cc"
     )
+else()
+    message(WARNING "Google Breakpad is not configured for current platform!")
 endif()
