@@ -1,3 +1,7 @@
+// Copyright 2018-2019 (c) The Qwertycoin Group.
+// Licensed under the GNU General Public License, Version 3.
+// See the file LICENSE from this package for details.
+
 #include <iostream>
 #include <Breakpad/Breakpad.h>
 
