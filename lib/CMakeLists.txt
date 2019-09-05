@@ -8,6 +8,7 @@ message(STATUS "Generated version.h header: ${CMAKE_CURRENT_BINARY_DIR}/version.
 
 set(QwertycoinFramework_INCLUDE_DIRS
     "${Boost_INCLUDE_DIRS}"
+    "${Breakpad_INCLUDE_DIRS}"
     "${MINIUPNP_INCLUDE_DIRS}"
     "${SPARSEHASH_INCLUDE_DIRS}"
     "${CMAKE_CURRENT_BINARY_DIR}"
@@ -38,6 +39,7 @@ set(QwertycoinFramework_INCLUDE_DIRS ${QwertycoinFramework_INCLUDE_DIRS} PARENT_
 
 set(QwertycoinFramework_LIBS
     QwertycoinFramework_BlockchainExplorer
+    QwertycoinFramework_Breakpad
     QwertycoinFramework_Common
     QwertycoinFramework_Crypto
     QwertycoinFramework_CryptoNoteCore
@@ -83,6 +85,33 @@ add_library(QwertycoinFramework_BlockchainExplorer STATIC ${QwertycoinFramework_
 add_library(QwertycoinFramework::BlockchainExplorer ALIAS QwertycoinFramework_BlockchainExplorer)
 target_include_directories(QwertycoinFramework_BlockchainExplorer PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
 target_link_libraries(QwertycoinFramework_BlockchainExplorer PRIVATE ${QwertycoinFramework_BlockchainExplorer_LIBS})
+
+# QwertycoinFramework::Breakpad
+
+set(QwertycoinFramework_Breakpad_SOURCES
+    ${Breakpad_SOURCES} # Compile Google Brekapad sources as part of this lib
+    "${CMAKE_CURRENT_LIST_DIR}/Breakpad/Breakpad.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Breakpad/Breakpad.h"
+)
+
+set(QwertycoinFramework_Breakpad_LIBS
+    QwertycoinFramework::Global
+)
+
+if(APPLE)
+    find_library(CoreFoundationLibrary CoreFoundation)
+    find_library(CFNetworkLibrary CFNetwork)
+    set(QwertycoinFramework_Breakpad_LIBS
+        ${QwertycoinFramework_Breakpad_LIBS}
+        ${CoreFoundationLibrary}
+        ${CFNetworkLibrary}
+    )
+endif()
+
+add_library(QwertycoinFramework_Breakpad STATIC ${QwertycoinFramework_Breakpad_SOURCES})
+add_library(QwertycoinFramework::Breakpad ALIAS QwertycoinFramework_Breakpad)
+target_include_directories(QwertycoinFramework_Breakpad PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
+target_link_libraries(QwertycoinFramework_Breakpad PRIVATE ${QwertycoinFramework_Breakpad_LIBS})
 
 # QwertycoinFramework::Common
 
