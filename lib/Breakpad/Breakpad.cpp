@@ -2,6 +2,8 @@
 // Licensed under the GNU General Public License, Version 3.
 // See the file LICENSE from this package for details.
 
+#include <locale>
+#include <string>
 #include <iostream>
 #include <Breakpad/Breakpad.h>
 
@@ -56,44 +58,45 @@ static bool exceptionHandlerCallback(
 
 Qwertycoin::Breakpad::ExceptionHandler::ExceptionHandler(const std::string &dumpPath)
 {
-    std::string validDumpPath;
-    if (!dumpPath.empty()) {
-        validDumpPath = dumpPath;
-    } else {
 #if defined(_WIN32) || defined(WIN32) // Windows
-        validDumpPath = std::string("C:\\Windows\\Temp");
+    const std::string defaultDumpPath = std::string("C:\\Windows\\Temp");
 #else // Linux, macOS, etc.
-        validDumpPath = std::string("/tmp");
+    const std::string defaultDumpPath = std::string("/tmp");
 #endif
-    }
 
-#ifdef QWERTYCOIN_BREAKPAD_UNAVAILABLE
-    m_exceptionHandler = nullptr;
-#else // in case breakpad is available
-    m_exceptionHandler = new google_breakpad::ExceptionHandler{
-#   if defined(__linux__) && !defined(__ANDROID__) // Linux
+    const std::string validDumpPath = !dumpPath.empty() ? dumpPath : defaultDumpPath;
+
+#if defined(__linux__) && !defined(__ANDROID__) // Linux
+    m_exceptionHandler = new google_breakpad::ExceptionHandler(
         google_breakpad::MinidumpDescriptor(validDumpPath),
         nullptr,
         exceptionHandlerCallback,
         nullptr,
         true,
         -1
-#   elif defined(__APPLE__) // macOS
+    );
+#elif defined(__APPLE__) // macOS
+    m_exceptionHandler = new google_breakpad::ExceptionHandler(
         validDumpPath,
         nullptr,
         exceptionHandlerCallback,
         nullptr,
         true,
         nullptr
-#   elif defined(_WIN32) || defined(WIN32) // Windows
-        std::wstring(validDumpPath.begin(), validDumpPath.end())
-        NULL,
+    );
+#elif defined(_WIN32) || defined(WIN32) // Windows
+    std::wstring validDumpPathAsWString;
+    validDumpPathAsWString.assign(validDumpPath.begin(), validDumpPath.end());
+    m_exceptionHandler = new google_breakpad::ExceptionHandler(
+        validDumpPathAsWString,
+        nullptr,
         exceptionHandlerCallback,
-        NULL,
+        nullptr,
         google_breakpad::ExceptionHandler::HANDLER_ALL
-#   endif
-    };
-#endif // QWERTYCOIN_BREAKPAD_UNAVAILABLE
+    );
+#else
+    m_exceptionHandler = nullptr;
+#endif
 }
 
 Qwertycoin::Breakpad::ExceptionHandler::~ExceptionHandler()
