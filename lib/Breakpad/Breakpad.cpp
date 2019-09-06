@@ -2,7 +2,6 @@
 // Licensed under the GNU General Public License, Version 3.
 // See the file LICENSE from this package for details.
 
-#include <locale>
 #include <string>
 #include <iostream>
 #include <Breakpad/Breakpad.h>
@@ -13,8 +12,6 @@
 #include <client/mac/handler/exception_handler.h>
 #elif defined(_WIN32) || defined(WIN32) // Windows
 #include <client/windows/handler/exception_handler.h>
-#else
-#define QWERTYCOIN_BREAKPAD_UNAVAILABLE 1 // Silently disable Google Breakpad if not supported.
 #endif
 
 #if defined(__linux__) && !defined(__ANDROID__) // Linux
@@ -50,7 +47,7 @@ static bool exceptionHandlerCallback(
     bool succeeded)
 {
     std::cout << "ERROR: Process crashed! Minidump created." << std::endl;
-    std::cout << "Minidump path: " << minidumpPath << ", id: " << minidumpId << std::endl;
+    std::wcout << L"Minidump path: " << minidumpPath << L", id: " << minidumpId << std::endl;
 
     return true;
 }
@@ -63,6 +60,8 @@ Qwertycoin::Breakpad::ExceptionHandler::ExceptionHandler(const std::string &dump
 #else // Linux, macOS, etc.
     const std::string defaultDumpPath = std::string("/tmp");
 #endif
+
+    std::wcout << L"Minidump path: "; // << minidumpPath << ", id: " << minidumpId << std::endl;
 
     const std::string validDumpPath = !dumpPath.empty() ? dumpPath : defaultDumpPath;
 

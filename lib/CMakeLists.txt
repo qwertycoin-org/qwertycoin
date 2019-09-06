@@ -113,6 +113,11 @@ add_library(QwertycoinFramework::Breakpad ALIAS QwertycoinFramework_Breakpad)
 target_include_directories(QwertycoinFramework_Breakpad PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
 target_link_libraries(QwertycoinFramework_Breakpad PRIVATE ${QwertycoinFramework_Breakpad_LIBS})
 
+if(WIN32)
+    # Fix for "cannot convert argument 1 from 'const wchar_t *' to 'LPCSTR'" and similar issues
+    target_compile_definitions(QwertycoinFramework_Breakpad PRIVATE -DUNICODE -D_UNICODE)
+endif()
+
 # QwertycoinFramework::Common
 
 set(QwertycoinFramework_Common_SOURCES
