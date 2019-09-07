@@ -149,6 +149,7 @@ endif()
 set(QwertycoinTools_PaymentGateService_LIBS
     Boost::filesystem
     Boost::program_options
+    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Global
