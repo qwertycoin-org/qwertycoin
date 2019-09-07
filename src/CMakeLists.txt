@@ -107,6 +107,7 @@ endif()
 
 set(QwertycoinTools_Miner_LIBS
     Boost::program_options
+    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Logging
