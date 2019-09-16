@@ -62,7 +62,7 @@ bool Currency::init()
         m_upgradeHeightV6 = 100;
         m_governancePercent = 10;
         m_governanceHeightStart = 1;
-        m_governanceHeightEnd = 100
+        m_governanceHeightEnd = 100;
         m_blocksFileName = "testnet_" + m_blocksFileName;
         m_blocksCacheFileName = "testnet_" + m_blocksCacheFileName;
         m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
