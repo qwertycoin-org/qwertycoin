@@ -373,7 +373,7 @@ Blockchain::Blockchain(
       m_paymentIdIndex(blockchainIndexesEnabled),
       m_timestampIndex(blockchainIndexesEnabled),
       m_generatedTransactionsIndex(blockchainIndexesEnabled),
-      m_orthanBlocksIndex(blockchainIndexesEnabled),
+      m_orphanBlocksIndex(blockchainIndexesEnabled),
       m_blockchainIndexesEnabled(blockchainIndexesEnabled)
 {
     m_outputs.set_deleted_key(0);
@@ -716,7 +716,7 @@ bool Blockchain::resetAndSetGenesisBlock(const Block &b)
     m_paymentIdIndex.clear();
     m_timestampIndex.clear();
     m_generatedTransactionsIndex.clear();
-    m_orthanBlocksIndex.clear();
+    m_orphanBlocksIndex.clear();
 
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
     addNewBlock(b, bvc);
@@ -1128,13 +1128,13 @@ bool Blockchain::switch_to_alternative_blockchain(
             logger(INFO, BRIGHT_WHITE)
                 << "The block was inserted as invalid while connecting new alternative chain,"
                 << " block_id: " << get_block_hash(ch_ent->second.bl);
-            m_orthanBlocksIndex.remove(ch_ent->second.bl);
+            m_orphanBlocksIndex.remove(ch_ent->second.bl);
             m_alternative_chains.erase(ch_ent);
 
             for (auto alt_ch_to_orph_iter = ++alt_ch_iter;
                  alt_ch_to_orph_iter != alt_chain.end();
                  alt_ch_to_orph_iter++) {
-                m_orthanBlocksIndex.remove((*alt_ch_to_orph_iter)->second.bl);
+                m_orphanBlocksIndex.remove((*alt_ch_to_orph_iter)->second.bl);
                 m_alternative_chains.erase(*alt_ch_to_orph_iter);
             }
 
@@ -1162,7 +1162,7 @@ bool Blockchain::switch_to_alternative_blockchain(
     // removing all_chain entries from alternative chain
     for (auto ch_ent : alt_chain) {
         blocksFromCommonRoot.push_back(get_block_hash(ch_ent->second.bl));
-        m_orthanBlocksIndex.remove(ch_ent->second.bl);
+        m_orphanBlocksIndex.remove(ch_ent->second.bl);
         m_alternative_chains.erase(ch_ent);
     }
 
@@ -1604,7 +1604,7 @@ bool Blockchain::handle_alternative_block(
             return false;
         }
 
-        m_orthanBlocksIndex.add(bei.bl);
+        m_orphanBlocksIndex.add(bei.bl);
 
         alt_chain.push_back(i_res.first);
 
@@ -3279,7 +3279,7 @@ bool Blockchain::getGeneratedTransactionsNumber(uint32_t height, uint64_t &gener
 bool Blockchain::getOrphanBlockIdsByHeight(uint32_t height, std::vector<Crypto::Hash> &blockHashes)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    return m_orthanBlocksIndex.find(height, blockHashes);
+    return m_orphanBlocksIndex.find(height, blockHashes);
 }
 
 bool Blockchain::getBlockIdsByTimestamp(

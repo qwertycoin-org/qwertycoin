@@ -94,7 +94,7 @@ private:
   CryptoNote::PaymentIdIndex m_paymentIdIndex;
   CryptoNote::TimestampTransactionsIndex m_timestampIndex;
   CryptoNote::GeneratedTransactionsIndex m_generatedTransactionsIndex;
-  CryptoNote::OrphanBlocksIndex m_orthanBlocksIndex;
+  CryptoNote::OrphanBlocksIndex m_orphanBlocksIndex;
 
   void addToBlockchain(const CryptoNote::Transaction& tx);
   void addToBlockchain(const std::vector<CryptoNote::Transaction>& txs);
