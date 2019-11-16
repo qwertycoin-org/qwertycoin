@@ -422,7 +422,6 @@ int main(int argc, char *argv[])
                     std::cout << "wrong block index parameter" << ENDL;
                     return 1;
                 }
-                logger(INFO, BRIGHT_YELLOW) << "Rollback blockchain to height " << _index;
                 ccore.rollbackBlockchain(_index);
             }
         }
