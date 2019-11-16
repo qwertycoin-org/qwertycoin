@@ -290,13 +290,13 @@ void validateMixin(const uint16_t &mixin,
 {
     if (mixin < currency.minMixin() && mixin != 0) {
         logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
-            << "Mixin must be equal or bigger to"
+            << "Mixin must be equal to or bigger than"
             << currency.minMixin();
         throw std::system_error(make_error_code(CryptoNote::error::MIXIN_COUNT_TOO_SMALL));
     }
     if (mixin > currency.maxMixin()) {
         logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
-            << "Mixin must be equal or smaller than"
+            << "Mixin must be equal to or smaller than"
             << currency.maxMixin();
         throw std::system_error(make_error_code(CryptoNote::error::MIXIN_COUNT_TOO_LARGE));
     }
@@ -545,7 +545,7 @@ std::error_code WalletService::resetWallet()
     try {
         System::EventLock lk(readyEvent);
 
-        logger(Logging::INFO, Logging::BRIGHT_WHITE) << "Reseting wallet";
+        logger(Logging::INFO, Logging::BRIGHT_WHITE) << "Resetting wallet";
 
         if (!inited) {
             logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
@@ -557,12 +557,12 @@ std::error_code WalletService::resetWallet()
         logger(Logging::INFO, Logging::BRIGHT_WHITE) << "Wallet has been reset";
     } catch (std::system_error &x) {
         logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
-            << "Error while reseting wallet: "
+            << "Error while resetting wallet: "
             << x.what();
         return x.code();
     } catch (std::exception &x) {
         logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
-            << "Error while reseting wallet: "
+            << "Error while resetting wallet: "
             << x.what();
         return make_error_code(CryptoNote::error::INTERNAL_WALLET_ERROR);
     }
