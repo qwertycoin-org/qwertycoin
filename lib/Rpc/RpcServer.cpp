@@ -91,6 +91,13 @@ RpcServer::HandlerFunction jsonMethod(
         }
 
         bool result = (obj->*handler)(req, res);
+        std::string cors_domain = obj->getCorsDomain();
+        if (!cors_domain.empty()) {
+            response.addHeader("Access-Control-Allow-Origin", cors_domain);
+            response.addHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+            response.addHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+        }
+        response.addHeader("Content-Type", "application/json");
         response.setBody(storeToJson(res.data()));
 
         return result;
@@ -309,6 +316,8 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
     response.addHeader("Content-Type", "application/json");
     if (!m_cors_domain.empty()) {
         response.addHeader("Access-Control-Allow-Origin", m_cors_domain);
+        response.addHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+        response.addHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
     }
 
     JsonRpcRequest jsonRequest;
@@ -443,6 +452,10 @@ bool RpcServer::enableCors(const std::string domain)
     m_cors_domain = domain;
 
     return true;
+}
+
+std::string RpcServer::getCorsDomain() {
+    return m_cors_domain;
 }
 
 bool RpcServer::setFeeAddress(

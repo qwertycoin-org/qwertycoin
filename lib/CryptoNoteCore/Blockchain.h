@@ -328,7 +328,7 @@ private:
     PaymentIdIndex m_paymentIdIndex;
     TimestampBlocksIndex m_timestampIndex;
     GeneratedTransactionsIndex m_generatedTransactionsIndex;
-    OrphanBlocksIndex m_orthanBlocksIndex;
+    OrphanBlocksIndex m_orphanBlocksIndex;
     bool m_blockchainIndexesEnabled;
 
     IntrusiveLinkedList<MessageQueue<BlockchainMessage>> m_messageQueueList;
