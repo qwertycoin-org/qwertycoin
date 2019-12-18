@@ -363,7 +363,6 @@ Blockchain::Blockchain(
       m_currency(currency),
       m_tx_pool(tx_pool),
       m_current_block_cumul_sz_limit(0),
-      m_is_in_checkpoint_zone(false),
       m_upgradeDetectorV2(currency, m_blocks, BLOCK_MAJOR_VERSION_2, logger),
       m_upgradeDetectorV3(currency, m_blocks, BLOCK_MAJOR_VERSION_3, logger),
       m_upgradeDetectorV4(currency, m_blocks, BLOCK_MAJOR_VERSION_4, logger),
@@ -1557,8 +1556,6 @@ bool Blockchain::handle_alternative_block(
             return false;
         }
 
-        // Always check PoW for alternative blocks
-        m_is_in_checkpoint_zone = false;
         // Check the block's hash against the difficulty target for its alt chain
         difficulty_type current_diff = get_next_difficulty_for_alternative_chain(alt_chain, bei);
         if (!(current_diff)) {
@@ -1566,6 +1563,7 @@ bool Blockchain::handle_alternative_block(
             return false;
         }
         Crypto::Hash proof_of_work = NULL_HASH;
+        // Always check PoW for alternative blocks
         if (!m_currency.checkProofOfWork(m_cn_context, bei.bl, current_diff, proof_of_work)) {
             logger(INFO, BRIGHT_RED)
             << "Block with id: " << id << ENDL
@@ -2301,7 +2299,7 @@ bool Blockchain::check_tx_input(
             << " mismatch with outputs keys count for inputs=" << output_keys.size();
         return false;
     }
-    if (m_is_in_checkpoint_zone) {
+    if (isInCheckpointZone(getCurrentBlockchainHeight())) {
         return true;
     }
 
