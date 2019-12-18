@@ -2151,7 +2151,7 @@ bool Blockchain::checkTransactionInputs(
                         pmax_used_block_height
                     )) {
                     logger(INFO, BRIGHT_WHITE)
-                        << "Failed to check ring signature for tx "
+                        << "Failed to check input in transaction "
                         << transactionHash;
                     return false;
                 }
