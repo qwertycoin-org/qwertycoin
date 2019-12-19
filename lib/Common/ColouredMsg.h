@@ -7,11 +7,8 @@
 #pragma once
 
 #include <Common/ConsoleTools.h>
-
 #include <iomanip>
-
 #include <ostream>
-
 #include <string>
 
 class ColouredMsg
@@ -41,12 +38,10 @@ class ColouredMsg
         {
             Common::Console::setTextColor(m.colour);
 
-            if (m.pad)
-            {
+            if (m.pad) {
                 os << std::left << std::setw(m.padding) << m.msg;
             }
-            else
-            {
+            else {
                 os << m.msg;
             }
 
