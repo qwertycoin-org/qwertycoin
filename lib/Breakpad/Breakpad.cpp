@@ -61,8 +61,6 @@ Qwertycoin::Breakpad::ExceptionHandler::ExceptionHandler(const std::string &dump
     const std::string defaultDumpPath = std::string("/tmp");
 #endif
 
-    std::wcout << L"Minidump path: "; // << minidumpPath << ", id: " << minidumpId << std::endl;
-
     const std::string validDumpPath = !dumpPath.empty() ? dumpPath : defaultDumpPath;
 
 #if defined(__linux__) && !defined(__ANDROID__) // Linux

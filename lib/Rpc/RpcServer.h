@@ -67,6 +67,7 @@ public:
     bool setViewKey(const std::string &view_key);
     bool setContactInfo(const std::string &contact);
     bool masternode_check_incoming_tx(const BinaryArray &tx_blob);
+    std::string getCorsDomain();
 
 private:
     void processRequest(const HttpRequest &request, HttpResponse &response) override;

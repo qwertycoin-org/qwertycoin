@@ -97,8 +97,7 @@ public:
     uint64_t getMinimalFee(uint32_t height);
     uint64_t getCoinsInCirculation();
     uint8_t getBlockMajorVersionForHeight(uint32_t height) const;
-    uint8_t blockMajorVersion;
-    bool addNewBlock(const Block &bl_, block_verification_context &bvc);
+    bool addNewBlock(const Block &bl, block_verification_context &bvc);
     bool resetAndSetGenesisBlock(const Block &b);
     bool haveBlock(const Crypto::Hash &id);
     size_t getTotalTransactions();
@@ -305,7 +304,6 @@ private:
 
     std::string m_config_folder;
     Checkpoints m_checkpoints;
-    std::atomic<bool> m_is_in_checkpoint_zone;
 
     typedef SwappedVector<BlockEntry> Blocks;
     typedef std::unordered_map<Crypto::Hash, uint32_t> BlockMap;
@@ -328,7 +326,7 @@ private:
     PaymentIdIndex m_paymentIdIndex;
     TimestampBlocksIndex m_timestampIndex;
     GeneratedTransactionsIndex m_generatedTransactionsIndex;
-    OrphanBlocksIndex m_orthanBlocksIndex;
+    OrphanBlocksIndex m_orphanBlocksIndex;
     bool m_blockchainIndexesEnabled;
 
     IntrusiveLinkedList<MessageQueue<BlockchainMessage>> m_messageQueueList;

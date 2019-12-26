@@ -265,7 +265,7 @@ set(QwertycoinTests_SystemTests_SOURCES
 
 set(QwertycoinTests_SystemTests_LIBS
     codecov
-    GTest::main
+    GTest::gtest_main
     QwertycoinFramework::System
 )
 
@@ -356,7 +356,7 @@ set(QwertycoinTests_UnitTests_SOURCES
 
 set(QwertycoinTests_UnitTests_LIBS
     codecov
-    GTest::main
+    GTest::gtest_main
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::CryptoNoteProtocol
     QwertycoinFramework::Http

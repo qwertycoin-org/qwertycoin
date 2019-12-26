@@ -363,7 +363,6 @@ Blockchain::Blockchain(
       m_currency(currency),
       m_tx_pool(tx_pool),
       m_current_block_cumul_sz_limit(0),
-      m_is_in_checkpoint_zone(false),
       m_upgradeDetectorV2(currency, m_blocks, BLOCK_MAJOR_VERSION_2, logger),
       m_upgradeDetectorV3(currency, m_blocks, BLOCK_MAJOR_VERSION_3, logger),
       m_upgradeDetectorV4(currency, m_blocks, BLOCK_MAJOR_VERSION_4, logger),
@@ -373,7 +372,7 @@ Blockchain::Blockchain(
       m_paymentIdIndex(blockchainIndexesEnabled),
       m_timestampIndex(blockchainIndexesEnabled),
       m_generatedTransactionsIndex(blockchainIndexesEnabled),
-      m_orthanBlocksIndex(blockchainIndexesEnabled),
+      m_orphanBlocksIndex(blockchainIndexesEnabled),
       m_blockchainIndexesEnabled(blockchainIndexesEnabled)
 {
     m_outputs.set_deleted_key(0);
@@ -716,7 +715,7 @@ bool Blockchain::resetAndSetGenesisBlock(const Block &b)
     m_paymentIdIndex.clear();
     m_timestampIndex.clear();
     m_generatedTransactionsIndex.clear();
-    m_orthanBlocksIndex.clear();
+    m_orphanBlocksIndex.clear();
 
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
     addNewBlock(b, bvc);
@@ -1128,13 +1127,13 @@ bool Blockchain::switch_to_alternative_blockchain(
             logger(INFO, BRIGHT_WHITE)
                 << "The block was inserted as invalid while connecting new alternative chain,"
                 << " block_id: " << get_block_hash(ch_ent->second.bl);
-            m_orthanBlocksIndex.remove(ch_ent->second.bl);
+            m_orphanBlocksIndex.remove(ch_ent->second.bl);
             m_alternative_chains.erase(ch_ent);
 
             for (auto alt_ch_to_orph_iter = ++alt_ch_iter;
                  alt_ch_to_orph_iter != alt_chain.end();
                  alt_ch_to_orph_iter++) {
-                m_orthanBlocksIndex.remove((*alt_ch_to_orph_iter)->second.bl);
+                m_orphanBlocksIndex.remove((*alt_ch_to_orph_iter)->second.bl);
                 m_alternative_chains.erase(*alt_ch_to_orph_iter);
             }
 
@@ -1162,7 +1161,7 @@ bool Blockchain::switch_to_alternative_blockchain(
     // removing all_chain entries from alternative chain
     for (auto ch_ent : alt_chain) {
         blocksFromCommonRoot.push_back(get_block_hash(ch_ent->second.bl));
-        m_orthanBlocksIndex.remove(ch_ent->second.bl);
+        m_orphanBlocksIndex.remove(ch_ent->second.bl);
         m_alternative_chains.erase(ch_ent);
     }
 
@@ -1557,8 +1556,6 @@ bool Blockchain::handle_alternative_block(
             return false;
         }
 
-        // Always check PoW for alternative blocks
-        m_is_in_checkpoint_zone = false;
         // Check the block's hash against the difficulty target for its alt chain
         difficulty_type current_diff = get_next_difficulty_for_alternative_chain(alt_chain, bei);
         if (!(current_diff)) {
@@ -1566,6 +1563,7 @@ bool Blockchain::handle_alternative_block(
             return false;
         }
         Crypto::Hash proof_of_work = NULL_HASH;
+        // Always check PoW for alternative blocks
         if (!m_currency.checkProofOfWork(m_cn_context, bei.bl, current_diff, proof_of_work)) {
             logger(INFO, BRIGHT_RED)
             << "Block with id: " << id << ENDL
@@ -1604,7 +1602,7 @@ bool Blockchain::handle_alternative_block(
             return false;
         }
 
-        m_orthanBlocksIndex.add(bei.bl);
+        m_orphanBlocksIndex.add(bei.bl);
 
         alt_chain.push_back(i_res.first);
 
@@ -2145,27 +2143,31 @@ bool Blockchain::checkTransactionInputs(
                 return false;
             }
 
-            if (!check_tx_input(
-                    in_to_key,
-                    tx_prefix_hash,
-                    tx.signatures[inputIndex],
-                    pmax_used_block_height
-                )) {
-                logger(INFO, BRIGHT_WHITE)
-                    << "Failed to check ring signature for tx "
-                    << transactionHash;
-                return false;
+            if (!isInCheckpointZone(getCurrentBlockchainHeight())) {
+                if (!check_tx_input(
+                        in_to_key,
+                        tx_prefix_hash,
+                        tx.signatures[inputIndex],
+                        pmax_used_block_height
+                    )) {
+                    logger(INFO, BRIGHT_WHITE)
+                        << "Failed to check input in transaction "
+                        << transactionHash;
+                    return false;
+                }
             }
 
             ++inputIndex;
         } else if (txin.type() == typeid(MultisignatureInput)) {
-            if (!validateInput(
-                    ::boost::get<MultisignatureInput>(txin),
-                    transactionHash,
-                    tx_prefix_hash,
-                    tx.signatures[inputIndex]
-                )) {
-                return false;
+            if (!isInCheckpointZone(getCurrentBlockchainHeight())) {
+                if (!validateInput(
+                        ::boost::get<MultisignatureInput>(txin),
+                        transactionHash,
+                        tx_prefix_hash,
+                        tx.signatures[inputIndex]
+                    )) {
+                    return false;
+                }
             }
             ++inputIndex;
         } else {
@@ -2297,7 +2299,7 @@ bool Blockchain::check_tx_input(
             << " mismatch with outputs keys count for inputs=" << output_keys.size();
         return false;
     }
-    if (m_is_in_checkpoint_zone) {
+    if (isInCheckpointZone(getCurrentBlockchainHeight())) {
         return true;
     }
 
@@ -2471,10 +2473,8 @@ bool Blockchain::update_next_cumulative_size_limit()
     return true;
 }
 
-bool Blockchain::addNewBlock(const Block &bl_, block_verification_context &bvc)
+bool Blockchain::addNewBlock(const Block &bl, block_verification_context &bvc)
 {
-    // copy block here to let modify block.target
-    Block bl = bl_;
     Crypto::Hash id;
     if (!get_block_hash(bl, id)) {
         logger(ERROR, BRIGHT_RED) << "Failed to get block hash, possible block has invalid format";
@@ -3279,7 +3279,7 @@ bool Blockchain::getGeneratedTransactionsNumber(uint32_t height, uint64_t &gener
 bool Blockchain::getOrphanBlockIdsByHeight(uint32_t height, std::vector<Crypto::Hash> &blockHashes)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    return m_orthanBlocksIndex.find(height, blockHashes);
+    return m_orphanBlocksIndex.find(height, blockHashes);
 }
 
 bool Blockchain::getBlockIdsByTimestamp(

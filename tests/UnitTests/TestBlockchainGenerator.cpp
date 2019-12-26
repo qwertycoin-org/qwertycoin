@@ -67,7 +67,7 @@ TestBlockchainGenerator::TestBlockchainGenerator(const CryptoNote::Currency& cur
   m_paymentIdIndex(true),
   m_timestampIndex(true),
   m_generatedTransactionsIndex(true),
-  m_orthanBlocksIndex(true) {
+  m_orphanBlocksIndex(true) {
   std::unique_lock<std::mutex> lock(m_mutex);
 
   miner_acc.generate();
@@ -316,7 +316,7 @@ bool TestBlockchainGenerator::addOrphan(const Crypto::Hash& hash, uint32_t heigh
   CryptoNote::Block block;
   uint64_t timestamp = time(NULL);
   generator.constructBlock(block, miner_acc, timestamp);
-  return m_orthanBlocksIndex.add(block);
+  return m_orphanBlocksIndex.add(block);
 }
 
 void TestBlockchainGenerator::setMinerAccount(const CryptoNote::AccountBase& account) {
@@ -328,7 +328,7 @@ bool TestBlockchainGenerator::getGeneratedTransactionsNumber(uint32_t height, ui
 }
 
 bool TestBlockchainGenerator::getOrphanBlockIdsByHeight(uint32_t height, std::vector<Crypto::Hash>& blockHashes) {
-  return m_orthanBlocksIndex.find(height, blockHashes);
+  return m_orphanBlocksIndex.find(height, blockHashes);
 }
 
 bool TestBlockchainGenerator::getBlockIdsByTimestamp(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t blocksNumberLimit, std::vector<Crypto::Hash>& hashes, uint32_t& blocksNumberWithinTimestamps) {
