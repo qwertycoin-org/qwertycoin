@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018-2019, The Qwertycoin Group.
+// Copyright (c) 2018-2020, The Qwertycoin Group.
 // Copyright (c) 2014-2018, The Monero project
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2016-2018, The Karbowanec developers
