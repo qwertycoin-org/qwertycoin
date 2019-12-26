@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2017-2018, The Karbo developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //

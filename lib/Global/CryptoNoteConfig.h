@@ -3,7 +3,7 @@
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2018, Ryo Currency Project
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //

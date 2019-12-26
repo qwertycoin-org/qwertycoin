@@ -2,7 +2,7 @@
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2018, The TurtleCoin developers
 // Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
+// Copyright (c) 2018-2019, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //
