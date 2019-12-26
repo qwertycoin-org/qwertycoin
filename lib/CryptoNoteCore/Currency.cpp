@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018-2019, The Qwertycoin developers
 // Copyright (c) 2016-2018  zawy12
 // Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2018-2019, The Qwertycoin developers
 //
 // This file is part of Qwertycoin.
 //
@@ -159,8 +159,10 @@ bool Currency::getBlockReward(
     medianSize = std::max(medianSize, blockGrantedFullRewardZone);
     if (currentBlockSize > medianSize * UINT64_C(2)) {
         logger(TRACE)
-            << "Block cumulative size is too big: " << currentBlockSize
-            << ", expected less than " << medianSize * UINT64_C(2);
+            << "Block cumulative size is too big: "
+            << currentBlockSize
+            << ", expected less than "
+            << medianSize * UINT64_C(2);
         return false;
     }
 
@@ -206,8 +208,7 @@ bool Currency::isGovernanceEnabled(uint32_t height) const
     if (height >= m_governanceHeightStart && height <= m_governanceHeightEnd) {
         return true;
     }
-    else
-    {
+    else {
         return false;
     }
 }
