@@ -221,25 +221,15 @@ uint64_t Currency::getGovernanceReward(uint64_t base_reward) const
 
 bool Currency::getGovernanceAddressAndKey(AccountKeys& governanceKeys) const
 {
-    std::string address;
-    std::string viewSecretkey;
-
-    if (isTestnet())
-    {
-        address = TESTNET_GOVERNANCE_WALLET_ADDRESS;
-        viewSecretkey = TESTNET_GOVERNANCE_VIEW_SECRET_KEY;
-    }
-    else
-    {
-        address = GOVERNANCE_WALLET_ADDRESS;
-        viewSecretkey = GOVERNANCE_VIEW_SECRET_KEY;
-    }
+    std::string address       = GOVERNANCE_WALLET_ADDRESS;
+    std::string viewSecretkey = GOVERNANCE_VIEW_SECRET_KEY;
 
     AccountPublicAddress governanceAddress = boost::value_initialized<AccountPublicAddress>();
     if (!parseAccountAddressString(address, governanceAddress)) {
         logger(Logging::ERROR)
             << "Failed to parse governance wallet address ("
-            << address << "), "
+            << address
+            << "), "
             << "Check /lib/Global/CryptoNoteConfig.h";
         return false;
     }

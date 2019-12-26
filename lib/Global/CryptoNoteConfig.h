@@ -157,7 +157,7 @@ const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.dat";
 const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.bin";
 const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json";
 
-/* Governance Fee and range */
+/* Governance Fee and range // The Qwertycoin Foundation */
 const uint16_t GOVERNANCE_PERCENT_FEE                        = 10; // 10 percent of base block reward
 const uint32_t GOVERNANCE_HEIGHT_START                       = 800000;
 const uint32_t GOVERNANCE_HEIGHT_END                         = 8000000;
@@ -229,11 +229,8 @@ const bool     P2P_MESSAGES                                  =  true;
 const uint16_t P2P_MESSAGES_CHAR_COUNT                       =  160;
 
 /* Governance Fee Wallets // The Qwertycoin Foundation */
-std::string const GOVERNANCE_WALLET_ADDRESS                  = ""; // TODO
-std::string const GOVERNANCE_VIEW_SECRET_KEY                 = ""; // TODO
-
-std::string const TESTNET_GOVERNANCE_WALLET_ADDRESS          = ""; // TODO
-std::string const TESTNET_GOVERNANCE_VIEW_SECRET_KEY         = ""; // TODO
+const std::string GOVERNANCE_WALLET_ADDRESS                  = "QWC1W9dWEf955q711Qn2fsLbw8fDW1AixUqZQiMCcHhkB59CivmxLPdXXDhkL2yfJkMBKiVWg7hgT3dP5RC5r8Q15kCNADeJ7x";
+const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "";
 
 const char *const SEED_NODES[] = {
     "node-00.qwertycoin.org:8196",
