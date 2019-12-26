@@ -25,9 +25,9 @@ using namespace CryptoNote;
 
 namespace {
 
-const uint64_t TEST_GRANTED_FULL_REWARD_ZONE = 10000;
+const uint64_t TEST_GRANTED_FULL_REWARD_ZONE = 1000000;
 const uint64_t TEST_MONEY_SUPPLY = static_cast<uint64_t>(-1);
-const uint64_t TEST_EMISSION_SPEED_FACTOR = 18;
+const uint64_t TEST_EMISSION_SPEED_FACTOR = 19;
 
 class getBlockReward_and_already_generated_coins : public ::testing::Test
 {

@@ -75,6 +75,10 @@ public:
     size_t minerTxBlobReservedSize() const { return m_minerTxBlobReservedSize; }
     uint64_t maxTransactionSizeLimit() const { return m_maxTransactionSizeLimit; }
 
+    uint32_t governancePercent() const { return m_governancePercent; }
+    uint32_t governanceHeightStart() const { return m_governanceHeightStart; }
+    uint32_t governanceHeightEnd() const { return m_governanceHeightEnd; }
+
     size_t minMixin() const { return m_minMixin; }
     size_t maxMixin() const { return m_maxMixin; }
 
@@ -245,6 +249,10 @@ public:
         size_t outputCount,
         size_t mixinCount) const;
 
+    bool isGovernanceEnabled(uint32_t height) const;
+    bool getGovernanceAddressAndKey(AccountKeys& m_account_keys) const;
+    uint64_t getGovernanceReward(uint64_t base_reward) const;
+
     static const std::vector<uint64_t> PRETTY_AMOUNTS;
 
 private:
@@ -284,6 +292,10 @@ private:
     uint64_t m_coin;
 
     uint64_t m_minimumFee;
+
+    uint32_t m_governancePercent; 
+    uint32_t m_governanceHeightStart;
+    uint32_t m_governanceHeightEnd;
 
     size_t m_minMixin;
     size_t m_maxMixin;
@@ -428,6 +440,22 @@ public:
     CurrencyBuilder &maxTransactionSizeLimit(uint64_t val)
     {
         m_currency.m_maxTransactionSizeLimit = val;
+        return *this;
+    }
+
+    CurrencyBuilder& governancePercent(uint32_t val)
+    {
+        m_currency.m_governancePercent = val;
+        return *this;
+    }
+    CurrencyBuilder& governanceHeightStart(uint32_t val) 
+    {
+        m_currency.m_governanceHeightStart = val;
+        return *this;
+    }
+    CurrencyBuilder& governanceHeightEnd(uint32_t val)
+    {
+        m_currency.m_governanceHeightEnd = val;
         return *this;
     }
 
