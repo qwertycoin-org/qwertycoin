@@ -222,7 +222,7 @@ Cryptonote Developers, Bytecoin Developers, Monero Developers, Karbo Developers,
 Hi Qwertycoin contributor, thanks for forking and sending back Pull Requests. Extensive docs about contributing are in the works or elsewhere. For now this is the bit we need to get into all the files we touch. Please add it to the top of the files, see [src/config/CryptoNoteConfig.h](https://github.com/qwertycoin-org/qwertycoin/blob/master/src/config/CryptoNoteConfig.h) for an example.
 
 ```
-# Copyright 2018-2019 (c) The Qwertycoin Group.
+# Copyright 2018-2020 (c) The Qwertycoin Group.
 # Licensed under the GNU General Public License, Version 3.
 # See the file LICENSE from this package for details.
 ```
