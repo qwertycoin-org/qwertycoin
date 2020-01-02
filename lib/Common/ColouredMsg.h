@@ -1,6 +1,6 @@
 // Copyright (c) 2018, The TurtleCoin Developers
 // Copyright (c) 2018-2019, The Karbo Developers
-// Copyright (c) 2019, The Qwertycoin Developers
+// Copyright (c) 2019, The Qwertycoin Group.
 // 
 // Please see the included LICENSE file for more information.
 

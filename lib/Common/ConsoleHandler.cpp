@@ -2,6 +2,8 @@
 // Copyright (c) 2014-2016 XDN developers
 // Copyright (c) 2006-2013 Andrey N.Sabelnikov, www.sabelnikov.net
 // Copyright (c) 2016-2017 The Karbowanec developers
+// Copyright (c) 2018-2020, The Qwertycoin Group.
+//
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
