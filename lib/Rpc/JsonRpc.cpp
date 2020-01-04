@@ -60,10 +60,18 @@ JsonRpcError::JsonRpcError(int c, const std::string &msg)
 {
 }
 
-void invokeJsonRpcCommand(HttpClient &httpClient, JsonRpcRequest &jsReq, JsonRpcResponse &jsRes)
+void invokeJsonRpcCommand(HttpClient &httpClient,
+                          JsonRpcRequest &jsReq,
+                          JsonRpcResponse &jsRes,
+                          const std::string &user,
+                          const std::string &password)
 {
     HttpRequest httpReq;
     HttpResponse httpRes;
+
+    if (!user.empty() || !password.empty()) {
+        httpReq.addHeader("Authorization", "Basic " + Tools::Base64::encode(user + ":" + password));
+    }
 
     httpReq.addHeader("Content-Type", "application/json");
     httpReq.setUrl("/json_rpc");
