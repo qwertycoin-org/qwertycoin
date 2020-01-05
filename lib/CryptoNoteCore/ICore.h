@@ -217,6 +217,8 @@ public:
     virtual bool removeMessageQueue(MessageQueue<BlockchainMessage> &messageQueue) = 0;
 
     virtual void rollbackBlockchain(const uint32_t height) = 0;
+
+    virtual bool saveBlockchain() = 0;
 };
 
 } // namespace CryptoNote

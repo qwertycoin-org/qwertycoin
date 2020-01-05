@@ -2154,4 +2154,9 @@ void core::rollbackBlockchain(uint32_t height)
     m_blockchain.rollbackBlockchainTo(height);
 }
 
+bool core::saveBlockchain()
+{
+    return m_blockchain.storeCache();
+}
+
 } // namespace CryptoNote

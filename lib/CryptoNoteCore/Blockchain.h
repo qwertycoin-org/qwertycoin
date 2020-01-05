@@ -238,6 +238,9 @@ public:
     void rollbackBlockchainTo(uint32_t height);
     bool have_tx_keyimg_as_spent(const Crypto::KeyImage &key_im);
 
+    void rebuildCache();
+    bool storeCache();
+
 private:
     struct MultisignatureOutputUsage
     {
@@ -333,8 +336,6 @@ private:
 
     Logging::LoggerRef logger;
 
-    void rebuildCache();
-    bool storeCache();
     bool switch_to_alternative_blockchain(
         std::list<blocks_ext_by_hash::iterator> &alt_chain,
         bool discard_disconnected_chain);

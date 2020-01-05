@@ -182,6 +182,12 @@ DaemonCommandsHandler::DaemonCommandsHandler(
         boost::bind(&DaemonCommandsHandler::status, this, _1),
         "Show daemon status"
     );
+
+    m_consoleHandler.setHandler(
+        "save",
+        boost::bind(&DaemonCommandsHandler::save, this, _1),
+        "Store blockchain"
+    );
 }
 
 std::string DaemonCommandsHandler::get_commands_str()
@@ -620,4 +626,9 @@ bool DaemonCommandsHandler::unban(const std::vector<std::string> &args)
         return false;
     }
     return m_srv.unban_host(ip);
+}
+
+bool DaemonCommandsHandler::save(const std::vector<std::string>& args)
+{
+    return m_core.saveBlockchain();
 }
