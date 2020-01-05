@@ -25,6 +25,7 @@
 #include <Common/CommandLine.h>
 #include <Common/JsonValue.h>
 #include <Common/StringTools.h>
+#include <Global/Constants.h>
 #include <Logging/LoggerRef.h>
 #include <Logging/ConsoleLogger.h>
 #include <Rpc/HttpClient.h>
@@ -38,6 +39,7 @@ using Common::JsonValue;
 using namespace Logging;
 using namespace CryptoNote;
 using namespace PaymentService;
+using namespace Qwertycoin;
 
 #ifndef ENDL
 #define ENDL std::endl
@@ -54,7 +56,7 @@ namespace {
     const command_line::arg_descriptor<uint16_t>    arg_interval  = {"interval", "polling interval in seconds. Default: 5. Minimum: 1. Maximum: 120.", 5, true};
     const command_line::arg_descriptor<uint16_t>    arg_duration  = {"duration", "maximum execution time, in minutes. Default: 0 (unlimited)", 0, true};
     const command_line::arg_descriptor<uint64_t>    arg_threshold = {"threshold", "Only outputs lesser than the threshold value will be included into optimization. Default: 100000000000000 (do not use decimal point)", DEFAULT_THRESHOLD, true};
-    const command_line::arg_descriptor<uint16_t>    arg_anonimity = {"anonymity", "Privacy level. Higher values give more privacy but bigger transactions. Default: 6", 6, true};
+    const command_line::arg_descriptor<uint16_t>    arg_anonimity = {"anonymity", "Privacy level. Higher values give more privacy but bigger transactions. Default: 3", 3, true};
     const command_line::arg_descriptor<bool>        arg_preview   = {"preview", "print on screen what it would be doing, but not really doing it", false, true};
     Logging::ConsoleLogger log;
     Logging::LoggerRef logger(log, "optimizer");
@@ -83,7 +85,11 @@ bool validAddress(po::variables_map& vm, const std::string& address)
             JsonRpc::invokeJsonRpcCommand(httpClient, "getBalance", req, res);
         }
     } catch (const std::exception& e) {
-        logger(ERROR, RED) << "Failed to connect to walletd: " << e.what() << ENDL;
+        logger(ERROR, RED)
+            << getProjectCLIHeader() << ENDL
+            << "Failed to connect to walletd: "
+            << e.what()
+            << ENDL;
         return false;
     }
 
@@ -110,7 +116,11 @@ std::vector<std::string> getWalletsAddresses(po::variables_map& vm) {
             JsonRpc::invokeJsonRpcCommand(httpClient, "getAddresses", req, res);
             }
         } catch (const std::exception& e) {
-            logger(ERROR, RED) << "Failed to connect to walletd: " << e.what() << ENDL;
+            logger(ERROR, RED)
+                << getProjectCLIHeader() << ENDL
+                << "Failed to connect to walletd: "
+                << e.what()
+                << ENDL;
         }
 
         containerAddresses = res.addresses;
@@ -141,7 +151,10 @@ bool isWalletEligible(po::variables_map& vm, std::string address)
         }
     }
     catch (const std::exception& e) {
-        logger(ERROR, RED) << "Failed to connect to walletd: " << e.what() << ENDL;
+        logger(ERROR, RED)
+            << getProjectCLIHeader() << ENDL
+            << "Failed to connect to walletd: "
+            << e.what() << ENDL;
         return false;
     }
 
@@ -182,7 +195,10 @@ bool optimizeWallet(po::variables_map &vm, std::string address)
             JsonRpc::invokeJsonRpcCommand(httpClient, "sendFusionTransaction", req, res);
         }
     } catch (const std::exception& e) {
-        logger(ERROR, RED) << "Failed in wallet: " << address << " due to: " << e.what() << ENDL;
+        logger(ERROR, RED)
+            << getProjectCLIHeader() << ENDL
+            << "Failed in wallet: " << address
+            << " due to: " << e.what() << ENDL;
         return false;
     }
 
@@ -271,7 +287,10 @@ bool canConnect(po::variables_map &vm)
             JsonRpc::invokeJsonRpcCommand(httpClient, "getStatus", req, res);
         }
     } catch (const std::exception &e) {
-        logger(ERROR, RED) << "Failed to connect to walletd: " << e.what();
+        logger(ERROR, RED)
+            << getProjectCLIHeader() << ENDL
+            << "Failed to connect to walletd: "
+            << e.what() << ENDL;
         return false;
     }
 
@@ -340,11 +359,10 @@ int main(int argc, char *argv[])
     bool r = command_line::handle_error_helper(desc_all, [&]() {
     po::store(command_line::parse_command_line(argc, argv, desc_general, true), vm);
     if (command_line::get_arg(vm, command_line::arg_help)) {
-        std::cout << "Optimizer Copyright (C) 2019  Helder Garcia <helder.garcia@gmail.com>" << ENDL;
-        std::cout << "This program comes with ABSOLUTELY NO WARRANTY;" << ENDL;
-        std::cout << "This is free software, and you are welcome to redistribute it" << ENDL;
-        std::cout << "under certain conditions see <https://www.gnu.org/licenses/>." << ENDL;
-        std::cout << desc_all << ENDL;
+        std::cout
+            << getProjectCLIHeader() << ENDL
+            << "Optimizer Copyright (C) 2019 Helder Garcia <helder.garcia@gmail.com>" << ENDL
+            << desc_all << ENDL;
 
         return false;
     }

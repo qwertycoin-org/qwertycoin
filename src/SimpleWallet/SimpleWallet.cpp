@@ -103,6 +103,7 @@
 
 using namespace CryptoNote;
 using namespace Logging;
+using namespace Qwertycoin;
 using Common::JsonValue;
 
 namespace po = boost::program_options;
@@ -1396,14 +1397,14 @@ bool simple_wallet::init(const boost::program_options::variables_map &vm)
     }
 
     if (m_generate_new.empty() && m_wallet_file_arg.empty()) {
-        std::cout << "Neither 'generate-new-wallet' nor 'wallet-file' argument was specified.\nWhat do you want to do?\n";
-        std::cout << "What do you want to do?\n";
-        std::cout << "O - open wallet\n";
-        std::cout << "G - generate new wallet\n";
-        std::cout << "I - import wallet from keys\n";
-        std::cout << "R - restore backup/paperwallet\n";
-        std::cout << "T - import tracking wallet\n";
-        std::cout << "E - exit\n";
+        std::cout << " Neither 'generate-new-wallet' nor 'wallet-file' argument was specified.\n";
+        std::cout << " What do you want to do?\n";
+        std::cout << " O - open wallet\n";
+        std::cout << " G - generate new wallet\n";
+        std::cout << " I - import wallet from keys\n";
+        std::cout << " R - restore backup/paperwallet\n";
+        std::cout << " T - import tracking wallet\n";
+        std::cout << " E - exit\n";
 
         char c;
         do {
@@ -3400,7 +3401,8 @@ int main(int argc, char *argv[])
 
     logManager.configure(buildLoggerConfiguration(logLevel, cfgLogFile));
 
-    logger(INFO, BRIGHT_WHITE) << CRYPTONOTE_NAME << " wallet v" << PROJECT_VERSION_LONG;
+    logger(INFO, BRIGHT_WHITE)
+        << getProjectCLIHeader() << std::endl;
 
     auto builder = command_line::get_arg(vm, arg_testnet);
     auto currency = CryptoNote::CurrencyBuilder(logManager).testnet(builder).currency();
