@@ -19,7 +19,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <boost/scope_exit.hpp>
-#include <Common/Base64.h>
+#include <Common/StringTools.h>
 #include <Http/HttpParser.h>
 #include <Rpc/HttpServer.h>
 #include <System/InterruptedException.h>
@@ -58,7 +58,7 @@ void HttpServer::start(const std::string &address,
     workingContextGroup.spawn(std::bind(&HttpServer::acceptLoop, this));
 
     if (!user.empty() || !password.empty()) {
-        m_credentials = Tools::Base64::encode(user + ":" + password);
+        m_credentials = Common::base64Decode(user + ":" + password);
     }
 }
 

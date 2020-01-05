@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <Common/Base64.h>
+#include <Common/StringTools.h>
 #include <CryptoNoteCore/TransactionPool.h>
 #include <Rpc/HttpClient.h>
 #include <Rpc/JsonRpc.h>
@@ -71,7 +71,7 @@ void invokeJsonRpcCommand(HttpClient &httpClient,
     HttpResponse httpRes;
 
     if (!user.empty() || !password.empty()) {
-        httpReq.addHeader("Authorization", "Basic " + Tools::Base64::encode(user + ":" + password));
+        httpReq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
     }
 
     httpReq.addHeader("Content-Type", "application/json");

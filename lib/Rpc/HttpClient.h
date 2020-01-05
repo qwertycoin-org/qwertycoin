@@ -19,7 +19,7 @@
 #pragma once
 
 #include <memory>
-#include <Common/Base64.h>
+#include <Common/StringTools.h>
 #include <Http/HttpRequest.h>
 #include <Http/HttpResponse.h>
 #include <Rpc/JsonRpc.h>
@@ -72,7 +72,7 @@ void invokeJsonCommand(HttpClient &cli,
 
     hreq.addHeader("Content-Type", "application/json");
     if (!user.empty() || !password.empty()) {
-        hreq.addHeader("Authorization", "Basic " + Tools::Base64::encode(user + ":" + password));
+        hreq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
     }
     hreq.setUrl(url);
     hreq.setBody(storeToJson(req));
@@ -106,7 +106,7 @@ void invokeJsonRpcCommand(HttpClient &cli,
 
         httpReq.addHeader("Content-Type", "application/json");
         if (!user.empty() || !password.empty()) {
-            httpReq.addHeader("Authorization", "Basic " + Tools::Base64::encode(user + ":" + password));
+            httpReq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
         }
         httpReq.setUrl("/json_rpc");
         httpReq.setBody(jsReq.getBody());
@@ -141,7 +141,7 @@ void invokeBinaryCommand(HttpClient &cli,
     HttpResponse hres;
 
     if (!user.empty() || !password.empty()) {
-        hreq.addHeader("Authorization", "Basic " + Tools::Base64::encode(user + ":" + password));
+        hreq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
     }
     hreq.setUrl(url);
     hreq.setBody(storeToBinaryKeyValue(req));
