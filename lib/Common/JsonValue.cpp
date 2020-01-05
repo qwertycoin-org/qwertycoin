@@ -654,8 +654,7 @@ JsonValue JsonValue::fromString(const std::string &source)
     return jsonValue;
 }
 
-JsonValue JsonValue::fromStringWithWhiteSpaces(const std::string& source)
-{
+JsonValue JsonValue::fromStringWithWhiteSpaces(const std::string &source) {
     JsonValue jsonValue;
     std::istringstream stream(source);
     stream >> std::noskipws >> jsonValue;

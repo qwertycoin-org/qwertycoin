@@ -19,7 +19,6 @@
 #pragma once
 
 #include <memory>
-
 #include <Common/Base64.h>
 #include <Http/HttpRequest.h>
 #include <Http/HttpResponse.h>
@@ -61,7 +60,12 @@ private:
 };
 
 template <typename Request, typename Response>
-void invokeJsonCommand(HttpClient& cli, const std::string& url, const Request& req, Response& res, const std::string& user = "", const std::string& password = "")
+void invokeJsonCommand(HttpClient &cli,
+                       const std::string &url,
+                       const Request &req,
+                       Response &res,
+                       const std::string &user = "",
+                       const std::string &password = "")
 {
     HttpRequest hreq;
     HttpResponse hres;
@@ -84,15 +88,14 @@ void invokeJsonCommand(HttpClient& cli, const std::string& url, const Request& r
 }
 
 template <typename Request, typename Response>
-void invokeJsonRpcCommand(HttpClient& cli,
-                          const std::string& method,
-                          const Request& req,
-                          Response& res,
-                          const std::string& user = "",
-                          const std::string& password = "")
+void invokeJsonRpcCommand(HttpClient &cli,
+                          const std::string &method,
+                          const Request &req,
+                          Response &res,
+                          const std::string &user = "",
+                          const std::string &password = "")
 {
     try {
-
         JsonRpc::JsonRpcRequest jsReq;
 
         jsReq.setMethod(method);
@@ -127,12 +130,12 @@ void invokeJsonRpcCommand(HttpClient& cli,
 }
 
 template <typename Request, typename Response>
-void invokeBinaryCommand(HttpClient& cli,
-                        const std::string& url,
-                        const Request& req,
-                        Response& res,
-                        const std::string& user = "",
-                        const std::string& password = "") 
+void invokeBinaryCommand(HttpClient &cli,
+                         const std::string &url,
+                         const Request &req,
+                         Response &res,
+                         const std::string &user = "",
+                         const std::string &password = "")
 {
     HttpRequest hreq;
     HttpResponse hres;
@@ -140,7 +143,6 @@ void invokeBinaryCommand(HttpClient& cli,
     if (!user.empty() || !password.empty()) {
         hreq.addHeader("Authorization", "Basic " + Tools::Base64::encode(user + ":" + password));
     }
-
     hreq.setUrl(url);
     hreq.setBody(storeToBinaryKeyValue(req));
     cli.request(hreq, hres);

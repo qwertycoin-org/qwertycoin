@@ -209,7 +209,6 @@ private:
     Common::JsonValue psResp;
 };
 
-
 void invokeJsonRpcCommand(HttpClient &httpClient,
                           JsonRpcRequest &req,
                           JsonRpcResponse &res,

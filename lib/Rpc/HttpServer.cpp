@@ -19,7 +19,6 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <boost/scope_exit.hpp>
-
 #include <Common/Base64.h>
 #include <Http/HttpParser.h>
 #include <Rpc/HttpServer.h>
