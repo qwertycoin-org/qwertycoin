@@ -1,17 +1,16 @@
 ![image](https://cdn.qwertycoin.org/images/press/other/qwc-github-3.png)
 #### Master Build Status
-![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=master)
+[![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=master)](https://github.com/qwertycoin-org/qwertycoin/actions)
 
-[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=master)](https://travis-ci.org/qwertycoin-org/qwertycoin)
-[![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/master?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/master) [![codecov](https://codecov.io/gh/qwertycoin-org/qwertycoin/branch/master/graph/badge.svg)](https://codecov.io/gh/qwertycoin-org/qwertycoin)
-
+[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=master)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/master?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/master) 
 
 
 #### Development Build Status
-![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=dev)
+[![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=dev)](https://github.com/qwertycoin-org/qwertycoin/actions)
 
-[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=dev)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/dev?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/dev) [![codecov](https://codecov.io/gh/qwertycoin-org/qwertycoin/branch/dev/graph/badge.svg)](https://codecov.io/gh/qwertycoin-org/qwertycoin)
+[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=dev)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/dev?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/dev)
 
+[![codecov](https://codecov.io/gh/qwertycoin-org/qwertycoin/branch/master/graph/badge.svg)](https://codecov.io/gh/qwertycoin-org/qwertycoin)
 
 # Table of contents
 1. [Project Specs](#coinspecs)
@@ -30,6 +29,17 @@
 We offer binary images of the latest releases here: https://releases.qwertycoin.org
 
 If you would like to compile yourself, read on.
+
+### Downloads <a name="downloads"></a>
+| Operating System   | Download                                 |
+| ----------------   | ---------------------------------------- |
+| Windows 32         | https://releases.qwertycoin.org/get/cli/latest/win32 |
+| Windows 64         | https://releases.qwertycoin.org/get/cli/latest/win64 |
+| macOS 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
+| Linux DEB          | https://releases.qwertycoin.org/get/cli/latest/linux/deb |
+| Linux RPM          | https://releases.qwertycoin.org/get/cli/latest/linux/rpm |
+| Android            | https://releases.qwertycoin.org/get/cli/latest/arm64 |
+| Other platforms    | https://releases.qwertycoin.org |
 
 ### Coin Specs <a name="coinspecs"></a>
 <table>
@@ -188,17 +198,6 @@ XMR: 47gmN4GMQ17Veur5YEpru7eCQc5A65DaWUThZa9z9bP6jNMYXPKAyjDcAW4RzNYbRChEwnKu1H3
 ```
 ETN: etnkJXJFqiH9FCt6Gq2HWHPeY92YFsmvKX7qaysvnV11M796Xmovo2nSu6EUCMnniqRqAhKX9AQp31GbG3M2DiVM3qRDSQ5Vwq
 ```
-
-### Downloads <a name="downloads"></a>
-| Operating System | Download                                 |
-| ---------------- | ---------------------------------------- |
-| Windows 32       | https://releases.qwertycoin.org/get/cli/latest/win32 |
-| Windows 64       | https://releases.qwertycoin.org/get/cli/latest/win64 |
-| macOS 10.8 & Later | https://releases.qwertycoin.org/get/cli/latest/macos |
-| Linux DEB         | https://releases.qwertycoin.org/get/cli/latest/linux/deb |
-| Linux RPM         | https://releases.qwertycoin.org/get/cli/latest/linux/rpm |
-| Android    | https://releases.qwertycoin.org/get/cli/latest/arm64 |
-| Other platforms      | https://releases.qwertycoin.org |
 
 ### Useful Links <a name="usefullinks"></a>
 <table>
