@@ -216,7 +216,7 @@ jobs:
         run: |
             mkdir build
             cd build
-            cmake -G "Visual Studio 15 2019" -A x64 -DBUILD_ALL:BOOL=TRUE -DARCH=default ..
+            cmake -G "Visual Studio 16 2019" -A x64 -DBUILD_ALL:BOOL=TRUE -DARCH=default ..
 
       # Build for Windows
       - name: Build
