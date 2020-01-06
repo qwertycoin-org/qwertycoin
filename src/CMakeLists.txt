@@ -12,6 +12,7 @@ add_dependencies(QwertycoinTools
     QwertycoinTools::ConnectivityTool
     QwertycoinTools::Daemon
     QwertycoinTools::Miner
+    QwertycoinTools::Optimizer
     QwertycoinTools::PaymentGateService
     QwertycoinTools::SimpleWallet
 )
@@ -126,6 +127,41 @@ target_include_directories(QwertycoinTools_Miner PRIVATE ${QwertycoinTools_INCLU
 target_link_libraries(QwertycoinTools_Miner PRIVATE ${QwertycoinTools_Miner_LIBS})
 set_target_properties(QwertycoinTools_Miner PROPERTIES OUTPUT_NAME "miner")
 
+# QwertycoinTools::Optimizer
+
+set(QwertycoinTools_Optimizer_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Optimizer/Optimizer.cpp"
+)
+
+if(WIN32)
+    list(APPEND QwertycoinTools_Optimizer_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/BinaryInfo/optimizer.rc"
+    )
+endif()
+
+set(QwertycoinTools_Optimizer_LIBS
+    Boost::filesystem
+    Boost::program_options
+    QwertycoinFramework::Breakpad
+    QwertycoinFramework::Common
+    QwertycoinFramework::CryptoNoteCore
+    QwertycoinFramework::Global
+    QwertycoinFramework::InProcessNode
+    QwertycoinFramework::Logging
+    QwertycoinFramework::Rpc
+    QwertycoinFramework::System
+)
+
+if(WIN32)
+    list(APPEND QwertycoinTools_Optimizer_LIBS ws2_32)
+endif()
+
+add_executable(QwertycoinTools_Optimizer ${QwertycoinTools_Optimizer_SOURCES})
+add_executable(QwertycoinTools::Optimizer ALIAS QwertycoinTools_Optimizer)
+target_include_directories(QwertycoinTools_Optimizer PRIVATE ${QwertycoinTools_INCLUDE_DIRS})
+target_link_libraries(QwertycoinTools_Optimizer ${QwertycoinTools_Optimizer_LIBS})
+set_target_properties(QwertycoinTools_Optimizer PROPERTIES OUTPUT_NAME "optimizer")
+
 # QwertycoinTools::PaymentGateService
 
 set(QwertycoinTools_PaymentGateService_SOURCES
@@ -209,6 +245,7 @@ install(TARGETS
             QwertycoinTools_ConnectivityTool
             QwertycoinTools_Daemon
             QwertycoinTools_Miner
+            QwertycoinTools_Optimizer
             QwertycoinTools_PaymentGateService
             QwertycoinTools_SimpleWallet
         RUNTIME DESTINATION bin

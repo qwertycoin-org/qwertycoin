@@ -19,8 +19,10 @@
 #pragma once
 
 #include <memory>
+#include <Common/StringTools.h>
 #include <Http/HttpRequest.h>
 #include <Http/HttpResponse.h>
+#include <Rpc/JsonRpc.h>
 #include <Serialization/SerializationTools.h>
 #include <System/TcpConnection.h>
 #include <System/TcpStream.h>
@@ -58,12 +60,20 @@ private:
 };
 
 template <typename Request, typename Response>
-void invokeJsonCommand(HttpClient &cli, const std::string &url, const Request &req, Response &res)
+void invokeJsonCommand(HttpClient &cli,
+                       const std::string &url,
+                       const Request &req,
+                       Response &res,
+                       const std::string &user = "",
+                       const std::string &password = "")
 {
     HttpRequest hreq;
     HttpResponse hres;
 
     hreq.addHeader("Content-Type", "application/json");
+    if (!user.empty() || !password.empty()) {
+        hreq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
+    }
     hreq.setUrl(url);
     hreq.setBody(storeToJson(req));
     cli.request(hreq, hres);
@@ -78,11 +88,61 @@ void invokeJsonCommand(HttpClient &cli, const std::string &url, const Request &r
 }
 
 template <typename Request, typename Response>
-void invokeBinaryCommand(HttpClient& cli, const std::string& url, const Request& req, Response& res)
+void invokeJsonRpcCommand(HttpClient &cli,
+                          const std::string &method,
+                          const Request &req,
+                          Response &res,
+                          const std::string &user = "",
+                          const std::string &password = "")
+{
+    try {
+        JsonRpc::JsonRpcRequest jsReq;
+
+        jsReq.setMethod(method);
+        jsReq.setParams(req);
+
+        HttpRequest httpReq;
+        HttpResponse httpRes;
+
+        httpReq.addHeader("Content-Type", "application/json");
+        if (!user.empty() || !password.empty()) {
+            httpReq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
+        }
+        httpReq.setUrl("/json_rpc");
+        httpReq.setBody(jsReq.getBody());
+
+        cli.request(httpReq, httpRes);
+
+        JsonRpc::JsonRpcResponse jsRes;
+
+        //if (httpRes.getStatus() == HttpResponse::STATUS_200) {
+        jsRes.parse(httpRes.getBody());
+        if (!jsRes.getResult(res)) {
+            throw std::runtime_error("HTTP status: " + std::to_string(httpRes.getStatus()));
+        }
+        //}
+
+    } catch (const ConnectException&) {
+        throw std::runtime_error("HTTP status: CONNECT_ERROR");
+    } catch (const std::exception&) {
+        throw std::runtime_error("HTTP status: NETWORK_ERROR");
+    }
+}
+
+template <typename Request, typename Response>
+void invokeBinaryCommand(HttpClient &cli,
+                         const std::string &url,
+                         const Request &req,
+                         Response &res,
+                         const std::string &user = "",
+                         const std::string &password = "")
 {
     HttpRequest hreq;
     HttpResponse hres;
 
+    if (!user.empty() || !password.empty()) {
+        hreq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
+    }
     hreq.setUrl(url);
     hreq.setBody(storeToBinaryKeyValue(req));
     cli.request(hreq, hres);
