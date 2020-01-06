@@ -69,14 +69,14 @@ jobs:
             CXX: ${{ matrix.cxx }}
         run: |
             mkdir build && cd build
-            cmake -DARCH=default -DCMAKE_BUILD_TYPE=Release -DSTATIC=true ..
+            cmake -DBUILD_ALL:BOOL=TRUE ..
 
       # Build for linux
       - name: Build
         if: matrix.build_name != 'aarch64'
         run: |
             cd build
-            make -j2
+            cmake --build . --config Release
 
       # Prepare for deploy
       - name: Prepare for Deploy
@@ -91,7 +91,7 @@ jobs:
             rm -rf qwertycoin-${TAG}
             mkdir qwertycoin-${TAG}
             cp ${TARGETS} qwertycoin-${TAG}/
-            cp ../../LICENSE qwertycoin-${TAG}/
+            cp ../../LICENSE.txt qwertycoin-${TAG}/
             tar cvfz qwertycoin-${LABEL}-${TAG}.tar.gz qwertycoin-${TAG}/
             echo ::set-output name=binary_path::qwertycoin-${TAG}
             echo ::set-output name=artifact_name::qwertycoin-${LABEL}-${TAG}
@@ -145,13 +145,13 @@ jobs:
       - name: Configure
         run: |
             mkdir build && cd build
-            cmake -DARCH=default -DCMAKE_BUILD_TYPE=Release -DSTATIC=true ..
+            cmake -DBUILD_ALL:BOOL=TRUE ..
 
       # Build for macOS
       - name: Build
         run: |
             cd build
-            make -j2
+            cmake --build . --config Release
 
       # Prepare for deploy
       - name: Prepare for Deploy
@@ -166,7 +166,7 @@ jobs:
             rm -rf qwertycoin-${TAG}
             mkdir qwertycoin-${TAG}
             cp ${TARGETS} qwertycoin-${TAG}/
-            cp ../../LICENSE qwertycoin-${TAG}/
+            cp ../../LICENSE.txt qwertycoin-${TAG}/
             tar cvfz qwertycoin-${LABEL}-${TAG}.tar.gz qwertycoin-${TAG}/
             echo ::set-output name=binary_path::qwertycoin-${TAG}
             echo ::set-output name=artifact_name::qwertycoin-${LABEL}-${TAG}
@@ -238,7 +238,7 @@ jobs:
             rm -rf qwertycoin-${TAG}
             mkdir qwertycoin-${TAG}
             cp *.exe qwertycoin-${TAG}/
-            cp ../../../LICENSE qwertycoin-${TAG}/
+            cp ../../../LICENSE.txt qwertycoin-${TAG}/
             7z a qwertycoin-${LABEL}-${TAG}.zip qwertycoin-${TAG}/
             echo ::set-output name=binary_path::qwertycoin-${TAG}
             echo ::set-output name=artifact_name::qwertycoin-${LABEL}-${TAG}
