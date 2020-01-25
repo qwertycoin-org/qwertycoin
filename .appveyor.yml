@@ -1,4 +1,4 @@
-os: Visual Studio 2017
+os: Visual Studio 2019
 
 clone_depth: 100
 
@@ -11,14 +11,14 @@ environment:
         BOOST_LIBRARYDIR: "C:/Libraries/boost_1_70_0/lib64-msvc-14.1"
     matrix:
         - Purpose: "WindowsDebugBuild"
-          QWC_GENERATOR_NAME: "Visual Studio 15 2017 Win64"
+          QWC_GENERATOR_NAME: "Visual Studio 16 2019"
           QWC_BUILD_TYPE: "Debug"
-          QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-15-2017-win64.cmake"
+          QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-16-2019-win64.cmake"
           QWC_TESTS_REGEXP: "NONE"
         - Purpose: "WindowsReleaseBuild"
-          QWC_GENERATOR_NAME: "Visual Studio 15 2017 Win64"
+          QWC_GENERATOR_NAME: "Visual Studio 16 2019"
           QWC_BUILD_TYPE: "Release"
-          QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-15-2017-win64.cmake"
+          QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-16-2019-win64.cmake"
           QWC_TESTS_REGEXP: "NONE"
 
 install:

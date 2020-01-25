@@ -4,7 +4,7 @@ matrix:
     include:
         - name: "Android, Debug"
           os: linux
-          dist: xenial
+          dist: bionic
           sudo: required
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
@@ -13,7 +13,7 @@ matrix:
               - CTEST_REGEXP="NONE"
         - name: "Android, Release"
           os: linux
-          dist: xenial
+          dist: bionic
           sudo: required
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
@@ -22,37 +22,37 @@ matrix:
               - CTEST_REGEXP="NONE"
         - name: "Linux, Debug"
           os: linux
-          dist: xenial
+          dist: bionic
           sudo: required
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
-              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-8-cxx17.cmake
               - CTEST_REGEXP="Tests$"
         - name: "Linux, Release"
           os: linux
-          dist: xenial
+          dist: bionic
           sudo: required
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
-              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-cxx14-c11.cmake
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-8-cxx17.cmake
               - CTEST_REGEXP="Tests$"
         - name: "macOS, Debug"
           os: osx
-          osx_image: xcode10.2
+          osx_image: xcode11.3
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Debug"
-              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx17.cmake
               - CTEST_REGEXP="Tests$"
         - name: "macOS, Release"
           os: osx
-          osx_image: xcode10.2
+          osx_image: xcode11.3
           env:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
-              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx14.cmake
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx17.cmake
               - CTEST_REGEXP="Tests$"
 
 env:
@@ -69,6 +69,8 @@ addons:
             - wget
             - lcov
             - rpm
+            - gcc-8
+            - g++-8
         sources:
             - ubuntu-toolchain-r-test
     homebrew: # macOS
@@ -93,6 +95,11 @@ before_install:
         fi
 
 script:
+    - |
+        if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+            export CC=gcc-8
+            export CXX=g++-8
+        fi
     - mkdir ./build && cd ./build
     - >
         cmake -G "$CMAKE_GENERATOR_NAME"
