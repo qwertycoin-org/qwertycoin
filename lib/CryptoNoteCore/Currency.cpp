@@ -149,7 +149,6 @@ bool Currency::getBlockReward(
     assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
     
     // Consistency
-
     double consistency = 1.0;
     double exponent = 0.25; 
     if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME && difficultyTarget() != 0) {
@@ -170,7 +169,6 @@ bool Currency::getBlockReward(
     }  
         
     // Tail emission
-
     uint64_t baseReward = ((m_moneySupply - alreadyGeneratedCoins) >> m_emissionSpeedFactor) * consistency;
     if (alreadyGeneratedCoins + CryptoNote::parameters::TAIL_EMISSION_REWARD >= m_moneySupply
         || baseReward < CryptoNote::parameters::TAIL_EMISSION_REWARD) {
