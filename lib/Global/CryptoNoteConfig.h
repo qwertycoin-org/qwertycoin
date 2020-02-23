@@ -102,7 +102,7 @@ const uint64_t MIN_TX_MIXIN_SIZE_V3                           = 3;
 const uint64_t MAX_TX_MIXIN_SIZE_V3                           = 3;
 
 /* The heights to activate the mixin limits at */
-const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200000;
+const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200; //200000;
 const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 1000000;
 const uint32_t MIXIN_LIMITS_V3_HEIGHT                         = 1200000;
 
@@ -195,7 +195,7 @@ const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
 
 // P2P Network Configuration Section - This defines our current P2P network version
 // and the minimum version for communication between nodes
-const uint8_t  P2P_CURRENT_VERSION                           = 5;
+const uint8_t  P2P_CURRENT_VERSION                           = 1;
 const uint8_t  P2P_MINIMUM_VERSION                           = 1;
 
 // This defines the number of versions ahead we must see peers before we start displaying
@@ -219,7 +219,7 @@ const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4734950f414cdb332b28c5ce764beaf";
 
 const char        LATEST_VERSION_URL[]                       = "https://releases.testnet.qwertycoin.org";
-const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin/blob/master/LICENSE";
+const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin-testnet/blob/master/LICENSE";
 
 /* Modules */
 
@@ -232,7 +232,7 @@ const std::string GOVERNANCE_WALLET_ADDRESS                  = "QWC1W9dWEf955q71
 const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "d6c03cec7de78fe30895bf19edeb5c24529c3d2e40d00b300fa2336c6fdafe0d";
 
 const char *const SEED_NODES[] = {
-    "node-00.testnet.qwertycoin.org",
+	"node-00.testnet.qwertycoin.org",
 	"node-01.testnet.qwertycoin.org",
 	"pool-00.testnet.qwertycoin.org",
 	"pool-01.testnet.qwertycoin.org",

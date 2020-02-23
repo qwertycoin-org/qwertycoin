@@ -1,3 +1,5 @@
+# TESTNET
+
 ![image](https://cdn.qwertycoin.org/images/press/other/qwc-github-3.png)
 #### Master Build Status
 [![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=master)](https://github.com/qwertycoin-org/qwertycoin/actions)
@@ -12,6 +14,8 @@
 [![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=dev)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/dev?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/dev)
 
 [![codecov](https://codecov.io/gh/qwertycoin-org/qwertycoin/branch/master/graph/badge.svg)](https://codecov.io/gh/qwertycoin-org/qwertycoin)
+
+# TESTNET
 
 # Table of contents
 1. [Project Specs](#coinspecs)
@@ -73,8 +77,8 @@ sudo apt-get install build-essential cmake git
 
 - After installing dependencies run simple script:
 ```
-git clone --recurse-submodules https://github.com/qwertycoin-org/qwertycoin
-cd ./qwertycoin
+git clone --recurse-submodules https://github.com/qwertycoin-org/qwertycoin-testnet
+cd ./qwertycoin-testnet
 mkdir ./build
 cd ./build
 cmake -DBUILD_ALL:BOOL=TRUE ..
@@ -95,8 +99,8 @@ cmake --build . --config Release
 - From the start menu, open "x64 Native Tools Command Prompt for vs2017";
 - And the run the following commands:
 ```
-git clone https://github.com/qwertycoin-org/qwertycoin
-cd qwertycoin
+git clone https://github.com/qwertycoin-org/qwertycoin-testnet
+cd qwertycoin-testnet
 md build
 cd build
 cmake -G "Visual Studio 15 2017 Win64" -DBUILD_ALL:BOOL=TRUE ..
@@ -117,8 +121,8 @@ cmake --build . --config Release
 
 - After installing dependencies run simple script:
 ```
-git clone https://github.com/qwertycoin-org/qwertycoin
-cd ./qwertycoin
+git clone https://github.com/qwertycoin-org/qwertycoin-testnet
+cd ./qwertycoin-testnet
 mkdir ./build
 cd ./build
 cmake -DBUILD_ALL:BOOL=TRUE ..
@@ -147,8 +151,8 @@ export ANDROID_NDK_r18b="$HOME/.android/android-ndk-r18b"
 
 - After installing dependencies run simple script:
 ```
-git clone https://github.com/qwertycoin-org/qwertycoin
-cd ./qwertycoin
+git clone https://github.com/qwertycoin-org/qwertycoin-testnet
+cd ./qwertycoin-testnet
 mkdir ./build
 cd ./build
 cmake -DCMAKE_TOOLCHAIN_FILE=cmake/polly/android-ndk-r18b-api-21-x86-clang-libcxx.cmake -DBUILD_ALL:BOOL=TRUE -DBUILD_WITH_TESTS:BOOL=FALSE -DSTATIC=ON -DBUILD_64=OFF -DANDROID=true -DBUILD_TAG="android" ..
@@ -170,8 +174,8 @@ sudo pkg install cmake git
 
 - After installing dependencies run simple script:
 ```
-git clone --recurse-submodules https://github.com/qwertycoin-org/qwertycoin
-cd ./qwertycoin
+git clone --recurse-submodules https://github.com/qwertycoin-org/qwertycoin-testnet
+cd ./qwertycoin-testnet
 mkdir ./build
 cd ./build
 cmake -DBUILD_ALL:BOOL=TRUE ..

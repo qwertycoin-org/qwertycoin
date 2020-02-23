@@ -79,6 +79,7 @@ const std::string windowsAsciiArt =
         " \\__, | \\_/\\_/ \\___|_|   \\__|\\__, |\\___\\___/|_|_| |_|   \n"
         "    | |                       __/ |                             \n"
         "    |_|                      |___/                              \n"
+        " TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET\n"
         "                                                                \n";
 
 const std::string nonWindowsAsciiArt =
@@ -89,6 +90,7 @@ const std::string nonWindowsAsciiArt =
         "██║▄▄ ██║██║███╗██║██╔══╝  ██╔══██╗   ██║     ╚██╔╝  ██║     ██║   ██║██║██║╚██╗██║\n"
         "╚██████╔╝╚███╔███╔╝███████╗██║  ██║   ██║      ██║   ╚██████╗╚██████╔╝██║██║ ╚████║\n"
         " ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝   ╚═╝      ╚═╝    ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝\n"
+        " TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET TESTNET   \n"
         "                                                                                   \n";
 
 /*!
