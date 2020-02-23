@@ -76,7 +76,7 @@ const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(10000);
 const uint64_t MAXIMUM_FEE_V2                                 = UINT64_C(10000);
 
 // We changed the fee from 0.01 to 1.00 QWC at this height
-const uint32_t MINIMUM_FEE_V0_HEIGHT                          = 50710;
+const uint32_t MINIMUM_FEE_V0_HEIGHT                          = 1; //50710;
 
 // TODO: Check fee Upgrade heights
 const uint32_t MINIMUM_FEE_V1_HEIGHT                          = 800000;
@@ -136,12 +136,12 @@ const size_t   FUSION_TX_MAX_SIZE                             = CRYPTONOTE_BLOCK
 const size_t   FUSION_TX_MIN_INPUT_COUNT                      = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 
-const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
-const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
-const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
-const uint32_t UPGRADE_HEIGHT_V5                              = 250720;
+const uint32_t UPGRADE_HEIGHT_V2                              = 20; //40000;
+const uint32_t UPGRADE_HEIGHT_V3                              = 30; //46000;
+const uint32_t UPGRADE_HEIGHT_V4                              = 40; //110520;
+const uint32_t UPGRADE_HEIGHT_V5                              = 50; //250720;
 const uint32_t UPGRADE_HEIGHT_V6                              = 4294967295;
-const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = 800000;
+const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = 800; //800000;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
 const uint32_t UPGRADE_VOTING_WINDOW                         = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
@@ -149,13 +149,13 @@ const uint32_t UPGRADE_WINDOW                                = EXPECTED_NUMBER_O
 static_assert(UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
-const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.bin";
-const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.bin";
-const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.bin";
-const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "poolstate.dat";
-const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.dat";
-const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.bin";
-const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json";
+const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "tn_blocks.bin";
+const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "tn_blockindexes.bin";
+const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "tn_blockscache.bin";
+const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "tn_poolstate.dat";
+const char     P2P_NET_DATA_FILENAME[]                       = "tn_p2pstate.dat";
+const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "tn_blockchainindices.bin";
+const char     MINER_CONFIG_FILE_NAME[]                      = "tn_miner_conf.json";
 
 /* Governance Fee and range // The Qwertycoin Foundation */
 const uint16_t GOVERNANCE_PERCENT_FEE                        = 10; // 10 percent of base block reward
@@ -166,8 +166,7 @@ const uint32_t GOVERNANCE_HEIGHT_END                         = 8000000;
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
-const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.5.1.2";
-const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.qwertycoin.org";
+const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.testnet.qwertycoin.org";
 
 const uint8_t  TRANSACTION_VERSION_1                         =  1;
 const uint8_t  TRANSACTION_VERSION_2                         =  2;
@@ -219,7 +218,7 @@ const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
 const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4734950f414cdb332b28c5ce764beaf";
 
-const char        LATEST_VERSION_URL[]                       = "https://releases.qwertycoin.org";
+const char        LATEST_VERSION_URL[]                       = "https://releases.testnet.qwertycoin.org";
 const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin/blob/master/LICENSE";
 
 /* Modules */
@@ -233,16 +232,11 @@ const std::string GOVERNANCE_WALLET_ADDRESS                  = "QWC1W9dWEf955q71
 const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "d6c03cec7de78fe30895bf19edeb5c24529c3d2e40d00b300fa2336c6fdafe0d";
 
 const char *const SEED_NODES[] = {
-    "node-00.qwertycoin.org:8196",
-    "node-01.qwertycoin.org:8196",
-    "node-02.qwertycoin.org:8196",
-    "node-03.qwertycoin.org:8196",
-    "node-04.qwertycoin.org:8196",
-    "node-05.qwertycoin.org:8196",
-    "198.147.30.115:8196",  //loop
-    "198.147.30.116:8196"   //pool
-};
-
+    "node-00.testnet.qwertycoin.org",
+	"node-01.testnet.qwertycoin.org",
+	"pool-00.testnet.qwertycoin.org",
+	"pool-01.testnet.qwertycoin.org",
+	"explorer.testnet.qwertycoin.org"
 } // namespace CryptoNote
 
 #define ALLOW_DEBUG_COMMANDS
