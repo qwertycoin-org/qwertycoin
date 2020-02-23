@@ -2,10 +2,15 @@
 #### Master Build Status
 [![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=master)](https://github.com/qwertycoin-org/qwertycoin/actions)
 
+[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=master)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/master?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/master) 
+
 
 #### Development Build Status
 [![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=dev)](https://github.com/qwertycoin-org/qwertycoin/actions)
 
+[![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=dev)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/dev?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/dev)
+
+[![codecov](https://codecov.io/gh/qwertycoin-org/qwertycoin/branch/master/graph/badge.svg)](https://codecov.io/gh/qwertycoin-org/qwertycoin)
 
 # Table of contents
 1. [Project Specs](#coinspecs)
