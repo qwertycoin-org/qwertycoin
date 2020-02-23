@@ -4,6 +4,7 @@
 
 [![Build Status](https://travis-ci.org/qwertycoin-org/qwertycoin.svg?branch=master)](https://travis-ci.org/qwertycoin-org/qwertycoin) [![Build status](https://ci.appveyor.com/api/projects/status/udpsj8mf5x7s1rt6/branch/master?svg=true)](https://ci.appveyor.com/project/Qwertycoin/qwertycoin/branch/master) 
 
+# TESTNET
 
 #### Development Build Status
 [![Build Status](https://github.com/qwertycoin-org/qwertycoin/workflows/Build/badge.svg?branch=dev)](https://github.com/qwertycoin-org/qwertycoin/actions)
