@@ -235,8 +235,8 @@ const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "d6c03cec7de78fe3
 const char *const SEED_NODES[] = {
 	"node-00.testnet.qwertycoin.org:8196",
 	"node-01.testnet.qwertycoin.org:8196",
-	"pool-00.testnet.qwertycoin.org:8196",
 	"pool-01.testnet.qwertycoin.org:8196",
+	"pool-02.testnet.qwertycoin.org:8196",
 	"explorer.testnet.qwertycoin.org:8196"
 };
 
