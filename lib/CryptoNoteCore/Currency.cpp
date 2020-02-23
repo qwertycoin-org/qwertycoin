@@ -19,6 +19,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cctype>
+#include <cmath>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/math/special_functions/round.hpp>
@@ -144,12 +145,32 @@ bool Currency::getBlockReward(
     uint32_t height,
     uint64_t blockTarget) const
 {
-    assert(alreadyGeneratedCoins <= m_moneySupply);
+    //assert(alreadyGeneratedCoins <= m_moneySupply);
     assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
+
+    // Consistency
+    double consistency = 1.0;
+    double exponent = 0.25; 
+    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME && difficultyTarget() != 0) {
+        // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
+        consistency = (double) blockTarget / (double) difficultyTarget();
+
+        // consistency range is 0..2
+        if (consistency < 1.0) {
+            consistency = std::max<double>(consistency, 0.0);
+        }
+        else if (consistency > 1.0) {
+            consistency = pow(consistency, exponent);
+            consistency = std::min<double>(consistency, 2.0);
+        }
+        else {
+            consistency = 1.0;
+        }
+    }  
 
     // Tail emission
 
-    uint64_t baseReward = (m_moneySupply - alreadyGeneratedCoins) >> m_emissionSpeedFactor;
+    uint64_t baseReward = ((m_moneySupply - alreadyGeneratedCoins) >> m_emissionSpeedFactor) * consistency;
     if (alreadyGeneratedCoins + CryptoNote::parameters::TAIL_EMISSION_REWARD >= m_moneySupply
         || baseReward < CryptoNote::parameters::TAIL_EMISSION_REWARD) {
         baseReward = CryptoNote::parameters::TAIL_EMISSION_REWARD;
@@ -172,20 +193,8 @@ bool Currency::getBlockReward(
         penalizedFee = getPenalizedAmount(fee, medianSize, currentBlockSize);
     }
 
-    double consistency = 1.0;
-    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME && difficultyTarget() != 0) {
-        // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
-        consistency = blockTarget / difficultyTarget();
-
-        // consistency range is 0..2
-        consistency = std::max<double>(consistency, 0.0);
-        consistency = std::min<double>(consistency, 2.0);
-    }
-
-    double penalizedReward = static_cast<double>(penalizedBaseReward + penalizedFee);
-
     emissionChange = penalizedBaseReward - (fee - penalizedFee);
-    reward = static_cast<uint64_t>(penalizedReward * consistency);
+    reward = penalizedBaseReward + penalizedFee;
 
     return true;
 }
