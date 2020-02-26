@@ -140,8 +140,8 @@ const uint32_t UPGRADE_HEIGHT_V2                              = 20;
 const uint32_t UPGRADE_HEIGHT_V3                              = 30;
 const uint32_t UPGRADE_HEIGHT_V4                              = 40;
 const uint32_t UPGRADE_HEIGHT_V5                              = 50;
-const uint32_t UPGRADE_HEIGHT_V6                              = 4294967295;
 const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = 60;
+const uint32_t UPGRADE_HEIGHT_V6                              = 4294967295;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
 const uint32_t UPGRADE_VOTING_WINDOW                         = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
@@ -166,7 +166,7 @@ const uint32_t GOVERNANCE_HEIGHT_END                         = 8000000;
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
-const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.5.1.2";
+const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.1.0.0";
 const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.testnet.qwertycoin.org";
 
 const uint8_t  TRANSACTION_VERSION_1                         =  1;
@@ -217,7 +217,7 @@ const uint32_t P2P_FAILED_ADDR_FORGET_SECONDS                = (60 * 60);     //
 const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//24 hour
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4734950f414cdb332b28c5ce764beaf";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4beef50f414cdb332b28c5ce764beaf";
 
 const char        LATEST_VERSION_URL[]                       = "https://releases.qwertycoin.org";
 const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin-testnet/blob/master/LICENSE";
