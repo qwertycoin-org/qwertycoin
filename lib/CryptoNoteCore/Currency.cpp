@@ -786,8 +786,8 @@ difficulty_type Currency::nextDifficultyV2(
     uint64_t nextDiffZ = low / timeSpan;
 
     // minimum limit
-    if (!isTestnet() && nextDiffZ < 100000) {
-        nextDiffZ = 100000;
+    if (!isTestnet() && nextDiffZ < 100) {
+        nextDiffZ = 100;
     }
 
     return nextDiffZ;
@@ -851,8 +851,8 @@ difficulty_type Currency::nextDifficultyV3(
     next_difficulty = static_cast<uint64_t>(nextDifficulty);
 
     // minimum limit
-    if (!isTestnet() && next_difficulty < 100000) {
-        next_difficulty = 100000;
+    if (!isTestnet() && next_difficulty < 1000) {
+        next_difficulty = 1000;
     }
 
     return next_difficulty;
@@ -915,8 +915,8 @@ difficulty_type Currency::nextDifficultyV5(
     }
 
     // minimum limit
-    if (nextDiffV5 < 10000000) {
-        nextDiffV5 = 10000000;
+    if (nextDiffV5 < 1000) {
+        nextDiffV5 = 1000;
     }
     if(isTestnet()){
         nextDiffV5 = 10000;
