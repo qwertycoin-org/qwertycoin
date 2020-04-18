@@ -84,8 +84,8 @@ set(PROJECT_VENDOR_URL "https://qwertycoin.org")
 set(PROJECT_VENDOR_DOMAIN_REVERSED "org.qwertycoin")
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION} LANGUAGES C CXX)
 
-if(APPLE OR FREEBSD)
-    # Compile src/Platform/OSX/System/asm.s file.
+if(UNIX)
+    # Compile src/Platform/OSX/System/asm.s and breakpad_getcontext.S files.
     enable_language(ASM)
 endif()
 
