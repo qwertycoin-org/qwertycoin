@@ -55,6 +55,7 @@ if(UNIX AND NOT APPLE AND NOT ANDROID)
         "${breakpad_SOURCE_DIR}/src/common/linux/linux_libc_support.cc"
         "${breakpad_SOURCE_DIR}/src/common/linux/memory_mapped_file.cc"
         "${breakpad_SOURCE_DIR}/src/common/linux/safe_readlink.cc"
+        "${breakpad_SOURCE_DIR}/src/common/linux/breakpad_getcontext.S"
     )
 
     set(LINUX_SYSCALL_SUPPORT_HEADER_IN "${linuxsyscallsupport_SOURCE_DIR}/linux_syscall_support.h")
