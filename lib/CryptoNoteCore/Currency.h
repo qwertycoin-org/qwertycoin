@@ -181,7 +181,7 @@ public:
         Transaction &tx,
         const BinaryArray &extraNonce = BinaryArray(),
         size_t maxOuts = 1,
-        uint64_t blockTarget = 0) const;
+        uint64_t blockTarget = 0xffffffffffffffff) const;
 
     bool isFusionTransaction(const Transaction& transaction, uint32_t height) const;
     bool isFusionTransaction(const Transaction& transaction, size_t size, uint32_t height) const;
