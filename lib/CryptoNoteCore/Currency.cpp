@@ -269,9 +269,9 @@ bool Currency::constructMinerTx(
     Transaction &tx,
     const BinaryArray &extraNonce /* = BinaryArray()*/,
     size_t maxOuts /* = 1*/,
-    uint64_t blockTarget /* = 0*/) const
+    uint64_t blockTarget /* = 0xffffffffffffffff*/) const
 {
-    if (blockTarget == 0)
+    if (blockTarget == 0xffffffffffffffff)
         blockTarget = difficultyTarget();
     tx.inputs.clear();
     tx.outputs.clear();
