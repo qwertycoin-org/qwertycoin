@@ -735,6 +735,9 @@ bool core::get_block_template(
 
     if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
         getBlockHeight(b.previousBlockHash, previousBlockHeight);
+        uint64_t prev_timestamp = getBlockTimestamp(previousBlockHeight);
+        if(prev_timestamp >= b.timestamp)
+            return false;
         blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
     }
 
