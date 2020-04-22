@@ -268,8 +268,11 @@ bool Currency::constructMinerTx(
     const AccountPublicAddress &minerAddress,
     Transaction &tx,
     const BinaryArray &extraNonce /* = BinaryArray()*/,
-    size_t maxOuts /* = 1*/) const
+    size_t maxOuts /* = 1*/,
+    uint64_t blockTarget /* = 0*/) const
 {
+    if (blockTarget == 0)
+        blockTarget = difficultyTarget();
     tx.inputs.clear();
     tx.outputs.clear();
     tx.extra.clear();
@@ -300,7 +303,7 @@ bool Currency::constructMinerTx(
             blockReward,
             emissionChange,
             height,
-            difficultyTarget())
+            blockTarget)
         ) {
         logger(INFO) << "Block is too big";
         return false;
