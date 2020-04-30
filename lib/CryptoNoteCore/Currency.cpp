@@ -939,6 +939,9 @@ difficulty_type Currency::nextDifficultyV6(
     std::vector<difficulty_type> cumulativeDifficulties,
     uint64_t block_time) const
 {
+    if(isTestnet()){
+        return 10000;
+    }
     // LWMA-2 difficulty algorithm
     // Copyright (c) 2017-2018 Zawy, MIT License
     // https://github.com/zawy12/difficulty-algorithms/issues/3
@@ -983,14 +986,8 @@ difficulty_type Currency::nextDifficultyV6(
         nextDiffV6 = (prev_D * 110ull) / 100ull;
     }
 
-    // minimum limit
-    if (nextDiffV6 < 1000) {
-        nextDiffV6 = 1000;
-    }
-    if(isTestnet()){
-        nextDiffV6 = 10000;
-    }
-
+    if(T > 3 * m_difficultyTarget)
+        nextDiffV6 *= 1.0 / log(double(T) / double(m_difficultyTarget));
     return nextDiffV6;
 }
 
