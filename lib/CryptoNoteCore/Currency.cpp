@@ -684,7 +684,9 @@ difficulty_type Currency::nextDifficulty(
     uint64_t block_time) const
 {
     logger (INFO) << "Currency::nextDifficulty(" << height << ", " << (uint32_t)blockMajorVersion << ")";
-    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
+    if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
+        return nextDifficultyV6(blockMajorVersion, timestamps, cumulativeDifficulties, block_time);
+    } else if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
         return nextDifficultyV5(blockMajorVersion, timestamps, cumulativeDifficulties);
     } else if (blockMajorVersion == BLOCK_MAJOR_VERSION_3
                || blockMajorVersion == BLOCK_MAJOR_VERSION_4) {
@@ -934,7 +936,8 @@ difficulty_type Currency::nextDifficultyV5(
 difficulty_type Currency::nextDifficultyV6(
     uint8_t blockMajorVersion,
     std::vector<std::uint64_t> timestamps,
-    std::vector<difficulty_type> cumulativeDifficulties) const
+    std::vector<difficulty_type> cumulativeDifficulties,
+    uint64_t block_time) const
 {
     // LWMA-2 difficulty algorithm
     // Copyright (c) 2017-2018 Zawy, MIT License
@@ -942,7 +945,7 @@ difficulty_type Currency::nextDifficultyV6(
     // with modifications by Ryo Currency developers
     // courtesy to aivve from Karbo
 
-    const int64_t  T = static_cast<int64_t>(m_difficultyTarget);
+    const int64_t  T = static_cast<int64_t>(block_time - timestamps.back());
     int64_t  N = difficultyBlocksCount3();
     int64_t  L(0), ST, sum_3_ST(0);
     uint64_t nextDiffV6, prev_D;

@@ -227,10 +227,9 @@ public:
         uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;
-    difficulty_type nextDifficultyV6(
-        uint8_t blockMajorVersion,
+    difficulty_type nextDifficultyV6(uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
-        std::vector<difficulty_type> Difficulties) const;
+        std::vector<difficulty_type> Difficulties, uint64_t block_time) const;
 
     bool checkProofOfWorkV1(
         Crypto::cn_context &context,
