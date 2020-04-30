@@ -210,11 +210,10 @@ public:
 
     uint64_t roundUpMinFee(uint64_t minimalFee, int digits) const;
 
-    difficulty_type nextDifficulty(
-        uint32_t height,
+    difficulty_type nextDifficulty(uint32_t height,
         uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
-        std::vector<difficulty_type> Difficulties) const;
+        std::vector<difficulty_type> Difficulties, uint64_t block_time) const;
     difficulty_type nextDifficultyV1(
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;
@@ -225,6 +224,10 @@ public:
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;
     difficulty_type nextDifficultyV5(
+        uint8_t blockMajorVersion,
+        std::vector<uint64_t> timestamps,
+        std::vector<difficulty_type> Difficulties) const;
+    difficulty_type nextDifficultyV6(
         uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;

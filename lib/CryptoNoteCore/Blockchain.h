@@ -92,7 +92,7 @@ public:
     uint32_t getCurrentBlockchainHeight(); // TODO: rename to getCurrentBlockchainSize
     Crypto::Hash getTailId();
     Crypto::Hash getTailId(uint32_t &height);
-    difficulty_type getDifficultyForNextBlock();
+    difficulty_type getDifficultyForNextBlock(uint64_t block_time);
     uint64_t getBlockTimestamp(uint32_t height);
     uint64_t getMinimalFee(uint32_t height);
     uint64_t getCoinsInCirculation();

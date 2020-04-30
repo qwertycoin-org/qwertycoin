@@ -641,11 +641,6 @@ bool core::get_block_template(
     {
         LockedBlockchainStorage blockchainLock(m_blockchain);
         height = m_blockchain.getCurrentBlockchainHeight();
-        diffic = m_blockchain.getDifficultyForNextBlock();
-        if (!(diffic)) {
-            logger(ERROR, BRIGHT_RED) << "difficulty overhead.";
-            return false;
-        }
 
         b = boost::value_initialized<Block>();
         b.majorVersion = m_blockchain.getBlockMajorVersionForHeight(height);
@@ -711,6 +706,12 @@ bool core::get_block_template(
             if (b.timestamp < median_ts) {
                 b.timestamp = median_ts;
             }
+        }
+
+        diffic = m_blockchain.getDifficultyForNextBlock(b.timestamp);
+        if (!(diffic)) {
+            logger(ERROR, BRIGHT_RED) << "difficulty overhead.";
+            return false;
         }
 
         median_size = m_blockchain.getCurrentCumulativeBlocksizeLimit() / 2;
@@ -1684,9 +1685,9 @@ std::error_code core::executeLocked(const std::function<std::error_code()> &func
     return func();
 }
 
-uint64_t core::getNextBlockDifficulty()
+uint64_t core::getNextBlockDifficulty(uint64_t block_time)
 {
-    return m_blockchain.getDifficultyForNextBlock();
+    return m_blockchain.getDifficultyForNextBlock(block_time);
 }
 
 uint64_t core::getTotalGeneratedAmount()
