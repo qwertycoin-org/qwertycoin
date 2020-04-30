@@ -1018,7 +1018,7 @@ bool RpcServer::on_get_info(
     COMMAND_RPC_GET_INFO::response &res)
 {
     res.height = m_core.get_current_blockchain_height();
-    res.difficulty = m_core.getNextBlockDifficulty();
+    res.difficulty = m_core.getNextBlockDifficulty(time(nullptr));
     res.tx_count = m_core.get_blockchain_total_transactions() - res.height; // without coinbase
     res.tx_pool_size = m_core.get_pool_transactions_count();
     res.alt_blocks_count = m_core.get_alternative_blocks_count();
