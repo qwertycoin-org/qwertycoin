@@ -25,6 +25,7 @@
 #include <boost/math/special_functions/round.hpp>
 #include <Common/Base58.h>
 #include <Common/int-util.h>
+#include <Common/Math.h>
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/Account.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
@@ -935,7 +936,7 @@ difficulty_type Currency::nextDifficultyV5(
 
 // difficulty for block version 6.0
 difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
-    std::vector<std::uint64_t> timestamps,
+    std::vector<uint64_t> timestamps,
     std::vector<difficulty_type> cumulativeDifficulties,
     uint64_t block_time, uint32_t height) const
 {
@@ -943,8 +944,8 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
         return CryptoNote::parameters::DEFAULT_DIFFICULTY;
     }
 
-    // Calculate dinamic difficulty calculation window
-    uint32_t diffWindow = 60; // not implemented yet
+    // Dynamic difficulty calculation window
+    uint32_t diffWindow = timestamps.size();
 
     difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
     // Condition #1 When starting a chain or a working testnet requiring
@@ -959,6 +960,57 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
         return nextDiffV6;
     }
 
+    // calc stat values to detect outliers
+    uint64_t avg_solvetime = (block_time - timestamps[0]) / (diffWindow + 1);
+    std::vector<uint64_t> solveTimes;
+    solveTimes.resize(timestamps.size());
+    std::adjacent_difference(timestamps.begin(), timestamps.end(), solveTimes.begin());
+    solveTimes.erase(solveTimes.begin());
+    uint64_t stddev_solvetime = Common::stddevValue(solveTimes);
+
+    // get difficulties from the cumulative difficulties
+    std::vector<difficulty_type> difficulties;
+    difficulties.resize(cumulativeDifficulties.size());
+    std::adjacent_difference(cumulativeDifficulties.begin(),
+                             cumulativeDifficulties.end(),
+                             difficulties.begin());
+    difficulties.erase(difficulties.begin());
+
+    // combine times and difficulties in one container
+    std::vector<std::pair<uint64_t, difficulty_type>> combined;
+    combined.resize(solveTimes.size());
+    std::transform(solveTimes.begin(), solveTimes.end(), difficulties.begin(),
+                   combined.begin(),
+                   [](uint64_t st, difficulty_type d) { return std::make_pair(st, d); });
+
+    // filter outliers
+    auto to_erase = std::remove_if(
+        combined.begin(),
+        combined.end(),
+        [avg_solvetime, stddev_solvetime](std::pair<uint64_t, difficulty_type> p)
+            { return (p.first < avg_solvetime - stddev_solvetime) ||
+                     (p.first > avg_solvetime + stddev_solvetime);});
+    combined.erase(to_erase, combined.end());
+
+    // calc real average
+    std::vector<uint64_t> realSolveTimes;
+    realSolveTimes.resize(combined.size());
+    std::transform(combined.begin(), combined.end(),
+                   realSolveTimes.begin(),
+                   [](std::pair<uint64_t, difficulty_type> p) { return p.first; });
+    uint64_t real_avg_solveTime = Common::meanValue(realSolveTimes);
+
+    uint64_t difficulty_target = block_time - timestamps.back();
+
+    // calc difficulty
+    if (real_avg_solveTime < difficulty_target) {
+        nextDiffV6 = difficulties.back() *
+                std::min(1.5, double(difficulty_target) / double(difficulty_target - real_avg_solveTime));
+    } else if (real_avg_solveTime > difficulty_target) {
+        nextDiffV6 = difficulties.back() * (1.0 - double(real_avg_solveTime - difficulty_target) / double(real_avg_solveTime));
+    } else {
+        nextDiffV6 = difficulties.back();
+    }
     return nextDiffV6;
 }
 
