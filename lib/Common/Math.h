@@ -19,9 +19,35 @@
 #pragma once
 
 #include <algorithm>
+#include <numeric>
 #include <vector>
 
 namespace Common {
+
+template <class T>
+T meanValue(const std::vector<T>& v)
+{
+    if (v.empty()) {
+        return T();
+    }
+
+    T sum = std::accumulate(v.begin(), v.end(), T());
+    return sum / v.size();
+}
+
+template <class T>
+T stddevValue(const std::vector<T>& v)
+{
+    if (v.size() < 2) {
+        return T();
+    }
+
+    T mean = meanValue(v);
+    std::vector<T> diff(v.size());
+    std::transform(v.begin(), v.end(), diff.begin(), [mean](T x) { return x - mean; });
+    T sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), T());
+    return std::sqrt(sq_sum / v.size());
+}
 
 template <class T>
 T medianValue(std::vector<T> &v)
