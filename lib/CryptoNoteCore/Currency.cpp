@@ -34,6 +34,7 @@
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/UpgradeDetector.h>
 #include <Global/Constants.h>
+#include <Global/CryptoNoteConfig.h>
 
 #undef ERROR
 
@@ -685,7 +686,7 @@ difficulty_type Currency::nextDifficulty(
 {
     logger (INFO) << "Currency::nextDifficulty(" << height << ", " << (uint32_t)blockMajorVersion << ")";
     if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
-        return nextDifficultyV6(blockMajorVersion, timestamps, cumulativeDifficulties, block_time);
+        return nextDifficultyV6(blockMajorVersion, timestamps, cumulativeDifficulties, block_time, height);
     } else if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
         return nextDifficultyV5(blockMajorVersion, timestamps, cumulativeDifficulties);
     } else if (blockMajorVersion == BLOCK_MAJOR_VERSION_3
@@ -933,61 +934,31 @@ difficulty_type Currency::nextDifficultyV5(
 }
 
 // difficulty for block version 6.0
-difficulty_type Currency::nextDifficultyV6(
-    uint8_t blockMajorVersion,
+difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     std::vector<std::uint64_t> timestamps,
     std::vector<difficulty_type> cumulativeDifficulties,
-    uint64_t block_time) const
+    uint64_t block_time, uint32_t height) const
 {
     if(isTestnet()){
-        return 10000;
-    }
-    // LWMA-2 difficulty algorithm
-    // Copyright (c) 2017-2018 Zawy, MIT License
-    // https://github.com/zawy12/difficulty-algorithms/issues/3
-    // with modifications by Ryo Currency developers
-    // courtesy to aivve from Karbo
-
-    const int64_t  T = static_cast<int64_t>(block_time - timestamps.back());
-    int64_t  N = difficultyBlocksCount3();
-    int64_t  L(0), ST, sum_3_ST(0);
-    uint64_t nextDiffV6, prev_D;
-
-    assert(timestamps.size() == cumulativeDifficulties.size()
-           && timestamps.size() <= static_cast<uint64_t>(N + 1));
-
-    int64_t max_TS, prev_max_TS;
-    prev_max_TS = timestamps[0];
-    for (int64_t i = 1; i <= N; i++) {
-        if (static_cast<int64_t>(timestamps[i]) > prev_max_TS) {
-            max_TS = timestamps[i];
-        } else {
-            max_TS = prev_max_TS + 1;
-        }
-        ST = std::min(6 * T, max_TS - prev_max_TS);
-        prev_max_TS = max_TS;
-        L += ST * i;
-        if (i > N - 3) {
-            sum_3_ST += ST;
-        }
+        return CryptoNote::parameters::DEFAULT_DIFFICULTY;
     }
 
-    nextDiffV6 = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1))
-                 / uint64_t(2 * L);
-    nextDiffV6 = (nextDiffV6 * 99ull) / 100ull;
+    // Calculate dinamic difficulty calculation window
+    uint32_t diffWindow = 60; // not implemented yet
 
-    prev_D = cumulativeDifficulties[N] - cumulativeDifficulties[N - 1];
-    nextDiffV6 = clamp(
-        (uint64_t)(prev_D * 67ull / 100ull),
-        nextDiffV6,
-        (uint64_t)(prev_D * 150ull / 100ull)
-    );
-    if (sum_3_ST < (8 * T) / 10) {
-        nextDiffV6 = (prev_D * 110ull) / 100ull;
+    difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
+    // Condition #1 When starting a chain or a working testnet requiring
+    // block sample gathering until enough blocks are available (Kick-off Scenario)
+    // We shall set a baseline for the hashrate that is specific to mining
+    // algo and I propose doing so in the config file.
+    // *** During this initial sampling period, a best guess is the best strategy.
+    // Consider this as a service or trial period.
+    // With EPoW reward algo in place, we don't really need to worry about attackers
+    // or large miners taking advanatage of our system.
+    if (height < (720 + diffWindow)) {
+        return nextDiffV6;
     }
 
-    if(T > 3 * m_difficultyTarget)
-        nextDiffV6 *= 1.0 / log(double(T) / double(m_difficultyTarget));
     return nextDiffV6;
 }
 
