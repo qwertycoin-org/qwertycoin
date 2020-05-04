@@ -947,6 +947,14 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     // Dynamic difficulty calculation window
     uint32_t diffWindow = timestamps.size();
 
+    // check if we use special scenario with some fixed diff
+    if (CryptoNote::parameters::FIXED_DIFFICULTY > 0)
+    {
+        logger (WARNING) << "Fixed difficulty is used: " <<
+                            CryptoNote::parameters::FIXED_DIFFICULTY;
+        return CryptoNote::parameters::FIXED_DIFFICULTY;
+    }
+
     difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
     // Condition #1 When starting a chain or a working testnet requiring
     // block sample gathering until enough blocks are available (Kick-off Scenario)
