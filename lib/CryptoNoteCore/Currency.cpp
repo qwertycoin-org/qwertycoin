@@ -969,7 +969,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     }
 
     // calc stat values to detect outliers
-    uint64_t avg_solvetime = (block_time - timestamps[0]) / (diffWindow + 1);
+    uint64_t avg_solvetime = (timestamps.back() - timestamps.front()) / diffWindow;
     std::vector<uint64_t> solveTimes;
     solveTimes.resize(timestamps.size());
     std::adjacent_difference(timestamps.begin(), timestamps.end(), solveTimes.begin());
@@ -983,6 +983,18 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
                              cumulativeDifficulties.end(),
                              difficulties.begin());
     difficulties.erase(difficulties.begin());
+
+    uint64_t difficulty_target = block_time - timestamps.back();
+
+    // check if last solve time is outlier
+    uint64_t last_solvetime = solveTimes.back();
+    if((avg_solvetime - stddev_solvetime <= last_solvetime) &&
+       (last_solvetime <= avg_solvetime + stddev_solvetime))
+    {
+        // Use static scenario, network hashrate looks stable
+        nextDiffV6 = difficulties.back() * double(difficulty_target) / double(last_solvetime);
+        return nextDiffV6;
+    }
 
     // combine times and difficulties in one container
     std::vector<std::pair<uint64_t, difficulty_type>> combined;
@@ -1008,13 +1020,11 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
                    [](std::pair<uint64_t, difficulty_type> p) { return p.first; });
     uint64_t real_avg_solveTime = Common::meanValue(realSolveTimes);
 
-    uint64_t difficulty_target = block_time - timestamps.back();
-
     // calc difficulty
-    if (real_avg_solveTime < difficulty_target) {
+    if (real_avg_solveTime < CryptoNote::parameters::DIFFICULTY_TARGET) {
         nextDiffV6 = difficulties.back() *
                 std::min(1.5, double(difficulty_target) / double(difficulty_target - real_avg_solveTime));
-    } else if (real_avg_solveTime > difficulty_target) {
+    } else if (real_avg_solveTime > CryptoNote::parameters::DIFFICULTY_TARGET) {
         nextDiffV6 = difficulties.back() * (1.0 - double(real_avg_solveTime - difficulty_target) / double(real_avg_solveTime));
     } else {
         nextDiffV6 = difficulties.back();
