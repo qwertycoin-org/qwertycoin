@@ -229,6 +229,10 @@ private:
         const COMMAND_RPC_VERIFY_MESSAGE::request &req,
         COMMAND_RPC_VERIFY_MESSAGE::response &res);
 
+    bool on_get_difficulty_stat(
+        const COMMAND_RPC_GET_DIFFICULTY_STAT::request &req,
+        COMMAND_RPC_GET_DIFFICULTY_STAT::response &res);
+
     bool f_getMixin(const Transaction &transaction, uint64_t &mixin);
 
 private:

@@ -843,6 +843,11 @@ bool core::get_block_template(
     return false;
 }
 
+bool core::get_difficulty_stat(uint32_t height, IMinerHandler::stat_period period, uint32_t &block_num, uint64_t &avg_solve_time, uint64_t &stddev_solve_time, uint32_t &outliers_num)
+{
+    return m_blockchain.getDifficultyStat(height, period, block_num, avg_solve_time, stddev_solve_time, outliers_num);
+}
+
 std::vector<Crypto::Hash> core::findBlockchainSupplement(
     const std::vector<Crypto::Hash> &remoteBlockIds,
     size_t maxCount,
