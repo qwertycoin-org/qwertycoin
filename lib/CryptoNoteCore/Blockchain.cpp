@@ -846,7 +846,57 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t block_time)
         timestamps,
         cumulative_difficulties,
         block_time
-    );
+                );
+}
+
+bool Blockchain::getDifficultyStat(uint32_t height, IMinerHandler::stat_period period, uint32_t& block_num, uint64_t& avg_solve_time, uint64_t& stddev_solve_time, uint32_t& outliers_num)
+{
+    uint32_t min_height = CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
+    if (height < min_height) {
+        logger (WARNING) << "Can't get difficulty stat for height less than " << CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
+        return false;
+    }
+    uint64_t time_window = 0;
+    switch (period) {
+    case(IMinerHandler::stat_period::hour):
+        time_window = 3600;
+        break;
+    case(IMinerHandler::stat_period::day):
+        time_window = 3600 * 24;
+        break;
+    case(IMinerHandler::stat_period::week):
+        time_window = 3600 * 24 * 7;
+        break;
+    case(IMinerHandler::stat_period::month):
+        time_window = 3600 * 24 * 30;
+        break;
+    case(IMinerHandler::stat_period::year):
+        time_window = 3600 * 24 * 365;
+        break;
+    }
+    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+    if (height >= m_blocks.size()) {
+        logger (ERROR) << "Invalid height " << height << ", " << m_blocks.size() << "blocks available";
+        throw std::runtime_error("Invalid height");
+    }
+    uint64_t stop_time = m_blocks[height].bl.timestamp - time_window;
+    std::vector<uint64_t> solve_times;
+    while (height > min_height && m_blocks[height - 1].bl.timestamp >= stop_time)
+    {
+        solve_times.push_back(m_blocks[height].bl.timestamp - m_blocks[height - 1].bl.timestamp);
+        height--;
+    }
+    block_num = solve_times.size();
+    avg_solve_time = Common::meanValue(solve_times);
+    stddev_solve_time = Common::stddevValue(solve_times);
+    outliers_num = 0;
+    for(auto st: solve_times)
+    {
+        if (((stddev_solve_time < avg_solve_time) && (st < avg_solve_time - stddev_solve_time)) ||
+            (st > avg_solve_time + stddev_solve_time))
+            outliers_num++;
+    }
+    return true;
 }
 
 difficulty_type Blockchain::getAvgDifficultyForHeight(uint32_t height, size_t window)
