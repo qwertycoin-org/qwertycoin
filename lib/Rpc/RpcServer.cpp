@@ -261,6 +261,9 @@ std::unordered_map<
     },{
         "/stop_daemon",
         { jsonMethod<COMMAND_RPC_STOP_DAEMON>(&RpcServer::on_stop_daemon), true }
+    },{
+        "/get_difficulty_stat",
+        { jsonMethod<COMMAND_RPC_GET_DIFFICULTY_STAT>(&RpcServer::on_get_difficulty_stat), false }
     },
 
     // json rpc
@@ -418,9 +421,6 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
             },{
                 "verifymessage",
                 { makeMemberMethod(&RpcServer::on_verify_message), false }
-            },{
-                "get_difficulty_stat",
-                { makeMemberMethod(&RpcServer::on_get_difficulty_stat), false }
             }
         };
 
