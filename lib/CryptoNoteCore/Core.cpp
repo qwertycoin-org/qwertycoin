@@ -728,6 +728,7 @@ bool core::get_block_template(
             txs_size,
             fee)
         ) {
+        logger(ERROR, BRIGHT_RED) << "failed to fill block template from mempool.";
         return false;
     }
 
@@ -737,8 +738,11 @@ bool core::get_block_template(
     if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
         getBlockHeight(b.previousBlockHash, previousBlockHeight);
         uint64_t prev_timestamp = getBlockTimestamp(previousBlockHeight);
-        if(prev_timestamp >= b.timestamp)
+        if(prev_timestamp >= b.timestamp) {
+            logger(ERROR, BRIGHT_RED) << "incorrect timestamp, prev = "
+               << prev_timestamp << ",  new = " << b.timestamp;
             return false;
+        }
         blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
     }
 

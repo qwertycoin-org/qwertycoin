@@ -160,6 +160,12 @@ DaemonCommandsHandler::DaemonCommandsHandler(
     );
 
     m_consoleHandler.setHandler(
+        "print_diff_stat",
+        boost::bind(&DaemonCommandsHandler::print_diff_stat, this, _1),
+        "Difficulty statistics for given height"
+    );
+
+    m_consoleHandler.setHandler(
         "print_ban",
         boost::bind(&DaemonCommandsHandler::print_ban, this, _1),
         "Print banned nodes"
@@ -525,6 +531,96 @@ bool DaemonCommandsHandler::print_diff(const std::vector<std::string> &args)
         << "Difficulty for next block: "
         << m_core.getNextBlockDifficulty(time(nullptr))
         << std::endl;
+
+    return true;
+}
+
+bool DaemonCommandsHandler::print_diff_stat(const std::vector<std::string> &args)
+{
+    if(args.size() != 1) {
+        logger(Logging::INFO) << "expected print_diff_stat <height>";
+        return true;
+    }
+    uint32_t height = boost::lexical_cast<uint32_t>(args[0]);
+    uint32_t block_num;
+    uint64_t avg_solve_time;
+    uint64_t stddev_solve_time;
+    uint32_t outliers_num;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::hour,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for hour: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::day,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for day: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::week,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for week: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::month,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for month: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::year,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for year: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
 
     return true;
 }
