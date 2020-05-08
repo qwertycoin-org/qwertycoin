@@ -62,7 +62,7 @@ void adjustMergeMiningTag(Block& blockTemplate)
         }
 
         blockTemplate.parentBlock.baseTransaction.extra.clear();
-        auto extra = blockTemplate.parentBlock.baseTransaction.extra;
+        auto& extra = blockTemplate.parentBlock.baseTransaction.extra;
         if (!CryptoNote::appendMergeMiningTagToExtra(extra, mmTag)) {
             throw std::runtime_error("Couldn't append merge mining tag");
         }
