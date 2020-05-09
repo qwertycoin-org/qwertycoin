@@ -909,10 +909,12 @@ difficulty_type Currency::nextDifficultyV5(
         }
     }
 
+    // It is a potential error,  N should be less than cumulativeDifficulties.size()
     nextDiffV5 = uint64_t((cumulativeDifficulties[N] - cumulativeDifficulties[0]) * T * (N + 1))
                  / uint64_t(2 * L);
     nextDiffV5 = (nextDiffV5 * 99ull) / 100ull;
 
+    // It is a potential error,  N should be less than cumulativeDifficulties.size()
     prev_D = cumulativeDifficulties[N] - cumulativeDifficulties[N - 1];
     nextDiffV5 = clamp(
         (uint64_t)(prev_D * 67ull / 100ull),
