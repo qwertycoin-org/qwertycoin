@@ -851,9 +851,12 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t block_time)
 
 bool Blockchain::getDifficultyStat(uint32_t height, IMinerHandler::stat_period period, uint32_t& block_num, uint64_t& avg_solve_time, uint64_t& stddev_solve_time, uint32_t& outliers_num)
 {
-    uint32_t min_height = CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
+    uint32_t min_height = CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
+            CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
     if (height < min_height) {
-        logger (WARNING) << "Can't get difficulty stat for height less than " << CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
+        logger (WARNING) << "Can't get difficulty stat for height less than " <<
+                            CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
+                            CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
         return false;
     }
     uint64_t time_window = 0;
@@ -876,7 +879,7 @@ bool Blockchain::getDifficultyStat(uint32_t height, IMinerHandler::stat_period p
     }
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     if (height >= m_blocks.size()) {
-        logger (ERROR) << "Invalid height " << height << ", " << m_blocks.size() << "blocks available";
+        logger (ERROR) << "Invalid height " << height << ", " << m_blocks.size() << " blocks available";
         throw std::runtime_error("Invalid height");
     }
     uint64_t stop_time = m_blocks[height].bl.timestamp - time_window;
@@ -886,6 +889,7 @@ bool Blockchain::getDifficultyStat(uint32_t height, IMinerHandler::stat_period p
         solve_times.push_back(m_blocks[height].bl.timestamp - m_blocks[height - 1].bl.timestamp);
         height--;
     }
+    logger (INFO) << "min height: " << height;
     block_num = solve_times.size();
     avg_solve_time = Common::meanValue(solve_times);
     stddev_solve_time = Common::stddevValue(solve_times);

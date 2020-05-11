@@ -160,7 +160,7 @@ DaemonCommandsHandler::DaemonCommandsHandler(
     );
 
     m_consoleHandler.setHandler(
-        "print_diff_stat",
+        "diff_stat",
         boost::bind(&DaemonCommandsHandler::print_diff_stat, this, _1),
         "Difficulty statistics for given height"
     );
