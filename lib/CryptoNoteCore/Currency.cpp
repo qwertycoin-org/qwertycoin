@@ -966,15 +966,26 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     // Consider this as a service or trial period.
     // With EPoW reward algo in place, we don't really need to worry about attackers
     // or large miners taking advanatage of our system.
-    if (height < CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24) {
+    if (height < CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
+            CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24) {
+        return nextDiffV6;
+    }
+
+    // check all values in input vectors greater than previous value to calc adjacent differences later
+    if (std::adjacent_find(timestamps.begin(), timestamps.end(), std::greater_equal<uint64_t>()) != timestamps.end()) {
+        logger (ERROR) << "Invalid timestamps for difficulty calculation";
+        return nextDiffV6;
+    }
+    if (std::adjacent_find(cumulativeDifficulties.begin(), cumulativeDifficulties.end(), std::greater_equal<difficulty_type>()) != cumulativeDifficulties.end()) {
+        logger (ERROR) << "Invalid cumulativeDifficulties for difficulty calculation";
         return nextDiffV6;
     }
 
     // calc stat values to detect outliers
-    uint64_t avg_solvetime = (timestamps.back() - timestamps.front()) / diffWindow;
+    uint64_t avg_solvetime = (timestamps.back() - timestamps.front()) / diffWindow; // now subtraction is safe,  we know it is not negative
     std::vector<uint64_t> solveTimes;
     solveTimes.resize(timestamps.size());
-    std::adjacent_difference(timestamps.begin(), timestamps.end(), solveTimes.begin());
+    std::adjacent_difference(timestamps.begin(), timestamps.end(), solveTimes.begin()); // we check it before and all diffs are positive
     solveTimes.erase(solveTimes.begin());
     uint64_t stddev_solvetime = Common::stddevValue(solveTimes);
 
@@ -983,18 +994,21 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     difficulties.resize(cumulativeDifficulties.size());
     std::adjacent_difference(cumulativeDifficulties.begin(),
                              cumulativeDifficulties.end(),
-                             difficulties.begin());
+                             difficulties.begin()); // we check it before and all diffs are positive
     difficulties.erase(difficulties.begin());
 
-    uint64_t difficulty_target = block_time - timestamps.back();
+    uint64_t difficulty_target = CryptoNote::parameters::DIFFICULTY_TARGET;
 
     // check if last solve time is outlier
     uint64_t last_solvetime = solveTimes.back();
-    if((avg_solvetime - stddev_solvetime <= last_solvetime) &&
+    uint64_t low_solvetime_limit = 0;
+    if (avg_solvetime > stddev_solvetime)
+        low_solvetime_limit = avg_solvetime - stddev_solvetime;
+    if((low_solvetime_limit <= last_solvetime) &&
        (last_solvetime <= avg_solvetime + stddev_solvetime))
     {
         // Use static scenario, network hashrate looks stable
-        nextDiffV6 = difficulties.back() * double(difficulty_target) / double(last_solvetime);
+        nextDiffV6 = difficulties.back();
         return nextDiffV6;
     }
 
@@ -1009,8 +1023,8 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     auto to_erase = std::remove_if(
         combined.begin(),
         combined.end(),
-        [avg_solvetime, stddev_solvetime](std::pair<uint64_t, difficulty_type> p)
-            { return (p.first < avg_solvetime - stddev_solvetime) ||
+        [avg_solvetime, stddev_solvetime, low_solvetime_limit](std::pair<uint64_t, difficulty_type> p)
+            {   return (p.first < low_solvetime_limit) ||
                      (p.first > avg_solvetime + stddev_solvetime);});
     combined.erase(to_erase, combined.end());
 
@@ -1020,16 +1034,24 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     std::transform(combined.begin(), combined.end(),
                    realSolveTimes.begin(),
                    [](std::pair<uint64_t, difficulty_type> p) { return p.first; });
+    std::vector<difficulty_type> realDifficulty;
+    realDifficulty.resize(combined.size());
+    std::transform(combined.begin(), combined.end(),
+                   realDifficulty.begin(),
+                   [](std::pair<uint64_t, difficulty_type> p) { return p.second; });
+
     uint64_t real_avg_solveTime = Common::meanValue(realSolveTimes);
+    difficulty_type real_last_difficulty = realDifficulty.back();
 
     // calc difficulty
-    if (real_avg_solveTime < CryptoNote::parameters::DIFFICULTY_TARGET) {
-        nextDiffV6 = difficulties.back() *
+
+    if (real_avg_solveTime < difficulty_target) {
+        nextDiffV6 = real_last_difficulty *
                 std::min(1.5, double(difficulty_target) / double(difficulty_target - real_avg_solveTime));
-    } else if (real_avg_solveTime > CryptoNote::parameters::DIFFICULTY_TARGET) {
-        nextDiffV6 = difficulties.back() * (1.0 - double(real_avg_solveTime - difficulty_target) / double(real_avg_solveTime));
+    } else if (real_avg_solveTime > difficulty_target) {
+        nextDiffV6 = real_last_difficulty * (1.0 - double(real_avg_solveTime - difficulty_target) / double(real_avg_solveTime));
     } else {
-        nextDiffV6 = difficulties.back();
+        nextDiffV6 = real_last_difficulty;
     }
     return nextDiffV6;
 }
