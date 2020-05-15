@@ -1037,10 +1037,11 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
         nextDiffV6 = real_last_difficulty *
                 std::min(1.2, double(difficulty_target) / double(real_avg_solveTime));
     } else if (real_avg_solveTime > difficulty_target) {
-        nextDiffV6 = std::max(CryptoNote::parameters::DEFAULT_DIFFICULTY,
-                              difficulty_type(real_last_difficulty * double(difficulty_target) / double(real_avg_solveTime)));
+        nextDiffV6 = std::max<difficulty_type>(CryptoNote::parameters::DEFAULT_DIFFICULTY,
+                              real_last_difficulty * double(difficulty_target) / double(real_avg_solveTime));
     } else {
-        nextDiffV6 = std::max(CryptoNote::parameters::DEFAULT_DIFFICULTY, real_last_difficulty);
+        nextDiffV6 = std::max<difficulty_type>(CryptoNote::parameters::DEFAULT_DIFFICULTY,
+                                               real_last_difficulty);
     }
     return nextDiffV6;
 }
