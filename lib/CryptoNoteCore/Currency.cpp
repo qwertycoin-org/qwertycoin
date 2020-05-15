@@ -678,16 +678,13 @@ uint64_t Currency::roundUpMinFee(uint64_t minimalFee, int digits) const
     return ret;
 }
 
-difficulty_type Currency::nextDifficulty(
-    uint32_t height,
+difficulty_type Currency::nextDifficulty(uint32_t height,
     uint8_t blockMajorVersion,
     std::vector<uint64_t> timestamps,
-    std::vector<difficulty_type> cumulativeDifficulties,
-    uint64_t block_time) const
+    std::vector<difficulty_type> cumulativeDifficulties) const
 {
-    logger (INFO) << "Currency::nextDifficulty(" << height << ", " << (uint32_t)blockMajorVersion << ")";
     if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
-        return nextDifficultyV6(blockMajorVersion, timestamps, cumulativeDifficulties, block_time, height);
+        return nextDifficultyV6(blockMajorVersion, timestamps, cumulativeDifficulties, height);
     } else if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
         return nextDifficultyV5(blockMajorVersion, timestamps, cumulativeDifficulties);
     } else if (blockMajorVersion == BLOCK_MAJOR_VERSION_3
@@ -940,7 +937,7 @@ difficulty_type Currency::nextDifficultyV5(
 difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     std::vector<uint64_t> timestamps,
     std::vector<difficulty_type> cumulativeDifficulties,
-    uint64_t block_time, uint32_t height) const
+    uint32_t height) const
 {
     if(isTestnet()){
         return CryptoNote::parameters::DEFAULT_DIFFICULTY;
