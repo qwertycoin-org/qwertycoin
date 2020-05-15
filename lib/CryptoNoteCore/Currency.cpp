@@ -1000,18 +1000,9 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     uint64_t difficulty_target = CryptoNote::parameters::DIFFICULTY_TARGET;
 
     // check if last solve time is outlier
-    uint64_t last_solvetime = solveTimes.back();
     uint64_t low_solvetime_limit = 0;
     if (avg_solvetime > stddev_solvetime)
         low_solvetime_limit = avg_solvetime - stddev_solvetime;
-    if((low_solvetime_limit <= last_solvetime) &&
-       (last_solvetime <= avg_solvetime + stddev_solvetime))
-    {
-        // Use static scenario, network hashrate looks stable
-        nextDiffV6 = difficulties.back();
-        return nextDiffV6;
-    }
-
     // combine times and difficulties in one container
     std::vector<std::pair<uint64_t, difficulty_type>> combined;
     combined.resize(solveTimes.size());
@@ -1047,11 +1038,12 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
 
     if (real_avg_solveTime < difficulty_target) {
         nextDiffV6 = real_last_difficulty *
-                std::min(1.5, double(difficulty_target) / double(difficulty_target - real_avg_solveTime));
+                std::min(1.2, double(difficulty_target) / double(real_avg_solveTime));
     } else if (real_avg_solveTime > difficulty_target) {
-        nextDiffV6 = real_last_difficulty * (1.0 - double(real_avg_solveTime - difficulty_target) / double(real_avg_solveTime));
+        nextDiffV6 = std::max(CryptoNote::parameters::DEFAULT_DIFFICULTY,
+                              difficulty_type(real_last_difficulty * double(difficulty_target) / double(real_avg_solveTime)));
     } else {
-        nextDiffV6 = real_last_difficulty;
+        nextDiffV6 = std::max(CryptoNote::parameters::DEFAULT_DIFFICULTY, real_last_difficulty);
     }
     return nextDiffV6;
 }
