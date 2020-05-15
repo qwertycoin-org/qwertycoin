@@ -249,7 +249,7 @@ bool DaemonCommandsHandler::help(const std::vector<std::string> &args)
 bool DaemonCommandsHandler::status(const std::vector<std::string> &args)
 {
     uint32_t height = m_core.get_current_blockchain_height() - 1;
-    uint64_t difficulty = m_core.getNextBlockDifficulty(time(nullptr));
+    uint64_t difficulty = m_core.getNextBlockDifficulty();
     size_t tx_pool_size = m_core.get_pool_transactions_count();
     size_t alt_blocks_count = m_core.get_alternative_blocks_count();
     uint32_t last_known_block_index = std::max(
@@ -529,7 +529,7 @@ bool DaemonCommandsHandler::print_diff(const std::vector<std::string> &args)
 {
     logger(Logging::INFO)
         << "Difficulty for next block: "
-        << m_core.getNextBlockDifficulty(time(nullptr))
+        << m_core.getNextBlockDifficulty()
         << std::endl;
 
     return true;

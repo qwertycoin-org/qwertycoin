@@ -622,7 +622,7 @@ bool Blockchain::init(const std::string &config_folder, bool load_existing)
     logger(INFO, BRIGHT_GREEN)
         << "Blockchain initialized. last block: " << m_blocks.size() - 1 << ", "
         << Common::timeIntervalToString(timestamp_diff)
-        << " time ago, current difficulty: " << getDifficultyForNextBlock(time(nullptr));
+        << " time ago, current difficulty: " << getDifficultyForNextBlock();
 
     return true;
 }
@@ -821,7 +821,7 @@ bool Blockchain::getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeig
     return m_blockIndex.getBlockHeight(blockId, blockHeight);
 }
 
-difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t block_time)
+difficulty_type Blockchain::getDifficultyForNextBlock()
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     std::vector<uint64_t> timestamps;
@@ -844,8 +844,7 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t block_time)
         static_cast<uint32_t>(m_blocks.size()),
         BlockMajorVersion,
         timestamps,
-        cumulative_difficulties,
-        block_time
+        cumulative_difficulties
                 );
 }
 
@@ -1303,7 +1302,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(
         }
     }
 
-    return m_currency.nextDifficulty(static_cast<uint32_t>(m_blocks.size()), BlockMajorVersion, timestamps, cumulative_difficulties, time(nullptr));
+    return m_currency.nextDifficulty(static_cast<uint32_t>(m_blocks.size()), BlockMajorVersion, timestamps, cumulative_difficulties);
 }
 
 bool Blockchain::prevalidate_miner_transaction(const Block &b, uint32_t height)
@@ -2651,8 +2650,7 @@ bool Blockchain::pushBlock(
     }
 
     auto targetTimeStart = std::chrono::steady_clock::now();
-    difficulty_type currentDifficulty = getDifficultyForNextBlock(blockData.timestamp);
-    logger (INFO) << "currentDifficulty: " << currentDifficulty;
+    difficulty_type currentDifficulty = getDifficultyForNextBlock();
     auto target_calculating_time = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - targetTimeStart
     ).count();
