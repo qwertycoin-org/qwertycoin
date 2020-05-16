@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <algorithm>
+#include <random>
 #include <boost/uuid/uuid_io.hpp>
 #include <Common/StdInputStream.h>
 #include <Common/StdOutputStream.h>
@@ -260,7 +262,8 @@ void P2pNode::connectPeers()
     // if white peer list is empty, get peers from seeds
     if (m_peerlist.get_white_peers_count() == 0 && !m_cfg.getSeedNodes().empty()) {
         auto seedNodes = m_cfg.getSeedNodes();
-        std::random_shuffle(seedNodes.begin(), seedNodes.end());
+        auto rng = std::default_random_engine{};
+        std::shuffle(std::begin(seedNodes), std::end(seedNodes), rng);
         for (const auto &seed : seedNodes) {
             auto conn = tryToConnectPeer(seed);
             if (conn != nullptr && fetchPeerList(std::move(conn))) {
