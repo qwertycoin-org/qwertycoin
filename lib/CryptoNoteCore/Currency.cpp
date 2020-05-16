@@ -963,8 +963,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     // Consider this as a service or trial period.
     // With EPoW reward algo in place, we don't really need to worry about attackers
     // or large miners taking advanatage of our system.
-    if (height < CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
-            CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24) {
+    if (height < CryptoNote::parameters::UPGRADE_HEIGHT_V6 + diffWindow) {
         return nextDiffV6;
     }
 
