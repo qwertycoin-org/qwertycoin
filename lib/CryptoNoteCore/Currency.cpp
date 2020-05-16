@@ -969,7 +969,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     }
 
     // check all values in input vectors greater than previous value to calc adjacent differences later
-    if (std::adjacent_find(timestamps.begin(), timestamps.end(), std::greater_equal<uint64_t>()) != timestamps.end()) {
+    if (std::adjacent_find(timestamps.begin(), timestamps.end(), std::greater<uint64_t>()) != timestamps.end()) {
         logger (ERROR) << "Invalid timestamps for difficulty calculation";
         return nextDiffV6;
     }
