@@ -133,6 +133,7 @@ public:
     virtual void initWithKeys(const AccountKeys &accountKeys, const std::string &password) = 0;
     virtual void shutdown() = 0;
     virtual void reset() = 0;
+    virtual void purge() = 0;
 
     virtual void save(std::ostream &destination, bool saveDetailed = true, bool saveCache = true)=0;
 

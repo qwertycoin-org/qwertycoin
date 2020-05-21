@@ -192,6 +192,11 @@ const command_line::arg_descriptor<bool> arg_reset = {
     "Discard cache data and start synchronizing from scratch",
     false
 };
+const command_line::arg_descriptor<bool> arg_purge = {
+    "purge",
+    "Discard cache data and start synchronizing from scratch",
+    false
+};
 const command_line::arg_descriptor< std::vector<std::string> > arg_command = {
     "command",
     ""
@@ -1226,6 +1231,11 @@ simple_wallet::simple_wallet(
         boost::bind(&simple_wallet::exit, this, _1),
         "Close wallet"
     );
+    m_consoleHandler.setHandler(
+        "purge",
+        boost::bind(&simple_wallet::purge, this, _1),
+        "Discard cache data and start synchronizing from the start"
+    );
 }
 
 bool simple_wallet::set_log(const std::vector<std::string> &args)
@@ -1850,6 +1860,9 @@ bool simple_wallet::init(const boost::program_options::variables_map &vm)
         if (command_line::has_arg(vm, arg_reset)) {
             reset({});
         }
+        if (command_line::has_arg(vm, arg_purge)) {
+            purge({});
+        }
     }
 
     return true;
@@ -2230,6 +2243,26 @@ bool simple_wallet::reset(const std::vector<std::string> &args)
 
     m_wallet->reset();
     success_msg_writer(true) << "Reset completed successfully.";
+
+    std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+    while (!m_walletSynchronized) {
+        m_walletSynchronizedCV.wait(lock);
+    }
+
+    std::cout << std::endl;
+
+    return true;
+}
+
+bool simple_wallet::purge(const std::vector<std::string> &args)
+{
+    {
+        std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+        m_walletSynchronized = false;
+    }
+
+    m_wallet->purge();
+    success_msg_writer(true) << "Purge completed successfully.";
 
     std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
     while (!m_walletSynchronized) {
@@ -3318,6 +3351,7 @@ int main(int argc, char *argv[])
     command_line::add_arg(desc_params, arg_log_level);
     command_line::add_arg(desc_params, arg_testnet);
     command_line::add_arg(desc_params, arg_reset);
+    command_line::add_arg(desc_params, arg_purge);
     Tools::wallet_rpc_server::init_options(desc_params);
 
     po::positional_options_description positional_options;
