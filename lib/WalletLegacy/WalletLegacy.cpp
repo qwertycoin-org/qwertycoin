@@ -439,6 +439,31 @@ void WalletLegacy::reset()
     }
 }
 
+void WalletLegacy::purge()
+{
+    try {
+        std::error_code saveError;
+        std::stringstream ss;
+
+        {
+            SaveWaiter saveWaiter;
+            WalletHelper::IWalletRemoveObserverGuard saveGuarantee(*this, saveWaiter);
+            save(ss, false, false);
+            saveError = saveWaiter.waitSave();
+        }
+
+        if (!saveError) {
+            shutdown();
+            InitWaiter initWaiter;
+            WalletHelper::IWalletRemoveObserverGuard initGuarantee(*this, initWaiter);
+            initAndLoad(ss, m_password);
+            initWaiter.waitInit();
+        }
+    } catch (std::exception &e) {
+        std::cout << "exception in purge: " << e.what() << std::endl;
+    }
+}
+
 void WalletLegacy::save(std::ostream &destination, bool saveDetailed, bool saveCache)
 {
     if(m_isStopping) {

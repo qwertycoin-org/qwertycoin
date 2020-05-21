@@ -142,6 +142,7 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest &request,
             { "store"            , makeMemberMethod(&wallet_rpc_server::on_store)             },
             { "stop_wallet"      , makeMemberMethod(&wallet_rpc_server::on_stop_wallet)       },
             { "reset"            , makeMemberMethod(&wallet_rpc_server::on_reset)             },
+            { "purge"            , makeMemberMethod(&wallet_rpc_server::on_purge)             },
             { "get_payments"     , makeMemberMethod(&wallet_rpc_server::on_get_payments)      },
             { "get_messages"	 , makeMemberMethod(&wallet_rpc_server::on_get_messages)	  },
             { "get_transfers"    , makeMemberMethod(&wallet_rpc_server::on_get_transfers)     },
@@ -573,6 +574,15 @@ bool wallet_rpc_server::on_reset(
     wallet_rpc::COMMAND_RPC_RESET::response &res)
 {
     m_wallet.reset();
+
+    return true;
+}
+
+bool wallet_rpc_server::on_purge(
+    const wallet_rpc::COMMAND_RPC_PURGE::request &req,
+    wallet_rpc::COMMAND_RPC_PURGE::response &res)
+{
+    m_wallet.purge();
 
     return true;
 }

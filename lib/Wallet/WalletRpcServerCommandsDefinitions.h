@@ -319,6 +319,13 @@ struct COMMAND_RPC_RESET
     typedef CryptoNote::EMPTY_STRUCT response;
 };
 
+// command: purge
+struct COMMAND_RPC_PURGE
+{
+    typedef CryptoNote::EMPTY_STRUCT request;
+    typedef CryptoNote::EMPTY_STRUCT response;
+};
+
 // command: query_key
 struct COMMAND_RPC_QUERY_KEY
 {

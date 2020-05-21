@@ -126,6 +126,9 @@ private:
 	bool on_reset(
 	    const wallet_rpc::COMMAND_RPC_RESET::request &req,
 	    wallet_rpc::COMMAND_RPC_RESET::response &res);
+    bool on_purge(
+        const wallet_rpc::COMMAND_RPC_PURGE::request &req,
+        wallet_rpc::COMMAND_RPC_PURGE::response &res);
 
     bool handle_command_line(const boost::program_options::variables_map& vm);
 
