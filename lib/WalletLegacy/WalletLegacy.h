@@ -78,7 +78,7 @@ public:
     void initAndLoad(std::istream &source, const std::string &password) override;
     void initWithKeys(const AccountKeys &accountKeys, const std::string &password) override;
     void shutdown() override;
-    void reset() override;
+    void rescan() override;
     void purge() override;
 
     Crypto::SecretKey generateKey(
