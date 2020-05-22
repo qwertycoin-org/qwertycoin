@@ -414,7 +414,7 @@ void WalletLegacy::shutdown()
     }
 }
 
-void WalletLegacy::reset()
+void WalletLegacy::rescan()
 {
     try {
         std::error_code saveError;
@@ -423,7 +423,7 @@ void WalletLegacy::reset()
         {
             SaveWaiter saveWaiter;
             WalletHelper::IWalletRemoveObserverGuard saveGuarantee(*this, saveWaiter);
-            save(ss, false, false);
+            save(ss, true, true);
             saveError = saveWaiter.waitSave();
         }
 

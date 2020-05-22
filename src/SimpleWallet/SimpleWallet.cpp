@@ -187,9 +187,9 @@ const command_line::arg_descriptor<bool> arg_testnet = {
     "Used to deploy test nets. The daemon must be launched with --testnet flag",
     false
 };
-const command_line::arg_descriptor<bool> arg_reset = {
-    "reset",
-    "Discard cache data and start synchronizing from scratch",
+const command_line::arg_descriptor<bool> arg_rescan = {
+    "rescan",
+    "Start synchronizing from scratch",
     false
 };
 const command_line::arg_descriptor<bool> arg_purge = {
@@ -1160,9 +1160,9 @@ simple_wallet::simple_wallet(
         "Save wallet synchronized data"
     );
     m_consoleHandler.setHandler(
-        "reset",
-        boost::bind(&simple_wallet::reset, this, _1),
-        "Discard cache data and start synchronizing from the start"
+        "rescan",
+        boost::bind(&simple_wallet::rescan, this, _1),
+        "Start synchronizing from the scratch"
     );
     m_consoleHandler.setHandler(
         "show_seed",
@@ -1857,8 +1857,8 @@ bool simple_wallet::init(const boost::program_options::variables_map &vm)
             << "Use \"help\" command to see the list of available commands.\n"
             << "**********************************************************************";
 
-        if (command_line::has_arg(vm, arg_reset)) {
-            reset({});
+        if (command_line::has_arg(vm, arg_rescan)) {
+            rescan({});
         }
         if (command_line::has_arg(vm, arg_purge)) {
             purge({});
@@ -2234,15 +2234,15 @@ bool simple_wallet::save(const std::vector<std::string> &args)
     return true;
 }
 
-bool simple_wallet::reset(const std::vector<std::string> &args)
+bool simple_wallet::rescan(const std::vector<std::string> &args)
 {
     {
         std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
         m_walletSynchronized = false;
     }
 
-    m_wallet->reset();
-    success_msg_writer(true) << "Reset completed successfully.";
+    m_wallet->rescan();
+    success_msg_writer(true) << "Rescan completed successfully.";
 
     std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
     while (!m_walletSynchronized) {
@@ -3350,7 +3350,7 @@ int main(int argc, char *argv[])
     command_line::add_arg(desc_params, arg_log_file);
     command_line::add_arg(desc_params, arg_log_level);
     command_line::add_arg(desc_params, arg_testnet);
-    command_line::add_arg(desc_params, arg_reset);
+    command_line::add_arg(desc_params, arg_rescan);
     command_line::add_arg(desc_params, arg_purge);
     Tools::wallet_rpc_server::init_options(desc_params);
 

@@ -143,7 +143,7 @@ private:
     bool sendMsg(const std::vector<std::string>& args);
     bool print_address(const std::vector<std::string> &args = std::vector<std::string>());
     bool save(const std::vector<std::string> &args);
-    bool reset(const std::vector<std::string> &args);
+    bool rescan(const std::vector<std::string> &args);
     bool purge(const std::vector<std::string> &args);
     bool set_log(const std::vector<std::string> &args);
     bool payment_id(const std::vector<std::string> &args);
