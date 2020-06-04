@@ -96,9 +96,7 @@ private:
     using UserPaymentIndex=std::unordered_map<PaymentId,std::vector<Offset>,boost::hash<PaymentId>>;
 
     void getGoodItems(UserTransactions &transactions, UserTransfers &transfers);
-    void getGoodTransaction(
-        TransactionId txId,
-        size_t offset,
+    void getGoodTransaction(TransactionId txId,
         UserTransactions &transactions,
         UserTransfers &transfers);
 
