@@ -103,6 +103,8 @@ public:
     size_t getTransferCount() override;
     size_t getUnlockedOutputsCount() override;
 
+    std::list<TransactionOutputInformation> selectAllOldOutputs(uint32_t height) override;
+
     TransactionId findTransactionByTransferId(TransferId transferId) override;
 
     bool getTransaction(TransactionId transactionId, WalletLegacyTransaction &transaction) override;

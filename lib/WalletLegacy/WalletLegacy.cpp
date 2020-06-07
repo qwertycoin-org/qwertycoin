@@ -709,6 +709,24 @@ size_t WalletLegacy::getUnlockedOutputsCount()
     return outputs.size();
 }
 
+std::list<TransactionOutputInformation> WalletLegacy::selectAllOldOutputs(uint32_t height)
+{
+    std::vector<TransactionOutputInformation> outputs;
+    m_transferDetails->getOutputs(outputs, ITransfersContainer::IncludeKeyUnlocked);
+
+    std::list<TransactionOutputInformation> result;
+    for (const auto& toi: outputs) {
+        TransactionId id = m_transactionsCache.findTransactionByHash(toi.transactionHash);
+        if (id == CryptoNote::WALLET_LEGACY_INVALID_TRANSACTION_ID)
+            continue;
+        WalletLegacyTransaction& tx = m_transactionsCache.getTransaction(id);
+        if(tx.blockHeight <= height)
+            result.push_back(toi);
+    }
+
+    return result;
+}
+
 size_t WalletLegacy::estimateFusion(const uint64_t &threshold)
 {
     size_t fusionReadyCount = 0;
@@ -950,6 +968,7 @@ TransactionId WalletLegacy::sendFusionTransaction(
     for (auto &out : fusionInputs) {
         destination.amount += out.amount;
     }
+    destination.amount -= fee;
     destination.address = getAddress();
     transfers.push_back(destination);
 

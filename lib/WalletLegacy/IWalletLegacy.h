@@ -151,6 +151,8 @@ public:
     virtual size_t getTransferCount() = 0;
     virtual size_t getUnlockedOutputsCount() = 0;
 
+    virtual std::list<TransactionOutputInformation> selectAllOldOutputs(uint32_t height) = 0;
+
     virtual TransactionId findTransactionByTransferId(TransferId transferId) = 0;
 
     virtual bool getTransaction(TransactionId transactionId,WalletLegacyTransaction &transaction)=0;
