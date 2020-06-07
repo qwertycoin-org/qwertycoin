@@ -1195,6 +1195,11 @@ simple_wallet::simple_wallet(
         "Optimize wallet (fuse small outputs into fewer larger ones) - optimize <threshold> <mixin>"
     );
     m_consoleHandler.setHandler(
+        "shrink",
+        boost::bind(&simple_wallet::shrink, this, _1),
+        "Cut old (generated before <height>) outputs by creating new txes - shrink <height> <mixin>"
+    );
+    m_consoleHandler.setHandler(
         "get_tx_key",
         boost::bind(&simple_wallet::get_tx_key, this, _1),
         "Get secret transaction key for a given <txid>"
@@ -3177,6 +3182,102 @@ bool simple_wallet::optimize(const std::vector<std::string> &args)
         CryptoNote::TransactionId tx = m_wallet->sendFusionTransaction(
             fusionInputs,
             0,
+            extraString,
+            mixIn,
+            0
+        );
+        if (tx == WALLET_LEGACY_INVALID_TRANSACTION_ID) {
+            fail_msg_writer() << "Can't send money";
+            return true;
+        }
+
+        std::error_code sendError = sent.wait(tx);
+        removeGuard.removeObserver();
+
+        if (sendError) {
+            fail_msg_writer() << sendError.message();
+            return true;
+        }
+
+        CryptoNote::WalletLegacyTransaction txInfo;
+        m_wallet->getTransaction(tx, txInfo);
+        success_msg_writer(true)
+            << "Fusion transaction successfully sent, hash: "
+            << Common::podToHex(txInfo.hash);
+
+        try {
+            CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
+        } catch (const std::exception &e) {
+            fail_msg_writer() << e.what();
+            return true;
+        }
+    } catch (const std::system_error &e) {
+        fail_msg_writer() << e.what();
+    } catch (const std::exception &e) {
+        fail_msg_writer() << e.what();
+    } catch (...) {
+        fail_msg_writer() << "unknown error";
+    }
+
+    return true;
+}
+
+bool simple_wallet::shrink(const std::vector<std::string> &args)
+{
+    if (m_trackingWallet) {
+        fail_msg_writer() << "This is tracking wallet. Spending is impossible.";
+        return true;
+    }
+    uint32_t heightThreshold = 0;
+    uint64_t mixIn = 0;
+    std::string height_str;
+    if (args.size() == 1) {
+        height_str = args[0];
+        mixIn = 3;
+    } else if (args.size() == 2) {
+        height_str = args[0];
+        std::string mixin_str = args[1];
+        if (!Common::fromString(mixin_str, mixIn)) {
+            logger(ERROR, BRIGHT_RED)
+                << "mixin_count should be non-negative integer, got "
+                << mixin_str;
+            return false;
+        }
+        if (mixIn < m_currency.minMixin() && mixIn != 0) {
+            logger(ERROR, BRIGHT_RED)
+                << "mixIn should be equal to or bigger than "
+                << m_currency.minMixin();
+            return false;
+        }
+        if (mixIn > m_currency.maxMixin()) {
+            logger(ERROR, BRIGHT_RED)
+                << "mixIn should be equal to or less than "
+                << m_currency.maxMixin();
+            return false;
+        }
+    } else {
+        heightThreshold = m_node->getNodeHeight() + 1;
+        mixIn = 3;
+    }
+
+    if (!Common::fromString(height_str, heightThreshold)) {
+        logger(ERROR, BRIGHT_RED)
+            << "<height> should be non-negative integer, got "
+            << height_str;
+        return false;
+    }
+
+    std::list<TransactionOutputInformation> oldInputs = m_wallet->selectAllOldOutputs(heightThreshold);
+
+    try {
+        CryptoNote::WalletHelper::SendCompleteResultObserver sent;
+        std::string extraString;
+
+        WalletHelper::IWalletRemoveObserverGuard removeGuard(*m_wallet, sent);
+
+        CryptoNote::TransactionId tx = m_wallet->sendFusionTransaction(
+            oldInputs,
+            CryptoNote::parameters::MINIMUM_FEE,
             extraString,
             mixIn,
             0
