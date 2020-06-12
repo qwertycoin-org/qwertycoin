@@ -3299,6 +3299,12 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
         mixIn = 3;
     }
 
+    uint32_t currentShrinkHeight = m_wallet->getShrinkHeight();
+    if (currentShrinkHeight >= heightThreshold) {
+        fail_msg_writer() << "Wallet already shrinked up to " << currentShrinkHeight << " height";
+        return true;
+    }
+
     std::list<TransactionOutputInformation> oldInputs = m_wallet->selectAllOldOutputs(heightThreshold);
 
     if (oldInputs.empty()) {
