@@ -3258,9 +3258,23 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
     std::string height_str;
     if (args.size() == 1) {
         height_str = args[0];
+        if (!Common::fromString(height_str, heightThreshold)) {
+            logger(ERROR, BRIGHT_RED)
+                << "<height> should be non-negative integer, got "
+                << height_str;
+            return false;
+        }
+
         mixIn = 3;
     } else if (args.size() == 2) {
         height_str = args[0];
+        if (!Common::fromString(height_str, heightThreshold)) {
+            logger(ERROR, BRIGHT_RED)
+                << "<height> should be non-negative integer, got "
+                << height_str;
+            return false;
+        }
+
         std::string mixin_str = args[1];
         if (!Common::fromString(mixin_str, mixIn)) {
             logger(ERROR, BRIGHT_RED)
@@ -3281,19 +3295,19 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
             return false;
         }
     } else {
-        heightThreshold = m_node->getNodeHeight() + 1;
+        heightThreshold = m_node->getGRBHeight();
         mixIn = 3;
-    }
-
-    if (!Common::fromString(height_str, heightThreshold)) {
-        logger(ERROR, BRIGHT_RED)
-            << "<height> should be non-negative integer, got "
-            << height_str;
-        return false;
     }
 
     std::list<TransactionOutputInformation> oldInputs = m_wallet->selectAllOldOutputs(heightThreshold);
 
+    if (oldInputs.empty()) {
+        // nothing to shrink
+        fail_msg_writer()
+            << "Fusion transaction not created: nothing to shrink for threshold height "
+            << heightThreshold;
+        return true;
+    }
     try {
         CryptoNote::WalletHelper::SendCompleteResultObserver sent;
         std::string extraString;
