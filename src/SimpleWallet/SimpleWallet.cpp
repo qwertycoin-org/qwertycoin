@@ -1162,7 +1162,7 @@ simple_wallet::simple_wallet(
     m_consoleHandler.setHandler(
         "rescan",
         boost::bind(&simple_wallet::rescan, this, _1),
-        "Start synchronizing from the scratch"
+        "Reread wallet-related data from blockchain, keeps wallet hisory cache data"
     );
     m_consoleHandler.setHandler(
         "show_seed",
@@ -3252,6 +3252,7 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
         fail_msg_writer() << "Node is not synchronized. Try to shrink it later.";
         return true;
     }
+
     uint32_t heightThreshold = 0;
     uint64_t mixIn = 0;
     std::string height_str;
