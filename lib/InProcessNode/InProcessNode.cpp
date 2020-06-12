@@ -496,6 +496,12 @@ BlockHeaderInfo InProcessNode::getLastLocalBlockHeaderInfo() const
     return lastLocalBlockHeaderInfo;
 }
 
+uint32_t InProcessNode::getGRBHeight() const
+{
+    // stub, not implemented yet
+    return getLocalBlockCount();
+}
+
 void InProcessNode::peerCountUpdated(size_t count)
 {
     observerManager.notify(&INodeObserver::peerCountUpdated, count);

@@ -140,6 +140,7 @@ void NodeRpcProxy::resetInternalState()
     m_stop = false;
     m_peerCount.store(0, std::memory_order_relaxed);
     m_networkHeight.store(0, std::memory_order_relaxed);
+    m_GRBHeight.store(0, std::memory_order_relaxed);
     lastLocalBlockHeaderInfo.index = 0;
     lastLocalBlockHeaderInfo.majorVersion = 0;
     lastLocalBlockHeaderInfo.minorVersion = 0;
@@ -303,6 +304,7 @@ void NodeRpcProxy::updateBlockchainStatus()
 
         m_minimalFee.store(getInfoResp.min_tx_fee, std::memory_order_relaxed);
         m_nodeHeight.store(getInfoResp.height, std::memory_order_relaxed);
+        m_GRBHeight.store(getInfoResp.height, std::memory_order_relaxed);
     }
 
     if (m_connected != m_httpClient->isConnected()) {
@@ -405,6 +407,11 @@ BlockHeaderInfo NodeRpcProxy::getLastLocalBlockHeaderInfo() const
     std::lock_guard<std::mutex> lock(m_mutex);
 
     return lastLocalBlockHeaderInfo;
+}
+
+uint32_t NodeRpcProxy::getGRBHeight() const
+{
+    return m_GRBHeight;
 }
 
 uint32_t NodeRpcProxy::getNodeHeight() const

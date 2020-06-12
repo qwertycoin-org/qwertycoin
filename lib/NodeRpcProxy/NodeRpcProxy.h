@@ -80,6 +80,7 @@ public:
     uint64_t getMinimalFee() const override;
     uint32_t getNodeHeight() const override;
     BlockHeaderInfo getLastLocalBlockHeaderInfo() const override;
+    uint32_t getGRBHeight() const override;
 
     void relayTransaction(const CryptoNote::Transaction &transaction,
                           const Callback &callback) override;
@@ -208,6 +209,7 @@ private:
     std::atomic<uint32_t> m_networkHeight;
     std::atomic<uint64_t> m_nodeHeight;
     std::atomic<uint64_t> m_minimalFee;
+    std::atomic<uint32_t> m_GRBHeight;
 
     BlockHeaderInfo lastLocalBlockHeaderInfo;
     // protect it with mutex if decided to add worker threads
