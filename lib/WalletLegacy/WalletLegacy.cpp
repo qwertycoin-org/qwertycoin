@@ -1191,6 +1191,16 @@ bool WalletLegacy::isTrackingWallet()
     return keys.spendSecretKey == boost::value_initialized<Crypto::SecretKey>();
 }
 
+void WalletLegacy::setShrinkHeight(uint32_t height)
+{
+    m_transactionsCache.setShrinkHeight(height);
+}
+
+uint32_t WalletLegacy::getShrinkHeight() const
+{
+    return m_transactionsCache.getShrinkHeight();
+}
+
 std::vector<TransactionId> WalletLegacy::deleteOutdatedUnconfirmedTransactions()
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);

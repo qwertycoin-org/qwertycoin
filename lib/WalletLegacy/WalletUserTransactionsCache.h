@@ -87,6 +87,9 @@ public:
 
     std::vector<Payments> getTransactionsByPaymentIds(const std::vector<PaymentId>&paymentIds)const;
 
+    void setShrinkHeight(uint32_t height) { m_shrinkHeight = height; };
+    uint32_t getShrinkHeight() const { return m_shrinkHeight; };
+
 private:
     TransactionId insertTransaction(WalletLegacyTransaction &&Transaction);
     TransferId insertTransfers(const std::vector<WalletLegacyTransfer> &transfers);
@@ -115,6 +118,7 @@ private:
     UserTransfers m_transfers;
     WalletUnconfirmedTransactions m_unconfirmedTransactions;
     UserPaymentIndex m_paymentsIndex;
+    uint32_t m_shrinkHeight;
 };
 
 } // namespace CryptoNote

@@ -35,13 +35,13 @@ using namespace Common;
 
 namespace CryptoNote {
 
-uint32_t WALLET_LEGACY_SERIALIZATION_VERSION = 2;
+uint32_t WALLET_LEGACY_SERIALIZATION_VERSION = 3;
 
 WalletLegacySerializer::WalletLegacySerializer(CryptoNote::AccountBase &account,
                                                WalletUserTransactionsCache &transactionsCache)
     : account(account),
       transactionsCache(transactionsCache),
-      walletSerializationVersion(2)
+      walletSerializationVersion(3)
 {
 }
 
@@ -66,6 +66,10 @@ void WalletLegacySerializer::serialize(
     }
 
     serializer.binary(const_cast<std::string &>(cache), "cache");
+    if (walletSerializationVersion >= 3) {
+        uint32_t shrinkHeight = transactionsCache.getShrinkHeight();
+        serializer(shrinkHeight, "shrink_height");
+    }
 
     std::string plain = plainArchive.str();
     std::string cipher;
@@ -170,6 +174,11 @@ void WalletLegacySerializer::deserialize(
     }
 
     serializer.binary(cache, "cache");
+    if (version >= 3) {
+        uint32_t shrinkHeight = 0;
+        serializer(shrinkHeight, "shrink_height");
+        transactionsCache.setShrinkHeight(shrinkHeight);
+    }
 }
 
 void WalletLegacySerializer::decrypt(

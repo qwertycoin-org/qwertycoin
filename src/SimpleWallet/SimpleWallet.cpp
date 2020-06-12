@@ -3340,6 +3340,8 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
             << "Fusion transaction successfully sent, hash: "
             << Common::podToHex(txInfo.hash);
 
+        m_wallet->setShrinkHeight(heightThreshold);
+
         try {
             CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
         } catch (const std::exception &e) {
