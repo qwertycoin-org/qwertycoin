@@ -293,6 +293,9 @@ void NodeRpcProxy::updateBlockchainStatus()
             m_networkHeight.store(lastKnownBlockIndex, std::memory_order_relaxed);
             m_observerManager.notify(&INodeObserver::lastKnownBlockHeightUpdated,
                                      m_networkHeight.load(std::memory_order_relaxed));
+            m_state = STATE_INITIALIZING;
+        } else {
+            m_state = STATE_INITIALIZED;
         }
 
         updatePeerCount(getInfoResp.incoming_connections_count
@@ -648,11 +651,12 @@ void NodeRpcProxy::isSynchronized(bool &syncStatus, const Callback &callback)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_state != STATE_INITIALIZED) {
+        syncStatus = false;
         callback(make_error_code(error::NOT_INITIALIZED));
         return;
     }
 
-    // TODO: NOT IMPLEMENTED!
+    syncStatus = true;
     callback(std::error_code{});
 }
 

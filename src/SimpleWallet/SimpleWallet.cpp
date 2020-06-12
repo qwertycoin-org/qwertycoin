@@ -2243,6 +2243,10 @@ bool simple_wallet::rescan(const std::vector<std::string> &args)
 {
     {
         std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+        if (!m_walletSynchronized) {
+            fail_msg_writer() << "Wallet is not synchronized. Try to rescan it later.";
+            return true;
+        }
         m_walletSynchronized = false;
     }
 
@@ -2263,6 +2267,10 @@ bool simple_wallet::purge(const std::vector<std::string> &args)
 {
     {
         std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+        if (!m_walletSynchronized) {
+            fail_msg_writer() << "Wallet is not synchronized. Try to purge it later.";
+            return true;
+        }
         m_walletSynchronized = false;
     }
 
@@ -3226,6 +3234,22 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
 {
     if (m_trackingWallet) {
         fail_msg_writer() << "This is tracking wallet. Spending is impossible.";
+        return true;
+    }
+
+    {
+        std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+        if (!m_walletSynchronized) {
+            fail_msg_writer() << "Wallet is not synchronized. Try to shrink it later.";
+            return true;
+        }
+    }
+
+    bool synchronized = false;
+    CryptoNote::NodeRpcProxy::Callback cb = [](std::error_code){};
+    m_node->isSynchronized(synchronized, cb);
+    if (!synchronized) {
+        fail_msg_writer() << "Node is not synchronized. Try to shrink it later.";
         return true;
     }
     uint32_t heightThreshold = 0;
