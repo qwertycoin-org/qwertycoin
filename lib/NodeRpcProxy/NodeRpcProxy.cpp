@@ -294,9 +294,6 @@ void NodeRpcProxy::updateBlockchainStatus()
             m_networkHeight.store(lastKnownBlockIndex, std::memory_order_relaxed);
             m_observerManager.notify(&INodeObserver::lastKnownBlockHeightUpdated,
                                      m_networkHeight.load(std::memory_order_relaxed));
-            m_state = STATE_INITIALIZING;
-        } else {
-            m_state = STATE_INITIALIZED;
         }
 
         updatePeerCount(getInfoResp.incoming_connections_count
@@ -663,7 +660,7 @@ void NodeRpcProxy::isSynchronized(bool &syncStatus, const Callback &callback)
         return;
     }
 
-    syncStatus = true;
+    syncStatus = (lastLocalBlockHeaderInfo.index == m_networkHeight);
     callback(std::error_code{});
 }
 
