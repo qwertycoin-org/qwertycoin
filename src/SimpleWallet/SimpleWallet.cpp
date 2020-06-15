@@ -3299,6 +3299,11 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
         mixIn = 3;
     }
 
+    uint32_t currentHeight = m_node->getLastLocalBlockHeight();
+    if (currentHeight < heightThreshold) {
+        fail_msg_writer() << "Current height is " << currentHeight << ", can't shrink to bigger height";
+        return true;
+    }
     uint32_t currentShrinkHeight = m_wallet->getShrinkHeight();
     if (currentShrinkHeight >= heightThreshold) {
         fail_msg_writer() << "Wallet already shrinked up to " << currentShrinkHeight << " height";
