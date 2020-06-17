@@ -3319,52 +3319,67 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
             << heightThreshold;
         return true;
     }
-    try {
-        CryptoNote::WalletHelper::SendCompleteResultObserver sent;
-        std::string extraString;
 
-        WalletHelper::IWalletRemoveObserverGuard removeGuard(*m_wallet, sent);
-
-        CryptoNote::TransactionId tx = m_wallet->sendFusionTransaction(
-            oldInputs,
-            CryptoNote::parameters::MINIMUM_FEE,
-            extraString,
-            mixIn,
-            0
-        );
-        if (tx == WALLET_LEGACY_INVALID_TRANSACTION_ID) {
-            fail_msg_writer() << "Can't send money";
-            return true;
-        }
-
-        std::error_code sendError = sent.wait(tx);
-        removeGuard.removeObserver();
-
-        if (sendError) {
-            fail_msg_writer() << sendError.message();
-            return true;
-        }
-
-        CryptoNote::WalletLegacyTransaction txInfo;
-        m_wallet->getTransaction(tx, txInfo);
-        success_msg_writer(true)
-            << "Fusion transaction successfully sent, hash: "
-            << Common::podToHex(txInfo.hash);
-
-        m_wallet->setShrinkHeight(heightThreshold);
-
+    size_t estimatedFusionInputsCount = m_currency.getApproximateMaximumInputCount(
+        m_currency.fusionTxMaxSize(),
+        1,
+        mixIn
+    );
+    while (!oldInputs.empty())
+    {
+        std::list<TransactionOutputInformation> transferInputs;
+        size_t to_send = std::min(estimatedFusionInputsCount, oldInputs.size());
+        auto to_send_end = oldInputs.begin();
+        std::advance(to_send_end, to_send);
+        transferInputs.insert(transferInputs.begin(), oldInputs.begin(), to_send_end);
+        oldInputs.erase(oldInputs.begin(), to_send_end);
         try {
-            CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
+            CryptoNote::WalletHelper::SendCompleteResultObserver sent;
+            std::string extraString;
+
+            WalletHelper::IWalletRemoveObserverGuard removeGuard(*m_wallet, sent);
+
+            CryptoNote::TransactionId tx = m_wallet->sendFusionTransaction(
+                transferInputs,
+                CryptoNote::parameters::MINIMUM_FEE,
+                extraString,
+                mixIn,
+                0
+            );
+            if (tx == WALLET_LEGACY_INVALID_TRANSACTION_ID) {
+                fail_msg_writer() << "Can't send money";
+                return true;
+            }
+
+            std::error_code sendError = sent.wait(tx);
+            removeGuard.removeObserver();
+
+            if (sendError) {
+                fail_msg_writer() << sendError.message();
+                return true;
+            }
+
+            CryptoNote::WalletLegacyTransaction txInfo;
+            m_wallet->getTransaction(tx, txInfo);
+            success_msg_writer(true)
+                << "Fusion transaction successfully sent, hash: "
+                << Common::podToHex(txInfo.hash);
+
+            m_wallet->setShrinkHeight(heightThreshold);
+
+            try {
+                CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
+            } catch (const std::exception &e) {
+                fail_msg_writer() << e.what();
+                return true;
+            }
+        } catch (const std::system_error &e) {
+            fail_msg_writer() << e.what();
         } catch (const std::exception &e) {
             fail_msg_writer() << e.what();
-            return true;
+        } catch (...) {
+            fail_msg_writer() << "unknown error";
         }
-    } catch (const std::system_error &e) {
-        fail_msg_writer() << e.what();
-    } catch (const std::exception &e) {
-        fail_msg_writer() << e.what();
-    } catch (...) {
-        fail_msg_writer() << "unknown error";
     }
 
     return true;
