@@ -300,7 +300,8 @@ void WalletLegacy::initSync()
 {
     AccountSubscription sub;
     sub.keys = reinterpret_cast<const AccountKeys &>(m_account.getAccountKeys());
-    sub.transactionSpendableAge = CryptoNote::parameters::CRYPTONOTE_TX_SPENDABLE_AGE;
+    sub.transactionSpendableAge = m_currency.transactionSpendableAge();
+    sub.shrinkTransactionSpendableAge = m_currency.shrinkTransactionSpendableAge();
     sub.syncStart.height = m_transactionsCache.getConsolidateHeight();
     sub.syncStart.timestamp = m_account.get_createtime() - ACCOUNT_CREATE_TIME_ACCURACY;
 

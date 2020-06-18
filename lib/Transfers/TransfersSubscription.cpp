@@ -26,9 +26,9 @@ namespace CryptoNote {
 TransfersSubscription::TransfersSubscription(const CryptoNote::Currency &currency,
                                              Logging::ILogger &logger,
                                              const AccountSubscription &sub)
-    : subscription(sub),
-      logger(logger, "TransfersSubscription"),
-      transfers(currency, logger, sub.transactionSpendableAge)
+    : logger(logger, "TransfersSubscription"),
+      transfers(currency, logger, sub.transactionSpendableAge, sub.shrinkTransactionSpendableAge),
+      subscription(sub)
 {
 }
 
