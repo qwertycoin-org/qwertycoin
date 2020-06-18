@@ -37,6 +37,7 @@ struct AccountSubscription
     AccountKeys keys;
     SynchronizationStart syncStart;
     size_t transactionSpendableAge;
+    size_t shrinkTransactionSpendableAge;
 };
 
 class ITransfersSubscription;
