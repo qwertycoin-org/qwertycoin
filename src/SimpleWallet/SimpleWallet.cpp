@@ -3367,12 +3367,6 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
 
             m_wallet->setShrinkHeight(heightThreshold);
 
-            try {
-                CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
-            } catch (const std::exception &e) {
-                fail_msg_writer() << e.what();
-                return true;
-            }
         } catch (const std::system_error &e) {
             fail_msg_writer() << e.what();
         } catch (const std::exception &e) {
@@ -3380,6 +3374,14 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
         } catch (...) {
             fail_msg_writer() << "unknown error";
         }
+    }
+    try {
+        CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
+    } catch (const std::exception &e) {
+        fail_msg_writer() << e.what();
+        return true;
+    } catch (...) {
+        fail_msg_writer() << "unknown error";
     }
 
     return true;
