@@ -977,13 +977,15 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
         return nextDiffV6;
     }
 
-    // calc stat values to detect outliers
-    uint64_t avg_solvetime = (timestamps.back() - timestamps.front()) / diffWindow; // now subtraction is safe,  we know it is not negative
+    uint64_t difficulty_target = CryptoNote::parameters::DIFFICULTY_TARGET;
+    uint64_t window_target = difficulty_target * diffWindow;
+    uint64_t window_time = timestamps.back() - timestamps.front(); // now subtraction is safe,  we know it is not negative
+
+    // get solvetimes from timestamps
     std::vector<uint64_t> solveTimes;
     solveTimes.resize(timestamps.size());
     std::adjacent_difference(timestamps.begin(), timestamps.end(), solveTimes.begin()); // we check it before and all diffs are positive
     solveTimes.erase(solveTimes.begin());
-    uint64_t stddev_solvetime = Common::stddevValue(solveTimes);
 
     // get difficulties from the cumulative difficulties
     std::vector<difficulty_type> difficulties;
@@ -992,57 +994,65 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
                              cumulativeDifficulties.end(),
                              difficulties.begin()); // we check it before and all diffs are positive
     difficulties.erase(difficulties.begin());
+    difficulty_type prev_difficulty = difficulties.back();
 
-    uint64_t difficulty_target = CryptoNote::parameters::DIFFICULTY_TARGET;
+    // calc stat values to detect outliers
+    uint64_t avg_solvetime = window_time / diffWindow;
+    uint64_t stddev_solvetime = Common::stddevValue(solveTimes);
+    uint64_t solvetime_lowborder = 1;
+    if(avg_solvetime > stddev_solvetime)
+        solvetime_lowborder = avg_solvetime - stddev_solvetime;
+    uint64_t solvetime_highborder = avg_solvetime + stddev_solvetime;
+    size_t valid_solvetime_number = 0;
+    uint64_t valid_solvetime_sum = 0;
+    size_t invalid_solvetime_number = 0;
+    uint64_t invalid_solvetime_sum = 0;
+    std::for_each(solveTimes.begin(), solveTimes.end(),
+                  [solvetime_lowborder, solvetime_highborder,
+                   &valid_solvetime_number, &valid_solvetime_sum,
+                   &invalid_solvetime_number, &invalid_solvetime_sum] (uint64_t st) {
+        if ((st >= solvetime_lowborder) && (st <= solvetime_highborder)) {
+            valid_solvetime_number++;
+            valid_solvetime_sum += st;
+        } else {
+            invalid_solvetime_number++;
+            invalid_solvetime_sum += st;
+        }
+    });
 
-    // check if last solve time is outlier
-    uint64_t low_solvetime_limit = 0;
-    if (avg_solvetime > stddev_solvetime)
-        low_solvetime_limit = avg_solvetime - stddev_solvetime;
-    // combine times and difficulties in one container
-    std::vector<std::pair<uint64_t, difficulty_type>> combined;
-    combined.resize(solveTimes.size());
-    std::transform(solveTimes.begin(), solveTimes.end(), difficulties.begin(),
-                   combined.begin(),
-                   [](uint64_t st, difficulty_type d) { return std::make_pair(st, d); });
-
-    // filter outliers
-    auto to_erase = std::remove_if(
-        combined.begin(),
-        combined.end(),
-        [avg_solvetime, stddev_solvetime, low_solvetime_limit](std::pair<uint64_t, difficulty_type> p)
-            {   return (p.first < low_solvetime_limit) ||
-                     (p.first > avg_solvetime + stddev_solvetime);});
-    combined.erase(to_erase, combined.end());
-
-    // calc real average
-    std::vector<uint64_t> realSolveTimes;
-    realSolveTimes.resize(combined.size());
-    std::transform(combined.begin(), combined.end(),
-                   realSolveTimes.begin(),
-                   [](std::pair<uint64_t, difficulty_type> p) { return p.first; });
-    std::vector<difficulty_type> realDifficulty;
-    realDifficulty.resize(combined.size());
-    std::transform(combined.begin(), combined.end(),
-                   realDifficulty.begin(),
-                   [](std::pair<uint64_t, difficulty_type> p) { return p.second; });
-
-    uint64_t real_avg_solveTime = Common::meanValue(realSolveTimes);
-    difficulty_type real_last_difficulty = realDifficulty.back();
-
-    // calc difficulty
-
-    if (real_avg_solveTime < difficulty_target) {
-        nextDiffV6 = real_last_difficulty *
-                std::min(1.2, double(difficulty_target) / double(real_avg_solveTime));
-    } else if (real_avg_solveTime > difficulty_target) {
-        nextDiffV6 = std::max<difficulty_type>(CryptoNote::parameters::DEFAULT_DIFFICULTY,
-                              real_last_difficulty * double(difficulty_target) / double(real_avg_solveTime));
-    } else {
-        nextDiffV6 = std::max<difficulty_type>(CryptoNote::parameters::DEFAULT_DIFFICULTY,
-                                               real_last_difficulty);
+    // if there is no "invalid" solvetimes we can use previous difficulty value
+    if (invalid_solvetime_number == 0) {
+        return std::max(prev_difficulty, CryptoNote::parameters::DEFAULT_DIFFICULTY);
     }
-    return nextDiffV6;
+
+    // process data with "invalid" solvetimes
+    uint64_t valid_solvetime_mean = valid_solvetime_sum / valid_solvetime_number;
+    uint64_t invalid_solvetime_mean = invalid_solvetime_sum / invalid_solvetime_number;
+
+    if ( (window_time >= window_target * 0.97) &&
+         (window_time <= window_target * 1.03) ) {
+        if (valid_solvetime_mean >= invalid_solvetime_mean) {
+            double coef = double(difficulty_target) / double(valid_solvetime_mean);
+            if (valid_solvetime_mean < difficulty_target) {
+                nextDiffV6 = prev_difficulty * std::min(1.01, coef);
+            } else {
+                nextDiffV6 = prev_difficulty * std::max(0.99, coef);
+            }
+        } else {
+            double coef = double(difficulty_target) / double(invalid_solvetime_mean);
+            if (invalid_solvetime_mean < difficulty_target) {
+                nextDiffV6 = prev_difficulty * std::min(1.01, coef);
+            } else {
+                nextDiffV6 = prev_difficulty * std::max(0.99, coef);
+            }
+        }
+    } else if (window_time < window_target * 0.97) {
+        nextDiffV6 = prev_difficulty * 1.02;
+    } else {
+        nextDiffV6 = prev_difficulty * 0.98;
+    }
+
+    return std::max(nextDiffV6, CryptoNote::parameters::DEFAULT_DIFFICULTY);
 }
 
 bool Currency::checkProofOfWorkV1(
