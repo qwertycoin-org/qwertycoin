@@ -67,8 +67,8 @@ void WalletLegacySerializer::serialize(
 
     serializer.binary(const_cast<std::string &>(cache), "cache");
     if (walletSerializationVersion >= 3) {
-        uint32_t shrinkHeight = transactionsCache.getShrinkHeight();
-        serializer(shrinkHeight, "shrink_height");
+        uint32_t consolidateHeight = transactionsCache.getConsolidateHeight();
+        serializer(consolidateHeight, "consolidate_height");
     }
 
     std::string plain = plainArchive.str();
@@ -175,9 +175,9 @@ void WalletLegacySerializer::deserialize(
 
     serializer.binary(cache, "cache");
     if (version >= 3) {
-        uint32_t shrinkHeight = 0;
-        serializer(shrinkHeight, "shrink_height");
-        transactionsCache.setShrinkHeight(shrinkHeight);
+        uint32_t consolidateHeight = 0;
+        serializer(consolidateHeight, "consolidate_height");
+        transactionsCache.setConsolidateHeight(consolidateHeight);
     }
 }
 

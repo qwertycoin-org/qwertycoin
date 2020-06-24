@@ -301,7 +301,7 @@ void WalletLegacy::initSync()
     AccountSubscription sub;
     sub.keys = reinterpret_cast<const AccountKeys &>(m_account.getAccountKeys());
     sub.transactionSpendableAge = CryptoNote::parameters::CRYPTONOTE_TX_SPENDABLE_AGE;
-    sub.syncStart.height = m_transactionsCache.getShrinkHeight();
+    sub.syncStart.height = m_transactionsCache.getConsolidateHeight();
     sub.syncStart.timestamp = m_account.get_createtime() - ACCOUNT_CREATE_TIME_ACCURACY;
 
     auto &subObject = m_transfersSync.addSubscription(sub);
@@ -1191,14 +1191,14 @@ bool WalletLegacy::isTrackingWallet()
     return keys.spendSecretKey == boost::value_initialized<Crypto::SecretKey>();
 }
 
-void WalletLegacy::setShrinkHeight(uint32_t height)
+void WalletLegacy::setConsolidateHeight(uint32_t height)
 {
-    m_transactionsCache.setShrinkHeight(height);
+    m_transactionsCache.setConsolidateHeight(height);
 }
 
-uint32_t WalletLegacy::getShrinkHeight() const
+uint32_t WalletLegacy::getConsolidateHeight() const
 {
-    return m_transactionsCache.getShrinkHeight();
+    return m_transactionsCache.getConsolidateHeight();
 }
 
 std::vector<TransactionId> WalletLegacy::deleteOutdatedUnconfirmedTransactions()

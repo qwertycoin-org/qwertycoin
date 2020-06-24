@@ -1195,9 +1195,9 @@ simple_wallet::simple_wallet(
         "Optimize wallet (fuse small outputs into fewer larger ones) - optimize <threshold> <mixin>"
     );
     m_consoleHandler.setHandler(
-        "shrink",
-        boost::bind(&simple_wallet::shrink, this, _1),
-        "Cut old (generated before <height>) outputs by creating new txes - shrink <height> <mixin>"
+        "consolidate",
+        boost::bind(&simple_wallet::consolidate, this, _1),
+        "Cut old (generated before <height>) outputs by creating new txes - consolidate <height> <mixin>"
     );
     m_consoleHandler.setHandler(
         "get_tx_key",
@@ -3230,7 +3230,7 @@ bool simple_wallet::optimize(const std::vector<std::string> &args)
     return true;
 }
 
-bool simple_wallet::shrink(const std::vector<std::string> &args)
+bool simple_wallet::consolidate(const std::vector<std::string> &args)
 {
     if (m_trackingWallet) {
         fail_msg_writer() << "This is tracking wallet. Spending is impossible.";
@@ -3240,7 +3240,7 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
     {
         std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
         if (!m_walletSynchronized) {
-            fail_msg_writer() << "Wallet is not synchronized. Try to shrink it later.";
+            fail_msg_writer() << "Wallet is not synchronized. Try to consolidate it later.";
             return true;
         }
     }
@@ -3249,7 +3249,7 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
     CryptoNote::NodeRpcProxy::Callback cb = [](std::error_code){};
     m_node->isSynchronized(synchronized, cb);
     if (!synchronized) {
-        fail_msg_writer() << "Node is not synchronized. Try to shrink it later.";
+        fail_msg_writer() << "Node is not synchronized. Try to consolidate it later.";
         return true;
     }
 
@@ -3301,21 +3301,21 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
 
     uint32_t currentHeight = m_node->getLastLocalBlockHeight();
     if (currentHeight < heightThreshold) {
-        fail_msg_writer() << "Current height is " << currentHeight << ", can't shrink to bigger height";
+        fail_msg_writer() << "Current height is " << currentHeight << ", can't consolidate to bigger height";
         return true;
     }
-    uint32_t currentShrinkHeight = m_wallet->getShrinkHeight();
-    if (currentShrinkHeight >= heightThreshold) {
-        fail_msg_writer() << "Wallet already shrinked up to " << currentShrinkHeight << " height";
+    uint32_t currentConsolidateHeight = m_wallet->getConsolidateHeight();
+    if (currentConsolidateHeight >= heightThreshold) {
+        fail_msg_writer() << "Wallet already consolidated up to " << currentConsolidateHeight << " height";
         return true;
     }
 
     std::list<TransactionOutputInformation> oldInputs = m_wallet->selectAllOldOutputs(heightThreshold);
 
     if (oldInputs.empty()) {
-        // nothing to shrink
+        // nothing to consolidate
         fail_msg_writer()
-            << "Fusion transaction not created: nothing to shrink for threshold height "
+            << "Fusion transaction not created: nothing to consolidate for threshold height "
             << heightThreshold;
         return true;
     }
@@ -3365,7 +3365,7 @@ bool simple_wallet::shrink(const std::vector<std::string> &args)
                 << "Fusion transaction successfully sent, hash: "
                 << Common::podToHex(txInfo.hash);
 
-            m_wallet->setShrinkHeight(heightThreshold);
+            m_wallet->setConsolidateHeight(heightThreshold);
 
         } catch (const std::system_error &e) {
             fail_msg_writer() << e.what();

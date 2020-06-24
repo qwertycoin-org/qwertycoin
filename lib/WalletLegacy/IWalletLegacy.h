@@ -216,8 +216,8 @@ public:
 
     virtual bool isTrackingWallet() = 0;
 
-    virtual void setShrinkHeight(uint32_t height) = 0;
-    virtual uint32_t getShrinkHeight() const = 0;
+    virtual void setConsolidateHeight(uint32_t height) = 0;
+    virtual uint32_t getConsolidateHeight() const = 0;
 };
 
 } // namespace CryptoNOte

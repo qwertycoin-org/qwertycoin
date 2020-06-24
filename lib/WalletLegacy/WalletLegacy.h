@@ -167,8 +167,8 @@ public:
 
     bool isTrackingWallet() override;
 
-    void setShrinkHeight(uint32_t height) override;
-    uint32_t getShrinkHeight() const override;
+    void setConsolidateHeight(uint32_t height) override;
+    uint32_t getConsolidateHeight() const override;
 
 private:
     // IBlockchainSynchronizerObserver

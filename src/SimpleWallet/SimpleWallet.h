@@ -151,7 +151,7 @@ private:
     bool sweep_dust(const std::vector<std::string> &args);
 	bool estimate_fusion(const std::vector<std::string> &args);
     bool optimize(const std::vector<std::string> &args);
-    bool shrink(const std::vector<std::string> &args);
+    bool consolidate(const std::vector<std::string> &args);
     bool get_tx_key(const std::vector<std::string> &args);
 	bool get_tx_proof(const std::vector<std::string> &args);
 	bool get_reserve_proof(const std::vector<std::string> &args);

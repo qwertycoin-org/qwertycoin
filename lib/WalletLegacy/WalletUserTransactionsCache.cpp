@@ -34,7 +34,7 @@ namespace CryptoNote {
 
 WalletUserTransactionsCache::WalletUserTransactionsCache(uint64_t mempoolTxLiveTime)
     : m_unconfirmedTransactions(mempoolTxLiveTime),
-      m_shrinkHeight(0)
+      m_consolidateHeight(0)
 {
 }
 
@@ -48,7 +48,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         updateUnconfirmedTransactions();
         deleteOutdatedTransactions();
         rebuildPaymentsIndex();
-        // m_shrinkHeight is serialized outside this method
+        // m_consolidateHeight is serialized outside this method
     } else {
         UserTransactions txsToSave;
         UserTransfers transfersToSave;
@@ -57,7 +57,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         s(txsToSave, "transactions");
         s(transfersToSave, "transfers");
         s(m_unconfirmedTransactions, "unconfirmed");
-        // m_shrinkHeight is serialized outside this method
+        // m_consolidateHeight is serialized outside this method
     }
 
     return true;
