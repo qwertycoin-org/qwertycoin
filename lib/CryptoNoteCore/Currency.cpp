@@ -944,7 +944,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     }
 
     // Dynamic difficulty calculation window
-    uint32_t diffWindow = timestamps.size();
+    uint32_t diffWindow = timestamps.size() - 1;
 
     // check if we use special scenario with some fixed diff
     if (CryptoNote::parameters::FIXED_DIFFICULTY > 0)
@@ -997,12 +997,12 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     difficulty_type prev_difficulty = difficulties.back();
 
     // calc stat values to detect outliers
-    uint64_t avg_solvetime = window_time / diffWindow;
-    uint64_t stddev_solvetime = Common::stddevValue(solveTimes);
-    uint64_t solvetime_lowborder = 1;
+    double avg_solvetime = Common::meanValue(solveTimes);
+    double stddev_solvetime = Common::stddevValue(solveTimes);
+    double solvetime_lowborder = 1.0;
     if(avg_solvetime > stddev_solvetime)
         solvetime_lowborder = avg_solvetime - stddev_solvetime;
-    uint64_t solvetime_highborder = avg_solvetime + stddev_solvetime;
+    double solvetime_highborder = avg_solvetime + stddev_solvetime;
     size_t valid_solvetime_number = 0;
     uint64_t valid_solvetime_sum = 0;
     size_t invalid_solvetime_number = 0;
@@ -1026,30 +1026,30 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     }
 
     // process data with "invalid" solvetimes
-    uint64_t valid_solvetime_mean = valid_solvetime_sum / valid_solvetime_number;
-    uint64_t invalid_solvetime_mean = invalid_solvetime_sum / invalid_solvetime_number;
+    double valid_solvetime_mean = double(valid_solvetime_sum) / valid_solvetime_number;
+    double invalid_solvetime_mean = double(invalid_solvetime_sum) / invalid_solvetime_number;
 
     if ( (window_time >= window_target * 0.97) &&
          (window_time <= window_target * 1.03) ) {
         if (valid_solvetime_mean >= invalid_solvetime_mean) {
             double coef = double(difficulty_target) / double(valid_solvetime_mean);
             if (valid_solvetime_mean < difficulty_target) {
-                nextDiffV6 = prev_difficulty * std::min(1.01, coef);
+                nextDiffV6 = prev_difficulty * std::min(1.01, coef) + 0.5;
             } else {
-                nextDiffV6 = prev_difficulty * std::max(0.99, coef);
+                nextDiffV6 = prev_difficulty * std::max(0.99, coef) + 0.5;
             }
         } else {
             double coef = double(difficulty_target) / double(invalid_solvetime_mean);
             if (invalid_solvetime_mean < difficulty_target) {
-                nextDiffV6 = prev_difficulty * std::min(1.01, coef);
+                nextDiffV6 = prev_difficulty * std::min(1.01, coef) + 0.5;
             } else {
-                nextDiffV6 = prev_difficulty * std::max(0.99, coef);
+                nextDiffV6 = prev_difficulty * std::max(0.99, coef) + 0.5;
             }
         }
     } else if (window_time < window_target * 0.97) {
-        nextDiffV6 = prev_difficulty * 1.02;
+        nextDiffV6 = prev_difficulty * 1.02 + 0.5;
     } else {
-        nextDiffV6 = prev_difficulty * 0.98;
+        nextDiffV6 = prev_difficulty * 0.98 + 0.5;
     }
 
     return std::max(nextDiffV6, CryptoNote::parameters::DEFAULT_DIFFICULTY);
