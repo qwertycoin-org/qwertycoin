@@ -18,6 +18,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <boost/algorithm/string/trim.hpp>
@@ -955,6 +956,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     }
 
     difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
+    difficulty_type min_difficulty = CryptoNote::parameters::DEFAULT_DIFFICULTY;
     // Condition #1 When starting a chain or a working testnet requiring
     // block sample gathering until enough blocks are available (Kick-off Scenario)
     // We shall set a baseline for the hashrate that is specific to mining
@@ -1022,7 +1024,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
 
     // if there is no "invalid" solvetimes we can use previous difficulty value
     if (invalid_solvetime_number == 0) {
-        return std::max(prev_difficulty, CryptoNote::parameters::DEFAULT_DIFFICULTY);
+        return std::max(prev_difficulty, min_difficulty);
     }
 
     // process data with "invalid" solvetimes
@@ -1052,7 +1054,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
         nextDiffV6 = prev_difficulty * 0.98 + 0.5;
     }
 
-    return std::max(nextDiffV6, CryptoNote::parameters::DEFAULT_DIFFICULTY);
+    return std::max(nextDiffV6, min_difficulty);
 }
 
 bool Currency::checkProofOfWorkV1(
