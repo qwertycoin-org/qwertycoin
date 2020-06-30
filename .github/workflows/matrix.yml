@@ -26,7 +26,7 @@ jobs:
             cc: gcc-7
             cxx: g++-7
             label: linux-gcc-7
-            deployable: false
+            deployable: true
           - build_name: 'Ubuntu GCC 8'
             package_name: 'gcc-8 g++-8'
             cc: gcc-8
@@ -37,7 +37,7 @@ jobs:
             cc: clang-6.0
             cxx: clang++-6.0
             label: linux-clang-6
-            deployable: false
+            deployable: true
     env:
         CCACHE_DIR: $GITHUB_WORKSPACE/.ccache
         LABEL: ${{ matrix.label }}
