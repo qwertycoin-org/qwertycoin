@@ -201,10 +201,10 @@ size_t SpentOutputDescriptor::hash() const
 TransfersContainer::TransfersContainer(const Currency &currency,
                                        Logging::ILogger &logger,
                                        size_t transactionSpendableAge,
-                                       size_t shrinkTransactionSpendableAge)
+                                       size_t consolidateTransactionSpendableAge)
     : m_currentHeight(0),
       m_transactionSpendableAge(transactionSpendableAge),
-      m_shrinkTransactionSpendableAge(shrinkTransactionSpendableAge),
+      m_consolidateTransactionSpendableAge(consolidateTransactionSpendableAge),
       m_currency(currency),
       m_logger(logger, "TransfersContainer")
 {
