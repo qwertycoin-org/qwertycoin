@@ -42,7 +42,7 @@ public:
     uint64_t publicAddressBase58Prefix() const { return m_publicAddressBase58Prefix; }
     size_t minedMoneyUnlockWindow() const { return m_minedMoneyUnlockWindow; }
     size_t transactionSpendableAge() const { return m_transactionSpendableAge; }
-    size_t shrinkTransactionSpendableAge() const { return m_shrinkTransactionSpendableAge; }
+    size_t consolidateTransactionSpendableAge() const { return m_consolidateTransactionSpendableAge; }
     size_t expectedNumberOfBlocksPerDay() const { return m_expectedNumberOfBlocksPerDay; }
 
     size_t timestampCheckWindow() const { return m_timestampCheckWindow; }
@@ -280,7 +280,7 @@ private:
     uint64_t m_publicAddressBase58Prefix;
     size_t m_minedMoneyUnlockWindow;
     size_t m_transactionSpendableAge;
-    size_t m_shrinkTransactionSpendableAge;
+    size_t m_consolidateTransactionSpendableAge;
     size_t m_expectedNumberOfBlocksPerDay;
 
     size_t m_timestampCheckWindow;
@@ -396,9 +396,9 @@ public:
         m_currency.m_transactionSpendableAge = val;
         return *this;
     }
-    CurrencyBuilder &shrinkTransactionSpendableAge(size_t val)
+    CurrencyBuilder &consolidateTransactionSpendableAge(size_t val)
     {
-        m_currency.m_shrinkTransactionSpendableAge = val;
+        m_currency.m_consolidateTransactionSpendableAge = val;
         return *this;
     }
     CurrencyBuilder &expectedNumberOfBlocksPerDay(size_t val)

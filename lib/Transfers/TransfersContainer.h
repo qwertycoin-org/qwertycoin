@@ -155,7 +155,7 @@ public:
     TransfersContainer(const CryptoNote::Currency &currency,
                        Logging::ILogger &logger,
                        size_t transactionSpendableAge,
-                       size_t shrinkTransactionSpendableAge);
+                       size_t consolidateTransactionSpendableAge);
 
     bool addTransaction(const TransactionBlockInfo &block,
                         const ITransactionReader &tx,
@@ -314,7 +314,7 @@ private:
 
     uint32_t m_currentHeight; // current height is needed to check if a transfer is unlocked
     size_t m_transactionSpendableAge;
-    size_t m_shrinkTransactionSpendableAge;
+    size_t m_consolidateTransactionSpendableAge;
     const CryptoNote::Currency &m_currency;
     mutable std::mutex m_mutex;
     Logging::LoggerRef m_logger;
