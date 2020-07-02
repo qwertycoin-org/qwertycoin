@@ -120,6 +120,13 @@ void TransfersSyncronizer::addPublicKeysSeen(
     }
 }
 
+void TransfersSyncronizer::markTransactionSafe(const Hash &transactionHash)
+{
+    for (const auto &kv : m_consumers) {
+        kv.second->markTransactionSafe(transactionHash);
+    }
+}
+
 std::vector<Crypto::Hash> TransfersSyncronizer::getViewKeyKnownBlocks(
     const Crypto::PublicKey &publicViewKey)
 {

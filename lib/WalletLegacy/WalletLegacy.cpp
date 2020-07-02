@@ -1202,6 +1202,12 @@ uint32_t WalletLegacy::getConsolidateHeight() const
     return m_transactionsCache.getConsolidateHeight();
 }
 
+void WalletLegacy::markTransactionSafe(const Hash &transactionHash)
+{
+    m_transfersSync.markTransactionSafe(transactionHash);
+    m_transferDetails->markTransactionSafe(transactionHash);
+}
+
 std::vector<TransactionId> WalletLegacy::deleteOutdatedUnconfirmedTransactions()
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);

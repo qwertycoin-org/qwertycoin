@@ -425,7 +425,14 @@ void TransfersConsumer::removeUnconfirmedTransaction(const Crypto::Hash& transac
         &IBlockchainConsumerObserver::onTransactionDeleteEnd,
         this,
         transactionHash
-    );
+                );
+}
+
+void TransfersConsumer::markTransactionSafe(const Hash &transactionHash)
+{
+    forEachSubscription([transactionHash](TransfersSubscription &sub) {
+        sub.markTransactionSafe(transactionHash);
+    });
 }
 
 void TransfersConsumer::addPublicKeysSeen(

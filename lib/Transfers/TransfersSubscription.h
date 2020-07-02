@@ -45,6 +45,7 @@ public:
     void markTransactionConfirmed(const TransactionBlockInfo &block,
                                   const Crypto::Hash &transactionHash,
                                   const std::vector<uint32_t> &globalIndices);
+    void markTransactionSafe(const Crypto::Hash &transactionHash);
 
     // ITransfersSubscription
     AccountPublicAddress getAddress() override;
