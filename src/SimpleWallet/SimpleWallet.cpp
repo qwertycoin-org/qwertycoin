@@ -3213,6 +3213,8 @@ bool simple_wallet::optimize(const std::vector<std::string> &args)
             << "Fusion transaction successfully sent, hash: "
             << Common::podToHex(txInfo.hash);
 
+        m_wallet->markTransactionSafe(txInfo.hash);
+
         try {
             CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
         } catch (const std::exception &e) {
@@ -3366,6 +3368,8 @@ bool simple_wallet::consolidate(const std::vector<std::string> &args)
                 << Common::podToHex(txInfo.hash);
 
             m_wallet->setConsolidateHeight(heightThreshold);
+
+            m_wallet->markTransactionSafe(txInfo.hash);
 
         } catch (const std::system_error &e) {
             fail_msg_writer() << e.what();
