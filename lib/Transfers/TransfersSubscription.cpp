@@ -105,4 +105,10 @@ void TransfersSubscription::markTransactionConfirmed(const TransactionBlockInfo 
     m_observerManager.notify(&ITransfersObserver::onTransactionUpdated, this, transactionHash);
 }
 
+void TransfersSubscription::markTransactionSafe(const Hash &transactionHash)
+{
+    transfers.markTransactionSafe(transactionHash);
+    m_observerManager.notify(&ITransfersObserver::onTransactionUpdated, this, transactionHash);
+}
+
 } // namespace CryptoNote

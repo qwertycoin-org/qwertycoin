@@ -164,7 +164,6 @@ public:
     bool markTransactionConfirmed(const TransactionBlockInfo &block,
                                   const Crypto::Hash &transactionHash,
                                   const std::vector<uint32_t> &globalIndices);
-    void markTransactionSafe(const Crypto::Hash &transactionHash);
 
     std::vector<Crypto::Hash> detach(uint32_t height);
     bool advanceHeight(uint32_t height);
@@ -190,6 +189,7 @@ public:
         uint32_t flags) const override;
     void getUnconfirmedTransactions(std::vector<Crypto::Hash> &transactions) const override;
     std::vector<TransactionSpentOutputInformation> getSpentOutputs() const override;
+    void markTransactionSafe(const Crypto::Hash &transactionHash) override;
 
     // IStreamSerializable
     void save(std::ostream &os) override;

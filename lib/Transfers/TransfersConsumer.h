@@ -67,6 +67,8 @@ public:
     std::error_code addUnconfirmedTransaction(const ITransactionReader &transaction) override;
     void removeUnconfirmedTransaction(const Crypto::Hash &transactionHash) override;
 
+
+    void markTransactionSafe(const Crypto::Hash &transactionHash);
 private:
     template <typename F>
     void forEachSubscription(F action)

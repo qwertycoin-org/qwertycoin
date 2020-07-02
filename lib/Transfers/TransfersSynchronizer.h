@@ -73,6 +73,8 @@ public:
     void addPublicKeysSeen(const AccountPublicAddress &acc,
                            const Crypto::Hash &transactionHash,
                            const Crypto::PublicKey &outputKey);
+    void markTransactionSafe(const Crypto::Hash &transactionHash);
+
 
     // IStreamSerializable
     void save(std::ostream &os) override;
