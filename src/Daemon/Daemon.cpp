@@ -132,6 +132,13 @@ const command_line::arg_descriptor<bool> arg_testnet_on  = {
     false
 };
 
+const command_line::arg_descriptor<bool> arg_fixed_difficulty  = {
+    "fixed-difficulty",
+    "Fixed difficulty used for testing.",
+    0
+};
+
+
 const command_line::arg_descriptor<std::string> arg_load_checkpoints = {
     "load-checkpoints",
     "<filename> Load checkpoints from csv file.",
@@ -227,6 +234,7 @@ int main(int argc, char *argv[])
         command_line::add_arg(desc_cmd_sett, arg_console);
         command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
         command_line::add_arg(desc_cmd_sett, arg_testnet_on);
+        command_line::add_arg(desc_cmd_sett, arg_fixed_difficulty);
         command_line::add_arg(desc_cmd_sett, arg_enable_cors);
         command_line::add_arg(desc_cmd_sett, arg_set_fee_address);
         command_line::add_arg(desc_cmd_sett, arg_set_view_key);
@@ -321,10 +329,17 @@ int main(int argc, char *argv[])
         if (testnet_mode) {
             logger(INFO) << "Starting in testnet mode!";
         }
+        difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
+        if (fixed_difficulty) {
+            logger(INFO) << "Use fixed difficulty " << fixed_difficulty;
+        }
 
         // create objects and link them
         CryptoNote::CurrencyBuilder currencyBuilder(logManager);
         currencyBuilder.testnet(testnet_mode);
+        if (fixed_difficulty) {
+            currencyBuilder.fix_difficulty(fixed_difficulty);
+        }
         try {
             currencyBuilder.currency();
         } catch (std::exception &) {
