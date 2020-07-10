@@ -315,6 +315,7 @@ private:
     size_t m_difficultyWindow;
     size_t m_difficultyLag;
     size_t m_difficultyCut;
+    difficulty_type m_fixedDifficulty;
 
     size_t m_maxBlockSizeInitial;
     uint64_t m_maxBlockSizeGrowthSpeedNumerator;
@@ -613,6 +614,8 @@ public:
     }
 
     CurrencyBuilder &testnet(bool val) { m_currency.m_testnet = val; return *this; }
+
+    CurrencyBuilder &fix_difficulty(difficulty_type val) { m_currency.m_fixedDifficulty = val; return *this; }
 
 private:
     Currency m_currency;

@@ -954,6 +954,13 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
                             CryptoNote::parameters::FIXED_DIFFICULTY;
         return CryptoNote::parameters::FIXED_DIFFICULTY;
     }
+    if (m_fixedDifficulty > 0)
+    {
+        logger (WARNING) << "Fixed difficulty is used: " <<
+                            m_fixedDifficulty;
+        return m_fixedDifficulty;
+    }
+
 
     difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
     difficulty_type min_difficulty = CryptoNote::parameters::DEFAULT_DIFFICULTY;
@@ -1266,6 +1273,7 @@ CurrencyBuilder::CurrencyBuilder(Logging::ILogger &log)
     blockchainIndicesFileName(parameters::CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME);
 
     testnet(false);
+    fix_difficulty(0);
 }
 
 Transaction CurrencyBuilder::generateGenesisTransaction()
