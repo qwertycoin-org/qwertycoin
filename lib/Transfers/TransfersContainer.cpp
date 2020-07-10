@@ -1190,16 +1190,17 @@ bool TransfersContainer::isIncluded(const TransactionOutputInformationEx &info,u
     } else if (m_currentHeight < info.blockHeight + m_transactionSpendableAge) {
         state = IncludeStateSoftLocked;
         if(m_safeTxes.find(info.getTransactionHash()) != m_safeTxes.end()) {
-            if (m_currentHeight >= info.blockHeight + m_safeTransactionSpendableAge) {
+            if (m_currentHeight >= info.blockHeight - 1 + m_safeTransactionSpendableAge) {
                 state = IncludeStateUnlocked;
             }
         }
     } else {
         state = IncludeStateUnlocked;
-        if(m_safeTxes.find(info.getTransactionHash()) != m_safeTxes.end()) {
+        auto it = m_safeTxes.find(info.getTransactionHash());
+        if(it != m_safeTxes.end()) {
             // now this tx is fully confirmed, so it doesn't matter
             // if it is safe or not, so we can remove it from safe list
-            m_safeTxes.erase(info.getTransactionHash());
+            m_safeTxes.erase(it);
         }
     }
 
