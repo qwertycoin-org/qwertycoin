@@ -848,7 +848,15 @@ difficulty_type Blockchain::getDifficultyForNextBlock()
                 );
 }
 
-bool Blockchain::getDifficultyStat(uint32_t height, IMinerHandler::stat_period period, uint32_t& block_num, uint64_t& avg_solve_time, uint64_t& stddev_solve_time, uint32_t& outliers_num)
+bool Blockchain::getDifficultyStat(uint32_t height,
+                                   IMinerHandler::stat_period period,
+                                   uint32_t& block_num,
+                                   uint64_t& avg_solve_time,
+                                   uint64_t& stddev_solve_time,
+                                   uint32_t& outliers_num,
+                                   difficulty_type avg_diff,
+                                   difficulty_type min_diff,
+                                   difficulty_type max_diff)
 {
     uint32_t min_height = CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
             CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
@@ -883,9 +891,18 @@ bool Blockchain::getDifficultyStat(uint32_t height, IMinerHandler::stat_period p
     }
     uint64_t stop_time = m_blocks[height].bl.timestamp - time_window;
     std::vector<uint64_t> solve_times;
+    std::vector<difficulty_type> difficulties;
+    min_diff = std::numeric_limits<difficulty_type>::max();
+    max_diff = 0;
     while (height > min_height && m_blocks[height - 1].bl.timestamp >= stop_time)
     {
         solve_times.push_back(m_blocks[height].bl.timestamp - m_blocks[height - 1].bl.timestamp);
+        difficulty_type diff = m_blocks[height].cumulative_difficulty - m_blocks[height - 1].cumulative_difficulty;
+        difficulties.push_back(diff);
+        if (diff < min_diff)
+            min_diff = diff;
+        if (diff > max_diff)
+            max_diff = diff;
         height--;
     }
     logger (INFO) << "min height: " << height;
@@ -899,6 +916,7 @@ bool Blockchain::getDifficultyStat(uint32_t height, IMinerHandler::stat_period p
             (st > avg_solve_time + stddev_solve_time))
             outliers_num++;
     }
+    avg_diff = Common::meanValue(difficulties);
     return true;
 }
 

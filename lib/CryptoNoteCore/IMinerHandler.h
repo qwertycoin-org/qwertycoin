@@ -48,7 +48,10 @@ struct IMinerHandler
             uint32_t &block_num,
             uint64_t &avg_solve_time,
             uint64_t &stddev_solve_time,
-            uint32_t &outliers_num) = 0;
+            uint32_t &outliers_num,
+            difficulty_type avg_diff,
+            difficulty_type min_diff,
+            difficulty_type max_diff) = 0;
 
 protected:
     ~IMinerHandler() = default;

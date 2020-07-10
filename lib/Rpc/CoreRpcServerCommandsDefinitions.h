@@ -1312,12 +1312,18 @@ struct difficulty_statistics
         KV_MEMBER(avg_solve_time)
         KV_MEMBER(stddev_solve_time)
         KV_MEMBER(outliers_num)
+        KV_MEMBER(avg_diff)
+        KV_MEMBER(min_diff)
+        KV_MEMBER(max_diff)
     }
 
     uint32_t block_num;
     uint64_t avg_solve_time;
     uint64_t stddev_solve_time;
     uint32_t outliers_num;
+    difficulty_type avg_diff;
+    difficulty_type min_diff;
+    difficulty_type max_diff;
 };
 
 struct COMMAND_RPC_GET_DIFFICULTY_STAT
