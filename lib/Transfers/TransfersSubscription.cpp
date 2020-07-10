@@ -27,7 +27,7 @@ TransfersSubscription::TransfersSubscription(const CryptoNote::Currency &currenc
                                              Logging::ILogger &logger,
                                              const AccountSubscription &sub)
     : logger(logger, "TransfersSubscription"),
-      transfers(currency, logger, sub.transactionSpendableAge, sub.consolidateTransactionSpendableAge),
+      transfers(currency, logger, sub.transactionSpendableAge, sub.safeTransactionSpendableAge),
       subscription(sub)
 {
 }
