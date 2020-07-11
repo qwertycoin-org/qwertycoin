@@ -212,7 +212,7 @@ private:
     std::atomic<uint64_t> m_lastNotifiedUnmixableBalance;
 
     BlockchainSynchronizer m_blockchainSync;
-    TransfersSyncronizer m_transfersSync;
+    TransfersSynchronizer m_transfersSync;
     ITransfersContainer *m_transferDetails;
 
     WalletUserTransactionsCache m_transactionsCache;

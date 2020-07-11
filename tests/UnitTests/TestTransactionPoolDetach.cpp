@@ -200,7 +200,7 @@ protected:
   TestBlockchainGenerator generator;
   INodeStubWithPoolTx m_node;
   BlockchainSynchronizer m_sync;
-  TransfersSyncronizer m_transfersSync;
+  TransfersSynchronizer m_transfersSync;
 
   std::promise<std::error_code> syncCompleted;
   std::future<std::error_code> syncCompletedFuture;
