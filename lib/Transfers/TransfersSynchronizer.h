@@ -35,7 +35,7 @@ class Currency;
 class TransfersConsumer;
 class INode;
 
-class TransfersSyncronizer : public ITransfersSynchronizer, public IBlockchainConsumerObserver
+class TransfersSynchronizer : public ITransfersSynchronizer, public IBlockchainConsumerObserver
 {
     typedef std::unordered_map<
         Crypto::PublicKey,
@@ -50,11 +50,11 @@ class TransfersSyncronizer : public ITransfersSynchronizer, public IBlockchainCo
     > SubscribersContainer;
 
 public:
-    TransfersSyncronizer(const CryptoNote::Currency &currency,
+    TransfersSynchronizer(const CryptoNote::Currency &currency,
                          Logging::ILogger &logger,
                          IBlockchainSynchronizer &sync,
                          INode &node);
-    ~TransfersSyncronizer() override;
+    ~TransfersSynchronizer() override;
 
     void initTransactionPool(const std::unordered_set<Crypto::Hash> &uncommitedTransactions);
 

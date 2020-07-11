@@ -37,7 +37,7 @@ public:
         uint64_t &actualBalance,
         uint64_t &pendingBalance,
         WalletsContainer &walletsContainer,
-        TransfersSyncronizer &synchronizer,
+        TransfersSynchronizer &synchronizer,
         UnlockTransactionJobs &unlockTransactions,
         WalletTransactions &transactions,
         WalletTransfers &transfers,
@@ -99,7 +99,7 @@ private:
     uint64_t &m_actualBalance;
     uint64_t &m_pendingBalance;
     WalletsContainer &m_walletsContainer;
-    TransfersSyncronizer &m_synchronizer;
+    TransfersSynchronizer &m_synchronizer;
     UnlockTransactionJobs &m_unlockTransactions;
     WalletTransactions &m_transactions;
     WalletTransfers &m_transfers;
