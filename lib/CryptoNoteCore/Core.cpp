@@ -919,6 +919,13 @@ bool core::handle_block_found(Block &b)
 
     if (bvc.m_verification_failed) {
         logger(ERROR) << "mined block failed verification";
+    } else {
+        if (m_blocksToFind > 0) {
+            m_blocksFound++;
+            if (m_blocksFound >= m_blocksToFind) {
+                get_miner().send_stop_signal();
+            }
+        }
     }
 
     return bvc.m_added_to_main_chain;
@@ -1733,6 +1740,12 @@ bool core::fillTxExtra(const std::vector<uint8_t> &rawExtra, TransactionExtraDet
         }
     }
     return true;
+}
+
+void core::setBlocksToFind(uint64_t blocksToFind)
+{
+    m_blocksFound = 0;
+    m_blocksToFind = blocksToFind;
 }
 
 size_t core::median(std::vector<size_t> &v)

@@ -249,8 +249,11 @@ bool miner::start(const AccountPublicAddress &adr, size_t threads_count)
     std::lock_guard<std::mutex> lk(m_threads_lock);
 
     if(!m_threads.empty()) {
-        logger(ERROR) << "Unable to start miner because there are active mining threads";
-        return false;
+        m_stop = true;
+        for (auto &th : m_threads) {
+            th.join();
+        }
+        m_threads.clear();
     }
 
     m_mine_address = adr;

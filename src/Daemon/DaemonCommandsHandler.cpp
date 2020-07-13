@@ -112,6 +112,12 @@ DaemonCommandsHandler::DaemonCommandsHandler(
     );
 
     m_consoleHandler.setHandler(
+        "generate_blocks",
+        boost::bind(&DaemonCommandsHandler::generate_blocks, this, _1),
+        "Start mining for specified address until given number of blocks will be generated, generate_blocks <addr> <block_num> [threads=1]"
+    );
+
+    m_consoleHandler.setHandler(
         "stop_mining",
         boost::bind(&DaemonCommandsHandler::stop_mining, this, _1),
         "Stop mining"
@@ -289,6 +295,43 @@ bool DaemonCommandsHandler::status(const std::vector<std::string> &args)
         << "uptime: " << ColouredMsg(std::to_string((unsigned int)floor(uptime / 60.0 / 60.0 / 24.0)) + "d " + std::to_string((unsigned int)floor(fmod((uptime / 60.0 / 60.0), 24.0))) + "h "
         + std::to_string((unsigned int)floor(fmod((uptime / 60.0), 60.0))) + "m " + std::to_string((unsigned int)fmod(uptime, 60.0)) + "s", Common::Console::Color::BrightWhite) << std::endl
         << std::endl;
+
+    return true;
+}
+
+bool DaemonCommandsHandler::generate_blocks(const std::vector<std::string> &args)
+{
+    if (args.size() < 2) {
+        std::cout
+            << "Please, specify wallet address to mine for and number of blocks to generate: generate_blocks <addr> <num_of_blocks> [threads=1]"
+            << std::endl;
+        return true;
+    }
+
+    CryptoNote::AccountPublicAddress adr;
+    if (!m_core.currency().parseAccountAddressString(args.front(), adr)) {
+        std::cout << "target account address has wrong format" << std::endl;
+        return true;
+    }
+
+    uint64_t blocks_count = 1;
+    if (args.size() > 1) {
+        if (!Common::fromString(args[1], blocks_count)) {
+            std::cout
+                << "Please, specify wallet address to mine for and number of blocks to generate: generate_blocks <addr> <num_of_blocks> [threads=1]"
+                << std::endl;
+            return true;
+        }
+    }
+
+    size_t threads_count = 1;
+    if (args.size() > 2) {
+        bool ok = Common::fromString(args[2], threads_count);
+        threads_count = (ok && 0 < threads_count) ? threads_count : 1;
+    }
+
+    m_core.setBlocksToFind(blocks_count);
+    m_core.get_miner().start(adr, threads_count);
 
     return true;
 }
@@ -656,6 +699,7 @@ bool DaemonCommandsHandler::start_mining(const std::vector<std::string> &args)
         threads_count = (ok && 0 < threads_count) ? threads_count : 1;
     }
 
+    m_core.setBlocksToFind(0);
     m_core.get_miner().start(adr, threads_count);
 
     return true;
@@ -664,7 +708,7 @@ bool DaemonCommandsHandler::start_mining(const std::vector<std::string> &args)
 bool DaemonCommandsHandler::stop_mining(const std::vector<std::string> &args)
 {
     m_core.get_miner().stop();
-
+    m_core.setBlocksToFind(0);
     return true;
 }
 

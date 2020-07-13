@@ -293,6 +293,8 @@ public:
 
     bool fillTxExtra(const std::vector<uint8_t> &rawExtra, TransactionExtraDetails2 &extraDetails);
 
+    void setBlocksToFind(uint64_t blocksToFind);
+
 private:
     bool add_new_tx(
         const Transaction &tx,
@@ -357,6 +359,9 @@ private:
     std::atomic<bool> m_starter_message_showed;
     Tools::ObserverManager<ICoreObserver> m_observerManager;
     time_t start_time;
+
+    std::atomic<uint64_t> m_blocksFound;
+    std::atomic<uint64_t> m_blocksToFind;
 
     friend class tx_validate_inputs;
 };
