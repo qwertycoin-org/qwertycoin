@@ -684,6 +684,20 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
     std::vector<uint64_t> timestamps,
     std::vector<difficulty_type> cumulativeDifficulties) const
 {
+    // check if we use special scenario with some fixed diff
+    if (CryptoNote::parameters::FIXED_DIFFICULTY > 0)
+    {
+        logger (WARNING) << "Fixed difficulty is used: " <<
+                            CryptoNote::parameters::FIXED_DIFFICULTY;
+        return CryptoNote::parameters::FIXED_DIFFICULTY;
+    }
+    if (m_fixedDifficulty > 0)
+    {
+        logger (WARNING) << "Fixed difficulty is used: " <<
+                            m_fixedDifficulty;
+        return m_fixedDifficulty;
+    }
+
     if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
         return nextDifficultyV6(blockMajorVersion, timestamps, cumulativeDifficulties, height);
     } else if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
@@ -946,20 +960,6 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
 
     // Dynamic difficulty calculation window
     uint32_t diffWindow = timestamps.size() - 1;
-
-    // check if we use special scenario with some fixed diff
-    if (CryptoNote::parameters::FIXED_DIFFICULTY > 0)
-    {
-        logger (WARNING) << "Fixed difficulty is used: " <<
-                            CryptoNote::parameters::FIXED_DIFFICULTY;
-        return CryptoNote::parameters::FIXED_DIFFICULTY;
-    }
-    if (m_fixedDifficulty > 0)
-    {
-        logger (WARNING) << "Fixed difficulty is used: " <<
-                            m_fixedDifficulty;
-        return m_fixedDifficulty;
-    }
 
 
     difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
