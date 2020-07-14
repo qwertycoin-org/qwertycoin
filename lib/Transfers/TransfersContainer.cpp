@@ -602,6 +602,13 @@ void TransfersContainer::markTransactionSafe(const Hash &transactionHash)
     m_safeTxes.insert(transactionHash);
 }
 
+void TransfersContainer::getSafeTransactions(std::vector<Hash> &transactions) const
+{
+    transactions.clear();
+    std::unique_lock<std::mutex> lock(m_mutex);
+    std::copy(m_safeTxes.begin(), m_safeTxes.end(), std::back_inserter(transactions));
+}
+
 // pre: m_mutex is locked.
 void TransfersContainer::deleteTransactionTransfers(const Hash& transactionHash)
 {

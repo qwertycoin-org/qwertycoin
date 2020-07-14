@@ -124,6 +124,7 @@ public:
     virtual void getUnconfirmedTransactions(std::vector<Crypto::Hash> &transactions) const = 0;
     virtual std::vector<TransactionSpentOutputInformation> getSpentOutputs() const = 0;
     virtual void markTransactionSafe(const Crypto::Hash &transactionHash) = 0;
+    virtual void getSafeTransactions(std::vector<Crypto::Hash> &transactions) const = 0;
 };
 
 } // namespace CryptoNote

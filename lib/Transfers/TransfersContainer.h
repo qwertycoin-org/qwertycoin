@@ -190,6 +190,7 @@ public:
     void getUnconfirmedTransactions(std::vector<Crypto::Hash> &transactions) const override;
     std::vector<TransactionSpentOutputInformation> getSpentOutputs() const override;
     void markTransactionSafe(const Crypto::Hash &transactionHash) override;
+    void getSafeTransactions(std::vector<Crypto::Hash> &transactions) const override;
 
     // IStreamSerializable
     void save(std::ostream &os) override;
