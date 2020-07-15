@@ -330,9 +330,15 @@ void WalletLegacy::doLoad(std::istream &source)
 
         std::string cache;
         WalletLegacySerializer serializer(m_account, m_transactionsCache);
-        serializer.deserialize(source, m_password, cache);
+        std::vector<Crypto::Hash> safeTxes;
+        serializer.deserialize(source, m_password, cache, safeTxes);
 
         initSync();
+
+        for(const auto& tx: safeTxes) {
+            m_transferDetails->markTransactionSafe(tx);
+            m_transfersSync.markTransactionSafe(tx);
+        }
 
         try {
             if (!cache.empty()) {
@@ -505,7 +511,9 @@ void WalletLegacy::doSave(std::ostream &destination, bool saveDetailed, bool sav
             cache = stream.str();
         }
 
-        serializer.serialize(destination, m_password, saveDetailed, cache);
+        std::vector<Crypto::Hash> safeTxes;
+        m_transferDetails->getSafeTransactions(safeTxes);
+        serializer.serialize(destination, m_password, saveDetailed, cache, safeTxes);
 
         m_state = INITIALIZED;
         m_blockchainSync.start(); // XXX: start can throw. what to do in this case?
