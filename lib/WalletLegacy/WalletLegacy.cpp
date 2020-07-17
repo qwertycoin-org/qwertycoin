@@ -1200,14 +1200,19 @@ bool WalletLegacy::isTrackingWallet()
     return keys.spendSecretKey == boost::value_initialized<Crypto::SecretKey>();
 }
 
-void WalletLegacy::setConsolidateHeight(uint32_t height)
+void WalletLegacy::setConsolidateHeight(uint32_t height, const TransactionId &consolidateTx)
 {
-    m_transactionsCache.setConsolidateHeight(height);
+    m_transactionsCache.setConsolidateHeight(height, consolidateTx);
 }
 
 uint32_t WalletLegacy::getConsolidateHeight() const
 {
     return m_transactionsCache.getConsolidateHeight();
+}
+
+TransactionId WalletLegacy::getConsolidateTx() const
+{
+    return m_transactionsCache.getConsolidateTx();
 }
 
 void WalletLegacy::markTransactionSafe(const Hash &transactionHash)

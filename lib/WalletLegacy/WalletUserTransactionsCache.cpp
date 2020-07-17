@@ -34,7 +34,8 @@ namespace CryptoNote {
 
 WalletUserTransactionsCache::WalletUserTransactionsCache(uint64_t mempoolTxLiveTime)
     : m_unconfirmedTransactions(mempoolTxLiveTime),
-      m_consolidateHeight(0)
+      m_consolidateHeight(0),
+      m_consolidateTx(WALLET_LEGACY_INVALID_TRANSACTION_ID)
 {
 }
 
@@ -48,7 +49,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         updateUnconfirmedTransactions();
         deleteOutdatedTransactions();
         rebuildPaymentsIndex();
-        // m_consolidateHeight is serialized outside this method
+        // m_consolidateHeight and m_consolidateTx is serialized outside this method
     } else {
         UserTransactions txsToSave;
         UserTransfers transfersToSave;
@@ -57,7 +58,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         s(txsToSave, "transactions");
         s(transfersToSave, "transfers");
         s(m_unconfirmedTransactions, "unconfirmed");
-        // m_consolidateHeight is serialized outside this method
+        // m_consolidateHeight and m_consolidateTx is serialized outside this method
     }
 
     return true;
@@ -489,6 +490,10 @@ std::vector<TransactionId> WalletUserTransactionsCache::deleteOutdatedTransactio
     for (auto id: deletedTransactions) {
         assert(id < m_transactions.size());
         m_transactions[id].state = WalletLegacyTransactionState::Deleted;
+        if (id == m_consolidateTx) {
+            m_consolidateTx = WALLET_LEGACY_INVALID_TRANSACTION_ID;
+            m_consolidateTx = 0;
+        }
     }
 
     return deletedTransactions;

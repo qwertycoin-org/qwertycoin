@@ -87,9 +87,12 @@ public:
 
     std::vector<Payments> getTransactionsByPaymentIds(const std::vector<PaymentId>&paymentIds)const;
 
-    void setConsolidateHeight(uint32_t height) { m_consolidateHeight = height; };
-    uint32_t getConsolidateHeight() const { return m_consolidateHeight; };
-
+    void setConsolidateHeight(uint32_t height, const TransactionId &consolidateTx) {
+        m_consolidateHeight = height;
+        m_consolidateTx = consolidateTx;
+    }
+    uint32_t getConsolidateHeight() const { return m_consolidateHeight; }
+    TransactionId getConsolidateTx() const { return m_consolidateTx; }
 private:
     TransactionId insertTransaction(WalletLegacyTransaction &&Transaction);
     TransferId insertTransfers(const std::vector<WalletLegacyTransfer> &transfers);
@@ -119,6 +122,7 @@ private:
     WalletUnconfirmedTransactions m_unconfirmedTransactions;
     UserPaymentIndex m_paymentsIndex;
     uint32_t m_consolidateHeight;
+    TransactionId m_consolidateTx;
 };
 
 } // namespace CryptoNote
