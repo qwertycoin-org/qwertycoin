@@ -3367,7 +3367,7 @@ bool simple_wallet::consolidate(const std::vector<std::string> &args)
                 << "Fusion transaction successfully sent, hash: "
                 << Common::podToHex(txInfo.hash);
 
-            m_wallet->setConsolidateHeight(heightThreshold);
+            m_wallet->setConsolidateHeight(heightThreshold, tx);
 
             m_wallet->markTransactionSafe(txInfo.hash);
 
