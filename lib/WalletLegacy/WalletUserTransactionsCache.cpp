@@ -18,6 +18,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <algorithm>
+#include <boost/utility/value_init.hpp>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <Global/Constants.h>
 #include <Serialization/ISerializer.h>
@@ -35,7 +36,7 @@ namespace CryptoNote {
 WalletUserTransactionsCache::WalletUserTransactionsCache(uint64_t mempoolTxLiveTime)
     : m_unconfirmedTransactions(mempoolTxLiveTime),
       m_consolidateHeight(0),
-      m_consolidateTx(WALLET_LEGACY_INVALID_TRANSACTION_ID)
+      m_consolidateTx(boost::value_initialized<Crypto::Hash>())
 {
 }
 
@@ -299,6 +300,9 @@ std::shared_ptr<WalletLegacyEvent> WalletUserTransactionsCache::onTransactionDel
         assert(false);
     }
 
+    if (transactionHash == m_consolidateTx) {
+        setConsolidateHeight(0, boost::value_initialized<Crypto::Hash>());
+    }
     return event;
 }
 
@@ -490,9 +494,8 @@ std::vector<TransactionId> WalletUserTransactionsCache::deleteOutdatedTransactio
     for (auto id: deletedTransactions) {
         assert(id < m_transactions.size());
         m_transactions[id].state = WalletLegacyTransactionState::Deleted;
-        if (id == m_consolidateTx) {
-            m_consolidateTx = WALLET_LEGACY_INVALID_TRANSACTION_ID;
-            m_consolidateTx = 0;
+        if (m_transactions[id].hash == m_consolidateTx) {
+            setConsolidateHeight(0, boost::value_initialized<Crypto::Hash>());
         }
     }
 

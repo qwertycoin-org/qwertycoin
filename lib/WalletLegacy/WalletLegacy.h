@@ -167,9 +167,9 @@ public:
 
     bool isTrackingWallet() override;
 
-    void setConsolidateHeight(uint32_t height, const TransactionId &consolidateTx) override;
+    void setConsolidateHeight(uint32_t height, const Crypto::Hash &consolidateTx) override;
     uint32_t getConsolidateHeight() const override;
-    TransactionId getConsolidateTx() const override;
+    Crypto::Hash getConsolidateTx() const override;
 
     void markTransactionSafe(const Crypto::Hash &transactionHash) override;
 private:
