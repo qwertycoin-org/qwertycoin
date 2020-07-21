@@ -216,9 +216,9 @@ public:
 
     virtual bool isTrackingWallet() = 0;
 
-    virtual void setConsolidateHeight(uint32_t height, const TransactionId &consolidateTx) = 0;
+    virtual void setConsolidateHeight(uint32_t height, const Crypto::Hash &consolidateTx) = 0;
     virtual uint32_t getConsolidateHeight() const = 0;
-    virtual TransactionId getConsolidateTx() const = 0;
+    virtual Crypto::Hash getConsolidateTx() const = 0;
 
     virtual void markTransactionSafe(const Crypto::Hash &transactionHash) = 0;
 };
