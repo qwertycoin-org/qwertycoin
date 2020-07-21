@@ -88,11 +88,29 @@ public:
     std::vector<Payments> getTransactionsByPaymentIds(const std::vector<PaymentId>&paymentIds)const;
 
     void setConsolidateHeight(uint32_t height, const Crypto::Hash &consolidateTx) {
+        m_prevConsolidateHeight = m_consolidateHeight;
+        m_prevConsolidateTx = m_consolidateTx;
         m_consolidateHeight = height;
         m_consolidateTx = consolidateTx;
     }
+    // used in external serialization
+    void setPrevConsolidateHeight(uint32_t height, const Crypto::Hash &consolidateTx) {
+        m_prevConsolidateHeight = height;
+        m_prevConsolidateTx = consolidateTx;
+    }
     uint32_t getConsolidateHeight() const { return m_consolidateHeight; }
     Crypto::Hash getConsolidateTx() const { return m_consolidateTx; }
+    // used in external serialization
+    uint32_t getPrevConsolidateHeight() const { return m_prevConsolidateHeight; }
+    // used in external serialization
+    Crypto::Hash getPrevConsolidateTx() const { return m_prevConsolidateTx; }
+    void resetConsolidateHeight()
+    {
+        m_consolidateHeight = m_prevConsolidateHeight;
+        m_consolidateTx = m_prevConsolidateTx;
+        m_prevConsolidateHeight = 0;
+        m_prevConsolidateTx = boost::value_initialized<Crypto::Hash>();
+    }
 private:
     TransactionId insertTransaction(WalletLegacyTransaction &&Transaction);
     TransferId insertTransfers(const std::vector<WalletLegacyTransfer> &transfers);
@@ -123,6 +141,8 @@ private:
     UserPaymentIndex m_paymentsIndex;
     uint32_t m_consolidateHeight;
     Crypto::Hash m_consolidateTx;
+    uint32_t m_prevConsolidateHeight;
+    Crypto::Hash m_prevConsolidateTx;
 };
 
 } // namespace CryptoNote
