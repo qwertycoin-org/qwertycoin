@@ -72,6 +72,10 @@ void WalletLegacySerializer::serialize(std::ostream &stream,
         serializer(consolidateHeight, "consolidate_height");
         Crypto::Hash consolidateTx = transactionsCache.getConsolidateTx();
         serializer(consolidateTx, "consolidate_tx_id");
+        consolidateHeight = transactionsCache.getPrevConsolidateHeight();
+        serializer(consolidateHeight, "prev_consolidate_height");
+        consolidateTx = transactionsCache.getPrevConsolidateTx();
+        serializer(consolidateTx, "prev_consolidate_tx_id");
         size_t s = safeTxes.size();
         serializer.beginArray(s, "safe_txes");
         for(auto h: safeTxes)
@@ -188,6 +192,9 @@ void WalletLegacySerializer::deserialize(std::istream &stream,
         Crypto::Hash consolidateTx;
         serializer(consolidateTx, "consolidate_tx_id");
         transactionsCache.setConsolidateHeight(consolidateHeight, consolidateTx);
+        serializer(consolidateHeight, "prev_consolidate_height");
+        serializer(consolidateTx, "prev_consolidate_tx_id");
+        transactionsCache.setPrevConsolidateHeight(consolidateHeight, consolidateTx);
         size_t s = 0;
         serializer.beginArray(s, "safe_txes");
         safeTxes.resize(s);

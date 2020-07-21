@@ -36,7 +36,9 @@ namespace CryptoNote {
 WalletUserTransactionsCache::WalletUserTransactionsCache(uint64_t mempoolTxLiveTime)
     : m_unconfirmedTransactions(mempoolTxLiveTime),
       m_consolidateHeight(0),
-      m_consolidateTx(boost::value_initialized<Crypto::Hash>())
+      m_consolidateTx(boost::value_initialized<Crypto::Hash>()),
+      m_prevConsolidateHeight(0),
+      m_prevConsolidateTx(boost::value_initialized<Crypto::Hash>())
 {
 }
 
@@ -50,7 +52,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         updateUnconfirmedTransactions();
         deleteOutdatedTransactions();
         rebuildPaymentsIndex();
-        // m_consolidateHeight and m_consolidateTx is serialized outside this method
+        // consolidate params are serialized outside this method
     } else {
         UserTransactions txsToSave;
         UserTransfers transfersToSave;
@@ -59,7 +61,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         s(txsToSave, "transactions");
         s(transfersToSave, "transfers");
         s(m_unconfirmedTransactions, "unconfirmed");
-        // m_consolidateHeight and m_consolidateTx is serialized outside this method
+        // consolidate params are serialized outside this method
     }
 
     return true;
@@ -301,7 +303,7 @@ std::shared_ptr<WalletLegacyEvent> WalletUserTransactionsCache::onTransactionDel
     }
 
     if (transactionHash == m_consolidateTx) {
-        setConsolidateHeight(0, boost::value_initialized<Crypto::Hash>());
+        resetConsolidateHeight();
     }
     return event;
 }
@@ -495,7 +497,7 @@ std::vector<TransactionId> WalletUserTransactionsCache::deleteOutdatedTransactio
         assert(id < m_transactions.size());
         m_transactions[id].state = WalletLegacyTransactionState::Deleted;
         if (m_transactions[id].hash == m_consolidateTx) {
-            setConsolidateHeight(0, boost::value_initialized<Crypto::Hash>());
+            resetConsolidateHeight();
         }
     }
 
