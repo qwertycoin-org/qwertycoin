@@ -678,6 +678,27 @@ bool DaemonCommandsHandler::print_diff_stat(const std::vector<std::string> &args
             << std::endl;
     if (m_core.get_difficulty_stat(
                 height,
+                CryptoNote::IMinerHandler::stat_period::halfyear,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num,
+                avg_diff,
+                min_diff,
+                max_diff))
+        logger(Logging::INFO)
+            << "Difficulty stat for halfyear: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num << ", "
+            << "average difficulty: " << avg_diff << ", "
+            << "min difficulty: " << min_diff << ", "
+            << "max difficulty: " << max_diff
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
                 CryptoNote::IMinerHandler::stat_period::year,
                 block_num,
                 avg_solve_time,
@@ -697,6 +718,7 @@ bool DaemonCommandsHandler::print_diff_stat(const std::vector<std::string> &args
             << "min difficulty: " << min_diff << ", "
             << "max difficulty: " << max_diff
             << std::endl;
+
 
     return true;
 }

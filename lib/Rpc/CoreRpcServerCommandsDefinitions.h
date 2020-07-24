@@ -1348,6 +1348,7 @@ struct COMMAND_RPC_GET_DIFFICULTY_STAT
             KV_MEMBER(day)
             KV_MEMBER(week)
             KV_MEMBER(month)
+            KV_MEMBER(halfyear)
             KV_MEMBER(year)
         }
 
@@ -1356,6 +1357,7 @@ struct COMMAND_RPC_GET_DIFFICULTY_STAT
         difficulty_statistics day;
         difficulty_statistics week;
         difficulty_statistics month;
+        difficulty_statistics halfyear;
         difficulty_statistics year;
     };
 };

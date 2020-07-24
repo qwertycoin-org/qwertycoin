@@ -880,6 +880,9 @@ bool Blockchain::getDifficultyStat(uint32_t height,
     case(IMinerHandler::stat_period::month):
         time_window = 3600 * 24 * 30;
         break;
+    case(IMinerHandler::stat_period::halfyear):
+        time_window = 3600 * 12 * 365;
+        break;
     case(IMinerHandler::stat_period::year):
         time_window = 3600 * 24 * 365;
         break;
