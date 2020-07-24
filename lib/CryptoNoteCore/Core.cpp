@@ -708,7 +708,7 @@ bool core::get_block_template(
             }
         }
 
-        diffic = m_blockchain.getDifficultyForNextBlock();
+        diffic = m_blockchain.getDifficultyForNextBlock(b.timestamp);
         if (!(diffic)) {
             logger(ERROR, BRIGHT_RED) << "difficulty overhead.";
             return false;
@@ -1709,9 +1709,9 @@ std::error_code core::executeLocked(const std::function<std::error_code()> &func
     return func();
 }
 
-uint64_t core::getNextBlockDifficulty()
+uint64_t core::getNextBlockDifficulty(uint64_t nextBlockTime)
 {
-    return m_blockchain.getDifficultyForNextBlock();
+    return m_blockchain.getDifficultyForNextBlock(nextBlockTime);
 }
 
 uint64_t core::getTotalGeneratedAmount()

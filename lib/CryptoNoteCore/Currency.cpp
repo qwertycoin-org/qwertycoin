@@ -682,7 +682,8 @@ uint64_t Currency::roundUpMinFee(uint64_t minimalFee, int digits) const
 difficulty_type Currency::nextDifficulty(uint32_t height,
     uint8_t blockMajorVersion,
     std::vector<uint64_t> timestamps,
-    std::vector<difficulty_type> cumulativeDifficulties) const
+    std::vector<difficulty_type> cumulativeDifficulties,
+    uint64_t nextBlockTime) const
 {
     // check if we use special scenario with some fixed diff
     if (CryptoNote::parameters::FIXED_DIFFICULTY > 0)

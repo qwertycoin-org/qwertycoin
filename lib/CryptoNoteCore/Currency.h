@@ -217,7 +217,7 @@ public:
     difficulty_type nextDifficulty(uint32_t height,
         uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
-        std::vector<difficulty_type> Difficulties) const;
+        std::vector<difficulty_type> Difficulties, uint64_t nextBlockTime) const;
     difficulty_type nextDifficultyV1(
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;

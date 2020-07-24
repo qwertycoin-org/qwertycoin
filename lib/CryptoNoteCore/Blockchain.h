@@ -93,7 +93,7 @@ public:
     uint32_t getCurrentBlockchainHeight(); // TODO: rename to getCurrentBlockchainSize
     Crypto::Hash getTailId();
     Crypto::Hash getTailId(uint32_t &height);
-    difficulty_type getDifficultyForNextBlock();
+    difficulty_type getDifficultyForNextBlock(uint64_t nextBlockTime);
     bool getDifficultyStat(uint32_t height, IMinerHandler::stat_period period,
                            uint32_t& block_num, uint64_t& avg_solve_time,
                            uint64_t& stddev_solve_time, uint32_t& outliers_num,
@@ -349,9 +349,8 @@ private:
         const Crypto::Hash &id,
         block_verification_context &bvc,
         bool sendNewAlternativeBlockMessage = true);
-    difficulty_type get_next_difficulty_for_alternative_chain(
-        const std::list<blocks_ext_by_hash::iterator> &alt_chain,
-        BlockEntry &bei);
+    difficulty_type get_next_difficulty_for_alternative_chain(const std::list<blocks_ext_by_hash::iterator> &alt_chain,
+        BlockEntry &bei, uint64_t nextBlockTime);
     bool prevalidate_miner_transaction(const Block &b, uint32_t height);
     bool validate_miner_transaction(
         const Block &b,
