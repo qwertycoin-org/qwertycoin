@@ -581,7 +581,7 @@ bool DaemonCommandsHandler::print_diff(const std::vector<std::string> &args)
 bool DaemonCommandsHandler::print_diff_stat(const std::vector<std::string> &args)
 {
     if(args.size() != 1) {
-        logger(Logging::INFO) << "expected print_diff_stat <height>";
+        logger(Logging::INFO) << "expected diff_stat <height>";
         return true;
     }
     uint32_t height = boost::lexical_cast<uint32_t>(args[0]);
