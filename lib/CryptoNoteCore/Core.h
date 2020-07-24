@@ -287,7 +287,7 @@ public:
 
     void rollbackBlockchain(uint32_t height) override;
 
-    uint64_t getNextBlockDifficulty();
+    uint64_t getNextBlockDifficulty(uint64_t nextBlockTime);
     uint64_t getTotalGeneratedAmount();
     uint8_t getBlockMajorVersionForHeight(uint32_t height) const;
     bool f_getMixin(const Transaction &transaction, uint64_t &mixin);
