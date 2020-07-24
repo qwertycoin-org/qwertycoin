@@ -1350,6 +1350,12 @@ struct COMMAND_RPC_GET_DIFFICULTY_STAT
             KV_MEMBER(month)
             KV_MEMBER(halfyear)
             KV_MEMBER(year)
+            KV_MEMBER(blocks30)
+            KV_MEMBER(blocks720)
+            KV_MEMBER(blocks5040)
+            KV_MEMBER(blocks21900)
+            KV_MEMBER(blocks131400)
+            KV_MEMBER(blocks262800)
         }
 
         std::string status;
@@ -1359,6 +1365,12 @@ struct COMMAND_RPC_GET_DIFFICULTY_STAT
         difficulty_statistics month;
         difficulty_statistics halfyear;
         difficulty_statistics year;
+        difficulty_statistics blocks30;
+        difficulty_statistics blocks720;
+        difficulty_statistics blocks5040;
+        difficulty_statistics blocks21900;
+        difficulty_statistics blocks131400;
+        difficulty_statistics blocks262800;
     };
 };
 

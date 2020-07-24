@@ -40,7 +40,8 @@ struct IMinerHandler
         week,
         month,
         halfyear,
-        year
+        year,
+        by_block_number
     };
 
     virtual bool get_difficulty_stat(

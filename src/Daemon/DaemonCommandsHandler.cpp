@@ -720,6 +720,139 @@ bool DaemonCommandsHandler::print_diff_stat(const std::vector<std::string> &args
             << std::endl;
 
 
+    block_num = 30;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::by_block_number,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num,
+                avg_diff,
+                min_diff,
+                max_diff))
+        logger(Logging::INFO)
+            << "Difficulty stat for 30 blocks: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num << ", "
+            << "average difficulty: " << avg_diff << ", "
+            << "min difficulty: " << min_diff << ", "
+            << "max difficulty: " << max_diff
+            << std::endl;
+    block_num = 720;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::by_block_number,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num,
+                avg_diff,
+                min_diff,
+                max_diff))
+        logger(Logging::INFO)
+            << "Difficulty stat for 720 blocks: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num << ", "
+            << "average difficulty: " << avg_diff << ", "
+            << "min difficulty: " << min_diff << ", "
+            << "max difficulty: " << max_diff
+            << std::endl;
+    block_num = 5040;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::by_block_number,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num,
+                avg_diff,
+                min_diff,
+                max_diff))
+        logger(Logging::INFO)
+            << "Difficulty stat for 5040 blocks: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num << ", "
+            << "average difficulty: " << avg_diff << ", "
+            << "min difficulty: " << min_diff << ", "
+            << "max difficulty: " << max_diff
+            << std::endl;
+    block_num = 21900;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::by_block_number,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num,
+                avg_diff,
+                min_diff,
+                max_diff))
+        logger(Logging::INFO)
+            << "Difficulty stat for 21900 blocks: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num << ", "
+            << "average difficulty: " << avg_diff << ", "
+            << "min difficulty: " << min_diff << ", "
+            << "max difficulty: " << max_diff
+            << std::endl;
+    block_num = 131400;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::by_block_number,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num,
+                avg_diff,
+                min_diff,
+                max_diff))
+        logger(Logging::INFO)
+            << "Difficulty stat for 131400 blocks: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num << ", "
+            << "average difficulty: " << avg_diff << ", "
+            << "min difficulty: " << min_diff << ", "
+            << "max difficulty: " << max_diff
+            << std::endl;
+    block_num = 262800;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::by_block_number,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num,
+                avg_diff,
+                min_diff,
+                max_diff))
+        logger(Logging::INFO)
+            << "Difficulty stat for 262800 blocks: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num << ", "
+            << "average difficulty: " << avg_diff << ", "
+            << "min difficulty: " << min_diff << ", "
+            << "max difficulty: " << max_diff
+            << std::endl;
+
     return true;
 }
 
