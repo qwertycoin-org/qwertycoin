@@ -39,6 +39,7 @@ struct IMinerHandler
         day,
         week,
         month,
+        halfyear,
         year
     };
 

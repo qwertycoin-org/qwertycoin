@@ -2621,6 +2621,16 @@ bool RpcServer::on_get_difficulty_stat(const COMMAND_RPC_GET_DIFFICULTY_STAT::re
                                        res.month.max_diff))
             throw std::runtime_error("Failed to get month difficulty statistics");
         if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::halfyear,
+                                       res.halfyear.block_num,
+                                       res.halfyear.avg_solve_time,
+                                       res.halfyear.stddev_solve_time,
+                                       res.halfyear.outliers_num,
+                                       res.halfyear.avg_diff,
+                                       res.halfyear.min_diff,
+                                       res.halfyear.max_diff))
+            throw std::runtime_error("Failed to get halfyear difficulty statistics");
+        if(!m_core.get_difficulty_stat(req.height,
                                        IMinerHandler::stat_period::year,
                                        res.year.block_num,
                                        res.year.avg_solve_time,
@@ -2629,7 +2639,7 @@ bool RpcServer::on_get_difficulty_stat(const COMMAND_RPC_GET_DIFFICULTY_STAT::re
                                        res.year.avg_diff,
                                        res.year.min_diff,
                                        res.year.max_diff))
-            throw std::runtime_error("Failed to get month difficulty statistics");
+            throw std::runtime_error("Failed to get year difficulty statistics");
     } catch (std::system_error &e) {
         res.status = e.what();
         return false;
