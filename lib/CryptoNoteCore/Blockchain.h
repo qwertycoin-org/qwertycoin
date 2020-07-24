@@ -97,8 +97,8 @@ public:
     bool getDifficultyStat(uint32_t height, IMinerHandler::stat_period period,
                            uint32_t& block_num, uint64_t& avg_solve_time,
                            uint64_t& stddev_solve_time, uint32_t& outliers_num,
-                           difficulty_type avg_diff, difficulty_type min_diff,
-                           difficulty_type max_diff);
+                           difficulty_type &avg_diff, difficulty_type &min_diff,
+                           difficulty_type &max_diff);
     uint64_t getBlockTimestamp(uint32_t height);
     uint64_t getMinimalFee(uint32_t height);
     uint64_t getCoinsInCirculation();

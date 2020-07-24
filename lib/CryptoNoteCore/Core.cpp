@@ -847,7 +847,15 @@ bool core::get_block_template(
     return false;
 }
 
-bool core::get_difficulty_stat(uint32_t height, IMinerHandler::stat_period period, uint32_t &block_num, uint64_t &avg_solve_time, uint64_t &stddev_solve_time, uint32_t &outliers_num, difficulty_type avg_diff, difficulty_type min_diff, difficulty_type max_diff)
+bool core::get_difficulty_stat(uint32_t height,
+                               IMinerHandler::stat_period period,
+                               uint32_t &block_num,
+                               uint64_t &avg_solve_time,
+                               uint64_t &stddev_solve_time,
+                               uint32_t &outliers_num,
+                               difficulty_type &avg_diff,
+                               difficulty_type &min_diff,
+                               difficulty_type &max_diff)
 {
     return m_blockchain.getDifficultyStat(height, period, block_num, avg_solve_time, stddev_solve_time, outliers_num, avg_diff,  min_diff, max_diff);
 }

@@ -86,9 +86,9 @@ public:
         uint64_t& avg_solve_time,
         uint64_t& stddev_solve_time,
         uint32_t& outliers_num,
-        difficulty_type avg_diff,
-        difficulty_type min_diff,
-        difficulty_type max_diff) override;
+        difficulty_type &avg_diff,
+        difficulty_type &min_diff,
+        difficulty_type &max_diff) override;
 
     bool addObserver(ICoreObserver *observer) override;
     bool removeObserver(ICoreObserver *observer) override;

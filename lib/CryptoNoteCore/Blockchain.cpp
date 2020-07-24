@@ -854,9 +854,9 @@ bool Blockchain::getDifficultyStat(uint32_t height,
                                    uint64_t& avg_solve_time,
                                    uint64_t& stddev_solve_time,
                                    uint32_t& outliers_num,
-                                   difficulty_type avg_diff,
-                                   difficulty_type min_diff,
-                                   difficulty_type max_diff)
+                                   difficulty_type& avg_diff,
+                                   difficulty_type& min_diff,
+                                   difficulty_type& max_diff)
 {
     uint32_t min_height = CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
             CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
