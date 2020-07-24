@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <numeric>
 #include <boost/foreach.hpp>
 #include <Common/Math.h>
@@ -886,13 +887,18 @@ bool Blockchain::getDifficultyStat(uint32_t height,
     case(IMinerHandler::stat_period::year):
         time_window = 3600 * 24 * 365;
         break;
+    case(IMinerHandler::stat_period::by_block_number):
+        time_window = std::numeric_limits<uint64_t>::max();
+        uint32_t new_min_height = (height > block_num) ? height - block_num : 0;
+        min_height = std::max(min_height, new_min_height);
+        break;
     }
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     if (height >= m_blocks.size()) {
         logger (ERROR) << "Invalid height " << height << ", " << m_blocks.size() << " blocks available";
         throw std::runtime_error("Invalid height");
     }
-    uint64_t stop_time = m_blocks[height].bl.timestamp - time_window;
+    uint64_t stop_time = (m_blocks[height].bl.timestamp > time_window) ? m_blocks[height].bl.timestamp - time_window : 0;
     std::vector<uint64_t> solve_times;
     std::vector<difficulty_type> difficulties;
     min_diff = std::numeric_limits<difficulty_type>::max();
@@ -908,7 +914,6 @@ bool Blockchain::getDifficultyStat(uint32_t height,
             max_diff = diff;
         height--;
     }
-    logger (INFO) << "min height: " << height;
     block_num = solve_times.size();
     avg_solve_time = Common::meanValue(solve_times);
     stddev_solve_time = Common::stddevValue(solve_times);
