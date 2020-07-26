@@ -136,6 +136,9 @@ const uint64_t CRYPTONOTE_MEMPOOL_TX_LIVETIME                 = 60 * 60 * 14; //
 const uint64_t CRYPTONOTE_MEMPOOL_TX_FROM_ALT_BLOCK_LIVETIME  = 60 * 60 * 24; // 24 hours
 const uint64_t CRYPTONOTE_NUMBER_OF_PERIODS_TO_FORGET_TX_DELETED_FROM_POOL = 7;
 
+const uint64_t CRYPTONOTE_CLIFF_THRESHOLD                     = 60 * 60; // 1 hour
+
+
 const size_t   FUSION_TX_MAX_SIZE                             = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 * 30 / 100;
 const size_t   FUSION_TX_MIN_INPUT_COUNT                      = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
