@@ -1114,7 +1114,7 @@ difficulty_type Currency::cliffDifficulty(uint32_t height,
     if (mean_diff > 0)
         new_diff = std::min(mean_diff, new_diff);
 
-    return std::max(new_diff, CryptoNote::parameters::DEFAULT_DIFFICULTY);
+    return std::max(new_diff, difficulty_type(CryptoNote::parameters::DEFAULT_DIFFICULTY));
 }
 
 bool Currency::checkProofOfWorkV1(
