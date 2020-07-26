@@ -112,6 +112,9 @@ private:
     bool on_get_transactions(
         const COMMAND_RPC_GET_TRANSACTIONS::request &req,
         COMMAND_RPC_GET_TRANSACTIONS::response &res);
+    bool onGetTransactionsByHeights(
+            const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
+            COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res);
     bool on_send_raw_tx(
         const COMMAND_RPC_SEND_RAW_TX::request &req,
         COMMAND_RPC_SEND_RAW_TX::response &res);

@@ -242,6 +242,15 @@ std::unordered_map<
             false
         }
     },{
+        "/get_transaction_details_by_heights",
+        {
+            jsonMethod<
+                COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
+                >(
+                        &RpcServer::onGetTransactionsByHeights),
+            false
+        }
+    },{
         "/get_transaction_hashes_by_payment_id",
         {
             jsonMethod<
@@ -388,6 +397,9 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
             },{
                 "get_transaction_details_by_hashes",
                 { makeMemberMethod(&RpcServer::onGetTransactionsDetailsByHashes), false }
+            },{
+                "get_transaction_details_by_heights",
+                {makeMemberMethod(&RpcServer::onGetTransactionsByHeights), false}
             },{
                 "k_transaction_details_by_hash",
                 { makeMemberMethod(&RpcServer::onGetTransactionDetailsByHash), false }
@@ -1119,6 +1131,90 @@ bool RpcServer::on_get_transactions(
     }
 
     res.status = CORE_RPC_STATUS_OK;
+
+    return true;
+}
+
+bool RpcServer::onGetTransactionsByHeights(
+        const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
+        COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res)
+{
+    try {
+        std::vector<Crypto::Hash> vh;
+
+        size_t additor = 100; // possible to increase
+        for (size_t i = req.startBlock; i <= req.startBlock + additor; i++) {
+            Block blk;
+            uint32_t h = static_cast<uint32_t>(i);
+            Crypto::Hash blockHash = m_core.getBlockIdByHeight(i);
+            if (blockHash == NULL_HASH) {
+                throw JsonRpc::JsonRpcError{
+                        CORE_RPC_ERROR_CODE_TOO_BIG_HEIGHT,
+                        std::string("To big height: ")
+                        + std::to_string(h)
+                        + ", current blockchain height = "
+                        + std::to_string(m_core.get_current_blockchain_height())
+                };
+            }
+
+            if (!m_core.getBlockByHash(blockHash, blk)) {
+                throw JsonRpc::JsonRpcError{
+                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                        "Internal error: can't get block by hash. Hash = " + podToHex(blockHash) + '.'
+                };
+            }
+
+            if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
+                throw JsonRpc::JsonRpcError{
+                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                        "Internal error: coinbase transaction in the block has the wrong type"
+                };
+            }
+
+            for (auto tx : blk.transactionHashes) {
+                vh.push_back(tx);
+            }
+        }
+
+        std::vector<TransactionDetails2> transactionDetails;
+        transactionDetails.reserve(vh.size());
+
+        std::list<Crypto::Hash> missedTxs;
+        std::list<Transaction> txs;
+
+        m_core.getTransactions(vh, txs, missedTxs);
+
+        if (!txs.empty()) {
+            for (const Transaction &tx : txs) {
+                TransactionDetails2 txDetails;
+                if (!m_core.fillTransactionDetails(tx, txDetails)) {
+                    throw JsonRpc::JsonRpcError{
+                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                        "Internal error:  can't fill transaction Details."
+                    };
+                }
+                transactionDetails.push_back(txDetails);
+            }
+
+            res.transactions = std::move(transactionDetails);
+            res.status = CORE_RPC_STATUS_OK;
+        }
+        if (txs.empty() || !missedTxs.empty()) {
+            std::ostringstream oss;
+            std::string seperator;
+            for (auto h : missedTxs) {
+                oss << seperator << Common::podToHex(h);
+                seperator = ",";
+            }
+            res.status = "transaction(s) not found: " + oss.str() + ".";
+        }
+    } catch (std::system_error &e) {
+        res.status = e.what();
+        return false;
+    } catch (std::exception &e) {
+        res.status = "Error: " + std::string(e.what());
+        return false;
+    }
 
     return true;
 }
