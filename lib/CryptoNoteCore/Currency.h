@@ -22,10 +22,12 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <functional>
 #include <boost/utility.hpp>
 #include <crypto/hash.h>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
 #include <CryptoNoteCore/Difficulty.h>
+#include <CryptoNoteCore/IMinerHandler.h>
 #include <Global/CryptoNoteConfig.h>
 #include <Logging/LoggerRef.h>
 
@@ -214,10 +216,14 @@ public:
 
     uint64_t roundUpMinFee(uint64_t minimalFee, int digits) const;
 
+    typedef std::function<difficulty_type(IMinerHandler::stat_period)> lazy_stat_callback_type;
+
     difficulty_type nextDifficulty(uint32_t height,
         uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
-        std::vector<difficulty_type> Difficulties, uint64_t nextBlockTime) const;
+        std::vector<difficulty_type> Difficulties,
+        uint64_t nextBlockTime,
+        lazy_stat_callback_type &lazy_stat_cb) const;
     difficulty_type nextDifficultyV1(
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;
@@ -235,6 +241,12 @@ public:
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties,
         uint32_t height) const;
+
+    difficulty_type cliffDifficulty(uint32_t height,
+        uint8_t blockMajorVersion,
+        difficulty_type last_difficulty,
+        uint64_t currentSolveTime,
+        lazy_stat_callback_type& lazy_stat_cb) const;
 
     bool checkProofOfWorkV1(
         Crypto::cn_context &context,

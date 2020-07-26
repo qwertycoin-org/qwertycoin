@@ -683,7 +683,7 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
     uint8_t blockMajorVersion,
     std::vector<uint64_t> timestamps,
     std::vector<difficulty_type> cumulativeDifficulties,
-    uint64_t nextBlockTime) const
+    uint64_t nextBlockTime, lazy_stat_callback_type &lazy_stat_cb) const
 {
     // check if we use special scenario with some fixed diff
     if (CryptoNote::parameters::FIXED_DIFFICULTY > 0)
@@ -697,6 +697,19 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
         logger (WARNING) << "Fixed difficulty is used: " <<
                             m_fixedDifficulty;
         return m_fixedDifficulty;
+    }
+
+    if (nextBlockTime < timestamps.back()){
+        logger (ERROR) << "Invalid next block time for difficulty calculation";
+        return CryptoNote::parameters::DEFAULT_DIFFICULTY;
+    }
+    if (nextBlockTime - timestamps.back() > CryptoNote::parameters::CRYPTONOTE_CLIFF_THRESHOLD) {
+        size_t array_size = cumulativeDifficulties.size();
+        difficulty_type last_difficulty = cumulativeDifficulties[array_size - 1] - cumulativeDifficulties[array_size - 2];
+        uint64_t currentSolveTime = nextBlockTime - timestamps.back();
+        return cliffDifficulty(height, blockMajorVersion,
+                               last_difficulty, currentSolveTime,
+                               lazy_stat_cb);
     }
 
     if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
@@ -1063,6 +1076,12 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     }
 
     return std::max(nextDiffV6, min_difficulty);
+}
+
+difficulty_type Currency::cliffDifficulty(uint32_t height, uint8_t blockMajorVersion, difficulty_type last_difficulty, uint64_t currentSolveTime, lazy_stat_callback_type &lazy_stat_cb) const
+{
+    logger (INFO) << "Cliff difficulty";
+    return CryptoNote::parameters::DEFAULT_DIFFICULTY;
 }
 
 bool Currency::checkProofOfWorkV1(
