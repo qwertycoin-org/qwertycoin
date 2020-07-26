@@ -1078,10 +1078,43 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     return std::max(nextDiffV6, min_difficulty);
 }
 
-difficulty_type Currency::cliffDifficulty(uint32_t height, uint8_t blockMajorVersion, difficulty_type last_difficulty, uint64_t currentSolveTime, lazy_stat_callback_type &lazy_stat_cb) const
+difficulty_type Currency::cliffDifficulty(uint32_t height,
+                                          uint8_t blockMajorVersion,
+                                          difficulty_type last_difficulty,
+                                          uint64_t currentSolveTime,
+                                          lazy_stat_callback_type &lazy_stat_cb) const
 {
     logger (INFO) << "Cliff difficulty";
-    return CryptoNote::parameters::DEFAULT_DIFFICULTY;
+
+    uint64_t correction_interval = currentSolveTime -
+            CryptoNote::parameters::CRYPTONOTE_CLIFF_THRESHOLD;
+    difficulty_type new_diff = last_difficulty;
+    while (correction_interval > 0) {
+        new_diff = new_diff / 2;
+        if (correction_interval < CryptoNote::parameters::DIFFICULTY_TARGET)
+            break;
+        correction_interval -= CryptoNote::parameters::DIFFICULTY_TARGET;
+    }
+    difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour);
+    if (mean_diff > 0)
+        new_diff = std::min(mean_diff, new_diff);
+    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::day);
+    if (mean_diff > 0)
+        new_diff = std::min(mean_diff, new_diff);
+    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::week);
+    if (mean_diff > 0)
+        new_diff = std::min(mean_diff, new_diff);
+    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::month);
+    if (mean_diff > 0)
+        new_diff = std::min(mean_diff, new_diff);
+    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::halfyear);
+    if (mean_diff > 0)
+        new_diff = std::min(mean_diff, new_diff);
+    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::year);
+    if (mean_diff > 0)
+        new_diff = std::min(mean_diff, new_diff);
+
+    return std::max(new_diff, CryptoNote::parameters::DEFAULT_DIFFICULTY);
 }
 
 bool Currency::checkProofOfWorkV1(
