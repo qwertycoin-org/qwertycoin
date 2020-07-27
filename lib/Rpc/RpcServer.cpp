@@ -1142,20 +1142,12 @@ bool RpcServer::onGetTransactionsByHeights(
     try {
         std::vector<Crypto::Hash> vh;
 
-        size_t additor = 100; // possible to increase
-        for (size_t i = req.startBlock; i <= req.startBlock + additor; i++) {
+        uint32_t upperBorder = std::min(req.startBlock + req.additor,
+                                        m_core.get_current_blockchain_height());
+        for (size_t i = req.startBlock; i <= upperBorder; i++) {
             Block blk;
             uint32_t h = static_cast<uint32_t>(i);
             Crypto::Hash blockHash = m_core.getBlockIdByHeight(i);
-            if (blockHash == NULL_HASH) {
-                throw JsonRpc::JsonRpcError{
-                        CORE_RPC_ERROR_CODE_TOO_BIG_HEIGHT,
-                        std::string("To big height: ")
-                        + std::to_string(h)
-                        + ", current blockchain height = "
-                        + std::to_string(m_core.get_current_blockchain_height())
-                };
-            }
 
             if (!m_core.getBlockByHash(blockHash, blk)) {
                 throw JsonRpc::JsonRpcError{
@@ -1192,6 +1184,9 @@ bool RpcServer::onGetTransactionsByHeights(
                         CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
                         "Internal error:  can't fill transaction Details."
                     };
+                }
+                if (req.sigCut) {
+                    txDetails.signatures.clear();
                 }
                 transactionDetails.push_back(txDetails);
             }

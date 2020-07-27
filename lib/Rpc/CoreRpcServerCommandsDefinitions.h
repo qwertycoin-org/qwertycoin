@@ -135,9 +135,13 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
         void serialize(ISerializer &s)
         {
             KV_MEMBER(startBlock)
+            KV_MEMBER(additor)
+            KV_MEMBER(sigCut)
         };
 
-        uint64_t startBlock;
+        uint32_t startBlock;
+        uint32_t additor = 100;
+        bool sigCut;
     };
 
     struct response
