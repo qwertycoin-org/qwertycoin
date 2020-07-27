@@ -242,7 +242,7 @@ public:
         std::vector<difficulty_type> Difficulties,
         uint32_t height) const;
 
-    difficulty_type cliffDifficulty(uint32_t height,
+    difficulty_type getClifDifficulty(uint32_t height,
         uint8_t blockMajorVersion,
         difficulty_type last_difficulty,
         uint64_t currentSolveTime,

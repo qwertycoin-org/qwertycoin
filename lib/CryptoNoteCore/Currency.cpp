@@ -703,11 +703,11 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
         logger (ERROR) << "Invalid next block time for difficulty calculation";
         return CryptoNote::parameters::DEFAULT_DIFFICULTY;
     }
-    if (nextBlockTime - timestamps.back() > CryptoNote::parameters::CRYPTONOTE_CLIFF_THRESHOLD) {
+    if (nextBlockTime - timestamps.back() > CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD) {
         size_t array_size = cumulativeDifficulties.size();
         difficulty_type last_difficulty = cumulativeDifficulties[array_size - 1] - cumulativeDifficulties[array_size - 2];
         uint64_t currentSolveTime = nextBlockTime - timestamps.back();
-        return cliffDifficulty(height, blockMajorVersion,
+        return getClifDifficulty(height, blockMajorVersion,
                                last_difficulty, currentSolveTime,
                                lazy_stat_cb);
     }
@@ -1078,16 +1078,16 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     return std::max(nextDiffV6, min_difficulty);
 }
 
-difficulty_type Currency::cliffDifficulty(uint32_t height,
+difficulty_type Currency::getClifDifficulty(uint32_t height,
                                           uint8_t blockMajorVersion,
                                           difficulty_type last_difficulty,
                                           uint64_t currentSolveTime,
                                           lazy_stat_callback_type &lazy_stat_cb) const
 {
-    logger (INFO) << "Cliff difficulty";
+    logger (INFO) << "CLIF difficulty";
 
     uint64_t correction_interval = currentSolveTime -
-            CryptoNote::parameters::CRYPTONOTE_CLIFF_THRESHOLD;
+            CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD;
     difficulty_type new_diff = last_difficulty;
     while (correction_interval > 0) {
         new_diff = new_diff / 2;
