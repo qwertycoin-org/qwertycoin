@@ -1089,35 +1089,39 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
                      ", last difficulty " << last_difficulty <<
                      ", current solve time " << currentSolveTime;
 
-    uint64_t correction_interval = currentSolveTime -
-            CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD;
     difficulty_type new_diff = last_difficulty;
-    while (correction_interval > 0) {
-        new_diff = new_diff / 2;
-        if (correction_interval < CryptoNote::parameters::DIFFICULTY_TARGET)
-            break;
-        correction_interval -= CryptoNote::parameters::DIFFICULTY_TARGET;
-    }
-    difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour);
-    if (mean_diff > 0)
-        new_diff = std::min(mean_diff, new_diff);
-    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::day);
-    if (mean_diff > 0)
-        new_diff = std::min(mean_diff, new_diff);
-    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::week);
-    if (mean_diff > 0)
-        new_diff = std::min(mean_diff, new_diff);
-    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::month);
-    if (mean_diff > 0)
-        new_diff = std::min(mean_diff, new_diff);
-    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::halfyear);
-    if (mean_diff > 0)
-        new_diff = std::min(mean_diff, new_diff);
-    mean_diff = lazy_stat_cb(IMinerHandler::stat_period::year);
-    if (mean_diff > 0)
-        new_diff = std::min(mean_diff, new_diff);
 
-    new_diff = std::max(new_diff, difficulty_type(CryptoNote::parameters::DEFAULT_DIFFICULTY));
+    if (new_diff > CryptoNote::parameters::DEFAULT_DIFFICULTY) {
+        uint64_t correction_interval = currentSolveTime -
+                CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD;
+        while (correction_interval > 0) {
+            new_diff = new_diff / 2;
+            if (correction_interval < CryptoNote::parameters::DIFFICULTY_TARGET)
+                break;
+            correction_interval -= CryptoNote::parameters::DIFFICULTY_TARGET;
+        }
+        difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour);
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::day);
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::week);
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::month);
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::halfyear);
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::year);
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+
+        new_diff = std::max(new_diff, difficulty_type(CryptoNote::parameters::DEFAULT_DIFFICULTY));
+    }
+
     logger (INFO) << "CLIF difficulty result: " << new_diff;
     return new_diff;
 }
