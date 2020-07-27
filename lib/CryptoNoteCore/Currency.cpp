@@ -1084,7 +1084,10 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
                                           uint64_t currentSolveTime,
                                           lazy_stat_callback_type &lazy_stat_cb) const
 {
-    logger (INFO) << "CLIF difficulty";
+    logger (INFO) << "CLIF difficulty inputs: height " << height <<
+                     ", block version " << blockMajorVersion <<
+                     ", last difficulty " << last_difficulty <<
+                     ", current solve time " << currentSolveTime;
 
     uint64_t correction_interval = currentSolveTime -
             CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD;
@@ -1114,7 +1117,9 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
     if (mean_diff > 0)
         new_diff = std::min(mean_diff, new_diff);
 
-    return std::max(new_diff, difficulty_type(CryptoNote::parameters::DEFAULT_DIFFICULTY));
+    new_diff = std::max(new_diff, difficulty_type(CryptoNote::parameters::DEFAULT_DIFFICULTY));
+    logger (INFO) << "CLIF difficulty result: " << new_diff;
+    return new_diff;
 }
 
 bool Currency::checkProofOfWorkV1(
