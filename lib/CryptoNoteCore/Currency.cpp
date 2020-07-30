@@ -699,14 +699,18 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
         return m_fixedDifficulty;
     }
 
-    if (nextBlockTime < timestamps.back()){
+    uint64_t last_timestamp = 0;
+    if (!timestamps.empty()) {
+        last_timestamp = timestamps.back();
+    }
+    if (nextBlockTime < last_timestamp){
         logger (ERROR) << "Invalid next block time for difficulty calculation";
         return CryptoNote::parameters::DEFAULT_DIFFICULTY;
     }
-    if (nextBlockTime - timestamps.back() > CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD) {
+    if (nextBlockTime - last_timestamp > CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD) {
         size_t array_size = cumulativeDifficulties.size();
         difficulty_type last_difficulty = cumulativeDifficulties[array_size - 1] - cumulativeDifficulties[array_size - 2];
-        uint64_t currentSolveTime = nextBlockTime - timestamps.back();
+        uint64_t currentSolveTime = nextBlockTime - last_timestamp;
         return getClifDifficulty(height, blockMajorVersion,
                                last_difficulty, currentSolveTime,
                                lazy_stat_cb);
@@ -972,9 +976,11 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
         return CryptoNote::parameters::DEFAULT_DIFFICULTY;
     }
 
+    if (timestamps.empty()) {
+        return CryptoNote::parameters::DEFAULT_DIFFICULTY;
+    }
     // Dynamic difficulty calculation window
     uint32_t diffWindow = timestamps.size() - 1;
-
 
     difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
     difficulty_type min_difficulty = CryptoNote::parameters::DEFAULT_DIFFICULTY;
