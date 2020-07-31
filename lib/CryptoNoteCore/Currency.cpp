@@ -709,7 +709,10 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
     }
     if (nextBlockTime - last_timestamp > CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD) {
         size_t array_size = cumulativeDifficulties.size();
-        difficulty_type last_difficulty = cumulativeDifficulties[array_size - 1] - cumulativeDifficulties[array_size - 2];
+        difficulty_type last_difficulty = 1;
+        if (array_size >= 2) {
+            last_difficulty = cumulativeDifficulties[array_size - 1] - cumulativeDifficulties[array_size - 2];
+        }
         uint64_t currentSolveTime = nextBlockTime - last_timestamp;
         return getClifDifficulty(height, blockMajorVersion,
                                last_difficulty, currentSolveTime,
