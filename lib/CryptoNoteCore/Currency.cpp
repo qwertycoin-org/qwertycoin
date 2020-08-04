@@ -703,12 +703,8 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
     if (!timestamps.empty()) {
         last_timestamp = timestamps.back();
     }
-    if (nextBlockTime < last_timestamp){
-        logger (ERROR) << "Invalid next block time for difficulty calculation";
-        return CryptoNote::parameters::DEFAULT_DIFFICULTY;
-    }
     if ((blockMajorVersion >= BLOCK_MAJOR_VERSION_6) &&
-            (nextBlockTime - last_timestamp > CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD)) {
+            (nextBlockTime > last_timestamp + CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD)) {
         size_t array_size = cumulativeDifficulties.size();
         difficulty_type last_difficulty = 1;
         if (array_size >= 2) {
