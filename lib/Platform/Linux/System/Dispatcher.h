@@ -22,6 +22,8 @@
 #include <functional>
 #include <queue>
 #include <stack>
+#include <stdexcept>
+#include <stdint.h>
 
 #ifndef __GLIBC__
 #include <bits/reg.h>
