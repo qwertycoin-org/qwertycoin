@@ -1092,7 +1092,7 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
                                           lazy_stat_callback_type &lazy_stat_cb) const
 {
     logger (INFO) << "CLIF difficulty inputs: height " << height <<
-                     ", block version " << blockMajorVersion <<
+                     ", block version " << (int)blockMajorVersion <<
                      ", last difficulty " << last_difficulty <<
                      ", current solve time " << currentSolveTime;
 
