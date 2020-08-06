@@ -216,7 +216,7 @@ public:
 
     uint64_t roundUpMinFee(uint64_t minimalFee, int digits) const;
 
-    typedef std::function<difficulty_type(IMinerHandler::stat_period)> lazy_stat_callback_type;
+    typedef std::function<difficulty_type(IMinerHandler::stat_period, uint64_t)> lazy_stat_callback_type;
 
     difficulty_type nextDifficulty(uint32_t height,
         uint8_t blockMajorVersion,
@@ -244,7 +244,7 @@ public:
 
     difficulty_type getClifDifficulty(uint32_t height,
         uint8_t blockMajorVersion,
-        difficulty_type last_difficulty,
+        difficulty_type last_difficulty, uint64_t last_timestamp,
         uint64_t currentSolveTime,
         lazy_stat_callback_type& lazy_stat_cb) const;
 

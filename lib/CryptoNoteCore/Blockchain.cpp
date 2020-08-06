@@ -841,7 +841,7 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t nextBlockTime)
         timestamps.push_back(m_blocks[offset].bl.timestamp);
         cumulative_difficulties.push_back(m_blocks[offset].cumulative_difficulty);
     }
-    CryptoNote::Currency::lazy_stat_callback_type cb([&](IMinerHandler::stat_period p)
+    CryptoNote::Currency::lazy_stat_callback_type cb([&](IMinerHandler::stat_period p, uint64_t next_time)
     {
         uint32_t min_height = CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
                 CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
@@ -866,14 +866,15 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t nextBlockTime)
             time_window = 3600 * 24 * 365;
             break;
         }
-        uint64_t stop_time = time(nullptr) - time_window;
+        assert(next_time > time_window);
+        uint64_t stop_time = next_time - time_window;
         if (m_blocks[min_height].bl.timestamp >= stop_time)
             return difficulty_type(0);
         uint32_t height = m_blocks.back().height;
         std::vector<difficulty_type> diffs;
         while (height > min_height && m_blocks[height - 1].bl.timestamp >= stop_time)
         {
-            diffs.push_back(m_blocks[height].bl.timestamp - m_blocks[height - 1].bl.timestamp);
+            diffs.push_back(m_blocks[height].cumulative_difficulty - m_blocks[height - 1].cumulative_difficulty);
             height--;
         }
         return static_cast<difficulty_type>(Common::meanValue(diffs));
@@ -1365,7 +1366,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(
         }
     }
 
-    CryptoNote::Currency::lazy_stat_callback_type cb([](IMinerHandler::stat_period p) { return 0; });
+    CryptoNote::Currency::lazy_stat_callback_type cb([](IMinerHandler::stat_period p, uint64_t next_time) { return 0; });
     return m_currency.nextDifficulty(static_cast<uint32_t>(m_blocks.size()), BlockMajorVersion, timestamps, cumulative_difficulties, nextBlockTime, cb);
 }
 

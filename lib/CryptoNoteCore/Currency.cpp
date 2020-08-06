@@ -712,8 +712,8 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
         }
         uint64_t currentSolveTime = nextBlockTime - last_timestamp;
         return getClifDifficulty(height, blockMajorVersion,
-                               last_difficulty, currentSolveTime,
-                               lazy_stat_cb);
+                               last_difficulty, last_timestamp,
+                               currentSolveTime, lazy_stat_cb);
     }
 
     if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
@@ -1087,6 +1087,7 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
 difficulty_type Currency::getClifDifficulty(uint32_t height,
                                           uint8_t blockMajorVersion,
                                           difficulty_type last_difficulty,
+                                          uint64_t last_timestamp,
                                           uint64_t currentSolveTime,
                                           lazy_stat_callback_type &lazy_stat_cb) const
 {
@@ -1106,22 +1107,22 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
                 break;
             correction_interval -= CryptoNote::parameters::DIFFICULTY_TARGET;
         }
-        difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour);
+        difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour, last_timestamp);
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
-        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::day);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::day, last_timestamp);
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
-        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::week);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::week, last_timestamp);
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
-        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::month);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::month, last_timestamp);
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
-        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::halfyear);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::halfyear, last_timestamp);
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
-        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::year);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::year, last_timestamp);
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
 
