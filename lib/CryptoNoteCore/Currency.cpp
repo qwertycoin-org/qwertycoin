@@ -1101,28 +1101,38 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
     if (new_diff > CryptoNote::parameters::DEFAULT_DIFFICULTY) {
         uint64_t correction_interval = currentSolveTime -
                 CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD;
+        int decrease_counter = 0;
         while (correction_interval > 0) {
             new_diff = new_diff / 2;
+            decrease_counter++;
             if (correction_interval < CryptoNote::parameters::DIFFICULTY_TARGET)
                 break;
             correction_interval -= CryptoNote::parameters::DIFFICULTY_TARGET;
         }
+        logger (INFO) << "Difficulty was descreased in 2^" << decrease_counter <<
+                         " times, resulting difficulty is " << new_diff;
         difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour, last_timestamp);
+        logger (INFO) << "Last hour average difficulty is " << mean_diff;
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
         mean_diff = lazy_stat_cb(IMinerHandler::stat_period::day, last_timestamp);
+        logger (INFO) << "Last day average difficulty is " << mean_diff;
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
         mean_diff = lazy_stat_cb(IMinerHandler::stat_period::week, last_timestamp);
+        logger (INFO) << "Last week average difficulty is " << mean_diff;
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
         mean_diff = lazy_stat_cb(IMinerHandler::stat_period::month, last_timestamp);
+        logger (INFO) << "Last month average difficulty is " << mean_diff;
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
         mean_diff = lazy_stat_cb(IMinerHandler::stat_period::halfyear, last_timestamp);
+        logger (INFO) << "Last halfyear average difficulty is " << mean_diff;
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
         mean_diff = lazy_stat_cb(IMinerHandler::stat_period::year, last_timestamp);
+        logger (INFO) << "Last year average difficulty is " << mean_diff;
         if (mean_diff > 0)
             new_diff = std::min(mean_diff, new_diff);
 
