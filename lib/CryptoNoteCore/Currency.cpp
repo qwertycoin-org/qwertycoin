@@ -1107,10 +1107,12 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
             decrease_counter++;
             if (correction_interval < CryptoNote::parameters::DIFFICULTY_TARGET)
                 break;
+            if (new_diff <= CryptoNote::parameters::DEFAULT_DIFFICULTY)
+                break;
             correction_interval -= CryptoNote::parameters::DIFFICULTY_TARGET;
         }
-        logger (INFO) << "Difficulty was descreased in 2^" << decrease_counter <<
-                         " times, resulting difficulty is " << new_diff;
+        logger (INFO) << "CLIF descreased difficulty by 2^" << decrease_counter <<
+                         " times, intermediate difficulty is " << new_diff;
         difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour, last_timestamp);
         logger (INFO) << "Last hour average difficulty is " << mean_diff;
         if (mean_diff > 0)
