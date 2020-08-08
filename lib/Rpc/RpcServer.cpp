@@ -1033,7 +1033,15 @@ bool RpcServer::on_get_info(
     COMMAND_RPC_GET_INFO::response &res)
 {
     res.height = m_core.get_current_blockchain_height();
-    res.difficulty = m_core.getNextBlockDifficulty(time(nullptr));
+    res.last_known_block_index = std::max(static_cast<uint32_t>(1),
+                                          m_protocolQuery.getObservedHeight()) - 1;
+    if (res.height == res.last_known_block_index) {
+        // node is synced
+        res.difficulty = m_core.getNextBlockDifficulty(time(nullptr));
+    } else {
+        // node is not synced yet
+        res.difficulty = m_core.getNextBlockDifficulty(0);
+    }
     res.tx_count = m_core.get_blockchain_total_transactions() - res.height; // without coinbase
     res.tx_pool_size = m_core.get_pool_transactions_count();
     res.alt_blocks_count = m_core.get_alternative_blocks_count();
@@ -1043,8 +1051,6 @@ bool RpcServer::on_get_info(
     res.rpc_connections_count = get_connections_count();
     res.white_peerlist_size = m_p2p.getPeerlistManager().get_white_peers_count();
     res.grey_peerlist_size = m_p2p.getPeerlistManager().get_gray_peers_count();
-    res.last_known_block_index = std::max(static_cast<uint32_t>(1),
-                                          m_protocolQuery.getObservedHeight()) - 1;
     Crypto::Hash last_block_hash = m_core.getBlockIdByHeight(
         m_core.get_current_blockchain_height() - 1
     );
