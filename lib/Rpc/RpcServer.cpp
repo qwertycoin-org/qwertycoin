@@ -1401,7 +1401,7 @@ bool RpcServer::f_on_blocks_list_json(
         };
     }
 
-    uint32_t print_blocks_count = 30;
+    uint32_t print_blocks_count = 20;
     uint32_t last_height = req.height - print_blocks_count;
     if (req.height <= print_blocks_count)  {
         last_height = 0;
@@ -1419,17 +1419,25 @@ bool RpcServer::f_on_blocks_list_json(
 
         size_t tx_cumulative_block_size;
         m_core.getBlockSize(block_hash, tx_cumulative_block_size);
-        size_t blokBlobSize = getObjectBinarySize(blk);
+        size_t blockBlobSize = getObjectBinarySize(blk);
         size_t minerTxBlobSize = getObjectBinarySize(blk.baseTransaction);
         difficulty_type blockDiff;
         m_core.getBlockDifficulty(static_cast<uint32_t>(i), blockDiff);
 
         f_block_short_response block_short;
+        block_header_response blockHeaderResponse;
+
+        Crypto::Hash tmp_hash = m_core.getBlockIdByHeight(i);
+        bool is_orphaned = block_hash != tmp_hash;
+
+        fill_block_header_response(blk, is_orphaned, i, block_hash, blockHeaderResponse);
+
         block_short.timestamp = blk.timestamp;
         block_short.height = i;
         block_short.hash = Common::podToHex(block_hash);
-        block_short.cumul_size = blokBlobSize + tx_cumulative_block_size - minerTxBlobSize;
+        block_short.cumul_size = blockBlobSize + tx_cumulative_block_size - minerTxBlobSize;
         block_short.tx_count = blk.transactionHashes.size() + 1;
+        block_short.reward = blockHeaderResponse.reward;
         block_short.difficulty = blockDiff;
         block_short.min_tx_fee = m_core.getMinimalFeeForHeight(i);
 

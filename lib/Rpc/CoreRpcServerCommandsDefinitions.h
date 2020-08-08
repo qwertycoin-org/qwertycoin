@@ -670,6 +670,7 @@ struct f_block_short_response
         KV_MEMBER(hash)
         KV_MEMBER(cumul_size)
         KV_MEMBER(tx_count)
+        KV_MEMBER(reward)
         KV_MEMBER(difficulty)
         KV_MEMBER(min_tx_fee)
     }
@@ -678,6 +679,7 @@ struct f_block_short_response
     uint32_t height;
     std::string hash;
     uint64_t tx_count;
+    uint64_t reward;
     uint64_t cumul_size;
     difficulty_type difficulty;
     uint64_t min_tx_fee;
