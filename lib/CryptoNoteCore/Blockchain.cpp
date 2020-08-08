@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iterator>
 #include <limits>
 #include <numeric>
 #include <boost/foreach.hpp>
@@ -623,7 +624,7 @@ bool Blockchain::init(const std::string &config_folder, bool load_existing)
     logger(INFO, BRIGHT_GREEN)
         << "Blockchain initialized. last block: " << m_blocks.size() - 1 << ", "
         << Common::timeIntervalToString(timestamp_diff)
-        << " time ago, current difficulty: " << getDifficultyForNextBlock(time(nullptr));
+        << " time ago, current difficulty: " << getDifficultyForNextBlock(0);
 
     return true;
 }
@@ -1366,7 +1367,66 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(
         }
     }
 
-    CryptoNote::Currency::lazy_stat_callback_type cb([](IMinerHandler::stat_period p, uint64_t next_time) { return 0; });
+    CryptoNote::Currency::lazy_stat_callback_type cb([&](IMinerHandler::stat_period p, uint64_t next_time)
+    {
+        uint32_t min_height = CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
+                CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
+        uint64_t time_window = 0;
+        switch (p) {
+        case(IMinerHandler::stat_period::hour):
+            time_window = 3600;
+            break;
+        case(IMinerHandler::stat_period::day):
+            time_window = 3600 * 24;
+            break;
+        case(IMinerHandler::stat_period::week):
+            time_window = 3600 * 24 * 7;
+            break;
+        case(IMinerHandler::stat_period::month):
+            time_window = 3600 * 24 * 30;
+            break;
+        case(IMinerHandler::stat_period::halfyear):
+            time_window = 3600 * 24 * 365;
+            break;
+        case(IMinerHandler::stat_period::year):
+            time_window = 3600 * 24 * 365;
+            break;
+        }
+        assert(next_time > time_window);
+        uint64_t stop_time = next_time - time_window;
+        if (m_blocks[min_height].bl.timestamp >= stop_time)
+            return difficulty_type(0);
+        std::vector<difficulty_type> diffs;
+        uint32_t height = bei.height;
+        if (!alt_chain.empty()) {
+            auto alt_it = alt_chain.rbegin();
+            auto next_alt_it = std::next(alt_it);
+            while (height > min_height &&
+                   next_alt_it != alt_chain.rend() &&
+                   (*next_alt_it)->second.bl.timestamp >= stop_time)
+            {
+                diffs.push_back((*alt_it)->second.cumulative_difficulty - (*next_alt_it)->second.cumulative_difficulty);
+                alt_it = next_alt_it;
+                next_alt_it = std::next(alt_it);
+                height--;
+            }
+            if (alt_chain.front()->second.bl.timestamp >= stop_time) {
+                // not enough blocks in alt chain,  continue on main chain
+                while (height > min_height && m_blocks[height - 1].bl.timestamp >= stop_time)
+                {
+                    diffs.push_back(m_blocks[height].cumulative_difficulty - m_blocks[height - 1].cumulative_difficulty);
+                    height--;
+                }
+            }
+        } else {
+            while (height > min_height && m_blocks[height - 1].bl.timestamp >= stop_time)
+            {
+                diffs.push_back(m_blocks[height].cumulative_difficulty - m_blocks[height - 1].cumulative_difficulty);
+                height--;
+            }
+        }
+        return static_cast<difficulty_type>(Common::meanValue(diffs));
+    });
     return m_currency.nextDifficulty(static_cast<uint32_t>(m_blocks.size()), BlockMajorVersion, timestamps, cumulative_difficulties, nextBlockTime, cb);
 }
 
