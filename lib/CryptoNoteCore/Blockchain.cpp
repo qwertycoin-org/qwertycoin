@@ -861,7 +861,7 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t nextBlockTime)
             time_window = 3600 * 24 * 30;
             break;
         case(IMinerHandler::stat_period::halfyear):
-            time_window = 3600 * 24 * 365;
+            time_window = 3600 * 12 * 365;
             break;
         case(IMinerHandler::stat_period::year):
             time_window = 3600 * 24 * 365;
@@ -1386,7 +1386,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(
             time_window = 3600 * 24 * 30;
             break;
         case(IMinerHandler::stat_period::halfyear):
-            time_window = 3600 * 24 * 365;
+            time_window = 3600 * 12 * 365;
             break;
         case(IMinerHandler::stat_period::year):
             time_window = 3600 * 24 * 365;
