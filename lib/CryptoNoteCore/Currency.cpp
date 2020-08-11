@@ -232,6 +232,36 @@ uint64_t Currency::getGovernanceReward(uint64_t base_reward) const
     return (uint64_t)(base_reward * (percent * 0.01));
 }
 
+bool Currency::validate_government_fee(const Transaction &baseTx) const
+{
+    AccountKeys governanceKeys;
+    getGovernanceAddressAndKey(governanceKeys);
+
+    Crypto::PublicKey txPublicKey = getTransactionPublicKeyFromExtra(baseTx.extra);
+
+    Crypto::KeyDerivation derivation;
+    if (!Crypto::generate_key_derivation( txPublicKey,
+                                  governanceKeys.viewSecretKey,
+                                  derivation)) {
+        return false;
+    }
+
+    uint64_t minerReward = 0;
+    uint64_t governmentFee = 0;
+    for (size_t idx = 0; idx < baseTx.outputs.size(); ++idx) {
+        minerReward += baseTx.outputs[idx].amount;
+        if (baseTx.outputs[idx].target.type() != typeid(CryptoNote::KeyOutput))
+            continue;
+        Crypto::PublicKey outEphemeralKey;
+        Crypto::derive_public_key(derivation, idx,
+            governanceKeys.address.spendPublicKey, outEphemeralKey);
+        if (outEphemeralKey == boost::get<KeyOutput>(baseTx.outputs[idx].target).key)
+            governmentFee += baseTx.outputs[idx].amount;
+    }
+
+    return (governmentFee == getGovernanceReward(minerReward));
+}
+
 bool Currency::getGovernanceAddressAndKey(AccountKeys& governanceKeys) const
 {
     std::string address       = GOVERNANCE_WALLET_ADDRESS;
@@ -401,7 +431,6 @@ bool Currency::constructMinerTx(
         }
         size_t pos = tx.outputs.size();
         r = Crypto::derive_public_key(derivation, pos++, governanceKeys.address.spendPublicKey, outEphemeralPubKey);
-
         if (!(r)) {
             logger(ERROR, BRIGHT_RED)
                 << "while creating outs: failed to derive_public_key("
@@ -409,7 +438,6 @@ bool Currency::constructMinerTx(
                 << governanceKeys.address.spendPublicKey << ")";
             return false;
         }
-
         KeyOutput tk;
         tk.key = outEphemeralPubKey;
 

@@ -1501,6 +1501,14 @@ bool Blockchain::validate_miner_transaction(
         blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
     }
 
+    if (m_currency.isGovernanceEnabled(height)) {
+        if (!m_currency.validate_government_fee(b.baseTransaction)) {
+            logger(INFO, BRIGHT_WHITE)
+                << "Invalid government fee";
+            return false;
+        }
+    }
+
     auto br = m_currency.getBlockReward(
         getBlockMajorVersionForHeight(height),
         blocksSizeMedian,

@@ -272,6 +272,7 @@ public:
     bool isGovernanceEnabled(uint32_t height) const;
     bool getGovernanceAddressAndKey(AccountKeys& m_account_keys) const;
     uint64_t getGovernanceReward(uint64_t base_reward) const;
+    bool validate_government_fee(const Transaction& baseTx) const;
 
     static const std::vector<uint64_t> PRETTY_AMOUNTS;
 

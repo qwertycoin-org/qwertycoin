@@ -166,8 +166,8 @@ const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json"
 
 /* Governance Fee and range // The Qwertycoin Foundation */
 const uint16_t GOVERNANCE_PERCENT_FEE                        = 10; // 10 percent of base block reward
-const uint32_t GOVERNANCE_HEIGHT_START                       = UPGRADE_HEIGHT_V6;
-const uint32_t GOVERNANCE_HEIGHT_END                         = 4000000;
+const uint32_t GOVERNANCE_HEIGHT_START                       = 12550;
+const uint32_t GOVERNANCE_HEIGHT_END                         = 100000;
 
 } // namespace parameters
 
