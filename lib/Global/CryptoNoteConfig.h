@@ -147,8 +147,13 @@ const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
 const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
 const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
 const uint32_t UPGRADE_HEIGHT_V5                              = 250720;
+<<<<<<< HEAD
 const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = 700000;
 const uint32_t UPGRADE_HEIGHT_V6                              = 700000;
+=======
+const uint32_t UPGRADE_HEIGHT_V6                              = 700000;
+const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = UPGRADE_HEIGHT_V6; // TODO: Change to UPGRADE_HEIGHT_V6
+>>>>>>> Manage Configfile
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
 const uint32_t UPGRADE_VOTING_WINDOW                         = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
@@ -166,14 +171,14 @@ const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json"
 
 /* Governance Fee and range // The Qwertycoin Foundation */
 const uint16_t GOVERNANCE_PERCENT_FEE                        = 10; // 10 percent of base block reward
-const uint32_t GOVERNANCE_HEIGHT_START                       = 12550;
-const uint32_t GOVERNANCE_HEIGHT_END                         = 100000;
+const uint32_t GOVERNANCE_HEIGHT_START                       = UPGRADE_HEIGHT_V6;
+const uint32_t GOVERNANCE_HEIGHT_END                         = 2000000; // TODO: Recalculate
 
 } // namespace parameters
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
-const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.1.0.0";
+const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.5.1.2";
 const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.qwertycoin.org";
 
 const uint8_t  TRANSACTION_VERSION_1                         =  1;
