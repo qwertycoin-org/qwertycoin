@@ -1,0 +1,140 @@
+language: cpp
+
+matrix:
+    include:
+        - name: "Android, Debug"
+          os: linux
+          dist: bionic
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
+              - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
+              - CTEST_REGEXP="NONE"
+        - name: "Android, Release"
+          os: linux
+          dist: bionic
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Release"
+              - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
+              - CTEST_REGEXP="NONE"
+        - name: "Linux, Debug"
+          os: linux
+          dist: bionic
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-8-cxx17.cmake
+              - CTEST_REGEXP="Tests$"
+        - name: "Linux, Release"
+          os: linux
+          dist: bionic
+          sudo: required
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Release"
+              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-8-cxx17.cmake
+              - CTEST_REGEXP="Tests$"
+        - name: "macOS, Debug"
+          os: osx
+          osx_image: xcode11.3
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Debug"
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx17.cmake
+              - CTEST_REGEXP="Tests$"
+        - name: "macOS, Release"
+          os: osx
+          osx_image: xcode11.3
+          env:
+              - CMAKE_GENERATOR_NAME="Unix Makefiles"
+              - CMAKE_BUILD_TYPE="Release"
+              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx17.cmake
+              - CTEST_REGEXP="Tests$"
+
+env:
+    global:
+        - CTEST_LOG_REGEXP="=== EVENT \#\|SwappedVector\|\[\([a-zA-Z]\+\)\(\/[a-zA-Z0-9]\+\)\?\]"
+
+addons:
+    apt: # Linux
+        packages:
+            - build-essential
+            - cmake
+            - git
+            - unzip
+            - wget
+            - lcov
+            - rpm
+            - gcc-8
+            - g++-8
+        sources:
+            - ubuntu-toolchain-r-test
+    homebrew: # macOS
+        packages:
+            - cmake
+            - git
+            - lcov
+
+cache:
+    directories:
+        - $HOME/.hunter
+
+before_install:
+    - |
+        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
+            echo "Installing Android NDK..."
+            mkdir -p "$HOME/.android"
+            wget -O "$HOME/.android/android-ndk-r18b-linux-x86_64.zip" "https://dl.google.com/android/repository/android-ndk-r18b-linux-x86_64.zip"
+            unzip -qq "$HOME/.android/android-ndk-r18b-linux-x86_64.zip" -d "$HOME/.android"
+            export ANDROID_NDK_r18b="$HOME/.android/android-ndk-r18b"
+            ls -la "$ANDROID_NDK_r18b"
+        fi
+
+script:
+    - |
+        if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+            export CC=gcc-8
+            export CXX=g++-8
+        fi
+    - mkdir ./build && cd ./build
+    - >
+        cmake -G "$CMAKE_GENERATOR_NAME"
+        -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        -DCMAKE_TOOLCHAIN_FILE=cmake/polly/$CMAKE_TOOLCHAIN_FILE_NAME
+        -DBUILD_ALL:BOOL=TRUE
+        ..
+    - cmake --build . --config $CMAKE_BUILD_TYPE -- -j 2
+    - ctest -C $CMAKE_BUILD_TYPE -V -j 2 -R "$CTEST_REGEXP" | grep --line-buffered -i -v "$CTEST_LOG_REGEXP"
+    - cpack -C $CMAKE_BUILD_TYPE
+
+after_success:
+    - |
+        if [ "$CMAKE_TOOLCHAIN_FILE_NAME" = "android-ndk-r18b-api-21-x86-clang-libcxx.cmake" ]; then
+            echo "TODO: Fix and run tests for Android and remove this 'if' statement."
+        elif [ "$CMAKE_BUILD_TYPE" = "Release" ]; then
+            echo "Code-coverage is only available for debug builds. Skipping..."
+        else
+            COVERAGE_FILE="$TRAVIS_BUILD_DIR/build/coverage.info"
+            echo "coverage.info: $COVERAGE_FILE"
+            lcov --capture --directory . --output-file $COVERAGE_FILE
+            lcov --remove $COVERAGE_FILE "/Applications/Xcode*" "/usr/*" "*/boost/*" "*/gtest/*" "*/tests/*" "*/_ExternalProjects/*" --output-file $COVERAGE_FILE
+            lcov --list $COVERAGE_FILE
+            bash <(curl -s https://codecov.io/bash) -f $COVERAGE_FILE || echo "Upload to codecov.io FAILED"
+        fi
+
+deploy:
+    provider: releases # GitHub Releases
+    api_key:
+        secure: "IH+kE6YVS6abdkYjJUKUyIfU9JUCucNnhDFjGNWtQ09WvyyK0ojf+p3++AUfTAYUnfiDk1gj9dQ+0RNWQvogTiEO60THN7ahrWu3aBVv2Hvi3zVp8Is7HsnFY1ZhTCEcKT+PAAwg3xv+k0Q1Re3vpknYHfVxdp+13+Ub+SDkZJ4RcFzTsGyPd544kEiaNtQ40gf1zVkWX72vB1PRTIYVhZ8HL0ddbXOd4/RWNoV8CUEBAVNkpWQFFrI/DKsAfOvz8K8blFZi5rv5G1lchO05hE5r2Cx1KouH1/oRHpIrxZTuMi3WdLwwXywb+4k9nATLzbBvuVQSw+nTbxvROPNR6kXtRZJ7BCzLh3YVW/efae3fhk0tTFGg8euUmfmfAhdjbIAgMPnII7MALai5uBYniTkXwjRydorBWtNtWatmxw4IQN/kdU37tJN/HOsvFj1LiqIycbcmhiCDPkNph3yIKniaXvcoYpkg9Ta3O23yrMKcGKlg+fDQfxXEC/LLFu0tyWC6L8tB2LGCS6uL66kXagdm28BrC95VnF8wJiYdfgXxppI1R7N7GVnqor6RU352DpXNd1iVoWJF7NWJAcrgmCOh+tlY564JC1UE3DevywjQYOXeUE5zgdk1kGPxmmFWR08zUN8Hml3AEDJ0AfERRnCl5yvuW4fxFO4vlepm4gc="
+    file: dist/qwertycoin-*
+    file_glob: true
+    draft: true
+    on:
+        branch: master
+        tags: true
+        condition: $CMAKE_BUILD_TYPE = "Release"
+    skip_cleanup: true
