@@ -149,7 +149,6 @@ const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
 const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
 const uint32_t UPGRADE_HEIGHT_V5                              = 250720;
 const uint32_t UPGRADE_HEIGHT_V6                              = 700000;
-const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = UPGRADE_HEIGHT_V6; // TODO: Change to UPGRADE_HEIGHT_V6
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
 const uint32_t UPGRADE_VOTING_WINDOW                         = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
