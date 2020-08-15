@@ -77,7 +77,7 @@ const uint64_t MINIMUM_FEE_V2                                 = UINT64_C(10000);
 const uint64_t MAXIMUM_FEE_V2                                 = UINT64_C(10000);
 
 // We changed the fee from 0.01 to 1.00 QWC at this height
-const uint32_t MINIMUM_FEE_V0_HEIGHT                          = 0;
+const uint32_t MINIMUM_FEE_V0_HEIGHT                          = 50710;
 
 // TODO: Check fee Upgrade heights
 const uint32_t MINIMUM_FEE_V1_HEIGHT                          = 800000;
@@ -103,7 +103,7 @@ const uint64_t MIN_TX_MIXIN_SIZE_V3                           = 3;
 const uint64_t MAX_TX_MIXIN_SIZE_V3                           = 3;
 
 /* The heights to activate the mixin limits at */
-const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200;
+const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200000;
 const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 1000000;
 const uint32_t MIXIN_LIMITS_V3_HEIGHT                         = 1200000;
 
@@ -118,7 +118,7 @@ const size_t   DIFFICULTY_WINDOW_V6                           = 30;  // EXPECTED
 const size_t   DIFFICULTY_CUT                                 = 60;  // timestamps to cut after sorting
 const size_t   DIFFICULTY_LAG                                 = 15;  // !!!
 static_assert(2 * DIFFICULTY_CUT <= DIFFICULTY_WINDOW - 2, "Bad DIFFICULTY_WINDOW or DIFFICULTY_CUT");
-const size_t DEFAULT_DIFFICULTY                               = 10000;
+const size_t DEFAULT_DIFFICULTY                               = 1000000;
 const size_t FIXED_DIFFICULTY                                 = 0;
 
 static constexpr uint64_t POISSON_CHECK_TRIGGER               = 10;   // Reorg size that triggers poisson timestamp check
@@ -144,12 +144,12 @@ const size_t   FUSION_TX_MIN_INPUT_COUNT                      = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO               = 4;
 
 
-const uint32_t UPGRADE_HEIGHT_V2                              = 69;
-const uint32_t UPGRADE_HEIGHT_V3                              = 70;
-const uint32_t UPGRADE_HEIGHT_V4                              = 71;
-const uint32_t UPGRADE_HEIGHT_V5                              = 72;
-const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = 73;
-const uint32_t UPGRADE_HEIGHT_V6                              = 73;
+const uint32_t UPGRADE_HEIGHT_V2                              = 40000;
+const uint32_t UPGRADE_HEIGHT_V3                              = 46000;
+const uint32_t UPGRADE_HEIGHT_V4                              = 110520;
+const uint32_t UPGRADE_HEIGHT_V5                              = 250720;
+const uint32_t UPGRADE_HEIGHT_V6                              = 700000;
+const uint32_t UPGRADE_HEIGHT_REWARD_SCHEME                   = UPGRADE_HEIGHT_V6; // TODO: Change to UPGRADE_HEIGHT_V6
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90; // percent
 const uint32_t UPGRADE_VOTING_WINDOW                         = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;  // blocks
@@ -157,25 +157,25 @@ const uint32_t UPGRADE_WINDOW                                = EXPECTED_NUMBER_O
 static_assert(UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
-const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "tn_blocks.bin";
-const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "tn_blockindexes.bin";
-const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "tn_blockscache.bin";
-const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "tn_poolstate.dat";
-const char     P2P_NET_DATA_FILENAME[]                       = "tn_p2pstate.dat";
-const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "tn_blockchainindices.bin";
-const char     MINER_CONFIG_FILE_NAME[]                      = "tn_miner_conf.json";
+const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.bin";
+const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.bin";
+const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.bin";
+const char     CRYPTONOTE_POOLDATA_FILENAME[]                = "poolstate.dat";
+const char     P2P_NET_DATA_FILENAME[]                       = "p2pstate.dat";
+const char     CRYPTONOTE_BLOCKCHAIN_INDICES_FILENAME[]      = "blockchainindices.bin";
+const char     MINER_CONFIG_FILE_NAME[]                      = "miner_conf.json";
 
 /* Governance Fee and range // The Qwertycoin Foundation */
 const uint16_t GOVERNANCE_PERCENT_FEE                        = 10; // 10 percent of base block reward
-const uint32_t GOVERNANCE_HEIGHT_START                       = 12550;
-const uint32_t GOVERNANCE_HEIGHT_END                         = 100000;
+const uint32_t GOVERNANCE_HEIGHT_START                       = UPGRADE_HEIGHT_V6;
+const uint32_t GOVERNANCE_HEIGHT_END                         = 2000000; // TODO: Recalculate
 
 } // namespace parameters
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
-const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.1.0.0";
-const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.testnet.qwertycoin.org";
+const char     GENESIS_COINBASE_TX_FIX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478.5.1.2";
+const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.qwertycoin.org";
 
 const uint8_t  TRANSACTION_VERSION_1                         =  1;
 const uint8_t  TRANSACTION_VERSION_2                         =  2;
@@ -204,8 +204,8 @@ const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
 
 // P2P Network Configuration Section - This defines our current P2P network version
 // and the minimum version for communication between nodes
-const uint8_t  P2P_CURRENT_VERSION                           = 1;
-const uint8_t  P2P_MINIMUM_VERSION                           = 1;
+const uint8_t  P2P_CURRENT_VERSION                           = 6;
+const uint8_t  P2P_MINIMUM_VERSION                           = 5;
 
 // This defines the number of versions ahead we must see peers before we start displaying
 // warning messages that we need to upgrade our software.
@@ -225,10 +225,10 @@ const uint32_t P2P_FAILED_ADDR_FORGET_SECONDS                = (60 * 60);     //
 const uint32_t P2P_IP_BLOCKTIME                              = (60 * 60 * 24);//24 hour
 const uint32_t P2P_IP_FAILS_BEFORE_BLOCK                     = 10;
 const uint32_t P2P_IDLE_CONNECTION_KILL_INTERVAL             = (5 * 60);      //5 minutes
-const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4beef50f414cdb332b28c5ce764beaf";
+const char     P2P_STAT_TRUSTED_PUB_KEY[]                    = "deaddeadbeef04d37a9499c67ccb730dc4734950f414cdb332b28c5ce764beaf";
 
 const char        LATEST_VERSION_URL[]                       = "https://releases.qwertycoin.org";
-const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin-testnet/blob/master/LICENSE";
+const std::string LICENSE_URL                                = "https://github.com/qwertycoin-org/qwertycoin/blob/master/LICENSE";
 
 /* Modules */
 
@@ -241,11 +241,14 @@ const std::string GOVERNANCE_WALLET_ADDRESS                  = "QWC1W9dWEf955q71
 const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "d6c03cec7de78fe30895bf19edeb5c24529c3d2e40d00b300fa2336c6fdafe0d";
 
 const char *const SEED_NODES[] = {
-	"node-00.testnet.qwertycoin.org:8196",
-	"node-01.testnet.qwertycoin.org:8196",
-	"pool-01.testnet.qwertycoin.org:8196",
-	"pool-02.testnet.qwertycoin.org:8196",
-	"explorer.testnet.qwertycoin.org:8196"
+    "node-00.qwertycoin.org:8196",
+    "node-01.qwertycoin.org:8196",
+    "node-02.qwertycoin.org:8196",
+    "node-03.qwertycoin.org:8196",
+    "node-04.qwertycoin.org:8196",
+    "node-05.qwertycoin.org:8196",
+    "198.147.30.115:8196",  //loop
+    "198.147.30.116:8196"   //pool
 };
 
 } // namespace CryptoNote
