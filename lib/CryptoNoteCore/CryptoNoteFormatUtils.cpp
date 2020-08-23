@@ -19,6 +19,7 @@
 
 #include <set>
 #include <Common/Varint.h>
+#include <crypto/cn_slow_hash.hpp>
 #include <CryptoNoteCore/Account.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
@@ -664,14 +665,16 @@ bool get_block_longhash(cn_context &context, const Block &b, Hash &res)
     } else {
         return false;
     }
-    cn_slow_hash(context, bd.data(), bd.size(), res);
+    //cn_slow_hash(context, bd.data(), bd.size(), res);
     if(b.majorVersion == BLOCK_MAJOR_VERSION_4) {
         // heavy 4.0
-        cn_slow_hash(context, bd.data(), bd.size(), res);
+        cn_pow_hash_v2 cnh;
+        cnh.hash(bd.data(), bd.size(), res.data);
     } else {
-        // classic 1.0||2.0||3.0||5.0
-        cn_slow_hash(context, bd.data(), bd.size(), res);
+        cn_pow_hash_v1 cnh;
+        cnh.hash(bd.data(), bd.size(), res.data);
     }
+
     return true;
 }
 
