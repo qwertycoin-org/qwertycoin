@@ -38,14 +38,6 @@ matrix:
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-8-cxx17.cmake
               - CTEST_REGEXP="Tests$"
-        - name: "macOS, Debug"
-          os: osx
-          osx_image: xcode11.3
-          env:
-              - CMAKE_GENERATOR_NAME="Unix Makefiles"
-              - CMAKE_BUILD_TYPE="Debug"
-              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx17.cmake
-              - CTEST_REGEXP="Tests$"
         - name: "macOS, Release"
           os: osx
           osx_image: xcode11.3
