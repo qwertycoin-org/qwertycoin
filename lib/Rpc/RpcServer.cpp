@@ -242,6 +242,15 @@ std::unordered_map<
             false
         }
     },{
+        "/get_transaction_details_by_heights",
+        {
+            jsonMethod<
+                COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
+                >(
+                        &RpcServer::onGetTransactionsByHeights),
+            false
+        }
+    },{
         "/get_transaction_hashes_by_payment_id",
         {
             jsonMethod<
@@ -388,6 +397,9 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
             },{
                 "get_transaction_details_by_hashes",
                 { makeMemberMethod(&RpcServer::onGetTransactionsDetailsByHashes), false }
+            },{
+                "get_transaction_details_by_heights",
+                {makeMemberMethod(&RpcServer::onGetTransactionsByHeights), false}
             },{
                 "k_transaction_details_by_hash",
                 { makeMemberMethod(&RpcServer::onGetTransactionDetailsByHash), false }
@@ -1021,7 +1033,15 @@ bool RpcServer::on_get_info(
     COMMAND_RPC_GET_INFO::response &res)
 {
     res.height = m_core.get_current_blockchain_height();
-    res.difficulty = m_core.getNextBlockDifficulty();
+    res.last_known_block_index = std::max(static_cast<uint32_t>(1),
+                                          m_protocolQuery.getObservedHeight()) - 1;
+    if (res.height == res.last_known_block_index) {
+        // node is synced
+        res.difficulty = m_core.getNextBlockDifficulty(time(nullptr));
+    } else {
+        // node is not synced yet
+        res.difficulty = m_core.getNextBlockDifficulty(0);
+    }
     res.tx_count = m_core.get_blockchain_total_transactions() - res.height; // without coinbase
     res.tx_pool_size = m_core.get_pool_transactions_count();
     res.alt_blocks_count = m_core.get_alternative_blocks_count();
@@ -1031,8 +1051,6 @@ bool RpcServer::on_get_info(
     res.rpc_connections_count = get_connections_count();
     res.white_peerlist_size = m_p2p.getPeerlistManager().get_white_peers_count();
     res.grey_peerlist_size = m_p2p.getPeerlistManager().get_gray_peers_count();
-    res.last_known_block_index = std::max(static_cast<uint32_t>(1),
-                                          m_protocolQuery.getObservedHeight()) - 1;
     Crypto::Hash last_block_hash = m_core.getBlockIdByHeight(
         m_core.get_current_blockchain_height() - 1
     );
@@ -1119,6 +1137,85 @@ bool RpcServer::on_get_transactions(
     }
 
     res.status = CORE_RPC_STATUS_OK;
+
+    return true;
+}
+
+bool RpcServer::onGetTransactionsByHeights(
+        const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
+        COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res)
+{
+    try {
+        std::vector<Crypto::Hash> vh;
+
+        uint32_t upperBorder = std::min(req.startBlock + req.additor,
+                                        m_core.get_current_blockchain_height());
+        for (size_t i = req.startBlock; i <= upperBorder; i++) {
+            Block blk;
+            uint32_t h = static_cast<uint32_t>(i);
+            Crypto::Hash blockHash = m_core.getBlockIdByHeight(i);
+
+            if (!m_core.getBlockByHash(blockHash, blk)) {
+                throw JsonRpc::JsonRpcError{
+                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                        "Internal error: can't get block by hash. Hash = " + podToHex(blockHash) + '.'
+                };
+            }
+
+            if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
+                throw JsonRpc::JsonRpcError{
+                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                        "Internal error: coinbase transaction in the block has the wrong type"
+                };
+            }
+
+            for (auto tx : blk.transactionHashes) {
+                vh.push_back(tx);
+            }
+        }
+
+        std::vector<TransactionDetails2> transactionDetails;
+        transactionDetails.reserve(vh.size());
+
+        std::list<Crypto::Hash> missedTxs;
+        std::list<Transaction> txs;
+
+        m_core.getTransactions(vh, txs, missedTxs);
+
+        if (!txs.empty()) {
+            for (const Transaction &tx : txs) {
+                TransactionDetails2 txDetails;
+                if (!m_core.fillTransactionDetails(tx, txDetails)) {
+                    throw JsonRpc::JsonRpcError{
+                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                        "Internal error:  can't fill transaction Details."
+                    };
+                }
+                if (req.sigCut) {
+                    txDetails.signatures.clear();
+                }
+                transactionDetails.push_back(txDetails);
+            }
+
+            res.transactions = std::move(transactionDetails);
+            res.status = CORE_RPC_STATUS_OK;
+        }
+        if (txs.empty() || !missedTxs.empty()) {
+            std::ostringstream oss;
+            std::string seperator;
+            for (auto h : missedTxs) {
+                oss << seperator << Common::podToHex(h);
+                seperator = ",";
+            }
+            res.status = "transaction(s) not found: " + oss.str() + ".";
+        }
+    } catch (std::system_error &e) {
+        res.status = e.what();
+        return false;
+    } catch (std::exception &e) {
+        res.status = "Error: " + std::string(e.what());
+        return false;
+    }
 
     return true;
 }
@@ -1304,7 +1401,7 @@ bool RpcServer::f_on_blocks_list_json(
         };
     }
 
-    uint32_t print_blocks_count = 30;
+    uint32_t print_blocks_count = 20;
     uint32_t last_height = req.height - print_blocks_count;
     if (req.height <= print_blocks_count)  {
         last_height = 0;
@@ -1322,17 +1419,25 @@ bool RpcServer::f_on_blocks_list_json(
 
         size_t tx_cumulative_block_size;
         m_core.getBlockSize(block_hash, tx_cumulative_block_size);
-        size_t blokBlobSize = getObjectBinarySize(blk);
+        size_t blockBlobSize = getObjectBinarySize(blk);
         size_t minerTxBlobSize = getObjectBinarySize(blk.baseTransaction);
         difficulty_type blockDiff;
         m_core.getBlockDifficulty(static_cast<uint32_t>(i), blockDiff);
 
         f_block_short_response block_short;
+        block_header_response blockHeaderResponse;
+
+        Crypto::Hash tmp_hash = m_core.getBlockIdByHeight(i);
+        bool is_orphaned = block_hash != tmp_hash;
+
+        fill_block_header_response(blk, is_orphaned, i, block_hash, blockHeaderResponse);
+
         block_short.timestamp = blk.timestamp;
         block_short.height = i;
         block_short.hash = Common::podToHex(block_hash);
-        block_short.cumul_size = blokBlobSize + tx_cumulative_block_size - minerTxBlobSize;
+        block_short.cumul_size = blockBlobSize + tx_cumulative_block_size - minerTxBlobSize;
         block_short.tx_count = blk.transactionHashes.size() + 1;
+        block_short.reward = blockHeaderResponse.reward;
         block_short.difficulty = blockDiff;
         block_short.min_tx_fee = m_core.getMinimalFeeForHeight(i);
 
@@ -1441,7 +1546,7 @@ bool RpcServer::f_on_block_json(
         }
     }
 
-    if (res.block.height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
+    if (res.block.height >= CryptoNote::parameters::UPGRADE_HEIGHT_V6) {
         m_core.getBlockHeight(blk.previousBlockHash, previousBlockHeight);
         blockTarget = blk.timestamp - m_core.getBlockTimestamp(previousBlockHeight);
     }
@@ -2585,36 +2690,128 @@ bool RpcServer::on_get_difficulty_stat(const COMMAND_RPC_GET_DIFFICULTY_STAT::re
                                        res.hour.block_num,
                                        res.hour.avg_solve_time,
                                        res.hour.stddev_solve_time,
-                                       res.hour.outliers_num))
+                                       res.hour.outliers_num,
+                                       res.hour.avg_diff,
+                                       res.hour.min_diff,
+                                       res.hour.max_diff))
             throw std::runtime_error("Failed to get hour difficulty statistics");
         if(!m_core.get_difficulty_stat(req.height,
                                        IMinerHandler::stat_period::day,
                                        res.day.block_num,
                                        res.day.avg_solve_time,
                                        res.day.stddev_solve_time,
-                                       res.day.outliers_num))
+                                       res.day.outliers_num,
+                                       res.day.avg_diff,
+                                       res.day.min_diff,
+                                       res.day.max_diff))
             throw std::runtime_error("Failed to get day difficulty statistics");
         if(!m_core.get_difficulty_stat(req.height,
                                        IMinerHandler::stat_period::week,
                                        res.week.block_num,
                                        res.week.avg_solve_time,
                                        res.week.stddev_solve_time,
-                                       res.week.outliers_num))
+                                       res.week.outliers_num,
+                                       res.week.avg_diff,
+                                       res.week.min_diff,
+                                       res.week.max_diff))
             throw std::runtime_error("Failed to get week difficulty statistics");
         if(!m_core.get_difficulty_stat(req.height,
                                        IMinerHandler::stat_period::month,
                                        res.month.block_num,
                                        res.month.avg_solve_time,
                                        res.month.stddev_solve_time,
-                                       res.month.outliers_num))
+                                       res.month.outliers_num,
+                                       res.month.avg_diff,
+                                       res.month.min_diff,
+                                       res.month.max_diff))
             throw std::runtime_error("Failed to get month difficulty statistics");
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::halfyear,
+                                       res.halfyear.block_num,
+                                       res.halfyear.avg_solve_time,
+                                       res.halfyear.stddev_solve_time,
+                                       res.halfyear.outliers_num,
+                                       res.halfyear.avg_diff,
+                                       res.halfyear.min_diff,
+                                       res.halfyear.max_diff))
+            throw std::runtime_error("Failed to get halfyear difficulty statistics");
         if(!m_core.get_difficulty_stat(req.height,
                                        IMinerHandler::stat_period::year,
                                        res.year.block_num,
                                        res.year.avg_solve_time,
                                        res.year.stddev_solve_time,
-                                       res.year.outliers_num))
-            throw std::runtime_error("Failed to get month difficulty statistics");
+                                       res.year.outliers_num,
+                                       res.year.avg_diff,
+                                       res.year.min_diff,
+                                       res.year.max_diff))
+            throw std::runtime_error("Failed to get year difficulty statistics");
+
+        res.blocks30.block_num = 30;
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::by_block_number,
+                                       res.blocks30.block_num,
+                                       res.blocks30.avg_solve_time,
+                                       res.blocks30.stddev_solve_time,
+                                       res.blocks30.outliers_num,
+                                       res.blocks30.avg_diff,
+                                       res.blocks30.min_diff,
+                                       res.blocks30.max_diff))
+            throw std::runtime_error("Failed to get difficulty statistics for 30 blocks");
+        res.blocks720.block_num = 720;
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::by_block_number,
+                                       res.blocks720.block_num,
+                                       res.blocks720.avg_solve_time,
+                                       res.blocks720.stddev_solve_time,
+                                       res.blocks720.outliers_num,
+                                       res.blocks720.avg_diff,
+                                       res.blocks720.min_diff,
+                                       res.blocks720.max_diff))
+            throw std::runtime_error("Failed to get difficulty statistics for 720 blocks");
+        res.blocks5040.block_num = 5040;
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::by_block_number,
+                                       res.blocks5040.block_num,
+                                       res.blocks5040.avg_solve_time,
+                                       res.blocks5040.stddev_solve_time,
+                                       res.blocks5040.outliers_num,
+                                       res.blocks5040.avg_diff,
+                                       res.blocks5040.min_diff,
+                                       res.blocks5040.max_diff))
+            throw std::runtime_error("Failed to get difficulty statistics for 5040 blocks");
+        res.blocks21900.block_num = 21900;
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::by_block_number,
+                                       res.blocks21900.block_num,
+                                       res.blocks21900.avg_solve_time,
+                                       res.blocks21900.stddev_solve_time,
+                                       res.blocks21900.outliers_num,
+                                       res.blocks21900.avg_diff,
+                                       res.blocks21900.min_diff,
+                                       res.blocks21900.max_diff))
+            throw std::runtime_error("Failed to get difficulty statistics for 21900 blocks");
+        res.blocks131400.block_num = 131400;
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::by_block_number,
+                                       res.blocks131400.block_num,
+                                       res.blocks131400.avg_solve_time,
+                                       res.blocks131400.stddev_solve_time,
+                                       res.blocks131400.outliers_num,
+                                       res.blocks131400.avg_diff,
+                                       res.blocks131400.min_diff,
+                                       res.blocks131400.max_diff))
+            throw std::runtime_error("Failed to get difficulty statistics for 131400 blocks");
+        res.blocks262800.block_num = 262800;
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::by_block_number,
+                                       res.blocks262800.block_num,
+                                       res.blocks262800.avg_solve_time,
+                                       res.blocks262800.stddev_solve_time,
+                                       res.blocks262800.outliers_num,
+                                       res.blocks262800.avg_diff,
+                                       res.blocks262800.min_diff,
+                                       res.blocks262800.max_diff))
+            throw std::runtime_error("Failed to get difficulty statistics for 262800 blocks");
     } catch (std::system_error &e) {
         res.status = e.what();
         return false;

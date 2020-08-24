@@ -85,7 +85,10 @@ public:
         uint32_t& block_num,
         uint64_t& avg_solve_time,
         uint64_t& stddev_solve_time,
-        uint32_t& outliers_num) override;
+        uint32_t& outliers_num,
+        difficulty_type &avg_diff,
+        difficulty_type &min_diff,
+        difficulty_type &max_diff) override;
 
     bool addObserver(ICoreObserver *observer) override;
     bool removeObserver(ICoreObserver *observer) override;
@@ -284,7 +287,7 @@ public:
 
     void rollbackBlockchain(uint32_t height) override;
 
-    uint64_t getNextBlockDifficulty();
+    uint64_t getNextBlockDifficulty(uint64_t nextBlockTime);
     uint64_t getTotalGeneratedAmount();
     uint8_t getBlockMajorVersionForHeight(uint32_t height) const;
     bool f_getMixin(const Transaction &transaction, uint64_t &mixin);

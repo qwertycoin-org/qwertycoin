@@ -128,6 +128,35 @@ struct COMMAND_RPC_GET_TRANSACTIONS
     };
 };
 
+struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
+{
+    struct request
+    {
+        void serialize(ISerializer &s)
+        {
+            KV_MEMBER(startBlock)
+            KV_MEMBER(additor)
+            KV_MEMBER(sigCut)
+        };
+
+        uint32_t startBlock;
+        uint32_t additor = 100;
+        bool sigCut;
+    };
+
+    struct response
+    {
+        void serialize(ISerializer &s)
+        {
+            KV_MEMBER(status)
+            KV_MEMBER(transactions)
+        }
+
+        std::vector<TransactionDetails2> transactions;
+        std::string status;
+    };
+};
+
 struct COMMAND_RPC_GET_POOL_CHANGES
 {
     struct request
@@ -641,6 +670,7 @@ struct f_block_short_response
         KV_MEMBER(hash)
         KV_MEMBER(cumul_size)
         KV_MEMBER(tx_count)
+        KV_MEMBER(reward)
         KV_MEMBER(difficulty)
         KV_MEMBER(min_tx_fee)
     }
@@ -649,6 +679,7 @@ struct f_block_short_response
     uint32_t height;
     std::string hash;
     uint64_t tx_count;
+    uint64_t reward;
     uint64_t cumul_size;
     difficulty_type difficulty;
     uint64_t min_tx_fee;
@@ -1312,12 +1343,18 @@ struct difficulty_statistics
         KV_MEMBER(avg_solve_time)
         KV_MEMBER(stddev_solve_time)
         KV_MEMBER(outliers_num)
+        KV_MEMBER(avg_diff)
+        KV_MEMBER(min_diff)
+        KV_MEMBER(max_diff)
     }
 
     uint32_t block_num;
     uint64_t avg_solve_time;
     uint64_t stddev_solve_time;
     uint32_t outliers_num;
+    difficulty_type avg_diff;
+    difficulty_type min_diff;
+    difficulty_type max_diff;
 };
 
 struct COMMAND_RPC_GET_DIFFICULTY_STAT
@@ -1342,7 +1379,14 @@ struct COMMAND_RPC_GET_DIFFICULTY_STAT
             KV_MEMBER(day)
             KV_MEMBER(week)
             KV_MEMBER(month)
+            KV_MEMBER(halfyear)
             KV_MEMBER(year)
+            KV_MEMBER(blocks30)
+            KV_MEMBER(blocks720)
+            KV_MEMBER(blocks5040)
+            KV_MEMBER(blocks21900)
+            KV_MEMBER(blocks131400)
+            KV_MEMBER(blocks262800)
         }
 
         std::string status;
@@ -1350,7 +1394,14 @@ struct COMMAND_RPC_GET_DIFFICULTY_STAT
         difficulty_statistics day;
         difficulty_statistics week;
         difficulty_statistics month;
+        difficulty_statistics halfyear;
         difficulty_statistics year;
+        difficulty_statistics blocks30;
+        difficulty_statistics blocks720;
+        difficulty_statistics blocks5040;
+        difficulty_statistics blocks21900;
+        difficulty_statistics blocks131400;
+        difficulty_statistics blocks262800;
     };
 };
 

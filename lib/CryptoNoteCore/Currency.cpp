@@ -154,7 +154,7 @@ bool Currency::getBlockReward(
     // Consistency
     double consistency = 1.0;
     double exponent = 0.25; 
-    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME && difficultyTarget() != 0) {
+    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_V6 && difficultyTarget() != 0) {
         // blockTarget is (Timestamp of New Block - Timestamp of Previous Block)
         consistency = (double) blockTarget / (double) difficultyTarget();
 
@@ -230,6 +230,36 @@ uint64_t Currency::getGovernanceReward(uint64_t base_reward) const
     // minimum is 1% to avoid a zero amount and maximum is 50%
     uint16_t percent = (m_governancePercent < 1) ? 1 : (m_governancePercent > 50) ? 50 : m_governancePercent;
     return (uint64_t)(base_reward * (percent * 0.01));
+}
+
+bool Currency::validate_government_fee(const Transaction &baseTx) const
+{
+    AccountKeys governanceKeys;
+    getGovernanceAddressAndKey(governanceKeys);
+
+    Crypto::PublicKey txPublicKey = getTransactionPublicKeyFromExtra(baseTx.extra);
+
+    Crypto::KeyDerivation derivation;
+    if (!Crypto::generate_key_derivation( txPublicKey,
+                                  governanceKeys.viewSecretKey,
+                                  derivation)) {
+        return false;
+    }
+
+    uint64_t minerReward = 0;
+    uint64_t governmentFee = 0;
+    for (size_t idx = 0; idx < baseTx.outputs.size(); ++idx) {
+        minerReward += baseTx.outputs[idx].amount;
+        if (baseTx.outputs[idx].target.type() != typeid(CryptoNote::KeyOutput))
+            continue;
+        Crypto::PublicKey outEphemeralKey;
+        Crypto::derive_public_key(derivation, idx,
+            governanceKeys.address.spendPublicKey, outEphemeralKey);
+        if (outEphemeralKey == boost::get<KeyOutput>(baseTx.outputs[idx].target).key)
+            governmentFee += baseTx.outputs[idx].amount;
+    }
+
+    return (governmentFee == getGovernanceReward(minerReward));
 }
 
 bool Currency::getGovernanceAddressAndKey(AccountKeys& governanceKeys) const
@@ -401,7 +431,6 @@ bool Currency::constructMinerTx(
         }
         size_t pos = tx.outputs.size();
         r = Crypto::derive_public_key(derivation, pos++, governanceKeys.address.spendPublicKey, outEphemeralPubKey);
-
         if (!(r)) {
             logger(ERROR, BRIGHT_RED)
                 << "while creating outs: failed to derive_public_key("
@@ -409,7 +438,6 @@ bool Currency::constructMinerTx(
                 << governanceKeys.address.spendPublicKey << ")";
             return false;
         }
-
         KeyOutput tk;
         tk.key = outEphemeralPubKey;
 
@@ -682,7 +710,8 @@ uint64_t Currency::roundUpMinFee(uint64_t minimalFee, int digits) const
 difficulty_type Currency::nextDifficulty(uint32_t height,
     uint8_t blockMajorVersion,
     std::vector<uint64_t> timestamps,
-    std::vector<difficulty_type> cumulativeDifficulties) const
+    std::vector<difficulty_type> cumulativeDifficulties,
+    uint64_t nextBlockTime, lazy_stat_callback_type &lazy_stat_cb) const
 {
     // check if we use special scenario with some fixed diff
     if (CryptoNote::parameters::FIXED_DIFFICULTY > 0)
@@ -696,6 +725,23 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
         logger (WARNING) << "Fixed difficulty is used: " <<
                             m_fixedDifficulty;
         return m_fixedDifficulty;
+    }
+
+    uint64_t last_timestamp = 0;
+    if (!timestamps.empty()) {
+        last_timestamp = timestamps.back();
+    }
+    if ((blockMajorVersion >= BLOCK_MAJOR_VERSION_6) &&
+            (nextBlockTime > last_timestamp + CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD)) {
+        size_t array_size = cumulativeDifficulties.size();
+        difficulty_type last_difficulty = 1;
+        if (array_size >= 2) {
+            last_difficulty = cumulativeDifficulties[array_size - 1] - cumulativeDifficulties[array_size - 2];
+        }
+        uint64_t currentSolveTime = nextBlockTime - last_timestamp;
+        return getClifDifficulty(height, blockMajorVersion,
+                               last_difficulty, last_timestamp,
+                               currentSolveTime, lazy_stat_cb);
     }
 
     if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
@@ -958,9 +1004,11 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
         return CryptoNote::parameters::DEFAULT_DIFFICULTY;
     }
 
+    if (timestamps.empty()) {
+        return CryptoNote::parameters::DEFAULT_DIFFICULTY;
+    }
     // Dynamic difficulty calculation window
     uint32_t diffWindow = timestamps.size() - 1;
-
 
     difficulty_type nextDiffV6 = CryptoNote::parameters::DEFAULT_DIFFICULTY;
     difficulty_type min_difficulty = CryptoNote::parameters::DEFAULT_DIFFICULTY;
@@ -1062,6 +1110,73 @@ difficulty_type Currency::nextDifficultyV6(uint8_t blockMajorVersion,
     }
 
     return std::max(nextDiffV6, min_difficulty);
+}
+
+difficulty_type Currency::getClifDifficulty(uint32_t height,
+                                          uint8_t blockMajorVersion,
+                                          difficulty_type last_difficulty,
+                                          uint64_t last_timestamp,
+                                          uint64_t currentSolveTime,
+                                          lazy_stat_callback_type &lazy_stat_cb) const
+{
+    logger (INFO) << "CLIF difficulty inputs: height " << height <<
+                     ", block version " << (int)blockMajorVersion <<
+                     ", last difficulty " << last_difficulty <<
+                     ", current solve time " << currentSolveTime;
+
+    difficulty_type new_diff = last_difficulty;
+
+    if (new_diff > CryptoNote::parameters::DEFAULT_DIFFICULTY) {
+        uint64_t correction_interval = currentSolveTime -
+                CryptoNote::parameters::CRYPTONOTE_CLIF_THRESHOLD;
+        //below equation shall return quotient of the division.
+        int decrease_counter = ((int)correction_interval / (int)CryptoNote::parameters::DIFFICULTY_TARGET) + 1;
+        int round_counter = 1;
+
+        new_diff = new_diff / 2;
+        logger (INFO) << "CLIF decreased difficulty " << round_counter <<
+            " times, intermediate difficulty is " << new_diff;
+        difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour, last_timestamp);
+        logger (INFO) << "Last hour average difficulty is " << mean_diff;
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::day, last_timestamp);
+        logger (INFO) << "Last day average difficulty is " << mean_diff;
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::week, last_timestamp);
+        logger (INFO) << "Last week average difficulty is " << mean_diff;
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::month, last_timestamp);
+        logger (INFO) << "Last month average difficulty is " << mean_diff;
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::halfyear, last_timestamp);
+        logger (INFO) << "Last halfyear average difficulty is " << mean_diff;
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+        mean_diff = lazy_stat_cb(IMinerHandler::stat_period::year, last_timestamp);
+        logger (INFO) << "Last year average difficulty is " << mean_diff;
+        if (mean_diff > 0)
+            new_diff = std::min(mean_diff, new_diff);
+
+        if (decrease_counter > 1) {
+            while (round_counter < decrease_counter) {
+                new_diff = new_diff / 2;
+                round_counter++;
+                if (new_diff <= CryptoNote::parameters::DEFAULT_DIFFICULTY)
+                    break;
+            }
+            logger (INFO) << "CLIF decreased difficulty " << round_counter <<
+                " times, intermediate difficulty is " << new_diff;
+        }
+
+        new_diff = std::max(new_diff, difficulty_type(CryptoNote::parameters::DEFAULT_DIFFICULTY));
+    }
+
+    logger (INFO) << "CLIF difficulty result: " << new_diff;
+    return new_diff;
 }
 
 bool Currency::checkProofOfWorkV1(

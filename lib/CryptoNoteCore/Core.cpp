@@ -708,7 +708,7 @@ bool core::get_block_template(
             }
         }
 
-        diffic = m_blockchain.getDifficultyForNextBlock();
+        diffic = m_blockchain.getDifficultyForNextBlock(b.timestamp);
         if (!(diffic)) {
             logger(ERROR, BRIGHT_RED) << "difficulty overhead.";
             return false;
@@ -735,7 +735,7 @@ bool core::get_block_template(
     uint32_t previousBlockHeight = 0;
     uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
 
-    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
+    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_V6) {
         getBlockHeight(b.previousBlockHash, previousBlockHeight);
         uint64_t prev_timestamp = getBlockTimestamp(previousBlockHeight);
         if(prev_timestamp >= b.timestamp) {
@@ -847,9 +847,17 @@ bool core::get_block_template(
     return false;
 }
 
-bool core::get_difficulty_stat(uint32_t height, IMinerHandler::stat_period period, uint32_t &block_num, uint64_t &avg_solve_time, uint64_t &stddev_solve_time, uint32_t &outliers_num)
+bool core::get_difficulty_stat(uint32_t height,
+                               IMinerHandler::stat_period period,
+                               uint32_t &block_num,
+                               uint64_t &avg_solve_time,
+                               uint64_t &stddev_solve_time,
+                               uint32_t &outliers_num,
+                               difficulty_type &avg_diff,
+                               difficulty_type &min_diff,
+                               difficulty_type &max_diff)
 {
-    return m_blockchain.getDifficultyStat(height, period, block_num, avg_solve_time, stddev_solve_time, outliers_num);
+    return m_blockchain.getDifficultyStat(height, period, block_num, avg_solve_time, stddev_solve_time, outliers_num, avg_diff,  min_diff, max_diff);
 }
 
 std::vector<Crypto::Hash> core::findBlockchainSupplement(
@@ -1701,9 +1709,9 @@ std::error_code core::executeLocked(const std::function<std::error_code()> &func
     return func();
 }
 
-uint64_t core::getNextBlockDifficulty()
+uint64_t core::getNextBlockDifficulty(uint64_t nextBlockTime)
 {
-    return m_blockchain.getDifficultyForNextBlock();
+    return m_blockchain.getDifficultyForNextBlock(nextBlockTime);
 }
 
 uint64_t core::getTotalGeneratedAmount()
@@ -1836,7 +1844,7 @@ bool core::fillBlockDetails(const Block &block, BlockDetails2 &blockDetails)
         }
     }
 
-    if (blockDetails.height >= CryptoNote::parameters::UPGRADE_HEIGHT_REWARD_SCHEME) {
+    if (blockDetails.height >= CryptoNote::parameters::UPGRADE_HEIGHT_V6) {
         getBlockHeight(block.previousBlockHash, previousBlockHeight);
         blockTarget = block.timestamp - getBlockTimestamp(previousBlockHeight);
     }
