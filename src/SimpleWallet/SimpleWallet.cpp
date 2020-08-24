@@ -187,8 +187,13 @@ const command_line::arg_descriptor<bool> arg_testnet = {
     "Used to deploy test nets. The daemon must be launched with --testnet flag",
     false
 };
-const command_line::arg_descriptor<bool> arg_reset = {
-    "reset",
+const command_line::arg_descriptor<bool> arg_rescan = {
+    "rescan",
+    "Start synchronizing from scratch",
+    false
+};
+const command_line::arg_descriptor<bool> arg_purge = {
+    "purge",
     "Discard cache data and start synchronizing from scratch",
     false
 };
@@ -1155,9 +1160,9 @@ simple_wallet::simple_wallet(
         "Save wallet synchronized data"
     );
     m_consoleHandler.setHandler(
-        "reset",
-        boost::bind(&simple_wallet::reset, this, _1),
-        "Discard cache data and start synchronizing from the start"
+        "rescan",
+        boost::bind(&simple_wallet::rescan, this, _1),
+        "Reread wallet-related data from blockchain, keeps wallet hisory cache data"
     );
     m_consoleHandler.setHandler(
         "show_seed",
@@ -1188,6 +1193,11 @@ simple_wallet::simple_wallet(
         "optimize",
         boost::bind(&simple_wallet::optimize, this, _1),
         "Optimize wallet (fuse small outputs into fewer larger ones) - optimize <threshold> <mixin>"
+    );
+    m_consoleHandler.setHandler(
+        "consolidate",
+        boost::bind(&simple_wallet::consolidate, this, _1),
+        "Cut old (generated before <height>) outputs by creating new txes - consolidate <height> <mixin>"
     );
     m_consoleHandler.setHandler(
         "get_tx_key",
@@ -1225,6 +1235,11 @@ simple_wallet::simple_wallet(
         "exit",
         boost::bind(&simple_wallet::exit, this, _1),
         "Close wallet"
+    );
+    m_consoleHandler.setHandler(
+        "purge",
+        boost::bind(&simple_wallet::purge, this, _1),
+        "Discard cache data and start synchronizing from the start"
     );
 }
 
@@ -1847,8 +1862,11 @@ bool simple_wallet::init(const boost::program_options::variables_map &vm)
             << "Use \"help\" command to see the list of available commands.\n"
             << "**********************************************************************";
 
-        if (command_line::has_arg(vm, arg_reset)) {
-            reset({});
+        if (command_line::has_arg(vm, arg_rescan)) {
+            rescan({});
+        }
+        if (command_line::has_arg(vm, arg_purge)) {
+            purge({});
         }
     }
 
@@ -2221,15 +2239,43 @@ bool simple_wallet::save(const std::vector<std::string> &args)
     return true;
 }
 
-bool simple_wallet::reset(const std::vector<std::string> &args)
+bool simple_wallet::rescan(const std::vector<std::string> &args)
 {
     {
         std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+        if (!m_walletSynchronized) {
+            fail_msg_writer() << "Wallet is not synchronized. Try to rescan it later.";
+            return true;
+        }
         m_walletSynchronized = false;
     }
 
-    m_wallet->reset();
-    success_msg_writer(true) << "Reset completed successfully.";
+    m_wallet->rescan();
+    success_msg_writer(true) << "Rescan completed successfully.";
+
+    std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+    while (!m_walletSynchronized) {
+        m_walletSynchronizedCV.wait(lock);
+    }
+
+    std::cout << std::endl;
+
+    return true;
+}
+
+bool simple_wallet::purge(const std::vector<std::string> &args)
+{
+    {
+        std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+        if (!m_walletSynchronized) {
+            fail_msg_writer() << "Wallet is not synchronized. Try to purge it later.";
+            return true;
+        }
+        m_walletSynchronized = false;
+    }
+
+    m_wallet->purge();
+    success_msg_writer(true) << "Purge completed successfully.";
 
     std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
     while (!m_walletSynchronized) {
@@ -3167,6 +3213,8 @@ bool simple_wallet::optimize(const std::vector<std::string> &args)
             << "Fusion transaction successfully sent, hash: "
             << Common::podToHex(txInfo.hash);
 
+        m_wallet->markTransactionSafe(txInfo.hash);
+
         try {
             CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
         } catch (const std::exception &e) {
@@ -3177,6 +3225,165 @@ bool simple_wallet::optimize(const std::vector<std::string> &args)
         fail_msg_writer() << e.what();
     } catch (const std::exception &e) {
         fail_msg_writer() << e.what();
+    } catch (...) {
+        fail_msg_writer() << "unknown error";
+    }
+
+    return true;
+}
+
+bool simple_wallet::consolidate(const std::vector<std::string> &args)
+{
+    if (m_trackingWallet) {
+        fail_msg_writer() << "This is tracking wallet. Spending is impossible.";
+        return true;
+    }
+
+    {
+        std::unique_lock<std::mutex> lock(m_walletSynchronizedMutex);
+        if (!m_walletSynchronized) {
+            fail_msg_writer() << "Wallet is not synchronized. Try to consolidate it later.";
+            return true;
+        }
+    }
+
+    bool synchronized = false;
+    CryptoNote::NodeRpcProxy::Callback cb = [](std::error_code){};
+    m_node->isSynchronized(synchronized, cb);
+    if (!synchronized) {
+        fail_msg_writer() << "Node is not synchronized. Try to consolidate it later.";
+        return true;
+    }
+
+    uint32_t heightThreshold = 0;
+    uint64_t mixIn = 0;
+    std::string height_str;
+    if (args.size() == 1) {
+        height_str = args[0];
+        if (!Common::fromString(height_str, heightThreshold)) {
+            logger(ERROR, BRIGHT_RED)
+                << "<height> should be non-negative integer, got "
+                << height_str;
+            return false;
+        }
+
+        mixIn = 3;
+    } else if (args.size() == 2) {
+        height_str = args[0];
+        if (!Common::fromString(height_str, heightThreshold)) {
+            logger(ERROR, BRIGHT_RED)
+                << "<height> should be non-negative integer, got "
+                << height_str;
+            return false;
+        }
+
+        std::string mixin_str = args[1];
+        if (!Common::fromString(mixin_str, mixIn)) {
+            logger(ERROR, BRIGHT_RED)
+                << "mixin_count should be non-negative integer, got "
+                << mixin_str;
+            return false;
+        }
+        if (mixIn < m_currency.minMixin() && mixIn != 0) {
+            logger(ERROR, BRIGHT_RED)
+                << "mixIn should be equal to or bigger than "
+                << m_currency.minMixin();
+            return false;
+        }
+        if (mixIn > m_currency.maxMixin()) {
+            logger(ERROR, BRIGHT_RED)
+                << "mixIn should be equal to or less than "
+                << m_currency.maxMixin();
+            return false;
+        }
+    } else {
+        heightThreshold = m_node->getGRBHeight();
+        mixIn = 3;
+    }
+
+    uint32_t currentHeight = m_node->getLastLocalBlockHeight();
+    if (currentHeight < heightThreshold) {
+        fail_msg_writer() << "Current height is " << currentHeight << ", can't consolidate to bigger height";
+        return true;
+    }
+    uint32_t currentConsolidateHeight = m_wallet->getConsolidateHeight();
+    if (currentConsolidateHeight >= heightThreshold) {
+        fail_msg_writer() << "Wallet already consolidated up to " << currentConsolidateHeight << " height";
+        return true;
+    }
+
+    std::list<TransactionOutputInformation> oldInputs = m_wallet->selectAllOldOutputs(heightThreshold);
+
+    if (oldInputs.empty()) {
+        // nothing to consolidate
+        fail_msg_writer()
+            << "Fusion transaction not created: nothing to consolidate for threshold height "
+            << heightThreshold;
+        return true;
+    }
+
+    size_t estimatedFusionInputsCount = m_currency.getApproximateMaximumInputCount(
+        m_currency.fusionTxMaxSize(),
+        1,
+        mixIn
+    );
+    while (!oldInputs.empty())
+    {
+        std::list<TransactionOutputInformation> transferInputs;
+        size_t to_send = std::min(estimatedFusionInputsCount, oldInputs.size());
+        auto to_send_end = oldInputs.begin();
+        std::advance(to_send_end, to_send);
+        transferInputs.insert(transferInputs.begin(), oldInputs.begin(), to_send_end);
+        oldInputs.erase(oldInputs.begin(), to_send_end);
+        try {
+            CryptoNote::WalletHelper::SendCompleteResultObserver sent;
+            std::string extraString;
+
+            WalletHelper::IWalletRemoveObserverGuard removeGuard(*m_wallet, sent);
+
+            CryptoNote::TransactionId tx = m_wallet->sendFusionTransaction(
+                transferInputs,
+                CryptoNote::parameters::MINIMUM_FEE,
+                extraString,
+                mixIn,
+                0
+            );
+            if (tx == WALLET_LEGACY_INVALID_TRANSACTION_ID) {
+                fail_msg_writer() << "Can't send money";
+                return true;
+            }
+
+            std::error_code sendError = sent.wait(tx);
+            removeGuard.removeObserver();
+
+            if (sendError) {
+                fail_msg_writer() << sendError.message();
+                return true;
+            }
+
+            CryptoNote::WalletLegacyTransaction txInfo;
+            m_wallet->getTransaction(tx, txInfo);
+            success_msg_writer(true)
+                << "Fusion transaction successfully sent, hash: "
+                << Common::podToHex(txInfo.hash);
+
+            m_wallet->setConsolidateHeight(heightThreshold, txInfo.hash);
+
+            m_wallet->markTransactionSafe(txInfo.hash);
+
+        } catch (const std::system_error &e) {
+            fail_msg_writer() << e.what();
+        } catch (const std::exception &e) {
+            fail_msg_writer() << e.what();
+        } catch (...) {
+            fail_msg_writer() << "unknown error";
+        }
+    }
+    try {
+        CryptoNote::WalletHelper::storeWallet(*m_wallet, m_wallet_file);
+    } catch (const std::exception &e) {
+        fail_msg_writer() << e.what();
+        return true;
     } catch (...) {
         fail_msg_writer() << "unknown error";
     }
@@ -3317,7 +3524,8 @@ int main(int argc, char *argv[])
     command_line::add_arg(desc_params, arg_log_file);
     command_line::add_arg(desc_params, arg_log_level);
     command_line::add_arg(desc_params, arg_testnet);
-    command_line::add_arg(desc_params, arg_reset);
+    command_line::add_arg(desc_params, arg_rescan);
+    command_line::add_arg(desc_params, arg_purge);
     Tools::wallet_rpc_server::init_options(desc_params);
 
     po::positional_options_description positional_options;

@@ -42,6 +42,7 @@ public:
     uint64_t publicAddressBase58Prefix() const { return m_publicAddressBase58Prefix; }
     size_t minedMoneyUnlockWindow() const { return m_minedMoneyUnlockWindow; }
     size_t transactionSpendableAge() const { return m_transactionSpendableAge; }
+    size_t safeTransactionSpendableAge() const { return m_safeTransactionSpendableAge; }
     size_t expectedNumberOfBlocksPerDay() const { return m_expectedNumberOfBlocksPerDay; }
 
     size_t timestampCheckWindow() const { return m_timestampCheckWindow; }
@@ -100,7 +101,9 @@ public:
     size_t difficultyCut() const { return m_difficultyCut; }
     size_t difficultyBlocksCountByBlockVersion(uint8_t blockMajorVersion) const
     {
-        if (blockMajorVersion >= BLOCK_MAJOR_VERSION_3) {
+        if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
+            return difficultyBlocksCount6();
+        } else if (blockMajorVersion >= BLOCK_MAJOR_VERSION_3) {
             return difficultyBlocksCount3() + 1;
         } else if (blockMajorVersion == BLOCK_MAJOR_VERSION_2) {
             return difficultyBlocksCount2();
@@ -111,6 +114,7 @@ public:
     size_t difficultyBlocksCount() const { return m_difficultyWindow + m_difficultyLag; }
     size_t difficultyBlocksCount2() const { return CryptoNote::parameters::DIFFICULTY_WINDOW_V2; }
     size_t difficultyBlocksCount3() const { return CryptoNote::parameters::DIFFICULTY_WINDOW_V3; }
+    size_t difficultyBlocksCount6() const { return CryptoNote::parameters::DIFFICULTY_WINDOW_V6; }
 
     size_t maxBlockSizeInitial() const { return m_maxBlockSizeInitial; }
     uint64_t maxBlockSizeGrowthSpeedNumerator() const { return m_maxBlockSizeGrowthSpeedNumerator; }
@@ -180,7 +184,8 @@ public:
         const AccountPublicAddress &minerAddress,
         Transaction &tx,
         const BinaryArray &extraNonce = BinaryArray(),
-        size_t maxOuts = 1) const;
+        size_t maxOuts = 1,
+        uint64_t blockTarget = 0xffffffffffffffff) const;
 
     bool isFusionTransaction(const Transaction& transaction, uint32_t height) const;
     bool isFusionTransaction(const Transaction& transaction, size_t size, uint32_t height) const;
@@ -209,8 +214,7 @@ public:
 
     uint64_t roundUpMinFee(uint64_t minimalFee, int digits) const;
 
-    difficulty_type nextDifficulty(
-        uint32_t height,
+    difficulty_type nextDifficulty(uint32_t height,
         uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;
@@ -227,6 +231,10 @@ public:
         uint8_t blockMajorVersion,
         std::vector<uint64_t> timestamps,
         std::vector<difficulty_type> Difficulties) const;
+    difficulty_type nextDifficultyV6(uint8_t blockMajorVersion,
+        std::vector<uint64_t> timestamps,
+        std::vector<difficulty_type> Difficulties,
+        uint32_t height) const;
 
     bool checkProofOfWorkV1(
         Crypto::cn_context &context,
@@ -272,6 +280,7 @@ private:
     uint64_t m_publicAddressBase58Prefix;
     size_t m_minedMoneyUnlockWindow;
     size_t m_transactionSpendableAge;
+    size_t m_safeTransactionSpendableAge;
     size_t m_expectedNumberOfBlocksPerDay;
 
     size_t m_timestampCheckWindow;
@@ -306,6 +315,7 @@ private:
     size_t m_difficultyWindow;
     size_t m_difficultyLag;
     size_t m_difficultyCut;
+    difficulty_type m_fixedDifficulty;
 
     size_t m_maxBlockSizeInitial;
     uint64_t m_maxBlockSizeGrowthSpeedNumerator;
@@ -385,6 +395,11 @@ public:
     CurrencyBuilder &transactionSpendableAge(size_t val)
     {
         m_currency.m_transactionSpendableAge = val;
+        return *this;
+    }
+    CurrencyBuilder &safeTransactionSpendableAge(size_t val)
+    {
+        m_currency.m_safeTransactionSpendableAge = val;
         return *this;
     }
     CurrencyBuilder &expectedNumberOfBlocksPerDay(size_t val)
@@ -599,6 +614,8 @@ public:
     }
 
     CurrencyBuilder &testnet(bool val) { m_currency.m_testnet = val; return *this; }
+
+    CurrencyBuilder &fix_difficulty(difficulty_type val) { m_currency.m_fixedDifficulty = val; return *this; }
 
 private:
     Currency m_currency;

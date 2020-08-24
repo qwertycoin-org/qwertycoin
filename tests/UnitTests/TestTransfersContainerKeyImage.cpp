@@ -34,6 +34,7 @@ using namespace CryptoNote;
 
 namespace {
   const size_t TEST_TRANSACTION_SPENDABLE_AGE = 1;
+  const size_t TEST_SAFE_TRANSACTION_SPENDABLE_AGE = 1;
   const uint64_t TEST_OUTPUT_AMOUNT = 100;
   const uint64_t TEST_BLOCK_HEIGHT = 99;
   const uint32_t TEST_TRANSACTION_OUTPUT_GLOBAL_INDEX = 113;
@@ -45,7 +46,7 @@ namespace {
 
     TransfersContainerKeyImage() :
       currency(CurrencyBuilder(logger).currency()),
-      container(currency, logger, TEST_TRANSACTION_SPENDABLE_AGE),
+      container(currency, logger, TEST_TRANSACTION_SPENDABLE_AGE, TEST_SAFE_TRANSACTION_SPENDABLE_AGE),
       account(generateAccountKeys()),
       txTemplate(createTransaction()) {
       txTemplate->getTransactionSecretKey(txSecretKey);

@@ -47,6 +47,7 @@ public:
     {
         return CryptoNote::BlockHeaderInfo{};
     }
+    uint32_t getGRBHeight() const override { return 0; };
 
     void relayTransaction(const CryptoNote::Transaction &transaction,
                           const Callback &callback) override

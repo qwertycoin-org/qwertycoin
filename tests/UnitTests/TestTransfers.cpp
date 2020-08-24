@@ -151,7 +151,7 @@ protected:
   TestBlockchainGenerator generator;
   INodeTrivialRefreshStub m_node;
   BlockchainSynchronizer m_sync;
-  TransfersSyncronizer m_transfersSync;
+  TransfersSynchronizer m_transfersSync;
 
   std::promise<std::error_code> syncCompleted;
   std::future<std::error_code> syncCompletedFuture;
@@ -336,7 +336,7 @@ struct lessOutKey {
   }
 };
 
-bool compareStates(TransfersSyncronizer& sync1, TransfersSyncronizer& sync2) {
+bool compareStates(TransfersSynchronizer& sync1, TransfersSynchronizer& sync2) {
 
   std::vector<AccountPublicAddress> subs;
   sync1.getSubscriptions(subs);
@@ -380,7 +380,7 @@ TEST_F(TransfersApi, state) {
   m_sync.start();
 
   BlockchainSynchronizer bsync2(m_node, m_logger, m_currency.genesisBlockHash());
-  TransfersSyncronizer sync2(m_currency, m_logger, bsync2, m_node);
+  TransfersSynchronizer sync2(m_currency, m_logger, bsync2, m_node);
 
   for (size_t i = 0; i < m_accounts.size(); ++i) {
     sync2.addSubscription(createSubscription(i));

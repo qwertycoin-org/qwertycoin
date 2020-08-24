@@ -566,7 +566,7 @@ private:
 
     bool m_blockchainSynchronizerStarted;
     BlockchainSynchronizer m_blockchainSynchronizer;
-    TransfersSyncronizer m_synchronizer;
+    TransfersSynchronizer m_synchronizer;
 
     System::Event m_eventOccurred;
     std::queue<WalletEvent> m_events;

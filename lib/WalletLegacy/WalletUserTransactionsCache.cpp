@@ -18,6 +18,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <algorithm>
+#include <boost/utility/value_init.hpp>
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <Global/Constants.h>
 #include <Serialization/ISerializer.h>
@@ -33,7 +34,11 @@ using namespace Crypto;
 namespace CryptoNote {
 
 WalletUserTransactionsCache::WalletUserTransactionsCache(uint64_t mempoolTxLiveTime)
-    : m_unconfirmedTransactions(mempoolTxLiveTime)
+    : m_unconfirmedTransactions(mempoolTxLiveTime),
+      m_consolidateHeight(0),
+      m_consolidateTx(boost::value_initialized<Crypto::Hash>()),
+      m_prevConsolidateHeight(0),
+      m_prevConsolidateTx(boost::value_initialized<Crypto::Hash>())
 {
 }
 
@@ -47,6 +52,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         updateUnconfirmedTransactions();
         deleteOutdatedTransactions();
         rebuildPaymentsIndex();
+        // consolidate params are serialized outside this method
     } else {
         UserTransactions txsToSave;
         UserTransfers transfersToSave;
@@ -55,6 +61,7 @@ bool WalletUserTransactionsCache::serialize(CryptoNote::ISerializer &s)
         s(txsToSave, "transactions");
         s(transfersToSave, "transfers");
         s(m_unconfirmedTransactions, "unconfirmed");
+        // consolidate params are serialized outside this method
     }
 
     return true;
@@ -295,6 +302,9 @@ std::shared_ptr<WalletLegacyEvent> WalletUserTransactionsCache::onTransactionDel
         assert(false);
     }
 
+    if (transactionHash == m_consolidateTx) {
+        resetConsolidateHeight();
+    }
     return event;
 }
 
@@ -410,24 +420,17 @@ void WalletUserTransactionsCache::getGoodItems(
     UserTransactions &transactions,
     UserTransfers &transfers)
 {
-    size_t offset = 0;
-
     for (size_t txId = 0; txId < m_transactions.size(); ++txId) {
         bool isGood = m_transactions[txId].state != WalletLegacyTransactionState::Cancelled
                       && m_transactions[txId].state != WalletLegacyTransactionState::Failed;
 
-        if (isGood) {
-            getGoodTransaction(txId, offset, transactions, transfers);
-        } else {
-            const WalletLegacyTransaction &t = m_transactions[txId];
-            offset += t.firstTransferId != WALLET_LEGACY_INVALID_TRANSFER_ID ? t.transferCount : 0;
-        }
+        if (isGood)
+            getGoodTransaction(txId, transactions, transfers);
     }
 }
 
 void WalletUserTransactionsCache::getGoodTransaction(
     TransactionId txId,
-    size_t offset,
     UserTransactions &transactions,
     UserTransfers &transfers)
 {
@@ -441,9 +444,8 @@ void WalletUserTransactionsCache::getGoodTransaction(
     UserTransfers::const_iterator first = m_transfers.begin() + tx.firstTransferId;
     UserTransfers::const_iterator last = first + tx.transferCount;
 
-    tx.firstTransferId -= offset;
-
     std::copy(first, last, std::back_inserter(transfers));
+    tx.firstTransferId = transfers.size() - tx.transferCount;
 }
 
 void WalletUserTransactionsCache::getTransfersByTx(
@@ -494,6 +496,9 @@ std::vector<TransactionId> WalletUserTransactionsCache::deleteOutdatedTransactio
     for (auto id: deletedTransactions) {
         assert(id < m_transactions.size());
         m_transactions[id].state = WalletLegacyTransactionState::Deleted;
+        if (m_transactions[id].hash == m_consolidateTx) {
+            resetConsolidateHeight();
+        }
     }
 
     return deletedTransactions;

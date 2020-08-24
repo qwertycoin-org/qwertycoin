@@ -132,7 +132,8 @@ public:
     virtual void initAndLoad(std::istream &source, const std::string &password) = 0;
     virtual void initWithKeys(const AccountKeys &accountKeys, const std::string &password) = 0;
     virtual void shutdown() = 0;
-    virtual void reset() = 0;
+    virtual void rescan() = 0;
+    virtual void purge() = 0;
 
     virtual void save(std::ostream &destination, bool saveDetailed = true, bool saveCache = true)=0;
 
@@ -149,6 +150,8 @@ public:
     virtual size_t getTransactionCount() = 0;
     virtual size_t getTransferCount() = 0;
     virtual size_t getUnlockedOutputsCount() = 0;
+
+    virtual std::list<TransactionOutputInformation> selectAllOldOutputs(uint32_t height) = 0;
 
     virtual TransactionId findTransactionByTransferId(TransferId transferId) = 0;
 
@@ -212,6 +215,12 @@ public:
         const std::string &signature) = 0;
 
     virtual bool isTrackingWallet() = 0;
+
+    virtual void setConsolidateHeight(uint32_t height, const Crypto::Hash &consolidateTx) = 0;
+    virtual uint32_t getConsolidateHeight() const = 0;
+    virtual Crypto::Hash getConsolidateTx() const = 0;
+
+    virtual void markTransactionSafe(const Crypto::Hash &transactionHash) = 0;
 };
 
 } // namespace CryptoNOte

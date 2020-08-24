@@ -19,12 +19,38 @@
 #pragma once
 
 #include <algorithm>
+#include <numeric>
 #include <vector>
 
 namespace Common {
 
 template <class T>
-T medianValue(std::vector<T> &v)
+double meanValue(const std::vector<T>& v)
+{
+    if (v.empty()) {
+        return T();
+    }
+
+    T sum = std::accumulate(v.begin(), v.end(), T());
+    return double(sum) / double(v.size());
+}
+
+template <class T>
+double stddevValue(const std::vector<T>& v)
+{
+    if (v.size() < 2) {
+        return T();
+    }
+
+    double mean = meanValue(v);
+    std::vector<T> diff(v.size());
+    std::transform(v.begin(), v.end(), diff.begin(), [mean](T x) { return x - mean; });
+    T sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), T());
+    return std::sqrt(double(sq_sum) / double(v.size()));
+}
+
+template <class T>
+double medianValue(std::vector<T> &v)
 {
     if (v.empty()) {
         return T();
@@ -39,7 +65,7 @@ T medianValue(std::vector<T> &v)
     if (v.size() % 2) { // 1, 3, 5...
         return v[n];
     } else { // 2, 4, 6...
-        return (v[n - 1] + v[n]) / 2;
+        return double(v[n - 1] + v[n]) / 2.0;
     }
 }
 

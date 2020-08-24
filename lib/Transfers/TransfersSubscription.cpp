@@ -26,9 +26,9 @@ namespace CryptoNote {
 TransfersSubscription::TransfersSubscription(const CryptoNote::Currency &currency,
                                              Logging::ILogger &logger,
                                              const AccountSubscription &sub)
-    : subscription(sub),
-      logger(logger, "TransfersSubscription"),
-      transfers(currency, logger, sub.transactionSpendableAge)
+    : logger(logger, "TransfersSubscription"),
+      transfers(currency, logger, sub.transactionSpendableAge, sub.safeTransactionSpendableAge),
+      subscription(sub)
 {
 }
 
@@ -102,6 +102,12 @@ void TransfersSubscription::markTransactionConfirmed(const TransactionBlockInfo 
                                                      const std::vector<uint32_t> &globalIndices)
 {
     transfers.markTransactionConfirmed(block, transactionHash, globalIndices);
+    m_observerManager.notify(&ITransfersObserver::onTransactionUpdated, this, transactionHash);
+}
+
+void TransfersSubscription::markTransactionSafe(const Hash &transactionHash)
+{
+    transfers.markTransactionSafe(transactionHash);
     m_observerManager.notify(&ITransfersObserver::onTransactionUpdated, this, transactionHash);
 }
 

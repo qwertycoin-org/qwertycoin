@@ -19,12 +19,22 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 
 namespace Crypto {
 
 struct Hash
 {
     uint8_t data[32];
+};
+
+// This structure can be used to store Hashes in ordered containers
+// like std::set<Hash, HashCompare>
+struct HashCompare
+{
+   bool operator() (const Hash& lh, const Hash& rh) const {
+      return memcmp(lh.data, rh.data, 32) > 0;
+   }
 };
 
 struct PublicKey

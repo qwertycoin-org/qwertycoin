@@ -79,6 +79,13 @@ public:
         difficulty_type &diffic,
         uint32_t &height,
         const BinaryArray &ex_nonce) override;
+    bool get_difficulty_stat(
+        uint32_t height,
+        stat_period period,
+        uint32_t& block_num,
+        uint64_t& avg_solve_time,
+        uint64_t& stddev_solve_time,
+        uint32_t& outliers_num) override;
 
     bool addObserver(ICoreObserver *observer) override;
     bool removeObserver(ICoreObserver *observer) override;
@@ -286,6 +293,8 @@ public:
 
     bool fillTxExtra(const std::vector<uint8_t> &rawExtra, TransactionExtraDetails2 &extraDetails);
 
+    void setBlocksToFind(uint64_t blocksToFind);
+
 private:
     bool add_new_tx(
         const Transaction &tx,
@@ -350,6 +359,9 @@ private:
     std::atomic<bool> m_starter_message_showed;
     Tools::ObserverManager<ICoreObserver> m_observerManager;
     time_t start_time;
+
+    std::atomic<uint64_t> m_blocksFound;
+    std::atomic<uint64_t> m_blocksToFind;
 
     friend class tx_validate_inputs;
 };

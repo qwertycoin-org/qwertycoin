@@ -154,7 +154,8 @@ class TransfersContainer : public ITransfersContainer
 public:
     TransfersContainer(const CryptoNote::Currency &currency,
                        Logging::ILogger &logger,
-                       size_t transactionSpendableAge);
+                       size_t transactionSpendableAge,
+                       size_t safeTransactionSpendableAge);
 
     bool addTransaction(const TransactionBlockInfo &block,
                         const ITransactionReader &tx,
@@ -188,6 +189,8 @@ public:
         uint32_t flags) const override;
     void getUnconfirmedTransactions(std::vector<Crypto::Hash> &transactions) const override;
     std::vector<TransactionSpentOutputInformation> getSpentOutputs() const override;
+    void markTransactionSafe(const Crypto::Hash &transactionHash) override;
+    void getSafeTransactions(std::vector<Crypto::Hash> &transactions) const override;
 
     // IStreamSerializable
     void save(std::ostream &os) override;
@@ -311,8 +314,11 @@ private:
     AvailableTransfersMultiIndex m_availableTransfers;
     SpentTransfersMultiIndex m_spentTransfers;
 
+    mutable std::set<Crypto::Hash, Crypto::HashCompare> m_safeTxes;
+
     uint32_t m_currentHeight; // current height is needed to check if a transfer is unlocked
     size_t m_transactionSpendableAge;
+    size_t m_safeTransactionSpendableAge;
     const CryptoNote::Currency &m_currency;
     mutable std::mutex m_mutex;
     Logging::LoggerRef m_logger;

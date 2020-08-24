@@ -106,6 +106,7 @@ public:
     virtual uint64_t getLastLocalBlockTimestamp() const = 0;
     virtual uint32_t getNodeHeight() const = 0;
     virtual BlockHeaderInfo getLastLocalBlockHeaderInfo() const = 0;
+    virtual uint32_t getGRBHeight() const = 0;
 
     virtual void relayTransaction(const Transaction &transaction, const Callback &callback) = 0;
     virtual void getRandomOutsByAmounts(

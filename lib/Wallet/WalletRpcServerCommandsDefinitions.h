@@ -313,7 +313,14 @@ struct COMMAND_RPC_GET_HEIGHT
 };
 
 // command: reset
-struct COMMAND_RPC_RESET
+struct COMMAND_RPC_RESCAN
+{
+    typedef CryptoNote::EMPTY_STRUCT request;
+    typedef CryptoNote::EMPTY_STRUCT response;
+};
+
+// command: purge
+struct COMMAND_RPC_PURGE
 {
     typedef CryptoNote::EMPTY_STRUCT request;
     typedef CryptoNote::EMPTY_STRUCT response;

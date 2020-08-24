@@ -198,13 +198,17 @@ size_t SpentOutputDescriptor::hash() const
     }
 }
 
+
+
 TransfersContainer::TransfersContainer(const Currency &currency,
                                        Logging::ILogger &logger,
-                                       size_t transactionSpendableAge)
+                                       size_t transactionSpendableAge,
+                                       size_t safeTransactionSpendableAge)
     : m_currentHeight(0),
+      m_transactionSpendableAge(transactionSpendableAge),
+      m_safeTransactionSpendableAge(safeTransactionSpendableAge),
       m_currency(currency),
-      m_logger(logger, "TransfersContainer"),
-      m_transactionSpendableAge(transactionSpendableAge)
+      m_logger(logger, "TransfersContainer")
 {
 }
 
@@ -590,6 +594,19 @@ bool TransfersContainer::markTransactionConfirmed(const TransactionBlockInfo &bl
     }
 
     return true;
+}
+
+void TransfersContainer::markTransactionSafe(const Hash &transactionHash)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_safeTxes.insert(transactionHash);
+}
+
+void TransfersContainer::getSafeTransactions(std::vector<Hash> &transactions) const
+{
+    transactions.clear();
+    std::unique_lock<std::mutex> lock(m_mutex);
+    std::copy(m_safeTxes.begin(), m_safeTxes.end(), std::back_inserter(transactions));
 }
 
 // pre: m_mutex is locked.
@@ -1179,8 +1196,19 @@ bool TransfersContainer::isIncluded(const TransactionOutputInformationEx &info,u
         state = IncludeStateLocked;
     } else if (m_currentHeight < info.blockHeight + m_transactionSpendableAge) {
         state = IncludeStateSoftLocked;
+        if(m_safeTxes.find(info.getTransactionHash()) != m_safeTxes.end()) {
+            if (m_currentHeight >= info.blockHeight - 1 + m_safeTransactionSpendableAge) {
+                state = IncludeStateUnlocked;
+            }
+        }
     } else {
         state = IncludeStateUnlocked;
+        auto it = m_safeTxes.find(info.getTransactionHash());
+        if(it != m_safeTxes.end()) {
+            // now this tx is fully confirmed, so it doesn't matter
+            // if it is safe or not, so we can remove it from safe list
+            m_safeTxes.erase(it);
+        }
     }
 
     return isIncluded(info.type, state, flags);

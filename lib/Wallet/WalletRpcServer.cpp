@@ -141,7 +141,8 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest &request,
             { "transfer"         , makeMemberMethod(&wallet_rpc_server::on_transfer)          },
             { "store"            , makeMemberMethod(&wallet_rpc_server::on_store)             },
             { "stop_wallet"      , makeMemberMethod(&wallet_rpc_server::on_stop_wallet)       },
-            { "reset"            , makeMemberMethod(&wallet_rpc_server::on_reset)             },
+            { "rescan"           , makeMemberMethod(&wallet_rpc_server::on_rescan)            },
+            { "purge"            , makeMemberMethod(&wallet_rpc_server::on_purge)             },
             { "get_payments"     , makeMemberMethod(&wallet_rpc_server::on_get_payments)      },
             { "get_messages"	 , makeMemberMethod(&wallet_rpc_server::on_get_messages)	  },
             { "get_transfers"    , makeMemberMethod(&wallet_rpc_server::on_get_transfers)     },
@@ -568,11 +569,20 @@ bool wallet_rpc_server::on_query_key(
     return true;
 }
 
-bool wallet_rpc_server::on_reset(
-    const wallet_rpc::COMMAND_RPC_RESET::request &req,
-    wallet_rpc::COMMAND_RPC_RESET::response &res)
+bool wallet_rpc_server::on_rescan(
+    const wallet_rpc::COMMAND_RPC_RESCAN::request &req,
+    wallet_rpc::COMMAND_RPC_RESCAN::response &res)
 {
-    m_wallet.reset();
+    m_wallet.rescan();
+
+    return true;
+}
+
+bool wallet_rpc_server::on_purge(
+    const wallet_rpc::COMMAND_RPC_PURGE::request &req,
+    wallet_rpc::COMMAND_RPC_PURGE::response &res)
+{
+    m_wallet.purge();
 
     return true;
 }

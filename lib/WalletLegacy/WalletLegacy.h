@@ -78,7 +78,8 @@ public:
     void initAndLoad(std::istream &source, const std::string &password) override;
     void initWithKeys(const AccountKeys &accountKeys, const std::string &password) override;
     void shutdown() override;
-    void reset() override;
+    void rescan() override;
+    void purge() override;
 
     Crypto::SecretKey generateKey(
         const std::string &password,
@@ -101,6 +102,8 @@ public:
     size_t getTransactionCount() override;
     size_t getTransferCount() override;
     size_t getUnlockedOutputsCount() override;
+
+    std::list<TransactionOutputInformation> selectAllOldOutputs(uint32_t height) override;
 
     TransactionId findTransactionByTransferId(TransferId transferId) override;
 
@@ -164,6 +167,11 @@ public:
 
     bool isTrackingWallet() override;
 
+    void setConsolidateHeight(uint32_t height, const Crypto::Hash &consolidateTx) override;
+    uint32_t getConsolidateHeight() const override;
+    Crypto::Hash getConsolidateTx() const override;
+
+    void markTransactionSafe(const Crypto::Hash &transactionHash) override;
 private:
     // IBlockchainSynchronizerObserver
     void synchronizationProgressUpdated(uint32_t current, uint32_t total) override;
@@ -205,7 +213,7 @@ private:
     std::atomic<uint64_t> m_lastNotifiedUnmixableBalance;
 
     BlockchainSynchronizer m_blockchainSync;
-    TransfersSyncronizer m_transfersSync;
+    TransfersSynchronizer m_transfersSync;
     ITransfersContainer *m_transferDetails;
 
     WalletUserTransactionsCache m_transactionsCache;

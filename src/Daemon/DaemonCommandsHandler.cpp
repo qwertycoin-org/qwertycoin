@@ -112,6 +112,12 @@ DaemonCommandsHandler::DaemonCommandsHandler(
     );
 
     m_consoleHandler.setHandler(
+        "generate_blocks",
+        boost::bind(&DaemonCommandsHandler::generate_blocks, this, _1),
+        "Start mining for specified address until given number of blocks will be generated, generate_blocks <addr> <block_num> [threads=1]"
+    );
+
+    m_consoleHandler.setHandler(
         "stop_mining",
         boost::bind(&DaemonCommandsHandler::stop_mining, this, _1),
         "Stop mining"
@@ -157,6 +163,12 @@ DaemonCommandsHandler::DaemonCommandsHandler(
         "print_diff",
         boost::bind(&DaemonCommandsHandler::print_diff, this, _1),
         "Difficulty for next block"
+    );
+
+    m_consoleHandler.setHandler(
+        "diff_stat",
+        boost::bind(&DaemonCommandsHandler::print_diff_stat, this, _1),
+        "Difficulty statistics for given height"
     );
 
     m_consoleHandler.setHandler(
@@ -283,6 +295,43 @@ bool DaemonCommandsHandler::status(const std::vector<std::string> &args)
         << "uptime: " << ColouredMsg(std::to_string((unsigned int)floor(uptime / 60.0 / 60.0 / 24.0)) + "d " + std::to_string((unsigned int)floor(fmod((uptime / 60.0 / 60.0), 24.0))) + "h "
         + std::to_string((unsigned int)floor(fmod((uptime / 60.0), 60.0))) + "m " + std::to_string((unsigned int)fmod(uptime, 60.0)) + "s", Common::Console::Color::BrightWhite) << std::endl
         << std::endl;
+
+    return true;
+}
+
+bool DaemonCommandsHandler::generate_blocks(const std::vector<std::string> &args)
+{
+    if (args.size() < 2) {
+        std::cout
+            << "Please, specify wallet address to mine for and number of blocks to generate: generate_blocks <addr> <num_of_blocks> [threads=1]"
+            << std::endl;
+        return true;
+    }
+
+    CryptoNote::AccountPublicAddress adr;
+    if (!m_core.currency().parseAccountAddressString(args.front(), adr)) {
+        std::cout << "target account address has wrong format" << std::endl;
+        return true;
+    }
+
+    uint64_t blocks_count = 1;
+    if (args.size() > 1) {
+        if (!Common::fromString(args[1], blocks_count)) {
+            std::cout
+                << "Please, specify wallet address to mine for and number of blocks to generate: generate_blocks <addr> <num_of_blocks> [threads=1]"
+                << std::endl;
+            return true;
+        }
+    }
+
+    size_t threads_count = 1;
+    if (args.size() > 2) {
+        bool ok = Common::fromString(args[2], threads_count);
+        threads_count = (ok && 0 < threads_count) ? threads_count : 1;
+    }
+
+    m_core.setBlocksToFind(blocks_count);
+    m_core.get_miner().start(adr, threads_count);
 
     return true;
 }
@@ -529,6 +578,96 @@ bool DaemonCommandsHandler::print_diff(const std::vector<std::string> &args)
     return true;
 }
 
+bool DaemonCommandsHandler::print_diff_stat(const std::vector<std::string> &args)
+{
+    if(args.size() != 1) {
+        logger(Logging::INFO) << "expected print_diff_stat <height>";
+        return true;
+    }
+    uint32_t height = boost::lexical_cast<uint32_t>(args[0]);
+    uint32_t block_num;
+    uint64_t avg_solve_time;
+    uint64_t stddev_solve_time;
+    uint32_t outliers_num;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::hour,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for hour: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::day,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for day: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::week,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for week: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::month,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for month: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+    if (m_core.get_difficulty_stat(
+                height,
+                CryptoNote::IMinerHandler::stat_period::year,
+                block_num,
+                avg_solve_time,
+                stddev_solve_time,
+                outliers_num))
+        logger(Logging::INFO)
+            << "Difficulty stat for year: "
+            << std::endl
+            << "Blocks: " << block_num << ", "
+            << "avg solve time: " << avg_solve_time << ", "
+            << "stddev: " << stddev_solve_time << ", "
+            << "outliers: " << outliers_num
+            << std::endl;
+
+    return true;
+}
+
 bool DaemonCommandsHandler::print_pool_count(const std::vector<std::string> &args)
 {
     logger(Logging::INFO)
@@ -560,6 +699,7 @@ bool DaemonCommandsHandler::start_mining(const std::vector<std::string> &args)
         threads_count = (ok && 0 < threads_count) ? threads_count : 1;
     }
 
+    m_core.setBlocksToFind(0);
     m_core.get_miner().start(adr, threads_count);
 
     return true;
@@ -568,7 +708,7 @@ bool DaemonCommandsHandler::start_mining(const std::vector<std::string> &args)
 bool DaemonCommandsHandler::stop_mining(const std::vector<std::string> &args)
 {
     m_core.get_miner().stop();
-
+    m_core.setBlocksToFind(0);
     return true;
 }
 

@@ -58,6 +58,7 @@ public:
     uint64_t getLastLocalBlockTimestamp() const override;
     uint64_t getMinimalFee() const override;
     BlockHeaderInfo getLastLocalBlockHeaderInfo() const override;
+    uint32_t getGRBHeight() const override;
 
     void getNewBlocks(std::vector<Crypto::Hash> &&knownBlockIds,
                       std::vector<CryptoNote::block_complete_entry> &newBlocks,

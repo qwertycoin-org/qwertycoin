@@ -300,8 +300,9 @@ void WalletLegacy::initSync()
 {
     AccountSubscription sub;
     sub.keys = reinterpret_cast<const AccountKeys &>(m_account.getAccountKeys());
-    sub.transactionSpendableAge = CryptoNote::parameters::CRYPTONOTE_TX_SPENDABLE_AGE;
-    sub.syncStart.height = 0;
+    sub.transactionSpendableAge = m_currency.transactionSpendableAge();
+    sub.safeTransactionSpendableAge = m_currency.safeTransactionSpendableAge();
+    sub.syncStart.height = m_transactionsCache.getConsolidateHeight();
     sub.syncStart.timestamp = m_account.get_createtime() - ACCOUNT_CREATE_TIME_ACCURACY;
 
     auto &subObject = m_transfersSync.addSubscription(sub);
@@ -329,9 +330,15 @@ void WalletLegacy::doLoad(std::istream &source)
 
         std::string cache;
         WalletLegacySerializer serializer(m_account, m_transactionsCache);
-        serializer.deserialize(source, m_password, cache);
+        std::vector<Crypto::Hash> safeTxes;
+        serializer.deserialize(source, m_password, cache, safeTxes);
 
         initSync();
+
+        for(const auto& tx: safeTxes) {
+            m_transferDetails->markTransactionSafe(tx);
+            m_transfersSync.markTransactionSafe(tx);
+        }
 
         try {
             if (!cache.empty()) {
@@ -414,7 +421,32 @@ void WalletLegacy::shutdown()
     }
 }
 
-void WalletLegacy::reset()
+void WalletLegacy::rescan()
+{
+    try {
+        std::error_code saveError;
+        std::stringstream ss;
+
+        {
+            SaveWaiter saveWaiter;
+            WalletHelper::IWalletRemoveObserverGuard saveGuarantee(*this, saveWaiter);
+            save(ss, true, true);
+            saveError = saveWaiter.waitSave();
+        }
+
+        if (!saveError) {
+            shutdown();
+            InitWaiter initWaiter;
+            WalletHelper::IWalletRemoveObserverGuard initGuarantee(*this, initWaiter);
+            initAndLoad(ss, m_password);
+            initWaiter.waitInit();
+        }
+    } catch (std::exception &e) {
+        std::cout << "exception in reset: " << e.what() << std::endl;
+    }
+}
+
+void WalletLegacy::purge()
 {
     try {
         std::error_code saveError;
@@ -435,7 +467,7 @@ void WalletLegacy::reset()
             initWaiter.waitInit();
         }
     } catch (std::exception &e) {
-        std::cout << "exception in reset: " << e.what() << std::endl;
+        std::cout << "exception in purge: " << e.what() << std::endl;
     }
 }
 
@@ -479,7 +511,9 @@ void WalletLegacy::doSave(std::ostream &destination, bool saveDetailed, bool sav
             cache = stream.str();
         }
 
-        serializer.serialize(destination, m_password, saveDetailed, cache);
+        std::vector<Crypto::Hash> safeTxes;
+        m_transferDetails->getSafeTransactions(safeTxes);
+        serializer.serialize(destination, m_password, saveDetailed, cache, safeTxes);
 
         m_state = INITIALIZED;
         m_blockchainSync.start(); // XXX: start can throw. what to do in this case?
@@ -682,6 +716,24 @@ size_t WalletLegacy::getUnlockedOutputsCount()
     m_transferDetails->getOutputs(outputs, ITransfersContainer::IncludeKeyUnlocked);
 
     return outputs.size();
+}
+
+std::list<TransactionOutputInformation> WalletLegacy::selectAllOldOutputs(uint32_t height)
+{
+    std::vector<TransactionOutputInformation> outputs;
+    m_transferDetails->getOutputs(outputs, ITransfersContainer::IncludeKeyUnlocked);
+
+    std::list<TransactionOutputInformation> result;
+    for (const auto& toi: outputs) {
+        TransactionId id = m_transactionsCache.findTransactionByHash(toi.transactionHash);
+        if (id == CryptoNote::WALLET_LEGACY_INVALID_TRANSACTION_ID)
+            continue;
+        WalletLegacyTransaction& tx = m_transactionsCache.getTransaction(id);
+        if(tx.blockHeight <= height)
+            result.push_back(toi);
+    }
+
+    return result;
 }
 
 size_t WalletLegacy::estimateFusion(const uint64_t &threshold)
@@ -925,6 +977,7 @@ TransactionId WalletLegacy::sendFusionTransaction(
     for (auto &out : fusionInputs) {
         destination.amount += out.amount;
     }
+    destination.amount -= fee;
     destination.address = getAddress();
     transfers.push_back(destination);
 
@@ -1145,6 +1198,27 @@ bool WalletLegacy::isTrackingWallet()
     getAccountKeys(keys);
 
     return keys.spendSecretKey == boost::value_initialized<Crypto::SecretKey>();
+}
+
+void WalletLegacy::setConsolidateHeight(uint32_t height, const Crypto::Hash &consolidateTx)
+{
+    m_transactionsCache.setConsolidateHeight(height, consolidateTx);
+}
+
+uint32_t WalletLegacy::getConsolidateHeight() const
+{
+    return m_transactionsCache.getConsolidateHeight();
+}
+
+Hash WalletLegacy::getConsolidateTx() const
+{
+    return m_transactionsCache.getConsolidateTx();
+}
+
+void WalletLegacy::markTransactionSafe(const Hash &transactionHash)
+{
+    m_transfersSync.markTransactionSafe(transactionHash);
+    m_transferDetails->markTransactionSafe(transactionHash);
 }
 
 std::vector<TransactionId> WalletLegacy::deleteOutdatedUnconfirmedTransactions()

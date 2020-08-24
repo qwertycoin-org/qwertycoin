@@ -25,6 +25,7 @@
 #include <CryptoNoteCore/CryptoNoteSerialization.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/BinaryInputStreamSerializer.h>
+#include <Serialization/SerializationOverloads.h>
 #include <Wallet/WalletErrors.h>
 #include <Wallet/WalletUtils.h>
 #include <WalletLegacy/KeysStorage.h>
@@ -35,21 +36,21 @@ using namespace Common;
 
 namespace CryptoNote {
 
-uint32_t WALLET_LEGACY_SERIALIZATION_VERSION = 2;
+uint32_t WALLET_LEGACY_SERIALIZATION_VERSION = 3;
 
 WalletLegacySerializer::WalletLegacySerializer(CryptoNote::AccountBase &account,
                                                WalletUserTransactionsCache &transactionsCache)
     : account(account),
       transactionsCache(transactionsCache),
-      walletSerializationVersion(2)
+      walletSerializationVersion(3)
 {
 }
 
-void WalletLegacySerializer::serialize(
-    std::ostream &stream,
+void WalletLegacySerializer::serialize(std::ostream &stream,
     const std::string &password,
     bool saveDetailed,
-    const std::string &cache)
+    const std::string &cache,
+    const std::vector<Crypto::Hash> &safeTxes)
 {
     // set serialization version global variable
     CryptoNote::WALLET_LEGACY_SERIALIZATION_VERSION = walletSerializationVersion;
@@ -66,6 +67,21 @@ void WalletLegacySerializer::serialize(
     }
 
     serializer.binary(const_cast<std::string &>(cache), "cache");
+    if (walletSerializationVersion >= 3) {
+        uint32_t consolidateHeight = transactionsCache.getConsolidateHeight();
+        serializer(consolidateHeight, "consolidate_height");
+        Crypto::Hash consolidateTx = transactionsCache.getConsolidateTx();
+        serializer(consolidateTx, "consolidate_tx_id");
+        consolidateHeight = transactionsCache.getPrevConsolidateHeight();
+        serializer(consolidateHeight, "prev_consolidate_height");
+        consolidateTx = transactionsCache.getPrevConsolidateTx();
+        serializer(consolidateTx, "prev_consolidate_tx_id");
+        size_t s = safeTxes.size();
+        serializer.beginArray(s, "safe_txes");
+        for(auto h: safeTxes)
+           serializer.binary(&h, sizeof(h), "");
+        serializer.endArray();
+    }
 
     std::string plain = plainArchive.str();
     std::string cipher;
@@ -115,10 +131,10 @@ Crypto::chacha8_iv WalletLegacySerializer::encrypt(
     return iv;
 }
 
-void WalletLegacySerializer::deserialize(
-    std::istream &stream,
+void WalletLegacySerializer::deserialize(std::istream &stream,
     const std::string &password,
-    std::string &cache)
+    std::string &cache,
+    std::vector<Crypto::Hash> &safeTxes)
 {
     StdInputStream stdStream(stream);
     CryptoNote::BinaryInputStreamSerializer serializerEncrypted(stdStream);
@@ -170,6 +186,23 @@ void WalletLegacySerializer::deserialize(
     }
 
     serializer.binary(cache, "cache");
+    if (version >= 3) {
+        uint32_t consolidateHeight = 0;
+        serializer(consolidateHeight, "consolidate_height");
+        Crypto::Hash consolidateTx;
+        serializer(consolidateTx, "consolidate_tx_id");
+        transactionsCache.setConsolidateHeight(consolidateHeight, consolidateTx);
+        serializer(consolidateHeight, "prev_consolidate_height");
+        serializer(consolidateTx, "prev_consolidate_tx_id");
+        transactionsCache.setPrevConsolidateHeight(consolidateHeight, consolidateTx);
+        size_t s = 0;
+        serializer.beginArray(s, "safe_txes");
+        safeTxes.resize(s);
+        for(size_t idx = 0; idx < s; idx++) {
+            serializer.binary(&safeTxes[idx], sizeof(safeTxes[idx]), "");
+        }
+        serializer.endArray();
+    }
 }
 
 void WalletLegacySerializer::decrypt(

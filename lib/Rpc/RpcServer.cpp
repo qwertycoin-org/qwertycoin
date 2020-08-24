@@ -261,6 +261,9 @@ std::unordered_map<
     },{
         "/stop_daemon",
         { jsonMethod<COMMAND_RPC_STOP_DAEMON>(&RpcServer::on_stop_daemon), true }
+    },{
+        "/get_difficulty_stat",
+        { jsonMethod<COMMAND_RPC_GET_DIFFICULTY_STAT>(&RpcServer::on_get_difficulty_stat), false }
     },
 
     // json rpc
@@ -2569,6 +2572,57 @@ bool RpcServer::on_verify_message(
     memcpy(&s, decoded.data(), sizeof(s));
 
     res.sig_valid = Crypto::check_signature(hash, acc.spendPublicKey, s);
+    res.status = CORE_RPC_STATUS_OK;
+
+    return true;
+}
+
+bool RpcServer::on_get_difficulty_stat(const COMMAND_RPC_GET_DIFFICULTY_STAT::request &req, COMMAND_RPC_GET_DIFFICULTY_STAT::response &res)
+{
+    try {
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::hour,
+                                       res.hour.block_num,
+                                       res.hour.avg_solve_time,
+                                       res.hour.stddev_solve_time,
+                                       res.hour.outliers_num))
+            throw std::runtime_error("Failed to get hour difficulty statistics");
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::day,
+                                       res.day.block_num,
+                                       res.day.avg_solve_time,
+                                       res.day.stddev_solve_time,
+                                       res.day.outliers_num))
+            throw std::runtime_error("Failed to get day difficulty statistics");
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::week,
+                                       res.week.block_num,
+                                       res.week.avg_solve_time,
+                                       res.week.stddev_solve_time,
+                                       res.week.outliers_num))
+            throw std::runtime_error("Failed to get week difficulty statistics");
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::month,
+                                       res.month.block_num,
+                                       res.month.avg_solve_time,
+                                       res.month.stddev_solve_time,
+                                       res.month.outliers_num))
+            throw std::runtime_error("Failed to get month difficulty statistics");
+        if(!m_core.get_difficulty_stat(req.height,
+                                       IMinerHandler::stat_period::year,
+                                       res.year.block_num,
+                                       res.year.avg_solve_time,
+                                       res.year.stddev_solve_time,
+                                       res.year.outliers_num))
+            throw std::runtime_error("Failed to get month difficulty statistics");
+    } catch (std::system_error &e) {
+        res.status = e.what();
+        return false;
+    } catch (std::exception &e) {
+        res.status = "Error: " + std::string(e.what());
+        return false;
+    }
+
     res.status = CORE_RPC_STATUS_OK;
 
     return true;

@@ -47,11 +47,13 @@ public:
         std::ostream &stream,
         const std::string &password,
         bool saveDetailed,
-        const std::string &cache);
+        const std::string &cache,
+        const std::vector<Crypto::Hash> & safeTxes);
     void deserialize(
         std::istream &stream,
         const std::string &password,
-        std::string &cache);
+        std::string &cache,
+        std::vector<Crypto::Hash> & safeTxes);
 
 private:
     void saveKeys(CryptoNote::ISerializer &serializer);

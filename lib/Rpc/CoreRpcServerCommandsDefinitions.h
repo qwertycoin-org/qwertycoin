@@ -1304,6 +1304,56 @@ struct COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH
     };
 };
 
+struct difficulty_statistics
+{
+    void serialize(ISerializer &s)
+    {
+        KV_MEMBER(block_num)
+        KV_MEMBER(avg_solve_time)
+        KV_MEMBER(stddev_solve_time)
+        KV_MEMBER(outliers_num)
+    }
+
+    uint32_t block_num;
+    uint64_t avg_solve_time;
+    uint64_t stddev_solve_time;
+    uint32_t outliers_num;
+};
+
+struct COMMAND_RPC_GET_DIFFICULTY_STAT
+{
+    struct request
+    {
+        void serialize(ISerializer &s)
+        {
+            KV_MEMBER(height)
+        }
+
+        uint32_t height;
+
+    };
+
+    struct response
+    {
+        void serialize(ISerializer &s)
+        {
+            KV_MEMBER(status)
+            KV_MEMBER(hour)
+            KV_MEMBER(day)
+            KV_MEMBER(week)
+            KV_MEMBER(month)
+            KV_MEMBER(year)
+        }
+
+        std::string status;
+        difficulty_statistics hour;
+        difficulty_statistics day;
+        difficulty_statistics week;
+        difficulty_statistics month;
+        difficulty_statistics year;
+    };
+};
+
 struct reserve_proof_entry
 {
     void serialize(ISerializer &s)
