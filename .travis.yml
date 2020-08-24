@@ -2,15 +2,6 @@ language: cpp
 
 matrix:
     include:
-        - name: "Android, Debug"
-          os: linux
-          dist: bionic
-          sudo: required
-          env:
-              - CMAKE_GENERATOR_NAME="Unix Makefiles"
-              - CMAKE_BUILD_TYPE="Debug"
-              - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
-              - CTEST_REGEXP="NONE"
         - name: "Android, Release"
           os: linux
           dist: bionic
@@ -20,15 +11,6 @@ matrix:
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=android-ndk-r18b-api-21-x86-clang-libcxx.cmake
               - CTEST_REGEXP="NONE"
-        - name: "Linux, Debug"
-          os: linux
-          dist: bionic
-          sudo: required
-          env:
-              - CMAKE_GENERATOR_NAME="Unix Makefiles"
-              - CMAKE_BUILD_TYPE="Debug"
-              - CMAKE_TOOLCHAIN_FILE_NAME=gcc-8-cxx17.cmake
-              - CTEST_REGEXP="Tests$"
         - name: "Linux, Release"
           os: linux
           dist: bionic
@@ -37,14 +19,6 @@ matrix:
               - CMAKE_GENERATOR_NAME="Unix Makefiles"
               - CMAKE_BUILD_TYPE="Release"
               - CMAKE_TOOLCHAIN_FILE_NAME=gcc-8-cxx17.cmake
-              - CTEST_REGEXP="Tests$"
-        - name: "macOS, Debug"
-          os: osx
-          osx_image: xcode11.3
-          env:
-              - CMAKE_GENERATOR_NAME="Unix Makefiles"
-              - CMAKE_BUILD_TYPE="Debug"
-              - CMAKE_TOOLCHAIN_FILE_NAME=clang-cxx17.cmake
               - CTEST_REGEXP="Tests$"
         - name: "macOS, Release"
           os: osx

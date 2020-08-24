@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License, Version 3.
 # See the file LICENSE from this package for details.
 
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.12)
 
 if(POLICY CMP0074)
     # Allow find_package() to use <PackageName>_ROOT variables.
