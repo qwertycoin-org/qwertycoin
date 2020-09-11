@@ -77,6 +77,38 @@ std::string podToHex(const T &s)
     return toHex(&s, sizeof(s));
 }
 
+bool starts_with(const std::string &str1, const std::string &str2);
+bool ends_with(const std::string &str1, const std::string &str2);
+
+inline bool split_string_helper(
+    const std::string &str,
+    size_t pos,
+    const std::string &, std::string &head)
+{
+    head = str.substr(pos);
+    return true;
+}
+
+template<class... Parts>
+inline bool split_string_helper(
+    const std::string &str,
+    size_t pos,
+    const std::string &separator,
+    std::string &head,
+    Parts &... parts)
+{
+    size_t pos2 = str.find(separator, pos);
+    if (pos2 == std::string::npos)
+    return false;
+    head = str.substr(pos, pos2 - pos);
+    return split_string_helper(str, pos2 + 1, separator, parts...);
+}
+
+template<class... Parts>
+inline bool split_string(const std::string &str, const std::string &separator, Parts &... parts) {
+return split_string_helper(str, 0, separator, parts...);
+}
+
 std::string extract(std::string &text, char delimiter);
 std::string extract(const std::string &text, char delimiter, size_t &offset);
 

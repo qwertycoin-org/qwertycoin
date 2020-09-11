@@ -347,6 +347,13 @@ struct COMMAND_RPC_START_MINING
     };
 };
 
+struct COMMAND_HTTP
+{
+    typedef EMPTY_STRUCT request;
+
+    typedef std::string response;
+};
+
 struct COMMAND_RPC_GET_INFO
 {
     typedef EMPTY_STRUCT request;
@@ -770,6 +777,26 @@ struct COMMAND_RPC_GET_BLOCK_HEADER_BY_HEIGHT
         }
 
         uint64_t height;
+    };
+};
+
+struct COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH {
+    struct request {
+        std::string hash;
+
+        void serialize(ISerializer& s) {
+            KV_MEMBER(hash)
+        }
+    };
+
+    struct response {
+        BlockDetails2 block;
+        std::string status;
+
+        void serialize(ISerializer& s) {
+            KV_MEMBER(status)
+            KV_MEMBER(block)
+        }
     };
 };
 

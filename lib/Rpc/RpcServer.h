@@ -102,6 +102,12 @@ private:
         const COMMAND_RPC_GET_POOL_CHANGES_LITE::request &req,
         COMMAND_RPC_GET_POOL_CHANGES_LITE::response &rsp);
 
+    // http handlers
+    bool on_get_index(
+        const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res);
+    bool on_get_supply(
+        const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res);
+
     // json handlers
     bool on_get_info(
         const COMMAND_RPC_GET_INFO::request &req,
@@ -146,6 +152,9 @@ private:
     bool onGetBlockDetailsByHeight(
         const COMMAND_RPC_GET_BLOCK_DETAILS_BY_HEIGHT::request &req,
         COMMAND_RPC_GET_BLOCK_DETAILS_BY_HEIGHT::response &rsp);
+    bool onGetBlockDetailsByHash(
+        const COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH::request& req,
+        COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH::response& rsp);
     bool onGetBlocksHashesByTimestamps(
         const COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS::request &req,
         COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS::response &rsp);
