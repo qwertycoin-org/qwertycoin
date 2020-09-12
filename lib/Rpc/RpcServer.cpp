@@ -1259,7 +1259,7 @@ bool RpcServer::onGetTransactionHashesByPaymentId(
 bool RpcServer::on_get_index(const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res)
 {
     const std::string index_start =
-    R"(<html><head><meta http-equiv='refresh' content='60'/></head><body><p>)" "Qwertycoin Masternode" R"(d &bull; version 
+    R"(<html><head><meta http-equiv='refresh' content='60'/></head><body><p>)" "Qwertycoin Masternode" R"( version 
     )";
     const std::string index_finish = " </p></body></html>";
     const std::time_t uptime = std::time(nullptr) - m_core.getStartTime();
@@ -1284,7 +1284,7 @@ bool RpcServer::on_get_index(const COMMAND_HTTP::request& req, COMMAND_HTTP::res
 
     size_t tx_pool_count = m_core.get_pool_transactions_count();
 
-    const std::string body = index_start + PROJECT_VERSION_LONG + " &bull; " + (m_core.currency().isTestnet() ? "testnet" : "mainnet") +
+    const std::string body = index_start + PROJECT_VERSION_LONG + " powered by " + (m_core.currency().isTestnet() ? "testnet" : "mainnet") +
     "<ul>" +
         "<li>" + "Synchronization status: " + std::to_string(top_block_index) + "/" + std::to_string(top_known_block_index) +
         "<li>" + "Last block hash: " + Common::podToHex(last_block_hash) + "</li>" +
