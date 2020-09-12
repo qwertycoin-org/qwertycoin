@@ -289,6 +289,12 @@ std::unordered_map<
             false
         }
     },{
+        "/get_transaction_details_by_hash",
+        {
+            jsonMethod<COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH>(&RpcServer::onGetTransactionDetailsByHash),
+            true
+        }
+    },{
         "/get_transaction_details_by_heights",
         {
             jsonMethod<
@@ -360,6 +366,7 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
             if (Common::starts_with(url, "/api/")) {
                 std::string block_height_method = "/api/block/height/";
                 std::string block_hash_method = "/api/block/hash/";
+                std::string tx_hash_method = "/api/transaction/";
                 std::string payment_id_method = "/api/payment_id/";
 
                 if (Common::starts_with(url, block_height_method))
@@ -409,7 +416,32 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                         response.setBody("Internal error");
                     }
                     return;
-                } else if (Common::starts_with(url, payment_id_method)) {
+                } else if (Common::starts_with(url, tx_hash_method))
+                {
+                    std::string hash_str = url.substr(tx_hash_method.size());
+                    auto it = s_handlers.find("/get_transaction_details_by_hash");
+                    if (!it->second.allowBusyCore && !isCoreReady()) {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Core is busy");
+                        return;
+                    }
+                    COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH::request req;
+                    req.hash = hash_str;
+                    COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH::response rsp;
+                    bool r = onGetTransactionDetailsByHash(req, rsp);
+                    if (r) {
+                        response.addHeader("Content-Type", "application/json");
+                        response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
+                        response.setBody(storeToJson(rsp));
+                    }
+                    else {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Internal error");
+                    }
+                    return;
+
+                    } else if (Common::starts_with(url, payment_id_method))
+                    {
                     std::string pid_str = url.substr(payment_id_method.size());
                     auto it = s_handlers.find("/get_transaction_hashes_by_payment_id");
                     if (!it->second.allowBusyCore && !isCoreReady()) {
@@ -542,7 +574,7 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
                 "get_transaction_details_by_heights",
                 {makeMemberMethod(&RpcServer::onGetTransactionsByHeights), false}
             },{
-                "k_transaction_details_by_hash",
+                "gettransaction",
                 { makeMemberMethod(&RpcServer::onGetTransactionDetailsByHash), false }
             },{
                 "get_blocks_details_by_heights",
@@ -1157,32 +1189,42 @@ bool RpcServer::onGetTransactionDetailsByHash(
     const COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH::request &req,
     COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH::response &rsp)
 {
-    std::list<Crypto::Hash> missed_txs;
-    std::list<Transaction> txs;
-    std::vector<Crypto::Hash> hashes;
-    hashes.push_back(req.hash);
-    m_core.getTransactions(hashes, txs, missed_txs, true);
-
-    if (txs.empty() || !missed_txs.empty()) {
-        std::string hash_str = Common::podToHex(missed_txs.back());
-        throw JsonRpc::JsonRpcError{
+    try {
+        std::list<Crypto::Hash> missed_txs;
+        std::list<Transaction> txs;
+        std::vector<Crypto::Hash> hashes;
+        Crypto::Hash tx_hash;
+        if (!parse_hash256(req.hash, tx_hash)) {
+            throw JsonRpc::JsonRpcError{
             CORE_RPC_ERROR_CODE_WRONG_PARAM,
-            "transaction wasn't found. Hash = " + hash_str + '.'
-        };
+            "Failed to parse hex representation of transaction hash. Hex = " + req.hash + '.' };
+        }
+        hashes.push_back(tx_hash);
+        m_core.getTransactions(hashes, txs, missed_txs, true);
+
+        if (txs.empty() || !missed_txs.empty()) {
+            std::string hash_str = Common::podToHex(missed_txs.back());
+            throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM,
+            "transaction wasn't found. Hash = " + hash_str + '.' };
+        }
+
+        TransactionDetails2 transactionsDetails;
+        if (!m_core.fillTransactionDetails(txs.back(), transactionsDetails)) {
+            throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+            "Internal error: can't fill transaction details." };
+        }
+
+        rsp.transaction = std::move(transactionsDetails);
     }
-
-    TransactionDetails2 transactionsDetails;
-    if (!m_core.fillTransactionDetails(txs.back(), transactionsDetails)) {
-        throw JsonRpc::JsonRpcError{
-            CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-            "Internal error: can't fill transaction details."
-        };
+    catch (std::system_error& e) {
+        throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, e.what() };
+        return false;
     }
-
-    rsp.transaction = std::move(transactionsDetails);
-
+    catch (std::exception& e) {
+        throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, "Error: " + std::string(e.what()) };
+        return false;
+    }
     rsp.status = CORE_RPC_STATUS_OK;
-
     return true;
 }
 

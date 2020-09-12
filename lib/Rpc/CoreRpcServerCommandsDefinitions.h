@@ -1332,28 +1332,23 @@ struct COMMAND_RPC_GET_TRANSACTIONS_DETAILS_BY_HASHES
     };
 };
 
-struct COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH
-{
-    struct request
-    {
-        void serialize(ISerializer &s)
-        {
-            KV_MEMBER(hash)
-        }
+struct COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH {
+    struct request {
+        std::string hash;
 
-        Crypto::Hash hash;
+        void serialize(ISerializer &s) {
+            KV_MEMBER(hash);
+        }
     };
 
-    struct response
-    {
-        void serialize(ISerializer &s)
-        {
+    struct response {
+        TransactionDetails2 transaction;
+        std::string status;
+
+        void serialize(ISerializer &s) {
             KV_MEMBER(status)
             KV_MEMBER(transaction)
         }
-
-        TransactionDetails2 transaction;
-        std::string status;
     };
 };
 
