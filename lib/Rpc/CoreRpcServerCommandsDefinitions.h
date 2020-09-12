@@ -1287,28 +1287,23 @@ struct COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS
     };
 };
 
-struct COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID
-{
-    struct request
-    {
-        void serialize(ISerializer &s)
-        {
+struct COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID {
+    struct request {
+        std::string paymentId;
+
+        void serialize(ISerializer &s) {
             KV_MEMBER(paymentId)
         }
-
-        Crypto::Hash paymentId;
     };
 
-    struct response
-    {
-        void serialize(ISerializer &s)
-        {
-            KV_MEMBER(status)
-            KV_MEMBER(transactionHashes)
-        }
-
+    struct response {
         std::vector<Crypto::Hash> transactionHashes;
         std::string status;
+
+        void serialize(ISerializer &s) {
+            KV_MEMBER(status)
+            KV_MEMBER(transactionHashes);
+        }
     };
 };
 

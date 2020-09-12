@@ -19,6 +19,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <string>
 #include <future>
 #include <unordered_map>
 #include <BlockchainExplorer/BlockchainExplorerData.h>
@@ -179,6 +180,8 @@ std::unordered_map<
         "/", { httpMethod<COMMAND_HTTP>(&RpcServer::on_get_index), true }
     },{
         "/supply", { httpMethod<COMMAND_HTTP>(&RpcServer::on_get_supply), false }
+    },{
+        "/paymentid", { httpMethod<COMMAND_HTTP>(&RpcServer::on_get_payment_id), false }
     },
 
     // json handlers
@@ -200,9 +203,6 @@ std::unordered_map<
     },{
         "/peers",
         { jsonMethod<COMMAND_RPC_GET_PEER_LIST>(&RpcServer::on_get_peer_list), true }
-    },{
-        "/paymentid",
-        { jsonMethod<COMMAND_RPC_GEN_PAYMENT_ID>(&RpcServer::on_get_payment_id), true }
     },
 
     {
@@ -350,7 +350,7 @@ RpcServer::RpcServer(System::Dispatcher &dispatcher,
 
 void RpcServer::processRequest(const HttpRequest &request, HttpResponse &response)
 {
-    logger(TRACE) << "RPC request came: \n" << request << std::endl;
+    //logger(TRACE) << "RPC request came: \n" << request << std::endl;
 
     try {
         auto url = request.getUrl();
@@ -360,6 +360,7 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
             if (Common::starts_with(url, "/api/")) {
                 std::string block_height_method = "/api/block/height/";
                 std::string block_hash_method = "/api/block/hash/";
+                std::string payment_id_method = "/api/payment_id/";
 
                 if (Common::starts_with(url, block_height_method))
                 {
@@ -404,6 +405,28 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                         response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
                         response.setBody(storeToJson(rsp));
                     } else {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Internal error");
+                    }
+                    return;
+                } else if (Common::starts_with(url, payment_id_method)) {
+                    std::string pid_str = url.substr(payment_id_method.size());
+                    auto it = s_handlers.find("/get_transaction_hashes_by_payment_id");
+                    if (!it->second.allowBusyCore && !isCoreReady()) {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Core is busy");
+                        return;
+                    }
+                    COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::request req;
+                    req.paymentId = pid_str;
+                    COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::response rsp;
+                    bool r = onGetTransactionHashesByPaymentId(req, rsp);
+                    if (r) {
+                        response.addHeader("Content-Type", "application/json");
+                        response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
+                        response.setBody(storeToJson(rsp));
+                    }
+                    else {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Internal error");
                     }
@@ -1164,24 +1187,29 @@ bool RpcServer::onGetTransactionDetailsByHash(
 }
 
 bool RpcServer::onGetTransactionHashesByPaymentId(
-    const COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::request &req,
-    COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::response &rsp)
+  const COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::request& req,
+  COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::response& rsp)
 {
-    try {
-        rsp.transactionHashes = m_core.getTransactionHashesByPaymentId(req.paymentId);
-    } catch (std::system_error &e) {
-        rsp.status = e.what();
+  Crypto::Hash pid_hash;
+  if (!parse_hash256(req.paymentId, pid_hash)) {
+    throw JsonRpc::JsonRpcError{
+      CORE_RPC_ERROR_CODE_WRONG_PARAM,
+      "Failed to parse hex representation of payment id. Hex = " + req.paymentId + '.' };
+  }
+  try {
+    rsp.transactionHashes = m_core.getTransactionHashesByPaymentId(pid_hash);
+  }
+  catch (std::system_error& e) {
+    throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, e.what() };
     return false;
-    } catch (std::exception &e) {
-        rsp.status = "Error: " + std::string(e.what());
-        return false;
-    }
-
-    rsp.status = CORE_RPC_STATUS_OK;
-
-    return true;
+  }
+  catch (std::exception& e) {
+    throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR, "Error: " + std::string(e.what()) };
+    return false;
+  }
+  rsp.status = CORE_RPC_STATUS_OK;
+  return true;
 }
-
 //
 // HTTP handlers
 //
@@ -1245,6 +1273,12 @@ bool RpcServer::on_get_supply(const COMMAND_HTTP::request& req, COMMAND_HTTP::re
     std::string already_generated_coins = m_core.currency().formatAmount(m_core.getTotalGeneratedAmount());
     res = already_generated_coins;
 
+    return true;
+}
+
+bool RpcServer::on_get_payment_id(const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res)
+{
+    res = Common::podToHex(Crypto::rand<Crypto::Hash>());
     return true;
 }
 
@@ -1588,25 +1622,6 @@ bool RpcServer::on_get_peer_list(
     }
 
     res.status = CORE_RPC_STATUS_OK;
-
-    return true;
-}
-
-bool RpcServer::on_get_payment_id(
-    const COMMAND_RPC_GEN_PAYMENT_ID::request &req,
-    COMMAND_RPC_GEN_PAYMENT_ID::response &res)
-{
-    std::string pid;
-    try {
-        pid = Common::podToHex(Crypto::rand<Crypto::Hash>());
-    } catch (const std::exception &e) {
-        throw JsonRpc::JsonRpcError{
-            CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-            "Internal error: can't generate Payment ID"
-        };
-    }
-
-    res.payment_id = pid;
 
     return true;
 }

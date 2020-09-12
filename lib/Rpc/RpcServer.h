@@ -107,6 +107,8 @@ private:
         const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res);
     bool on_get_supply(
         const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res);
+    bool on_get_payment_id(
+        const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res);
 
     // json handlers
     bool on_get_info(
@@ -139,9 +141,6 @@ private:
     bool on_get_peer_list(
         const COMMAND_RPC_GET_PEER_LIST::request &req,
         COMMAND_RPC_GET_PEER_LIST::response &res);
-    bool on_get_payment_id(
-        const COMMAND_RPC_GEN_PAYMENT_ID::request &req,
-        COMMAND_RPC_GEN_PAYMENT_ID::response &res);
 
     bool onGetBlocksDetailsByHeights(
         const COMMAND_RPC_GET_BLOCKS_DETAILS_BY_HEIGHTS::request &req,
