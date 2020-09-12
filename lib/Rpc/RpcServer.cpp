@@ -2,6 +2,7 @@
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2016-2018, The Karbowanec developers
+// Copyright (c) 2020, The Karbowanec developers
 // Copyright (c) 2018-2020, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
@@ -358,12 +359,16 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
 {
     //logger(TRACE) << "RPC request came: \n" << request << std::endl;
 
+    /*
+    * Greetings to Aivve from the Karbowanec project for this idea.
+    */
     try {
         auto url = request.getUrl();
 
         auto it = s_handlers.find(url);
         if (it == s_handlers.end()) {
-            if (Common::starts_with(url, "/api/")) {
+            if (Common::starts_with(url, "/api/"))
+            {
                 std::string block_height_method = "/api/block/height/";
                 std::string block_hash_method = "/api/block/hash/";
                 std::string tx_hash_method = "/api/transaction/";
