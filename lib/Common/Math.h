@@ -21,7 +21,10 @@
 #include <algorithm>
 #include <numeric>
 #include <vector>
+#include <cmath>
 #include <Common/StringTools.h>
+
+using namespace std;
 
 namespace Common {
 
