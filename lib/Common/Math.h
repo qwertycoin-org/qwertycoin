@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2020, The Karbowanec developers
 // Copyright (c) 2018-2020, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
