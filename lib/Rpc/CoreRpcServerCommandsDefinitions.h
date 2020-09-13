@@ -780,11 +780,14 @@ struct COMMAND_RPC_GET_BLOCK_HEADER_BY_HEIGHT
     };
 };
 
-struct COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH {
-    struct request {
+struct COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH
+{
+    struct request
+    {
         std::string hash;
 
-        void serialize(ISerializer& s) {
+        void serialize(ISerializer& s)
+        {
             KV_MEMBER(hash)
         }
     };
@@ -793,7 +796,8 @@ struct COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH {
         BlockDetails2 block;
         std::string status;
 
-        void serialize(ISerializer& s) {
+        void serialize(ISerializer& s)
+        {
             KV_MEMBER(status)
             KV_MEMBER(block)
         }
@@ -1287,8 +1291,10 @@ struct COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS
     };
 };
 
-struct COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID {
-    struct request {
+struct COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID
+{
+    struct request
+    {
         std::string paymentId;
 
         void serialize(ISerializer &s) {
@@ -1296,11 +1302,13 @@ struct COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID {
         }
     };
 
-    struct response {
+    struct response
+    {
         std::vector<Crypto::Hash> transactionHashes;
         std::string status;
 
-        void serialize(ISerializer &s) {
+        void serialize(ISerializer &s)
+        {
             KV_MEMBER(status)
             KV_MEMBER(transactionHashes);
         }
@@ -1332,20 +1340,25 @@ struct COMMAND_RPC_GET_TRANSACTIONS_DETAILS_BY_HASHES
     };
 };
 
-struct COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH {
-    struct request {
+struct COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH
+{
+    struct request
+    {
         std::string hash;
 
-        void serialize(ISerializer &s) {
+        void serialize(ISerializer &s)
+        {
             KV_MEMBER(hash);
         }
     };
 
-    struct response {
+    struct response
+    {
         TransactionDetails2 transaction;
         std::string status;
 
-        void serialize(ISerializer &s) {
+        void serialize(ISerializer &s)
+        {
             KV_MEMBER(status)
             KV_MEMBER(transaction)
         }

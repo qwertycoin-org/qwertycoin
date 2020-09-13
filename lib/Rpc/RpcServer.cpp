@@ -118,7 +118,7 @@ RpcServer::HandlerFunction httpMethod(
         boost::value_initialized<typename Command::response> res;
 
         if (!loadFromJson(static_cast<typename Command::request&>(req), request.getBody())) {
-        return false;
+            return false;
         }
 
         bool result = (obj->*handler)(req, res);
@@ -394,7 +394,8 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                         response.addHeader("Content-Type", "application/json");
                         response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
                         response.setBody(storeToJson(rsp));
-                    } else {
+                    } else
+                    {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Internal error");
                     }
@@ -402,8 +403,10 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                 } else if (Common::starts_with(url, block_hash_method))
                 {
                     std::string hash_str = url.substr(block_hash_method.size());
+
                     auto it = s_handlers.find("/get_block_details_by_hash");
-                    if (!it->second.allowBusyCore && !isCoreReady()) {
+                    if (!it->second.allowBusyCore && !isCoreReady())
+                    {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Core is busy");
                         return;
@@ -412,11 +415,13 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                     req.hash = hash_str;
                     COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH::response rsp;
                     bool r = onGetBlockDetailsByHash(req, rsp);
-                    if (r) {
+                    if (r)
+                    {
                         response.addHeader("Content-Type", "application/json");
                         response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
                         response.setBody(storeToJson(rsp));
-                    } else {
+                    } else
+                    {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Internal error");
                     }
@@ -425,7 +430,8 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                 {
                     std::string hash_str = url.substr(tx_hash_method.size());
                     auto it = s_handlers.find("/get_transaction_details_by_hash");
-                    if (!it->second.allowBusyCore && !isCoreReady()) {
+                    if (!it->second.allowBusyCore && !isCoreReady())
+                    {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Core is busy");
                         return;
@@ -434,12 +440,14 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                     req.hash = hash_str;
                     COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH::response rsp;
                     bool r = onGetTransactionDetailsByHash(req, rsp);
-                    if (r) {
+                    if (r)
+                    {
                         response.addHeader("Content-Type", "application/json");
                         response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
                         response.setBody(storeToJson(rsp));
                     }
-                    else {
+                    else
+                    {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Internal error");
                     }
@@ -448,8 +456,10 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                     } else if (Common::starts_with(url, payment_id_method))
                     {
                     std::string pid_str = url.substr(payment_id_method.size());
+
                     auto it = s_handlers.find("/get_transaction_hashes_by_payment_id");
-                    if (!it->second.allowBusyCore && !isCoreReady()) {
+                    if (!it->second.allowBusyCore && !isCoreReady())
+                    {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Core is busy");
                         return;
@@ -458,12 +468,14 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                     req.paymentId = pid_str;
                     COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::response rsp;
                     bool r = onGetTransactionHashesByPaymentId(req, rsp);
-                    if (r) {
+                    if (r)
+                    {
                         response.addHeader("Content-Type", "application/json");
                         response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
                         response.setBody(storeToJson(rsp));
                     }
-                    else {
+                    else
+                    {
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Internal error");
                     }
@@ -471,7 +483,8 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                 }
                 response.setStatus(HttpResponse::STATUS_404);
                 return;
-            } else {
+            } else
+            {
                 response.setStatus(HttpResponse::STATUS_404);
                 return;
             }
@@ -1035,7 +1048,8 @@ bool RpcServer::onGetBlockDetailsByHeight(
 {
     try {
         BlockDetails2 blockDetails;
-        if (m_core.get_current_blockchain_height() <= req.blockHeight) {
+        if (m_core.get_current_blockchain_height() <= req.blockHeight)
+        {
             throw JsonRpc::JsonRpcError{
                 CORE_RPC_ERROR_CODE_TOO_BIG_HEIGHT,
                 std::string("To big height: ")
@@ -1045,13 +1059,15 @@ bool RpcServer::onGetBlockDetailsByHeight(
         }
         Hash block_hash = m_core.getBlockIdByHeight(req.blockHeight);
         Block blk;
-        if (!m_core.getBlockByHash(block_hash, blk)) {
+        if (!m_core.getBlockByHash(block_hash, blk))
+        {
             throw JsonRpc::JsonRpcError{
                 CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
                 "Internal error: can't get block by height " + std::to_string(req.blockHeight) + '.'
             };
         }
-        if (!m_core.fillBlockDetails(blk, blockDetails)) {
+        if (!m_core.fillBlockDetails(blk, blockDetails))
+        {
             throw JsonRpc::JsonRpcError{
                 CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
                 "Internal error: can't fill block details."
@@ -1194,12 +1210,14 @@ bool RpcServer::onGetTransactionDetailsByHash(
     const COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH::request &req,
     COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH::response &rsp)
 {
-    try {
+    try
+    {
         std::list<Crypto::Hash> missed_txs;
         std::list<Transaction> txs;
         std::vector<Crypto::Hash> hashes;
         Crypto::Hash tx_hash;
-        if (!parse_hash256(req.hash, tx_hash)) {
+        if (!parse_hash256(req.hash, tx_hash))
+        {
             throw JsonRpc::JsonRpcError{
             CORE_RPC_ERROR_CODE_WRONG_PARAM,
             "Failed to parse hex representation of transaction hash. Hex = " + req.hash + '.' };
@@ -1207,14 +1225,16 @@ bool RpcServer::onGetTransactionDetailsByHash(
         hashes.push_back(tx_hash);
         m_core.getTransactions(hashes, txs, missed_txs, true);
 
-        if (txs.empty() || !missed_txs.empty()) {
+        if (txs.empty() || !missed_txs.empty())
+        {
             std::string hash_str = Common::podToHex(missed_txs.back());
             throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_WRONG_PARAM,
             "transaction wasn't found. Hash = " + hash_str + '.' };
         }
 
         TransactionDetails2 transactionsDetails;
-        if (!m_core.fillTransactionDetails(txs.back(), transactionsDetails)) {
+        if (!m_core.fillTransactionDetails(txs.back(), transactionsDetails))
+        {
             throw JsonRpc::JsonRpcError{ CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
             "Internal error: can't fill transaction details." };
         }
@@ -1264,7 +1284,7 @@ bool RpcServer::onGetTransactionHashesByPaymentId(
 bool RpcServer::on_get_index(const COMMAND_HTTP::request& req, COMMAND_HTTP::response& res)
 {
     const std::string index_start =
-    R"(<html><head><meta http-equiv='refresh' content='60'/></head><body><p>)" "Qwertycoin Masternode" R"( version 
+    R"(<html><head><meta http-equiv='refresh' content='60'/></head><body><p>)" "<h1>Qwertycoin Masternode</h1>" R"( version 
     )";
     const std::string index_finish = " </p></body></html>";
     const std::time_t uptime = std::time(nullptr) - m_core.getStartTime();
