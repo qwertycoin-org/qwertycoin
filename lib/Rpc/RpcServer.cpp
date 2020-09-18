@@ -205,7 +205,10 @@ std::unordered_map<
         "/peers",
         { jsonMethod<COMMAND_RPC_GET_PEER_LIST>(&RpcServer::on_get_peer_list), true }
     },
-
+    {
+        "/get_mempool",
+        { jsonMethod<F_COMMAND_RPC_GET_POOL>(&RpcServer::f_on_transactions_pool_json), false }
+    },
     {
         "/getpeers",
         { jsonMethod<COMMAND_RPC_GET_PEER_LIST>(&RpcServer::on_get_peer_list), true }
@@ -296,12 +299,12 @@ std::unordered_map<
             true
         }
     },{
-        "/get_transaction_details_by_heights",
+        "/get_transactions_by_heights",
         {
             jsonMethod<
                 COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
-                >(
-                        &RpcServer::onGetTransactionsByHeights),
+            >(
+                &RpcServer::onGetTransactionsByHeights),
             false
         }
     },{
@@ -373,6 +376,7 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                 std::string block_hash_method = "/api/block/hash/";
                 std::string tx_hash_method = "/api/transaction/";
                 std::string payment_id_method = "/api/payment_id/";
+                std::string tx_mempool_method = "/api/mempool/";
 
                 if (Common::starts_with(url, block_height_method))
                 {
@@ -425,6 +429,27 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                         response.setStatus(HttpResponse::STATUS_500);
                         response.setBody("Internal error");
                     }
+                    return;
+                } else if (Common::starts_with(url, tx_mempool_method)) {
+                    auto it = s_handlers.find("/get_mempool");
+                    if (!it->second.allowBusyCore && !isCoreReady())
+                    {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Core is busy");
+                        return;
+                    }
+                    F_COMMAND_RPC_GET_POOL::request req;
+                    F_COMMAND_RPC_GET_POOL::response rsp;
+                    bool r = f_on_transactions_pool_json(req, rsp);
+                    if (r) {
+                        response.addHeader("Content-Type", "application/json");
+                        response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
+                        response.setBody(storeToJson(rsp));
+                    } else {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Internal error");
+                    }
+
                     return;
                 } else if (Common::starts_with(url, tx_hash_method))
                 {
@@ -571,7 +596,7 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
                 "f_transaction_json",
                 { makeMemberMethod(&RpcServer::f_on_transaction_json), false }
             },{
-                "f_on_transactions_pool_json",
+                "get_mempool",
                 { makeMemberMethod(&RpcServer::f_on_transactions_pool_json), false }
             },{
                 "f_pool_json",
@@ -589,7 +614,7 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
                 "get_transaction_details_by_hashes",
                 { makeMemberMethod(&RpcServer::onGetTransactionsDetailsByHashes), false }
             },{
-                "get_transaction_details_by_heights",
+                "get_transactions_by_heights",
                 {makeMemberMethod(&RpcServer::onGetTransactionsByHeights), false}
             },{
                 "gettransaction",
@@ -1473,58 +1498,95 @@ bool RpcServer::onGetTransactionsByHeights(
     try {
         std::vector<Crypto::Hash> vh;
 
-        uint32_t upperBorder = std::min(req.startBlock + req.additor,
-                                        m_core.get_current_blockchain_height());
-        for (size_t i = req.startBlock; i <= upperBorder; i++) {
-            Block blk;
-            uint32_t h = static_cast<uint32_t>(i);
-            Crypto::Hash blockHash = m_core.getBlockIdByHeight(i);
-
-            if (!m_core.getBlockByHash(blockHash, blk)) {
-                throw JsonRpc::JsonRpcError{
-                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-                        "Internal error: can't get block by hash. Hash = " + podToHex(blockHash) + '.'
-                };
+        if (req.range) {
+            if (req.heights.size() != 2) {
+                res.status = "Range set true but heights size != 2";
+                return true;
             }
 
-            if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
-                throw JsonRpc::JsonRpcError{
-                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-                        "Internal error: coinbase transaction in the block has the wrong type"
-                };
-            }
+            uint32_t upperBorder = std::min(req.heights[1], m_core.get_current_blockchain_height());
 
-            for (auto tx : blk.transactionHashes) {
-                vh.push_back(tx);
+            for (size_t i = 0; i < (upperBorder - req.heights[0]) + 1; i++) {
+                Block blk;
+                Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[0]+i);
+
+                if (!m_core.getBlockByHash(blockHash, blk)) {
+                    throw JsonRpc::JsonRpcError{
+                            CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                            "Internal error: can't get block by hash. Hash = " + podToHex(blockHash) + '.'
+                    };
+                }
+
+                if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
+                    throw JsonRpc::JsonRpcError{
+                            CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                            "Internal error: coinbase transaction in the block has the wrong type"
+                    };
+                }
+
+                for (Crypto::Hash &bTxs: blk.transactionHashes) {
+                    vh.push_back(bTxs);
+                }
+
+                if (req.include_miner_txs) {
+                    vh.push_back(getObjectHash(blk.baseTransaction));
+                }
+            }
+        } else {
+            for (size_t i = 0; i < req.heights.size(); i++) {
+                Block blk;
+                Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[i]);
+
+                for (Crypto::Hash &bTxs: blk.transactionHashes) {
+                    vh.push_back(bTxs);
+                }
+
+                if (req.include_miner_txs) {
+                    vh.push_back(getObjectHash(blk.baseTransaction));
+                }
             }
         }
-
-        std::vector<TransactionDetails2> transactionDetails;
-        transactionDetails.reserve(vh.size());
 
         std::list<Crypto::Hash> missedTxs;
         std::list<Transaction> txs;
 
-        m_core.getTransactions(vh, txs, missedTxs);
+        m_core.getTransactions(vh, txs, missedTxs, true);
 
-        if (!txs.empty()) {
-            for (const Transaction &tx : txs) {
-                TransactionDetails2 txDetails;
-                if (!m_core.fillTransactionDetails(tx, txDetails)) {
-                    throw JsonRpc::JsonRpcError{
-                        CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-                        "Internal error:  can't fill transaction Details."
-                    };
-                }
-                if (req.sigCut) {
-                    txDetails.signatures.clear();
-                }
-                transactionDetails.push_back(txDetails);
+        std::list<std::string> txHashes;
+        for (auto& tx: txs) {
+            txHashes.push_back(Common::podToHex(getObjectHash(tx)));
+        }
+
+        logger(DEBUGGING) << "Found " << txs.size() << "/" << vh.size() << " transactions on the blockchain.";
+
+        std::list<std::string>::const_iterator txHi = txHashes.begin();
+        std::vector<Crypto::Hash>::const_iterator vHi = vh.begin();
+
+        for (const Transaction &tx: txs) {
+            res.txs.push_back(COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry());
+            COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry &e = res.txs.back();
+
+            Crypto::Hash blockHash;
+            uint32_t blockHeight;
+
+            Crypto::Hash txHash = *vHi++;
+            e.tx_hash = *txHi++;
+
+            bool r = m_core.getBlockContainingTx(txHash, blockHash, blockHeight);
+            if (req.as_hex) {
+                e.as_hex = podToHex(tx);
             }
 
-            res.transactions = std::move(transactionDetails);
-            res.status = CORE_RPC_STATUS_OK;
+            if (req.as_json) {
+                e.as_json = storeToJson(tx);
+            }
+
+            e.block_height = blockHeight;
+            e.block_timestamp = m_core.getBlockTimestamp(blockHeight);
+            e.double_spend_seen = false;
         }
+
+
         if (txs.empty() || !missedTxs.empty()) {
             std::ostringstream oss;
             std::string seperator;
@@ -1534,6 +1596,10 @@ bool RpcServer::onGetTransactionsByHeights(
             }
             res.status = "transaction(s) not found: " + oss.str() + ".";
         }
+
+        res.status = CORE_RPC_STATUS_OK;
+        return true;
+
     } catch (std::system_error &e) {
         res.status = e.what();
         return false;
