@@ -1603,7 +1603,7 @@ bool RpcServer::onGetTransactionsByHeights(
             }
 
             if (req.as_json) {
-                e.as_json = storeToJson(tx);
+                e.as_json = tx;
             }
 
             e.block_height = blockHeight;
@@ -2166,7 +2166,7 @@ bool RpcServer::f_on_mempool_json(
         mempool_transaction.max_used_block_id = Common::podToHex(txd.maxUsedBlock.id);
         mempool_transaction.last_failed_height = txd.lastFailedBlock.height;
         mempool_transaction.last_failed_id = Common::podToHex(txd.lastFailedBlock.id);
-        mempool_transaction.tx_json = storeToJson(txd.tx);
+        mempool_transaction.tx_json = txd.tx;
         res.transactions.push_back(mempool_transaction);
     }
 
