@@ -163,7 +163,7 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
 
         std::string tx_hash;
         std::string as_hex;
-        std::string as_json;
+        Transaction as_json;
         bool double_spend_seen;
         uint64_t block_height;
         uint64_t block_timestamp;
@@ -698,7 +698,7 @@ struct f_mempool_transaction_response
     std::string max_used_block_id;
     uint32_t last_failed_height;
     std::string last_failed_id;
-    std::string tx_json;
+    Transaction tx_json;
 };
 
 struct f_block_short_response
