@@ -685,6 +685,7 @@ struct f_mempool_transaction_response
         KV_MEMBER(max_used_block_id)
         KV_MEMBER(last_failed_height)
         KV_MEMBER(last_failed_id)
+        KV_MEMBER(tx_json)
     }
 
     std::string hash;
@@ -697,6 +698,7 @@ struct f_mempool_transaction_response
     std::string max_used_block_id;
     uint32_t last_failed_height;
     std::string last_failed_id;
+    std::string tx_json;
 };
 
 struct f_block_short_response
@@ -964,11 +966,11 @@ struct COMMAND_RPC_GET_MEMPOOL
     {
         void serialize(ISerializer &s)
         {
-            KV_MEMBER(mempool)
+            KV_MEMBER(transactions)
             KV_MEMBER(status)
         }
 
-        std::vector<f_mempool_transaction_response> mempool;
+        std::vector<f_mempool_transaction_response> transactions;
         std::string status;
     };
 };

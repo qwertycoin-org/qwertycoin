@@ -210,6 +210,9 @@ std::unordered_map<
         { jsonMethod<F_COMMAND_RPC_GET_POOL>(&RpcServer::f_on_transactions_pool_json), false }
     },
     {
+        "/get_mempool_detailed",
+        { jsonMethod<COMMAND_RPC_GET_MEMPOOL>(&RpcServer::f_on_mempool_json), false }
+    },{
         "/getpeers",
         { jsonMethod<COMMAND_RPC_GET_PEER_LIST>(&RpcServer::on_get_peer_list), true }
     },{
@@ -377,6 +380,7 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                 std::string tx_hash_method = "/api/transaction/";
                 std::string payment_id_method = "/api/payment_id/";
                 std::string tx_mempool_method = "/api/mempool/";
+                std::string tx_mempool_detailed_method = "/api/mempool_detailed/";
 
                 if (Common::starts_with(url, block_height_method))
                 {
@@ -441,6 +445,27 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                     F_COMMAND_RPC_GET_POOL::request req;
                     F_COMMAND_RPC_GET_POOL::response rsp;
                     bool r = f_on_transactions_pool_json(req, rsp);
+                    if (r) {
+                        response.addHeader("Content-Type", "application/json");
+                        response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
+                        response.setBody(storeToJson(rsp));
+                    } else {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Internal error");
+                    }
+
+                    return;
+                } else if (Common::starts_with(url, tx_mempool_detailed_method)) {
+                    auto it = s_handlers.find("/get_mempool_detailed");
+                    if (!it->second.allowBusyCore && !isCoreReady())
+                    {
+                        response.setStatus(HttpResponse::STATUS_500);
+                        response.setBody("Core is busy");
+                        return;
+                    }
+                    COMMAND_RPC_GET_MEMPOOL::request req;
+                    COMMAND_RPC_GET_MEMPOOL::response rsp;
+                    bool r = f_on_mempool_json(req, rsp);
                     if (r) {
                         response.addHeader("Content-Type", "application/json");
                         response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
@@ -599,11 +624,11 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest &request, HttpResponse &
                 "get_mempool",
                 { makeMemberMethod(&RpcServer::f_on_transactions_pool_json), false }
             },{
+                "get_mempool_detailed",
+                { makeMemberMethod(&RpcServer::f_on_mempool_json), false }
+            },{
                 "f_pool_json",
                 { makeMemberMethod(&RpcServer::f_on_pool_json), false }
-            },{
-                "f_mempool_json",
-                { makeMemberMethod(&RpcServer::f_on_mempool_json), false }
             },{
                 "k_transactions_by_payment_id",
                 { makeMemberMethod(&RpcServer::k_on_transactions_by_payment_id), false }
@@ -2141,7 +2166,8 @@ bool RpcServer::f_on_mempool_json(
         mempool_transaction.max_used_block_id = Common::podToHex(txd.maxUsedBlock.id);
         mempool_transaction.last_failed_height = txd.lastFailedBlock.height;
         mempool_transaction.last_failed_id = Common::podToHex(txd.lastFailedBlock.id);
-        res.mempool.push_back(mempool_transaction);
+        mempool_transaction.tx_json = storeToJson(txd.tx);
+        res.transactions.push_back(mempool_transaction);
     }
 
     res.status = CORE_RPC_STATUS_OK;
