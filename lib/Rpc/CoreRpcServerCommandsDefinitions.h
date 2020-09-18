@@ -134,25 +134,56 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
     {
         void serialize(ISerializer &s)
         {
-            KV_MEMBER(startBlock)
-            KV_MEMBER(additor)
-            KV_MEMBER(sigCut)
-        };
+            KV_MEMBER(heights)
+            KV_MEMBER(as_hex)
+            KV_MEMBER(as_json)
+            KV_MEMBER(include_miner_txs)
+            KV_MEMBER(range)
+        }
 
-        uint32_t startBlock;
-        uint32_t additor = 100;
-        bool sigCut;
+        std::vector<uint32_t> heights;
+        bool include_miner_txs;
+        bool range;
+        bool as_hex;
+        bool as_json;
+    };
+
+    struct entry
+    {
+        void serialize(ISerializer &s)
+        {
+            KV_MEMBER(tx_hash)
+            KV_MEMBER(as_hex)
+            KV_MEMBER(as_json)
+            KV_MEMBER(double_spend_seen)
+            KV_MEMBER(block_height)
+            KV_MEMBER(block_timestamp)
+            KV_MEMBER(output_indices)
+        }
+
+        std::string tx_hash;
+        std::string as_hex;
+        std::string as_json;
+        bool double_spend_seen;
+        uint64_t block_height;
+        uint64_t block_timestamp;
+        std::vector<uint64_t> output_indices;
     };
 
     struct response
     {
         void serialize(ISerializer &s)
         {
+            KV_MEMBER(missed_tx)
+            KV_MEMBER(txs)
             KV_MEMBER(status)
-            KV_MEMBER(transactions)
         }
 
-        std::vector<TransactionDetails2> transactions;
+        // in both old and new
+        std::list<std::string> missed_tx;   //not found transactions
+
+        // new style
+        std::vector<entry> txs;
         std::string status;
     };
 };
