@@ -379,8 +379,8 @@ void RpcServer::processRequest(const HttpRequest &request, HttpResponse &respons
                 std::string block_hash_method = "/api/block/hash/";
                 std::string tx_hash_method = "/api/transaction/";
                 std::string payment_id_method = "/api/payment_id/";
-                std::string tx_mempool_method = "/api/mempool/";
-                std::string tx_mempool_detailed_method = "/api/mempool_detailed/";
+                std::string tx_mempool_method = "/api/mempool";
+                std::string tx_mempool_detailed_method = "/api/mempool/detailed";
 
                 if (Common::starts_with(url, block_height_method))
                 {
@@ -1593,6 +1593,8 @@ bool RpcServer::onGetTransactionsByHeights(
 
             Crypto::Hash blockHash;
             uint32_t blockHeight;
+            uint64_t fee;
+            get_tx_fee(tx, fee);
 
             Crypto::Hash txHash = *vHi++;
             e.tx_hash = *txHi++;
@@ -1609,6 +1611,7 @@ bool RpcServer::onGetTransactionsByHeights(
             e.block_height = blockHeight;
             e.block_timestamp = m_core.getBlockTimestamp(blockHeight);
             e.double_spend_seen = false;
+            e.fee = fee;
         }
 
 
