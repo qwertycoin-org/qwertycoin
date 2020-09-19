@@ -155,6 +155,7 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
             KV_MEMBER(tx_hash)
             KV_MEMBER(as_hex)
             KV_MEMBER(as_json)
+            KV_MEMBER(fee)
             KV_MEMBER(double_spend_seen)
             KV_MEMBER(block_height)
             KV_MEMBER(block_timestamp)
@@ -164,6 +165,7 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
         std::string tx_hash;
         std::string as_hex;
         Transaction as_json;
+        uint64_t fee;
         bool double_spend_seen;
         uint64_t block_height;
         uint64_t block_timestamp;
