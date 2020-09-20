@@ -1531,7 +1531,7 @@ bool RpcServer::onGetTransactionsByHeights(
 
             uint32_t upperBorder = std::min(req.heights[1], m_core.get_current_blockchain_height());
 
-            for (size_t i = 0; i < (upperBorder - req.heights[0]) + 1; i++) {
+            for (size_t i = 0; i < (upperBorder - req.heights[0]); i++) {
                 Block blk;
                 Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[0]+i);
 
