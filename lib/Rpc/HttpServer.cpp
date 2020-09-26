@@ -58,7 +58,7 @@ void HttpServer::start(const std::string &address,
     workingContextGroup.spawn(std::bind(&HttpServer::acceptLoop, this));
 
     if (!user.empty() || !password.empty()) {
-        m_credentials = Common::base64Decode(user + ":" + password);
+        m_credentials = Common::base64Encode(user + ":" + password);
     }
 }
 
