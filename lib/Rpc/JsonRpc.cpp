@@ -71,7 +71,7 @@ void invokeJsonRpcCommand(HttpClient &httpClient,
     HttpResponse httpRes;
 
     if (!user.empty() || !password.empty()) {
-        httpReq.addHeader("Authorization", "Basic " + Common::base64Decode(user + ":" + password));
+        httpReq.addHeader("Authorization", "Basic " + Common::base64Encode(user + ":" + password));
     }
 
     httpReq.addHeader("Content-Type", "application/json");
