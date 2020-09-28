@@ -20,11 +20,13 @@
 #pragma once
 
 #include <boost/utility/value_init.hpp>
-#include "CryptoNoteCore/CryptoNoteBasic.h"
-#include "CryptoNoteCore/CryptoNoteSerialization.h"
-#include "Serialization/BinaryOutputStreamSerializer.h"
-#include "Serialization/BinaryInputStreamSerializer.h"
 
+#include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <CryptoNoteCore/CryptoNoteSerialization.h>
+#include <CryptoNoteCore/LMDB/BinaryArrayDataType.h>
+
+#include <Serialization/BinaryOutputStreamSerializer.h>
+#include <Serialization/BinaryInputStreamSerializer.h>
 namespace Logging {
 
 class ILogger;
@@ -208,5 +210,17 @@ void get_tx_tree_hash(const std::vector<Crypto::Hash> &tx_hashes, Crypto::Hash &
 Crypto::Hash get_tx_tree_hash(const std::vector<Crypto::Hash> &tx_hashes);
 Crypto::Hash get_tx_tree_hash(const Block &b);
 bool is_valid_decomposed_amount(uint64_t amount);
+
+bool parseAndValidateTxFromBlob(const CryptoNote::blobData &txBlob,
+                                CryptoNote::Transaction &tx,
+                                Crypto::Hash &txHash,
+                                Crypto::Hash &txPrefixHash);
+bool parseAndValidateTxFromBlob(const CryptoNote::blobData &txBlob,
+                                CryptoNote::Transaction &tx);
+bool parseAndValidateBlockFromBlob(const CryptoNote::blobData &bBlob,
+                                   CryptoNote::Block &b);
+CryptoNote::blobData blockToBlob(const CryptoNote::Block &b);
+CryptoNote::blobData txToBlob(const CryptoNote::Transaction &tx);
+bool txToBlob(const CryptoNote::Transaction &tx, CryptoNote::blobData &txBlob);
 
 } // namespace CryptoNote

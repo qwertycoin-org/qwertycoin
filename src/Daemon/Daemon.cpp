@@ -227,6 +227,8 @@ int main(int argc, char *argv[])
         command_line::add_arg(desc_cmd_only, arg_os_version);
         // tools::get_default_data_dir() can't be called during static initialization
         command_line::add_arg(desc_cmd_only, command_line::arg_data_dir, Tools::getDefaultDataDirectory());
+        command_line::add_arg(desc_cmd_only, command_line::arg_db_type, Tools::getDefaultDBType());
+        command_line::add_arg(desc_cmd_only, command_line::arg_db_sync_mode, Tools::getDefaultDBSyncMode());
         command_line::add_arg(desc_cmd_only, arg_config_file);
 
         command_line::add_arg(desc_cmd_sett, arg_log_file);
@@ -265,6 +267,8 @@ int main(int argc, char *argv[])
 
             std::string data_dir = command_line::get_arg(vm, command_line::arg_data_dir);
             std::string config = command_line::get_arg(vm, arg_config_file);
+            std::string db_type = command_line::get_arg(vm, command_line::arg_db_type);
+            std::string db_sync_mode = command_line::get_arg(vm, command_line::arg_db_sync_mode);
 
             boost::filesystem::path data_dir_path(data_dir);
             boost::filesystem::path config_path(config);
@@ -348,8 +352,12 @@ int main(int argc, char *argv[])
                 << CryptoNote::CRYPTONOTE_NAME << "d --" << arg_print_genesis_tx.name;
             return 1;
         }
+
+        std::unique_ptr<BlockchainDB> fakeDB(newDB(Tools::getDefaultDBType()));
         CryptoNote::Currency currency = currencyBuilder.currency();
         CryptoNote::core ccore(
+            fakeDB,
+            nullptr,
             currency,
             nullptr,
             logManager,
@@ -422,8 +430,22 @@ int main(int argc, char *argv[])
         logger(INFO) << "P2p server initialized OK";
 
         // initialize core here
+        bool loadExisting = false;
+        boost::filesystem::path folder(coreConfig.configFolder);
+        r = coreConfig.dbType == "lmdb";
+        if (!r) {
+            if (boost::filesystem::exists(folder / "blockindexes.bin")) {
+                loadExisting = true;
+            }
+        } else if (r) {
+            boost::filesystem::path dbFolder = folder / "lmdb";
+            if (boost::filesystem::exists(dbFolder / "data.mdb")) {
+                loadExisting = true;
+            }
+        }
+
         logger(INFO) << "Initializing core...";
-        if (!ccore.init(coreConfig, minerConfig, true)) {
+        if (!ccore.init(coreConfig, minerConfig, loadExisting)) {
             logger(ERROR, BRIGHT_RED) << "Failed to initialize core";
             return 1;
         }

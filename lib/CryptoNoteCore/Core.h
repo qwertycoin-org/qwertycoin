@@ -49,11 +49,12 @@ class core : public ICore,
              public ITxPoolObserver
 {
 public:
-    core(
-        const Currency &currency,
-        i_cryptonote_protocol *pprotocol,
-        Logging::ILogger &logger,
-        bool blockchainIndexesEnabled);
+    core(std::unique_ptr<BlockchainDB> &db,
+         Hardfork *hf,
+         const Currency &currency,
+         i_cryptonote_protocol *pprotocol,
+         Logging::ILogger &logger,
+         bool blockchainIndexesEnabled);
     ~core() override;
 
     bool on_idle() override;
@@ -98,6 +99,7 @@ public:
     static void init_options(boost::program_options::options_description &desc);
     bool init(const CoreConfig &config, const MinerConfig &minerConfig, bool load_existing);
     bool set_genesis_block(const Block &b);
+    void safeSyncMode(const bool onoff);
     bool deinit();
 
     // ICore
@@ -236,6 +238,7 @@ public:
     bool getBlockByHash(const Crypto::Hash &h, Block &blk) override;
     bool getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeight) override;
 
+    bool storeBlockchain();
     bool get_alternative_blocks(std::list<Block> &blocks);
     size_t get_alternative_blocks_count();
 
@@ -299,12 +302,29 @@ public:
     void setBlocksToFind(uint64_t blocksToFind);
 
 private:
+    size_t addChain(const std::vector<const IBlock*>& chain, BlockchainDB& db);
+    bool handleIncomingTransaction(const Transaction& tx,
+                                   const Crypto::Hash& txHash,
+                                   size_t blobSize,
+                                   tx_verification_context& tvc,
+                                   bool keptByBlock,
+                                   uint32_t height,
+                                   bool loose_check,
+                                   BlockchainDB& db);
     bool add_new_tx(
         const Transaction &tx,
         const Crypto::Hash &tx_hash,
         size_t blob_size,
         tx_verification_context &tvc,
         bool keeped_by_block);
+    bool add_new_tx(
+            const Transaction &tx,
+            const Crypto::Hash &tx_hash,
+            size_t blob_size,
+            tx_verification_context &tvc,
+            bool keeped_by_block,
+            BlockchainDB &db);
+    bool handle_incoming_tx(const BinaryArray& tx_blob, tx_verification_context& tvc, bool keeped_by_block, bool loose_check, BlockchainDB& db); //Deprecated. Should be removed with CryptoNoteProtocolHandler.
     bool load_state_data();
     bool parse_tx_from_blob(
         Transaction &tx,
@@ -314,6 +334,7 @@ private:
     bool handle_incoming_block(
         const Block &b,
         block_verification_context &bvc,
+        BlockchainDB& db,
         bool control_miner,
         bool relay_block);
 
@@ -332,6 +353,7 @@ private:
     // check if tx is not sending unmixable outputs
     bool check_tx_unmixable(const Transaction &tx, uint32_t height);
 
+    bool handleBlockFound(Block& b);
     bool update_miner_block_template();
     bool handle_command_line(const boost::program_options::variables_map &vm);
     bool check_tx_inputs_keyimages_diff(const Transaction &tx);
@@ -349,7 +371,7 @@ private:
 
     size_t median(std::vector<size_t> &v);
 
-private:
+    BlockchainDB *mDb;
     const Currency &m_currency;
     Logging::LoggerRef logger;
     CryptoNote::RealTimeProvider m_timeProvider;
@@ -358,6 +380,8 @@ private:
     i_cryptonote_protocol *m_pprotocol;
     std::unique_ptr<miner> m_miner;
     std::string m_config_folder;
+    std::string dbSyncMode;
+    std::string mDbType;
     cryptonote_protocol_stub m_protocol_stub;
     std::atomic<bool> m_starter_message_showed;
     Tools::ObserverManager<ICoreObserver> m_observerManager;

@@ -1,6 +1,6 @@
 # Boost
 
-set(Boost_COMPONENTS chrono date_time filesystem program_options serialization)
+set(Boost_COMPONENTS atomic chrono coroutine context date_time filesystem program_options regex serialization system thread)
 
 if(MSVC)
     add_definitions(-DBOOST_ALL_NO_LIB)
