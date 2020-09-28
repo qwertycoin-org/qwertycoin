@@ -48,12 +48,47 @@ std::vector<Crypto::Hash> BlockIndex::getBlockIds(uint32_t startBlockIndex, uint
     return result;
 }
 
+std::vector<Crypto::Hash> BlockIndex::getBlockIds(uint32_t startBlockIndex,
+                                                  uint32_t maxCount,
+                                                  BlockchainDB& db) const {
+    std::vector<Crypto::Hash> result;
+    if (startBlockIndex >= m_container.size()) {
+        return result;
+    }
+
+    size_t count = std::min(static_cast<size_t>(maxCount), m_container.size() - static_cast<size_t>(startBlockIndex));
+    result.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        result.push_back(m_container[startBlockIndex + i]);
+    }
+
+    return result;
+}
+
 bool BlockIndex::findSupplement(const std::vector<Crypto::Hash> &ids, uint32_t &offset) const
 {
     for (const auto &id : ids) {
         if (getBlockHeight(id, offset)) {
             return true;
         }
+    }
+
+    return false;
+}
+
+bool BlockIndex::findSupplement(const std::vector<Crypto::Hash>& ids,
+                                uint32_t& offset,
+                                BlockchainDB& db) const {
+    // TODO: Check if this should return a vector by reference for offset
+    for (const auto& id : ids) {
+        try {
+            offset = db.getBlockHeight(id);
+        } catch (...) {
+            std::exception e;
+            throw e;
+            return false;
+        }
+        return true;
     }
 
     return false;
@@ -76,6 +111,22 @@ std::vector<Crypto::Hash> BlockIndex::buildSparseChain(const Crypto::Hash &start
         result.emplace_back(m_container[0]);
     }
 
+    return result;
+}
+
+std::vector<Crypto::Hash> BlockIndex::buildSparseChain(const Crypto::Hash& startBlockId, BlockchainDB& db) const {
+
+    uint32_t startBlockHeight = db.getBlockHeight(startBlockId);
+
+    std::vector<Crypto::Hash> result;
+    size_t sparseChainEnd = static_cast<size_t>(startBlockHeight + 1);
+    for (size_t i = 1; i <= sparseChainEnd; i *= 2) {
+        result.emplace_back(db.getBlockHashFromHeight(sparseChainEnd - i));
+    }
+
+    if (result.back() != m_container[0]) {
+        result.emplace_back(m_container[0]);
+    }
     return result;
 }
 

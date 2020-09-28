@@ -271,6 +271,16 @@ std::string get_nix_version_display_string()
 }
 #endif
 
+std::string getDefaultDBType()
+{
+    return "lmdb";
+}
+
+std::string getDefaultDBSyncMode()
+{
+    return "fastest:async:10000";
+}
+
 std::string get_os_version_string()
 {
 #ifdef WIN32

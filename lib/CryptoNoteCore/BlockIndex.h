@@ -21,6 +21,7 @@
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/random_access_index.hpp>
 #include <crypto/hash.h>
+#include <CryptoNoteCore/LMDB/BlockchainDB.h>
 
 namespace CryptoNote {
 
@@ -28,14 +29,6 @@ class ISerializer;
 
 class BlockIndex
 {
-    typedef boost::multi_index_container <
-        Crypto::Hash,
-        boost::multi_index::indexed_by<
-            boost::multi_index::random_access<>,
-            boost::multi_index::hashed_unique<boost::multi_index::identity<Crypto::Hash>>
-        >
-    > ContainerT;
-
 public:
     BlockIndex()
         : m_index(m_container.get<1>())
@@ -82,14 +75,26 @@ public:
     }
 
     Crypto::Hash getBlockId(uint32_t height) const;
+    Crypto::Hash getBlockId(uint32_t height, BlockchainDB& db) const;
     std::vector<Crypto::Hash> getBlockIds(uint32_t startBlockIndex, uint32_t maxCount) const;
+    std::vector<Crypto::Hash> getBlockIds(uint32_t startBlockIndex, uint32_t maxCount, BlockchainDB& db) const;
     bool findSupplement(const std::vector<Crypto::Hash> &ids, uint32_t &offset) const;
+    bool findSupplement(const std::vector<Crypto::Hash>& ids, uint32_t& offset, BlockchainDB& db) const;
     std::vector<Crypto::Hash> buildSparseChain(const Crypto::Hash &startBlockId) const;
+    std::vector<Crypto::Hash> buildSparseChain(const Crypto::Hash& startBlockId, BlockchainDB& db) const;
     Crypto::Hash getTailId() const;
 
     void serialize(ISerializer &s);
 
 private:
+    typedef boost::multi_index_container <
+            Crypto::Hash,
+            boost::multi_index::indexed_by<
+                    boost::multi_index::random_access<>,
+                    boost::multi_index::hashed_unique<boost::multi_index::identity<Crypto::Hash>>
+            >
+    > ContainerT;
+
     ContainerT m_container;
     ContainerT::nth_index<1>::type &m_index;
 };

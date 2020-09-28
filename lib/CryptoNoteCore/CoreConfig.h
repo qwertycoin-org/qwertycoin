@@ -33,6 +33,12 @@ public:
 
     std::string configFolder;
     bool configFolderDefaulted = true;
+
+    std::string dbType;
+    bool dbTypeDefaulted = true;
+
+    std::string dbSyncMode;
+    bool dbSyncModeDefaulted = true;
 };
 
 } // namespace CryptoNote

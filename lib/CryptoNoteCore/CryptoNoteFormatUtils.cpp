@@ -736,4 +736,58 @@ bool is_valid_decomposed_amount(uint64_t amount) {
     return true;
 }
 
+bool parseAndValidateTxFromBlob(const CryptoNote::blobData &txBlob,
+                                CryptoNote::Transaction &tx,
+                                Crypto::Hash &txHash,
+                                Crypto::Hash &txPrefixHash)
+{
+    std::stringstream ss;
+    ss << txBlob;
+    BinaryArray ba = fromHex(ss.str().c_str());
+    ba.pop_back();
+
+    return parseAndValidateTransactionFromBinaryArray(ba, tx, txHash, txPrefixHash);
+}
+
+bool parseAndValidateTxFromBlob(const CryptoNote::blobData &txBlob,
+                                CryptoNote::Transaction &tx)
+{
+    BinaryArray ba = asBinaryArray(txBlob.c_str());
+    ba.pop_back();
+    Crypto::Hash txHash, txPrefixHash;
+
+    return parseAndValidateTransactionFromBinaryArray(ba, tx, txHash, txPrefixHash);
+}
+
+bool parseAndValidateBlockFromBlob(const CryptoNote::blobData &bBlob,
+                                   CryptoNote::Block &b)
+{
+    std::stringstream ss;
+    ss << bBlob;
+    BinaryArchive<true> ba(ss);
+
+    return Serial::serialize(ba, b);
+}
+
+CryptoNote::blobData blockToBlob(const CryptoNote::Block &b)
+{
+    BinaryArray ba = storeToBinary(b);
+
+    return Common::asString(ba);
+}
+
+CryptoNote::blobData txToBlob(const CryptoNote::Transaction &tx)
+{
+    BinaryArray ba = storeToBinary(tx);
+
+    return Common::asString(ba);
+}
+
+bool txToBlob(const CryptoNote::Transaction &tx, CryptoNote::blobData &txBlob)
+{
+    BinaryArray ba = storeToBinary(tx);
+    txBlob = Common::asString(ba);
+    return !txBlob.empty();
+}
+
 } // namespace CryptoNote
