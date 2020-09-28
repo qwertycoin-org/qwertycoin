@@ -169,6 +169,8 @@ set(QwertycoinFramework_Common_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Common/StringUtils.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/StringView.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/StringView.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ThreadPool.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/ThreadPool.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/Util.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Common/Util.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/Varint.h"
@@ -288,6 +290,8 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Currency.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Difficulty.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Difficulty.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Hardfork.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/Hardfork.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlock.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/IBlockchainStorageObserver.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/ICore.h"
@@ -318,11 +322,24 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/UpgradeDetector.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/VerificationContext.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BinaryArchive.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BinaryArrayDataType.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BinaryArrayDataType.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BlockchainDB.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BlockchainDB.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/DBTypes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/DatabaseLMDB.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/DatabaseLMDB.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/Structures.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/TestLMDB.h"
 )
 
 set(QwertycoinFramework_CryptoNoteCore_LIBS
+    Boost::atomic
     Boost::filesystem
     Boost::program_options
+    Boost::thread
+    lmdb
     sparsehash::sparsehash
     QwertycoinFramework::BlockchainExplorer
     QwertycoinFramework::Common
@@ -623,6 +640,10 @@ set(QwertycoinFramework_Serialization_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationOverloads.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationOverloads.h"
     "${CMAKE_CURRENT_LIST_DIR}/Serialization/SerializationTools.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/Boost/BoostSerializationHelper.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/Boost/CryptoNoteBoostSerialization.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/Boost/portable_binary_iarchive.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Serialization/Boost/portable_binary_oarchive.h"
 )
 
 add_library(QwertycoinFramework_Serialization STATIC ${QwertycoinFramework_Serialization_SOURCES})
