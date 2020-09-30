@@ -1241,7 +1241,7 @@ bool NodeServer::handle_remote_peerlist(const std::list<PeerlistEntry> &peerlist
         << "REMOTE PEERLIST: TIME_DELTA: " << delta
         << ", remote peerlist size=" << peerlist_.size();
 
-    logger(Logging::TRACE)
+    logger(Logging::EVERYTHING)
         << context
         << "REMOTE PEERLIST: " <<  print_peerlist_to_string(peerlist_);
 
@@ -1867,12 +1867,15 @@ void NodeServer::writeHandler(P2pConnectionContext &ctx)
               logger(DEBUGGING) << ctx << "msg " << msg.type << ':' << msg.command;
               switch (msg.type) {
               case P2pMessage::COMMAND:
+                  logger(TRACE) << ctx << "msg " << msg.type << ": COMMAND.";
                   proto.sendMessage(msg.command, msg.buffer, true);
                   break;
               case P2pMessage::NOTIFY:
+                  logger(TRACE) << ctx << "msg " << msg.type << ": NOTIFY.";
                   proto.sendMessage(msg.command, msg.buffer, false);
                   break;
               case P2pMessage::REPLY:
+                  logger(TRACE) << ctx << "msg " << msg.type << ": REPLY.";
                   proto.sendReply(msg.command, msg.buffer, msg.returnCode);
                   break;
               default:

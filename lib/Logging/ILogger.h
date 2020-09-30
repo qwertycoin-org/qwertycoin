@@ -33,7 +33,8 @@ enum Level
     WARNING = 2,
     INFO = 3,
     DEBUGGING = 4,
-    TRACE = 5
+    TRACE = 5,
+    EVERYTHING = 6
 };
 
 extern const std::string BLUE;

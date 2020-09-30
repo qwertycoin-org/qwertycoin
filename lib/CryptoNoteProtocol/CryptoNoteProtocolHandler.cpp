@@ -21,6 +21,8 @@
 #include <future>
 #include <boost/scope_exit.hpp>
 #include <boost/uuid/uuid_io.hpp>
+
+#include <CryptoNoteCore/Blockchain.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
@@ -132,15 +134,20 @@ bool CryptoNoteProtocolHandler::start_sync(CryptoNoteConnectionContext &context)
     logger(Logging::TRACE) << context << "Starting synchronization";
 
     if (context.m_state == CryptoNoteConnectionContext::state_synchronizing) {
-        assert(context.m_needed_objects.empty());
+        //assert(context.m_needed_objects.empty());
 
-        assert(context.m_requested_objects.empty());
-
+        //assert(context.m_requested_objects.empty());
+        context.m_needed_objects.clear();
+        context.m_requested_objects.clear();
         NOTIFY_REQUEST_CHAIN::request r = boost::value_initialized<NOTIFY_REQUEST_CHAIN::request>();
         r.block_ids = m_core.buildSparseChain();
+        logger(Logging::TRACE) << "showing every Blockid form m_core.buildSparseChain() L142";
+        for (auto blockid : r.block_ids) {
+            logger(Logging::TRACE) << "BlockID: " << blockid;
+        }
         logger(Logging::TRACE)
             << context
-            << "-->>NOTIFY_REQUEST_CHAIN: m_block_ids.size()=" << r.block_ids.size();
+            << "-->>NOTIFY_REQUEST_CHAIN: m_block_ids.size()=" << r.block_ids.size() << " L148";
         post_notify<NOTIFY_REQUEST_CHAIN>(*m_p2p, r, context);
     }
 
@@ -338,7 +345,9 @@ int CryptoNoteProtocolHandler::handle_notify_new_block(int command,
     }
 
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
-    m_core.handle_incoming_block_blob(asBinaryArray(arg.b.block), bvc, true, false);
+    Block b;
+    bool parse = parseAndValidateBlockFromBlob(arg.b.block, b);
+    m_core.handle_incoming_block(b, bvc, m_core.getBlockchainStorage().getDb(), true, false);
     if (bvc.m_verification_failed) {
         logger(Logging::DEBUGGING) << context << "Block verification failed, dropping connection";
         m_p2p->drop_connection(context, true);
@@ -472,6 +481,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
 
     context.m_remote_blockchain_height = arg.current_blockchain_height;
 
+    m_core.getBlockchainStorage().prepareHandleIncomingBlocks(arg.blocks);
     size_t count = 0;
     for (const block_complete_entry& block_entry : arg.blocks) {
         ++count;
@@ -549,6 +559,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
     uint32_t height;
     Crypto::Hash top;
     m_core.get_blockchain_top(height, top);
+    m_core.getBlockchainStorage().storeBlockchain();
     logger(DEBUGGING, BRIGHT_GREEN) << "Local blockchain updated, new height = " << height;
 
     if (!m_stop && context.m_state == CryptoNoteConnectionContext::state_synchronizing) {
@@ -588,7 +599,7 @@ int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext &conte
 
         // process block
         block_verification_context bvc = boost::value_initialized<block_verification_context>();
-        m_core.handle_incoming_block_blob(asBinaryArray(block_entry.block), bvc, false, false);
+        m_core.handle_incoming_block_blob(asBinaryArray(block_entry.block), bvc, true, false);
 
         if (bvc.m_verification_failed) {
             logger(Logging::DEBUGGING)
@@ -649,11 +660,15 @@ int CryptoNoteProtocolHandler::handle_request_chain(int command,
         return 1;
     }
 
-      NOTIFY_RESPONSE_CHAIN_ENTRY::request r;
-      r.m_block_ids = m_core.findBlockchainSupplement(arg.block_ids,
-                                                      BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT,
-                                                      r.total_height,
-                                                      r.start_height);
+    NOTIFY_RESPONSE_CHAIN_ENTRY::request r;
+    bool blocks = false;
+    if (Tools::getDefaultDBType() == "lmdb") {
+        blocks = m_core.getBlockchainStorage().findBlockchainSupplement(arg.block_ids, r);
+    } else {
+        blocks = m_core.getBlockchainStorage().findBlockchainSupplement(arg.block_ids);
+    }
+
+    r.m_block_ids = arg.block_ids;
 
     logger(Logging::TRACE)
         << context
@@ -718,6 +733,7 @@ bool CryptoNoteProtocolHandler::request_missing_objects(CryptoNoteConnectionCont
         on_connection_synchronized();
     }
 
+    m_core.safeSyncMode(true);
     return true;
 }
 
@@ -793,7 +809,7 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
         }
     }
 
-    request_missing_objects(context, false);
+    request_missing_objects(context, true);
 
     return 1;
 }
