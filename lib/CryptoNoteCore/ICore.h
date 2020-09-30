@@ -49,6 +49,8 @@ struct MultisignatureInput;
 struct KeyInput;
 struct TransactionPrefixInfo;
 struct tx_verification_context;
+class Blockchain;
+class BlockchainDB;
 
 class ICore
 {
@@ -65,16 +67,21 @@ public:
     virtual bool on_idle() = 0;
     virtual void pause_mining() = 0;
     virtual void update_block_template_and_resume_mining() = 0;
-    virtual bool handle_incoming_block_blob(
-        const CryptoNote::BinaryArray &block_blob,
-        CryptoNote::block_verification_context &bvc,
-        bool control_miner,
-        bool relay_block) = 0;
+    virtual bool handle_incoming_block_blob(const CryptoNote::BinaryArray& block_blob,
+                                            CryptoNote::block_verification_context& bvc,
+                                            bool control_miner,
+                                            bool relay_block) = 0;
+    virtual bool handle_incoming_block(const Block& block,
+                                       CryptoNote::block_verification_context& bvc,
+                                       BlockchainDB& db,
+                                       bool control_miner,
+                                       bool relay_block) = 0;
     virtual bool handle_get_objects( // TODO: Deprecated. Should be removed with CryptoNoteProtocolHandler.
         NOTIFY_REQUEST_GET_OBJECTS_request &arg,
         NOTIFY_RESPONSE_GET_OBJECTS_request &rsp) = 0;
     virtual void on_synchronized() = 0;
     virtual size_t addChain(const std::vector<const IBlock*>& chain) = 0;
+    virtual void safeSyncMode(const bool onoff) = 0;
 
     virtual void get_blockchain_top(uint32_t &height, Crypto::Hash &top_id) = 0;
     virtual std::vector<Crypto::Hash> findBlockchainSupplement(
@@ -217,6 +224,7 @@ public:
     virtual bool removeMessageQueue(MessageQueue<BlockchainMessage> &messageQueue) = 0;
 
     virtual void rollbackBlockchain(const uint32_t height) = 0;
+    virtual Blockchain& getBlockchainStorage() = 0;
 };
 
 } // namespace CryptoNote

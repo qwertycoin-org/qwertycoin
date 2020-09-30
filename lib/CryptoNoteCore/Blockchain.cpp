@@ -627,6 +627,8 @@ bool Blockchain::init(const std::string &config_folder,
         return false;
     }
 
+    bool lmdb = Tools::getDefaultDBType() != "lmdb";
+
     m_config_folder = config_folder;
     std::unique_ptr<BlockchainDB> db(newDB(dbType));
 
@@ -670,7 +672,7 @@ bool Blockchain::init(const std::string &config_folder,
                 return false;
             }
         } else {
-            Crypto::Hash firstBlockHash = get_block_hash(m_blocks[0].bl);
+            Crypto::Hash firstBlockHash = get_block_hash(lmdb ? m_blocks[0].bl : mDb->getBlockFromHeight(0));
             if (!(firstBlockHash == m_currency.genesisBlockHash())) {
                 logger(ERROR, BRIGHT_RED)
                         << "Failed to init: genesis block mismatch. "
@@ -700,6 +702,7 @@ bool Blockchain::init(const std::string &config_folder,
             if (!mDb->mOpen) {
                 return false;
             }
+            logger(INFO, BRIGHT_WHITE) << "Opened DB...";
         } catch (std::exception &e) {
             logger(ERROR,BRIGHT_RED)
                     << "Something went wrong when opening DB! Closing to prevent issues";
@@ -764,7 +767,6 @@ bool Blockchain::init(const std::string &config_folder,
                                              "Probably you set --testnet flag with data "
                                              "dir with non-test blockchain or another "
                                              "network.";
-                DB_TX_STOP
                 return false;
             }
         }
@@ -907,7 +909,7 @@ bool Blockchain::init(const std::string &config_folder,
 
     logger(INFO, BRIGHT_GREEN)
             << "Blockchain initialized. last block: "
-            << (storageType ? (m_blocks.size() - 1) : (mDb->height() - 1))
+            << (storageType ? (m_blocks.size()) : (mDb->height()))
             << ", "
             << Common::timeIntervalToString(timestamp_diff)
             << " time ago, current difficulty: " << getDifficultyForNextBlock(0);
@@ -1102,7 +1104,7 @@ Crypto::Hash Blockchain::getTailId(uint32_t &height)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     if (Tools::getDefaultDBType() != "lmdb") {
-        height - getCurrentBlockchainHeight() - 1;
+        height = getCurrentBlockchainHeight() - 1;
     } else {
         height = getCurrentBlockchainHeight();
     }
@@ -1170,7 +1172,7 @@ std::vector<Crypto::Hash> Blockchain::doBuildSparseChain(const Crypto::Hash &sta
         }
     } else {
         if (mDb->blockExists(startBlockId)) {
-            sparseChain = m_blockIndex.buildSparseChain(R ? hash : startBlockId);
+            sparseChain = m_blockIndex.buildSparseChain((R ? hash : startBlockId), *mDb);
         }
     }
 
@@ -1196,7 +1198,7 @@ std::vector<Crypto::Hash> Blockchain::doBuildSparseChain(const Crypto::Hash &sta
         assert(!sparseChain.empty());
         assert(m_blockIndex.hasBlock(blockchainAncestor));
 
-        std::vector<Crypto::Hash> sparseMainChain=m_blockIndex.buildSparseChain(blockchainAncestor);
+        std::vector<Crypto::Hash> sparseMainChain=m_blockIndex.buildSparseChain(blockchainAncestor, *mDb);
         sparseChain.reserve(sparseChain.size() + sparseMainChain.size());
         std::copy(sparseMainChain.begin(), sparseMainChain.end(), std::back_inserter(sparseChain));
     }
