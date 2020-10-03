@@ -984,8 +984,8 @@ difficulty_type Currency::nextDifficultyV5(
     }
 
     // minimum limit
-    if (nextDiffV5 < 100000) {
-        nextDiffV5 = 100000;
+    if (nextDiffV5 < 10000000) {
+        nextDiffV5 = 10000000;
     }
     if(isTestnet()){
         nextDiffV5 = 10000;
