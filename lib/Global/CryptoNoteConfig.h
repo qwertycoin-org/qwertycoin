@@ -244,8 +244,9 @@ const char *const SEED_NODES[] = {
     "node-03.qwertycoin.org:8196",
     "node-04.qwertycoin.org:8196",
     "node-05.qwertycoin.org:8196",//exp
-    "94.130.187.117:8196" //06
+    "94.130.187.117:8196", //06
     "116.203.51.103:8196",//07
+    "148.251.115.233:8196"
 };
 
 } // namespace CryptoNote
