@@ -137,6 +137,7 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
             KV_MEMBER(heights)
             KV_MEMBER(as_hex)
             KV_MEMBER(as_json)
+            KV_MEMBER(as_tx_detail)
             KV_MEMBER(include_miner_txs)
             KV_MEMBER(range)
         }
@@ -146,6 +147,7 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
         bool range;
         bool as_hex;
         bool as_json;
+        bool as_tx_detail;
     };
 
     struct entry
@@ -160,6 +162,7 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
             KV_MEMBER(block_height)
             KV_MEMBER(block_timestamp)
             KV_MEMBER(output_indices)
+            KV_MEMBER(tx_detail)
         }
 
         std::string tx_hash;
@@ -169,7 +172,8 @@ struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
         bool double_spend_seen;
         uint64_t block_height;
         uint64_t block_timestamp;
-        std::vector<uint64_t> output_indices;
+        std::vector<uint32_t> output_indices;
+        TransactionDetails2 tx_detail;
     };
 
     struct response

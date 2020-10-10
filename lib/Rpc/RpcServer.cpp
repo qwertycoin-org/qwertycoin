@@ -1600,6 +1600,7 @@ bool RpcServer::onGetTransactionsByHeights(
             e.tx_hash = *txHi++;
 
             bool r = m_core.getBlockContainingTx(txHash, blockHash, blockHeight);
+            bool oR = m_core.get_tx_outputs_gindexs(txHash, e.output_indices);
             if (req.as_hex) {
                 e.as_hex = podToHex(tx);
             }
@@ -1613,7 +1614,6 @@ bool RpcServer::onGetTransactionsByHeights(
             e.double_spend_seen = false;
             e.fee = fee;
         }
-
 
         if (txs.empty() || !missedTxs.empty()) {
             std::ostringstream oss;
