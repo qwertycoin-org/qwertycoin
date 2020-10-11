@@ -292,7 +292,8 @@ namespace CryptoNote {
 					std::string block_height_method = "/api/block/height/";
 					std::string block_hash_method = "/api/block/hash/";
 					// transactions
-					std::string tx_hash_method = "/api/transaction/";
+					std::string tx_height_method = "/api/transaction/height/";
+					std::string tx_hash_method = "/api/transaction/hash/";
 					std::string tx_mempool_method = "/api/mempool";
 					std::string tx_mempool_detailed_method = "/api/mempool/detailed";
 					std::string payment_id_method = "/api/payment_id/";
@@ -346,7 +347,65 @@ namespace CryptoNote {
 						}
 						return;
 					}
+					else if (Common::starts_with(url, tx_height_method)) {
+						std::string hash_str = url.substr(tx_height_method.size());
+						uint32_t tempInt = std::stoi(hash_str);
+						auto it = s_handlers.find("/get_transactions_by_heights");
+						if (!it->second.allowBusyCore && !isCoreReady()) {
+							response.setStatus(HttpResponse::STATUS_500);
+							response.setBody("Core is busy");
+							return;
+						}
 
+						Block blk;
+						std::vector<Crypto::Hash> vh;
+						uint32_t upperBorder = std::min(tempInt, m_core.get_current_blockchain_height());
+						Crypto::Hash blockHash = m_core.getBlockIdByHeight(upperBorder);
+
+						if (!m_core.getBlockByHash(blockHash, blk)) {
+							throw JsonRpc::JsonRpcError{CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+														"Internal error: can't get block by hash. Hash = "
+														+ podToHex(blockHash) + '.'};
+						}
+
+						if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
+							throw JsonRpc::JsonRpcError{
+									CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+									"Internal error: coinbase transaction in the block has the wrong type"
+							};
+						}
+
+						for (Crypto::Hash &bTxs : blk.transactionHashes) {
+							vh.push_back(bTxs);
+						}
+
+						vh.push_back(getObjectHash(blk.baseTransaction));
+
+						std::list<Crypto::Hash> missedTxs;
+						std::list<Transaction> txs;
+
+						m_core.getTransactions(vh, txs, missedTxs, true);
+
+						logger(DEBUGGING) << "Found " << txs.size() << "/" << vh.size()
+										  << " transactions on the blockchain.";
+
+						TransactionDetails2 transactionsDetails;
+
+						bool r = m_core.fillTransactionDetails(txs.back(), transactionsDetails);
+						if (r) {
+							response.addHeader("Content-Type", "application/json");
+							response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
+							response.setBody(storeToJson(transactionsDetails));
+						}
+						else {
+							response.setStatus(HttpResponse::STATUS_500);
+							response.setBody("Internal error");
+							throw JsonRpc::JsonRpcError{CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+														"Internal error: can't fill transaction details."};
+						}
+
+						return;
+					}
 					else if (Common::starts_with(url, tx_hash_method)) {
 						std::string hash_str = url.substr(tx_hash_method.size());
 						auto it = s_handlers.find("/get_transaction_details_by_hash");
