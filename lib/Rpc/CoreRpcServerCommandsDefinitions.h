@@ -120,6 +120,28 @@ namespace CryptoNote {
 		};
 	};
 
+	struct TxWithOutputGlobalIndices
+	{
+		void serialize(ISerializer &s)
+		{
+			KV_MEMBER(transaction)
+			KV_MEMBER(hash)
+			KV_MEMBER(block_hash)
+			KV_MEMBER(height)
+			KV_MEMBER(fee)
+			KV_MEMBER(timestamp)
+			KV_MEMBER(output_indexes)
+		}
+
+		TransactionPrefix transaction;
+		Crypto::Hash hash;
+		Crypto::Hash block_hash;
+		uint32_t height;
+		uint64_t fee;
+		uint64_t timestamp;
+		std::vector<uint32_t> output_indexes;
+	};
+
 	struct COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS
 	{
 		struct request
@@ -172,6 +194,54 @@ namespace CryptoNote {
 
 			// new style
 			std::vector<entry> txs;
+			std::string status;
+		};
+	};
+
+	struct COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS
+	{
+		struct request
+		{
+			void serialize(ISerializer &s)
+			{
+				KV_MEMBER(heights)
+				KV_MEMBER(includeMinerTxs)
+				KV_MEMBER(range)
+			}
+
+			std::vector<uint32_t> heights;
+			bool includeMinerTxs = true;
+			bool range = false;
+		};
+
+		struct response
+		{
+			void serialize(ISerializer &s)
+			{
+				KV_MEMBER(transactions)
+				KV_MEMBER(missedTxs)
+				KV_MEMBER(status)
+			}
+
+			std::vector<TxWithOutputGlobalIndices> transactions;
+			std::list<std::string> missedTxs;
+			std::string status;
+		};
+	};
+
+	struct COMMAND_RPC_GET_RAW_TRANSACTIONS_FROM_POOL
+	{
+		typedef EMPTY_STRUCT request;
+
+		struct response
+		{
+			void serialize(ISerializer &s)
+			{
+				KV_MEMBER(transactions)
+				KV_MEMBER(status)
+			}
+
+			std::vector<TxWithOutputGlobalIndices> transactions;
 			std::string status;
 		};
 	};

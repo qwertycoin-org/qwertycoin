@@ -1923,6 +1923,35 @@ bool Blockchain::handleGetObjects(
     return true;
 }
 
+bool Blockchain::getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash> &txsIds,
+														std::list<Crypto::Hash> &missedTxs,
+														std::vector<std::pair<Transaction,
+																			  std::vector<uint32_t>>> &txs)
+{
+	std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+
+	for (const auto &txId : txsIds) {
+		auto it = m_transactionMap.find(txId);
+		if (it == m_transactionMap.end()) {
+			missedTxs.push_back(txId);
+		} else {
+			const TransactionEntry &tx = transactionByIndex(it->second);
+			if (!(tx.m_global_output_indexes.size())) {
+				logger(ERROR, BRIGHT_RED)
+					<< "internal error: global indexes for transaction "
+					<< txId
+					<< " is empty";
+
+				return false;
+			}
+
+			txs.push_back(std::make_pair(tx.tx, tx.m_global_output_indexes));
+		}
+	}
+
+	return true;
+}
+
 bool Blockchain::getAlternativeBlocks(std::list<Block>& blocks)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);

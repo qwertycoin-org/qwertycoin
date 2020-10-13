@@ -233,6 +233,10 @@ public:
         std::list<Transaction> &txs,
         std::list<Crypto::Hash> &missed_txs,
         bool checkTxPool = false) override;
+    bool getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash> &txsIds,
+												std::list<Crypto::Hash> &missedTxs,
+												std::vector<std::pair<Transaction,
+																	  std::vector<uint32_t>>> &txs) override;
     bool getBlockByHash(const Crypto::Hash &h, Block &blk) override;
     bool getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeight) override;
 

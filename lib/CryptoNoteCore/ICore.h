@@ -144,6 +144,10 @@ public:
         std::list<Transaction> &txs,
         std::list<Crypto::Hash> &missed_txs,
         bool checkTxPool = false) = 0;
+	virtual bool getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash> &txsIds,
+														std::list<Crypto::Hash> &missedTxs,
+														std::vector<std::pair<Transaction,
+														std::vector<uint32_t>>> &txs) = 0;
     virtual bool getBackwardBlocksSizes(
         uint32_t fromHeight,
         std::vector<size_t> &sizes,

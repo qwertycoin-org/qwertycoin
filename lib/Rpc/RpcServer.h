@@ -143,6 +143,10 @@ namespace CryptoNote {
 				const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
 				COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res);
 
+		bool onGetRawTransactionsByHeights(
+				const COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::request &req,
+				COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::response &res);
+
 		bool onSendRawTx(
 				const COMMAND_RPC_SEND_RAW_TX::request &req,
 				COMMAND_RPC_SEND_RAW_TX::response &res);
