@@ -26,6 +26,7 @@
 #include <BlockchainExplorer/BlockchainExplorerData.h>
 #include <Common/StringTools.h>
 #include <Common/Base58.h>
+#include <Common/HardwareInfo.h>
 #include <Common/Math.h>
 #include <CryptoNoteCore/TransactionUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
@@ -144,157 +145,164 @@ namespace CryptoNote {
 			RpcServer::s_handlers = {
 			// binary handlers
 			{"/getblocks.bin",
-												 {binMethod<COMMAND_RPC_GET_BLOCKS_FAST>(
-														 &RpcServer::onGetBlocks),      false}},
+			 {binMethod<COMMAND_RPC_GET_BLOCKS_FAST>(
+					 &RpcServer::onGetBlocks), false}},
 			{"/queryblocks.bin",
-												 {binMethod<COMMAND_RPC_QUERY_BLOCKS>(
-														 &RpcServer::onQueryBlocks),    false}},
+			 {binMethod<COMMAND_RPC_QUERY_BLOCKS>(
+					 &RpcServer::onQueryBlocks), false}},
 			{"/queryblockslite.bin",
-												 {binMethod<COMMAND_RPC_QUERY_BLOCKS_LITE>(
-														 &RpcServer::onQueryBlocksLite),
-																						false}},
+			 {binMethod<COMMAND_RPC_QUERY_BLOCKS_LITE>(
+					 &RpcServer::onQueryBlocksLite),
+			  false}},
 
 			{"/get_o_indexes.bin",
-												 {binMethod<COMMAND_RPC_GET_TX_GLOBAL_OUTPUTS_INDEXES>(
-														 &RpcServer::onGetIndexes),
-																						false}},
+			 {binMethod<COMMAND_RPC_GET_TX_GLOBAL_OUTPUTS_INDEXES>(
+					 &RpcServer::onGetIndexes),
+			  false}},
 			{"/getrandom_outs.bin",
-												 {binMethod<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS>(
-														 &RpcServer::onGetRandomOuts),
-																						false}},
+			 {binMethod<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS>(
+					 &RpcServer::onGetRandomOuts),
+			  false}},
 			{"/get_pool_changes.bin",
-												 {binMethod<COMMAND_RPC_GET_POOL_CHANGES>(
-														 &RpcServer::onGetPoolChanges), false}},
+			 {binMethod<COMMAND_RPC_GET_POOL_CHANGES>(
+					 &RpcServer::onGetPoolChanges), false}},
 			{"/get_pool_changes_lite.bin",
-												 {binMethod<COMMAND_RPC_GET_POOL_CHANGES_LITE>(
-														 &RpcServer::onGetPoolChangesLite),
-																						false}},
+			 {binMethod<COMMAND_RPC_GET_POOL_CHANGES_LITE>(
+					 &RpcServer::onGetPoolChangesLite),
+			  false}},
 
 			// http handlers
-			{"/",                                {httpMethod<COMMAND_HTTP>(
-					&RpcServer::onGetIndex),                                            true}},
-			{"/supply",                          {httpMethod<COMMAND_HTTP>(
-					&RpcServer::onGetSupply),                                           false}},
-			{"/paymentid",                       {httpMethod<COMMAND_HTTP>(
-					&RpcServer::onGetPaymentId),                                        false}},
+			{"/", {httpMethod<COMMAND_HTTP>(
+					&RpcServer::onGetIndex), true}},
+			{"/supply", {httpMethod<COMMAND_HTTP>(
+					&RpcServer::onGetSupply), false}},
+			{"/paymentid", {httpMethod<COMMAND_HTTP>(
+					&RpcServer::onGetPaymentId), false}},
 
 			// json handlers
-			{"/getinfo",   {jsonMethod<COMMAND_RPC_GET_INFO>(&RpcServer::onGetInfo),                true}},
+			{"/getinfo", {jsonMethod<COMMAND_RPC_GET_INFO>(
+					&RpcServer::onGetInfo), true}},
+			{"/getversion", {jsonMethod<COMMAND_RPC_GET_VERSION>(
+					&RpcServer::onGetVersion), true}},
+			{"/gethardwareinfo", {jsonMethod<COMMAND_RPC_GET_HARDWARE_INFO>(
+					&RpcServer::onGetHardwareInfo), true}},
 			{"/getheight",
-												 {jsonMethod<COMMAND_RPC_GET_HEIGHT>(
-														 &RpcServer::onGetHeight),      true}},
+			 {jsonMethod<COMMAND_RPC_GET_HEIGHT>(
+					 &RpcServer::onGetHeight), true}},
 			{"/gettransactions",
-												 {jsonMethod<COMMAND_RPC_GET_TRANSACTIONS>(
-														 &RpcServer::onGetTransactions),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_TRANSACTIONS>(
+					 &RpcServer::onGetTransactions),
+			  false}},
 			{"/sendrawtransaction",
-												 {jsonMethod<COMMAND_RPC_SEND_RAW_TX>(
-														 &RpcServer::onSendRawTx),      false}},
+			 {jsonMethod<COMMAND_RPC_SEND_RAW_TX>(
+					 &RpcServer::onSendRawTx), false}},
 			{"/feeaddress",
-												 {jsonMethod<COMMAND_RPC_GET_FEE_ADDRESS>(
-														 &RpcServer::onGetFeeAddress),  true}},
+			 {jsonMethod<COMMAND_RPC_GET_FEE_ADDRESS>(
+					 &RpcServer::onGetFeeAddress), true}},
 			{"/peers",
-												 {jsonMethod<COMMAND_RPC_GET_PEER_LIST>(
-														 &RpcServer::onGetPeerList),    true}},
+			 {jsonMethod<COMMAND_RPC_GET_PEER_LIST>(
+					 &RpcServer::onGetPeerList), true}},
 			{"/get_mempool",
-												 {jsonMethod<COMMAND_RPC_GET_POOL>(&RpcServer::onTransactionsPoolJson),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_POOL>(&RpcServer::onTransactionsPoolJson),
+			  false}},
 			{"/get_mempool_detailed",
-												 {jsonMethod<COMMAND_RPC_GET_MEMPOOL>(
-														 &RpcServer::onMempoolJson),    false}},
+			 {jsonMethod<COMMAND_RPC_GET_MEMPOOL>(
+					 &RpcServer::onMempoolJson), false}},
 			{"/getpeers",
-												 {jsonMethod<COMMAND_RPC_GET_PEER_LIST>(
-														 &RpcServer::onGetPeerList),    true}},
+			 {jsonMethod<COMMAND_RPC_GET_PEER_LIST>(
+					 &RpcServer::onGetPeerList), true}},
 			{"/getblocks",
-												 {jsonMethod<COMMAND_RPC_GET_BLOCKS_FAST>(
-														 &RpcServer::onGetBlocks),      false}},
+			 {jsonMethod<COMMAND_RPC_GET_BLOCKS_FAST>(
+					 &RpcServer::onGetBlocks), false}},
 
 			{"/queryblocks",
-												 {jsonMethod<COMMAND_RPC_QUERY_BLOCKS>(
-														 &RpcServer::onQueryBlocks),    false}},
+			 {jsonMethod<COMMAND_RPC_QUERY_BLOCKS>(
+					 &RpcServer::onQueryBlocks), false}},
 			{"/queryblockslite",
-												 {jsonMethod<COMMAND_RPC_QUERY_BLOCKS_LITE>(
-														 &RpcServer::onQueryBlocksLite),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_QUERY_BLOCKS_LITE>(
+					 &RpcServer::onQueryBlocksLite),
+			  false}},
 			{"/queryblocksdetailed",
-												 {jsonMethod<COMMAND_RPC_QUERY_BLOCKS_DETAILED>(
-														 &RpcServer::onQueryBlocksDetailed),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_QUERY_BLOCKS_DETAILED>(
+					 &RpcServer::onQueryBlocksDetailed),
+			  false}},
 
 			{"/get_o_indexes",
-												 {jsonMethod<COMMAND_RPC_GET_TX_GLOBAL_OUTPUTS_INDEXES>(
-														 &RpcServer::onGetIndexes),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_TX_GLOBAL_OUTPUTS_INDEXES>(
+					 &RpcServer::onGetIndexes),
+			  false}},
 			{"/getrandom_outs",
-												 {jsonMethod<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS>(
-														 &RpcServer::onGetRandomOuts),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS>(
+					 &RpcServer::onGetRandomOuts),
+			  false}},
 			{"/get_pool_changes",
-												 {jsonMethod<COMMAND_RPC_GET_POOL_CHANGES>(
-														 &RpcServer::onGetPoolChanges), false}},
+			 {jsonMethod<COMMAND_RPC_GET_POOL_CHANGES>(
+					 &RpcServer::onGetPoolChanges), false}},
 			{"/get_pool_changes_lite",
-												 {jsonMethod<COMMAND_RPC_GET_POOL_CHANGES_LITE>(
-														 &RpcServer::onGetPoolChangesLite),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_POOL_CHANGES_LITE>(
+					 &RpcServer::onGetPoolChangesLite),
+			  false}},
 			{"/get_block_details_by_height",
-												 {jsonMethod<COMMAND_RPC_GET_BLOCK_DETAILS_BY_HEIGHT>(
-														 &RpcServer::onGetBlockDetailsByHeight),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_BLOCK_DETAILS_BY_HEIGHT>(
+					 &RpcServer::onGetBlockDetailsByHeight),
+			  false}},
 			{"/get_block_details_by_hash",
-												 {jsonMethod<COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH>(
-														 &RpcServer::onGetBlockDetailsByHash),
-																						true}},
+			 {jsonMethod<COMMAND_RPC_GET_BLOCK_DETAILS_BY_HASH>(
+					 &RpcServer::onGetBlockDetailsByHash),
+			  true}},
 			{"/get_blocks_details_by_heights",
-												 {jsonMethod<COMMAND_RPC_GET_BLOCKS_DETAILS_BY_HEIGHTS>(
-														 &RpcServer::onGetBlocksDetailsByHeights),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_BLOCKS_DETAILS_BY_HEIGHTS>(
+					 &RpcServer::onGetBlocksDetailsByHeights),
+			  false}},
 			{"/get_blocks_details_by_hashes",
-												 {jsonMethod<COMMAND_RPC_GET_BLOCKS_DETAILS_BY_HASHES>(
-														 &RpcServer::onGetBlocksDetailsByHashes),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_BLOCKS_DETAILS_BY_HASHES>(
+					 &RpcServer::onGetBlocksDetailsByHashes),
+			  false}},
 			{"/get_blocks_hashes_by_timestamps",
-												 {jsonMethod<COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS>(
-														 &RpcServer::onGetBlocksHashesByTimestamps),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS>(
+					 &RpcServer::onGetBlocksHashesByTimestamps),
+			  false}},
 			{"/get_transaction_details_by_hashes",
-												 {jsonMethod<COMMAND_RPC_GET_TRANSACTIONS_DETAILS_BY_HASHES>(
-														 &RpcServer::onGetTransactionsDetailsByHashes),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_TRANSACTIONS_DETAILS_BY_HASHES>(
+					 &RpcServer::onGetTransactionsDetailsByHashes),
+			  false}},
 			{"/get_transaction_details_by_hash",
-												 {jsonMethod<COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH>(
-														 &RpcServer::onGetTransactionDetailsByHash),
-																						true}},
+			 {jsonMethod<COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASH>(
+					 &RpcServer::onGetTransactionDetailsByHash),
+			  true}},
 			{"/get_transactions_by_heights",
-												 {jsonMethod<COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS>(
-														 &RpcServer::onGetTransactionsByHeights),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS>(
+					 &RpcServer::onGetTransactionsByHeights),
+			  false}},
 			{"/get_raw_transactions_by_heights", {jsonMethod<COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS>(
-					&RpcServer::onGetRawTransactionsByHeights),                         false}},
+					&RpcServer::onGetRawTransactionsByHeights), false}},
+			{"/get_raw_transactions_from_pool", {jsonMethod<COMMAND_RPC_GET_RAW_TRANSACTIONS_FROM_POOL>(
+					&RpcServer::onGetRawTransactionPool), false}},
 			{"/get_transaction_hashes_by_payment_id",
-												 {jsonMethod<COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID>(
-														 &RpcServer::onGetTransactionHashesByPaymentId),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID>(
+					 &RpcServer::onGetTransactionHashesByPaymentId),
+			  false}},
 
 			// disabled in restricted rpc mode
 			{"/start_mining",
-												 {jsonMethod<COMMAND_RPC_START_MINING>(
-														 &RpcServer::onStartMining),    false}},
+			 {jsonMethod<COMMAND_RPC_START_MINING>(
+					 &RpcServer::onStartMining), false}},
 			{"/stop_mining",
-												 {jsonMethod<COMMAND_RPC_STOP_MINING>(
-														 &RpcServer::onStopMining),     false}},
+			 {jsonMethod<COMMAND_RPC_STOP_MINING>(
+					 &RpcServer::onStopMining), false}},
 			{"/stop_daemon",
-												 {jsonMethod<COMMAND_RPC_STOP_DAEMON>(
-														 &RpcServer::onStopDaemon),     true}},
+			 {jsonMethod<COMMAND_RPC_STOP_DAEMON>(
+					 &RpcServer::onStopDaemon), true}},
 			{"/get_difficulty_stat",
-												 {jsonMethod<COMMAND_RPC_GET_DIFFICULTY_STAT>(
-														 &RpcServer::onGetDifficultyStat),
-																						false}},
+			 {jsonMethod<COMMAND_RPC_GET_DIFFICULTY_STAT>(
+					 &RpcServer::onGetDifficultyStat),
+			  false}},
 
 			// json rpc
 			{"/json_rpc",
-												 {std::bind(&RpcServer::processJsonRpcRequest, std::placeholders::_1,
-															std::placeholders::_2, std::placeholders::_3),
-																						true}}
+			 {std::bind(&RpcServer::processJsonRpcRequest, std::placeholders::_1,
+						std::placeholders::_2, std::placeholders::_3),
+			  true}}
 	};
 
 	RpcServer::RpcServer(System::Dispatcher &dispatcher, Logging::ILogger &log, core &c,
@@ -330,6 +338,8 @@ namespace CryptoNote {
 					std::string tx_mempool_detailed_method = "/api/mempool/detailed";
 					std::string payment_id_method = "/api/payment_id/";
 					// tools
+					std::string version_method = "/api/tools/version";
+					std::string hardware_info_method = "/api/tools/hardwareinfo";
 
 					if (Common::starts_with(url, block_height_method)) {
 						std::string height_str = url.substr(block_height_method.size());
@@ -519,6 +529,48 @@ namespace CryptoNote {
 						req.paymentId = pid_str;
 						COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::response rsp;
 						bool r = onGetTransactionHashesByPaymentId(req, rsp);
+						if (r) {
+							response.addHeader("Content-Type", "application/json");
+							response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
+							response.setBody(storeToJson(rsp));
+						}
+						else {
+							response.setStatus(HttpResponse::STATUS_500);
+							response.setBody("Internal error");
+						}
+						return;
+					}
+					else if (Common::starts_with(url, version_method)) {
+						auto it = s_handlers.find("/getversion");
+						if (!it->second.allowBusyCore && !isCoreReady()) {
+							response.setStatus(HttpResponse::STATUS_500);
+							response.setBody("Core is busy");
+							return;
+						}
+						COMMAND_RPC_GET_VERSION::request req;
+						COMMAND_RPC_GET_VERSION::response rsp;
+						bool r = onGetVersion(req, rsp);
+						if (r) {
+							response.addHeader("Content-Type", "application/json");
+							response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
+							response.setBody(storeToJson(rsp));
+						}
+						else {
+							response.setStatus(HttpResponse::STATUS_500);
+							response.setBody("Internal error");
+						}
+						return;
+					}
+					else if (Common::starts_with(url, hardware_info_method)) {
+						auto it = s_handlers.find("/gethardwareinfo");
+						if (!it->second.allowBusyCore && !isCoreReady()) {
+							response.setStatus(HttpResponse::STATUS_500);
+							response.setBody("Core is busy");
+							return;
+						}
+						COMMAND_RPC_GET_HARDWARE_INFO::request req;
+						COMMAND_RPC_GET_HARDWARE_INFO::response rsp;
+						bool r = onGetHardwareInfo(req, rsp);
 						if (r) {
 							response.addHeader("Content-Type", "application/json");
 							response.setStatus(HttpResponse::HTTP_STATUS::STATUS_200);
@@ -1367,6 +1419,24 @@ namespace CryptoNote {
 		return true;
 	}
 
+	bool RpcServer::onGetVersion(const COMMAND_RPC_GET_VERSION::request &req,
+								 COMMAND_RPC_GET_VERSION::response &res)
+	{
+		res.version = PROJECT_VERSION_LONG;
+
+		return true;
+	}
+
+	bool RpcServer::onGetHardwareInfo(const COMMAND_RPC_GET_HARDWARE_INFO::request &req,
+									  COMMAND_RPC_GET_HARDWARE_INFO::response &res)
+	{
+		res.coreCount = Tools::CPU::quantities().physical;
+		res.threadCount = Tools::CPU::quantities().logical;
+		res.status = CORE_RPC_STATUS_OK;
+
+		return true;
+	}
+
 	bool RpcServer::onGetHeight(const COMMAND_RPC_GET_HEIGHT::request &req,
 								COMMAND_RPC_GET_HEIGHT::response &res)
 	{
@@ -1534,11 +1604,11 @@ namespace CryptoNote {
 		try {
 			if (req.heights.size() > BLOCK_LIST_MAX_COUNT) {
 				throw JsonRpc::JsonRpcError{
-					CORE_RPC_ERROR_CODE_WRONG_PARAM,
-					std::string("Requested blocks count: ") +
-					std::to_string(req.heights.size()) +
-					" exceeded max limit of " +
-					std::to_string(BLOCK_LIST_MAX_COUNT)
+						CORE_RPC_ERROR_CODE_WRONG_PARAM,
+						std::string("Requested blocks count: ") +
+						std::to_string(req.heights.size()) +
+						" exceeded max limit of " +
+						std::to_string(BLOCK_LIST_MAX_COUNT)
 				};
 			}
 
@@ -1547,8 +1617,8 @@ namespace CryptoNote {
 			if (req.range) {
 				if (req.heights.size() != 2) {
 					throw JsonRpc::JsonRpcError{
-						CORE_RPC_ERROR_CODE_WRONG_PARAM,
-						std::string("The range is set to true but heights size is not equal to 2")
+							CORE_RPC_ERROR_CODE_WRONG_PARAM,
+							std::string("The range is set to true but heights size is not equal to 2")
 					};
 				}
 
@@ -1556,18 +1626,19 @@ namespace CryptoNote {
 				for (size_t i = 0; i < (upperBound - req.heights[0]); i++) {
 					heights.push_back(req.heights[0] + i);
 				}
-			} else {
+			}
+			else {
 				heights = req.heights;
 			}
 
 			for (const uint32_t &height : heights) {
 				if (m_core.get_current_blockchain_height() <= height) {
 					throw JsonRpc::JsonRpcError{
-						CORE_RPC_ERROR_CODE_TOO_BIG_HEIGHT,
-						std::string("To big height: ") +
-						std::to_string(height) +
-						", current blockchain height = " +
-						std::to_string(m_core.get_current_blockchain_height() - 1)
+							CORE_RPC_ERROR_CODE_TOO_BIG_HEIGHT,
+							std::string("To big height: ") +
+							std::to_string(height) +
+							", current blockchain height = " +
+							std::to_string(m_core.get_current_blockchain_height() - 1)
 					};
 				}
 
@@ -1576,17 +1647,18 @@ namespace CryptoNote {
 				std::vector<Crypto::Hash> txsIds;
 				if (!m_core.getBlockByHash(blockHash, blk)) {
 					throw JsonRpc::JsonRpcError{
-						CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-						"Internal error: can't get block by height " +
-						std::to_string(height) +
-						'.'
+							CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+							"Internal error: can't get block by height " +
+							std::to_string(height) +
+							'.'
 					};
 				}
 
 				if (req.includeMinerTxs) {
 					txsIds.reserve(blk.transactionHashes.size() + 1);
 					txsIds.push_back(getObjectHash(blk.baseTransaction));
-				} else {
+				}
+				else {
 					txsIds.reserve(blk.transactionHashes.size());
 				}
 
@@ -1602,8 +1674,8 @@ namespace CryptoNote {
 				if (!txsIds.empty()) {
 					if (!m_core.getTransactionsWithOutputGlobalIndexes(txsIds, missed, txs)) {
 						throw JsonRpc::JsonRpcError{
-							CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-							"Error getting transactions with output global indexes"
+								CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+								"Error getting transactions with output global indexes"
 						};
 					}
 
@@ -1627,18 +1699,39 @@ namespace CryptoNote {
 			}
 		} catch (std::system_error &e) {
 			throw JsonRpc::JsonRpcError{
-				CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-				e.what()
+					CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+					e.what()
 			};
 
 			return false;
-		} catch (std::exception& e) {
+		} catch (std::exception &e) {
 			throw JsonRpc::JsonRpcError{
-				CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-				"Error: " + std::string(e.what())
+					CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+					"Error: " + std::string(e.what())
 			};
 
 			return false;
+		}
+
+		res.status = CORE_RPC_STATUS_OK;
+		return true;
+	}
+
+	bool RpcServer::onGetRawTransactionPool(const COMMAND_RPC_GET_RAW_TRANSACTIONS_FROM_POOL::request &req,
+											COMMAND_RPC_GET_RAW_TRANSACTIONS_FROM_POOL::response &res)
+	{
+		auto pool = m_core.getMemoryPool();
+
+		for (const auto &txd : pool) {
+			res.transactions.push_back(TxWithOutputGlobalIndices());
+			TxWithOutputGlobalIndices &e = res.transactions.back();
+
+			e.hash = txd.id;
+			e.height = boost::value_initialized<uint32_t>();
+			e.block_hash = boost::value_initialized<Crypto::Hash>();
+			e.timestamp = txd.receiveTime;
+			e.transaction = *static_cast<const TransactionPrefix *>(&txd.tx);
+			e.fee = txd.fee;
 		}
 
 		res.status = CORE_RPC_STATUS_OK;

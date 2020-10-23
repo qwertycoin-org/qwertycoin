@@ -131,6 +131,14 @@ namespace CryptoNote {
 				const COMMAND_RPC_GET_INFO::request &req,
 				COMMAND_RPC_GET_INFO::response &res);
 
+		bool onGetVersion(
+				const COMMAND_RPC_GET_VERSION::request &req,
+				COMMAND_RPC_GET_VERSION::response &res);
+
+		bool onGetHardwareInfo(
+				const COMMAND_RPC_GET_HARDWARE_INFO::request &req,
+				COMMAND_RPC_GET_HARDWARE_INFO::response &res);
+
 		bool onGetHeight(
 				const COMMAND_RPC_GET_HEIGHT::request &req,
 				COMMAND_RPC_GET_HEIGHT::response &res);
@@ -146,6 +154,10 @@ namespace CryptoNote {
 		bool onGetRawTransactionsByHeights(
 				const COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::request &req,
 				COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::response &res);
+
+		bool onGetRawTransactionPool(
+				const COMMAND_RPC_GET_RAW_TRANSACTIONS_FROM_POOL::request &req,
+				COMMAND_RPC_GET_RAW_TRANSACTIONS_FROM_POOL::response &res);
 
 		bool onSendRawTx(
 				const COMMAND_RPC_SEND_RAW_TX::request &req,

@@ -502,6 +502,43 @@ namespace CryptoNote {
 		};
 	};
 
+	struct COMMAND_RPC_GET_VERSION
+	{
+		typedef EMPTY_STRUCT request;
+
+		struct response
+		{
+			void serialize(ISerializer &s)
+			{
+				KV_MEMBER(version)
+			}
+
+			std::string version;
+		};
+	};
+
+	struct COMMAND_RPC_GET_HARDWARE_INFO
+	{
+		typedef EMPTY_STRUCT request;
+
+		struct response
+		{
+			void serialize(ISerializer &s)
+			{
+				KV_MEMBER(status)
+				KV_MEMBER(coreCount)
+				KV_MEMBER(threadCount)
+			}
+
+			uint8_t coreCount;
+			uint8_t threadCount;
+			uint32_t ramTotal;
+			uint32_t ramAvailable;
+			uint32_t ramUsage;
+			std::string status;
+		};
+	};
+
 	struct COMMAND_RPC_STOP_MINING
 	{
 		typedef EMPTY_STRUCT request;
