@@ -498,6 +498,9 @@ bool NodeServer::is_remote_host_allowed(const uint32_t address_ip)
 bool NodeServer::ban_host(const uint32_t address_ip, time_t seconds)
 {
     std::unique_lock<std::mutex> lock(mutex);
+
+    logger(WARNING, BRIGHT_YELLOW) << "Banning Host " << Common::ipAddressToString(address_ip);
+
     return block_host(address_ip, seconds);
 }
 
@@ -793,6 +796,7 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
             << "COMMAND_HANDSHAKE Failed, peer is wrong version! ("
             << std::to_string(rsp.node_data.version)
             << "), closing connection.";
+        ban_host(context.m_remote_ip);
         return false;
     } else if ((rsp.node_data.version - CryptoNote::P2P_CURRENT_VERSION) >= CryptoNote::P2P_UPGRADE_WINDOW) {
         logger(Logging::WARNING)
@@ -1508,6 +1512,7 @@ int NodeServer::handle_handshake(int command,
             << "UNSUPPORTED NETWORK AGENT VERSION CONNECTED! version="
             << std::to_string(arg.node_data.version);
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
+		ban_host(context.m_remote_ip);
         return 1;
     } else if (arg.node_data.version > CryptoNote::P2P_CURRENT_VERSION) {
         logger(Logging::WARNING)
