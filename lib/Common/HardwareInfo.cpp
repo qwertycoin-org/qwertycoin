@@ -17,8 +17,14 @@
 #ifdef _WIN32
 
 #define WIN32_LEAN_AND_MEAN
+#include <thread>
 #include <windows.h>
 
+#endif
+
+#if __APPLE__
+#include <sys/param.h>
+#include <sys/sysctl.h>
 #endif
 
 #include <vector>
@@ -86,32 +92,50 @@ Tools::CPU::Architecture Tools::CPU::architecture() noexcept
 Tools::CPU::Quantities Tools::CPU::quantities()
 {
 	Quantities ret{};
-	#ifndef _WIN32
-	#ifndef __APPLE__
-	ret.logical = sysconf(_SC_NPROCESSORS_ONLN);
 
-	std::ifstream cpuinfo("/proc/cpuinfo");
+	#ifdef _WIN32
+		SYSTEM_INFO sysinfo;
+		GetSystemInfo(&sysinfo);
+		ret.logical = sysinfo.dwNumberOfProcessors;
+		ret.physical = ret.logical / 2;
+	#elif __APPLE__
+		int nm[2];
+		size_t len = 4;
+		uint32_t count;
 
-	if (!cpuinfo.is_open() || !cpuinfo) {
-		return ret;
-	}
+		nm[0] = CTL_HW; nm[1] = HW_AVAILCPU;
+		sysctl(nm, 2, &count, &len, NULL, 0);
 
-	std::vector<unsigned int> packageIds;
-	for (std::string line; std::getline(cpuinfo, line);) {
-		if (line.find("physical id") == 0) {
-			const auto physicalId = std::strtoul(line.c_str() + line.find_first_of("1234567890"), nullptr, 10);
-			if (std::find(packageIds.begin(), packageIds.end(), physicalId) == packageIds.end()) {
-				packageIds.emplace_back(physicalId);
+		if(count < 1) {
+		    nm[1] = HW_NCPU;
+		    sysctl(nm, 2, &count, &len, NULL, 0);
+		    if(count < 1) { count = 1; }
+		}
+		ret.logical = count;
+		ret.physical = ret.logical / 2;
+	#else
+		ret.logical = sysconf(_SC_NPROCESSORS_ONLN);
+
+		std::ifstream cpuinfo("/proc/cpuinfo");
+
+		if (!cpuinfo.is_open() || !cpuinfo) {
+			return ret;
+		}
+
+		std::vector<unsigned int> packageIds;
+		for (std::string line; std::getline(cpuinfo, line);) {
+			if (line.find("physical id") == 0) {
+				const auto physicalId = std::strtoul(line.c_str() + line.find_first_of("1234567890"), nullptr, 10);
+				if (std::find(packageIds.begin(), packageIds.end(), physicalId) == packageIds.end()) {
+					packageIds.emplace_back(physicalId);
+				}
 			}
 		}
-	}
 
-	ret.packages = packageIds.size();
-	ret.physical = ret.logical / ret.packages;
-
+		ret.packages = packageIds.size();
+		ret.physical = ret.logical / ret.packages;
+	#endif
 	return ret;
-	#endif
-	#endif
 }
 
 
