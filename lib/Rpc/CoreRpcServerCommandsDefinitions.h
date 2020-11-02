@@ -528,6 +528,7 @@ namespace CryptoNote {
 				KV_MEMBER(status)
 				KV_MEMBER(coreCount)
 				KV_MEMBER(threadCount)
+				KV_MEMBER(architecture)
 			}
 
 			uint8_t coreCount;
@@ -535,6 +536,7 @@ namespace CryptoNote {
 			uint32_t ramTotal;
 			uint32_t ramAvailable;
 			uint32_t ramUsage;
+			std::string architecture;
 			std::string status;
 		};
 	};

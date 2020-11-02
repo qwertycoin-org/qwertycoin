@@ -49,7 +49,7 @@ static std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> cpuinfoBuffer()
 
 #endif
 
-Tools::CPU::Architecture Tools::CPU::architecture() noexcept
+std::string Tools::CPU::architecture() noexcept
 {
 	#ifdef _WIN32
 	SYSTEM_INFO sysInfo;
@@ -73,19 +73,19 @@ Tools::CPU::Architecture Tools::CPU::architecture() noexcept
 	#ifndef _WIN32
 	utsname buf;
 	if (uname(&buf) == -1) {
-		return Architecture::unknown;
+		return "unknown";
 	}
 
 	if (!strcmp(buf.machine, "x86_64"))
-		return Architecture::x64;
+		return "x64";
 	else if (strstr(buf.machine, "arm") == buf.machine)
-		return Architecture::arm;
+		return "ARM";
 	else if (!strcmp(buf.machine, "ia64") || !strcmp(buf.machine, "IA64"))
-		return Architecture::itanium;
+		return "Itanium";
 	else if (!strcmp(buf.machine, "i686"))
-		return Architecture::x86;
+		return "x86";
 	else
-		return Architecture::unknown;
+		return "unknown";
 	#endif
 }
 

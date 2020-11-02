@@ -1432,6 +1432,7 @@ namespace CryptoNote {
 	{
 		res.coreCount = Tools::CPU::quantities().physical;
 		res.threadCount = Tools::CPU::quantities().logical;
+		res.architecture = Tools::CPU::architecture();
 		res.status = CORE_RPC_STATUS_OK;
 
 		return true;

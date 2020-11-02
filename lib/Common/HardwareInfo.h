@@ -126,7 +126,7 @@ namespace Tools {
 		HARDWARE_INFO_LINKAGE Cache cache(unsigned int level);
 
 		// Returns the architecture of the current CPU.
-		HARDWARE_INFO_LINKAGE Architecture architecture() noexcept;
+		HARDWARE_INFO_LINKAGE std::string architecture() noexcept;
 
 		// Returns the current frequency of the current CPU in Hz.
 		HARDWARE_INFO_LINKAGE uint64_t frequency() noexcept;
