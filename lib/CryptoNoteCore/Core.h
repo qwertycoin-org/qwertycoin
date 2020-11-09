@@ -268,6 +268,8 @@ public:
 
     Blockchain &get_blockchain_storage() { return m_blockchain; }
 
+    std::string getConfigFolder() { return m_config_folder; }
+
     // debug functions
     void print_blockchain(uint32_t start_index, uint32_t end_index);
     void print_blockchain_index();
@@ -353,7 +355,6 @@ private:
 
     size_t median(std::vector<size_t> &v);
 
-private:
     const Currency &m_currency;
     Logging::LoggerRef logger;
     CryptoNote::RealTimeProvider m_timeProvider;

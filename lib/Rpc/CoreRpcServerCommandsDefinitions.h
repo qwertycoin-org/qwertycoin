@@ -521,15 +521,24 @@ namespace CryptoNote {
 	{
 		typedef EMPTY_STRUCT request;
 
-		struct response
+		struct CPUEntry
 		{
-			void serialize(ISerializer &s)
+			void serialize (ISerializer &s)
 			{
-				KV_MEMBER(status)
-				KV_MEMBER(uptime)
 				KV_MEMBER(coreCount)
 				KV_MEMBER(threadCount)
 				KV_MEMBER(architecture)
+			}
+
+			uint8_t coreCount;
+			uint8_t threadCount;
+			std::string architecture;
+		};
+
+		struct RAMEntry
+		{
+			void serialize (ISerializer &s)
+			{
 				KV_MEMBER(ramTotal)
 				KV_MEMBER(ramUsedTotal)
 				KV_MEMBER(ramAvailable)
@@ -539,8 +548,6 @@ namespace CryptoNote {
 				KV_MEMBER(ramUsagePhysMax)
 			}
 
-			uint8_t coreCount;
-			uint8_t threadCount;
 			uint32_t ramTotal;
 			uint32_t ramUsedTotal;
 			uint32_t ramAvailable;
@@ -548,9 +555,39 @@ namespace CryptoNote {
 			uint32_t ramUsagePhys;
 			uint32_t ramUsageVirtMax;
 			uint32_t ramUsagePhysMax;
-			std::string architecture;
+		};
+
+		struct SpaceEntry
+		{
+			void serialize (ISerializer &s)
+			{
+				KV_MEMBER(freeSpace)
+				KV_MEMBER(availableSpace)
+				KV_MEMBER(capacitySpace)
+			}
+
+			std::string freeSpace;
+			std::string availableSpace;
+			std::string capacitySpace;
+		};
+
+		struct response
+		{
+			void serialize(ISerializer &s)
+			{
+				KV_MEMBER(status)
+				KV_MEMBER(uptime)
+				KV_MEMBER(cpuInfo)
+				KV_MEMBER(ramInfo)
+				KV_MEMBER(spaceInfo)
+			}
+
+			CPUEntry cpuInfo;
+			RAMEntry ramInfo;
+			SpaceEntry spaceInfo;
 			std::string uptime;
 			std::string status;
+
 		};
 	};
 

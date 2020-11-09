@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/filesystem.hpp>
+
 #if (defined(__APPLE__))
 #	define SYS_MEMINFO_MAC
 
@@ -377,6 +379,31 @@ namespace Tools {
 			#else
 			return std::numeric_limits<double>::quiet_NaN();
 			#endif
+		}
+	}
+
+	namespace Storage {
+		class SpaceInfo
+		{
+		public:
+			inline static uintmax_t freeSpace (boost::filesystem::path path);
+			inline static uintmax_t availableSpace (boost::filesystem::path path);
+			inline static uintmax_t capacitySpace (boost::filesystem::path path);
+		};
+
+		uintmax_t SpaceInfo::freeSpace(boost::filesystem::path path)
+		{
+			return boost::filesystem::space(path).free;
+		}
+
+		uintmax_t SpaceInfo::availableSpace(boost::filesystem::path path)
+		{
+			return boost::filesystem::space(path).available;
+		}
+
+		uintmax_t SpaceInfo::capacitySpace(boost::filesystem::path path)
+		{
+			return boost::filesystem::space(path).capacity;
 		}
 	}
 }

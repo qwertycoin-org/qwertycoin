@@ -1438,21 +1438,26 @@ namespace CryptoNote {
 									   + std::to_string((unsigned int) fmod(uptime, 60.0)) + "s";
 
 		// CPU
-		res.coreCount = Tools::CPU::quantities().physical;
-		res.threadCount = Tools::CPU::quantities().logical;
-		res.architecture = Tools::CPU::architecture();
+		res.cpuInfo.coreCount = Tools::CPU::quantities().physical;
+		res.cpuInfo.threadCount = Tools::CPU::quantities().logical;
+		res.cpuInfo.architecture = Tools::CPU::architecture();
 
 		// RAM
-		res.ramTotal = Tools::Memory::MemInfo::sysMem();
-		res.ramAvailable = Tools::Memory::MemInfo::freeSysMem();
-		res.ramUsageVirt = Tools::Memory::MemInfo::usedVirtMem();
-		res.ramUsagePhys = Tools::Memory::MemInfo::usedPhysMem();
-		res.ramUsageVirtMax = Tools::Memory::MemInfo::usedVirtMemMax();
-		res.ramUsagePhysMax = Tools::Memory::MemInfo::usedPhysMemMax();
+		res.ramInfo.ramTotal = Tools::Memory::MemInfo::sysMem();
+		res.ramInfo.ramAvailable = Tools::Memory::MemInfo::freeSysMem();
+		res.ramInfo.ramUsageVirt = Tools::Memory::MemInfo::usedVirtMem();
+		res.ramInfo.ramUsagePhys = Tools::Memory::MemInfo::usedPhysMem();
+		res.ramInfo.ramUsageVirtMax = Tools::Memory::MemInfo::usedVirtMemMax();
+		res.ramInfo.ramUsagePhysMax = Tools::Memory::MemInfo::usedPhysMemMax();
+
+		// Space
+		boost::filesystem::path configFolderPath(m_core.getConfigFolder());
+		res.spaceInfo.freeSpace = std::to_string(Tools::Storage::SpaceInfo::freeSpace(configFolderPath) / (1 << 20)) + " MB";
+		res.spaceInfo.availableSpace = std::to_string(Tools::Storage::SpaceInfo::availableSpace(configFolderPath) / (1 << 20)) + " MB";
+		res.spaceInfo.capacitySpace = std::to_string(Tools::Storage::SpaceInfo::capacitySpace(configFolderPath) / (1 << 20)) + " MB";
 
 		// other
 		res.uptime = uptime_str;
-
 		res.status = CORE_RPC_STATUS_OK;
 
 		return true;
