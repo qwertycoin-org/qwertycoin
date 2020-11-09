@@ -1430,9 +1430,29 @@ namespace CryptoNote {
 	bool RpcServer::onGetHardwareInfo(const COMMAND_RPC_GET_HARDWARE_INFO::request &req,
 									  COMMAND_RPC_GET_HARDWARE_INFO::response &res)
 	{
+		const std::time_t uptime = std::time(nullptr) - m_core.getStartTime();
+		const std::string uptime_str = std::to_string((unsigned int) floor(uptime / 60.0 / 60.0 / 24.0))
+									   + "d " +
+									   std::to_string((unsigned int) floor(fmod((uptime / 60.0 / 60.0), 24.0))) + "h "
+									   + std::to_string((unsigned int) floor(fmod((uptime / 60.0), 60.0))) + "m "
+									   + std::to_string((unsigned int) fmod(uptime, 60.0)) + "s";
+
+		// CPU
 		res.coreCount = Tools::CPU::quantities().physical;
 		res.threadCount = Tools::CPU::quantities().logical;
 		res.architecture = Tools::CPU::architecture();
+
+		// RAM
+		res.ramTotal = Tools::Memory::MemInfo::sysMem();
+		res.ramAvailable = Tools::Memory::MemInfo::freeSysMem();
+		res.ramUsageVirt = Tools::Memory::MemInfo::usedVirtMem();
+		res.ramUsagePhys = Tools::Memory::MemInfo::usedPhysMem();
+		res.ramUsageVirtMax = Tools::Memory::MemInfo::usedVirtMemMax();
+		res.ramUsagePhysMax = Tools::Memory::MemInfo::usedPhysMemMax();
+
+		// other
+		res.uptime = uptime_str;
+
 		res.status = CORE_RPC_STATUS_OK;
 
 		return true;

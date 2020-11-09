@@ -526,17 +526,30 @@ namespace CryptoNote {
 			void serialize(ISerializer &s)
 			{
 				KV_MEMBER(status)
+				KV_MEMBER(uptime)
 				KV_MEMBER(coreCount)
 				KV_MEMBER(threadCount)
 				KV_MEMBER(architecture)
+				KV_MEMBER(ramTotal)
+				KV_MEMBER(ramUsedTotal)
+				KV_MEMBER(ramAvailable)
+				KV_MEMBER(ramUsageVirt)
+				KV_MEMBER(ramUsagePhys)
+				KV_MEMBER(ramUsageVirtMax)
+				KV_MEMBER(ramUsagePhysMax)
 			}
 
 			uint8_t coreCount;
 			uint8_t threadCount;
 			uint32_t ramTotal;
+			uint32_t ramUsedTotal;
 			uint32_t ramAvailable;
-			uint32_t ramUsage;
+			uint32_t ramUsageVirt;
+			uint32_t ramUsagePhys;
+			uint32_t ramUsageVirtMax;
+			uint32_t ramUsagePhysMax;
 			std::string architecture;
+			std::string uptime;
 			std::string status;
 		};
 	};
