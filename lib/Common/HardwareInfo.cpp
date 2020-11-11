@@ -58,15 +58,15 @@ std::string Tools::CPU::architecture() noexcept
 	switch (sysInfo.wProcessorArchitecture)
 	{
 		case PROCESSOR_ARCHITECTURE_AMD64:
-			return Architecture::x64;
+			return "x64";
 		case PROCESSOR_ARCHITECTURE_ARM:
-			return Architecture::arm;
+			return "ARM";
 		case PROCESSOR_ARCHITECTURE_IA64:
-			return Architecture::itanium;
+			return "Itanium";
 		case PROCESSOR_ARCHITECTURE_INTEL:
-			return Architecture::x86;
+			return "x86";
 		default:
-			return Architecture::unknown;
+			return "unknown";
 	}
 	#endif
 
