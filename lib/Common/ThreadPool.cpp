@@ -32,7 +32,15 @@
 
 #include <Common/ThreadPool.h>
 
+#ifdef WIN32
+
+static __declspec(thread) int depth = 0;
+
+#else
+
 static __thread int depth = 0;
+
+#endif
 
 namespace Tools {
     ThreadPool::ThreadPool()
