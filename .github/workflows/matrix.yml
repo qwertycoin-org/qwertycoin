@@ -216,7 +216,7 @@ jobs:
         run: |
             mkdir build
             cd build
-            cmake -G "Visual Studio 16 2019" -DCMAKE_TOOLCHAIN_FILE="cmake/polly/vs-16-2019-win64.cmake" -DBUILD_ALL:BOOL=TRUE ..
+            cmake -G "Visual Studio 16 2019" -DBUILD_ALL:BOOL=TRUE ..
 
       # Build for Windows
       - name: Build
