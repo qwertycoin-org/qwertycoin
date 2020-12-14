@@ -8,7 +8,7 @@ Group=qwertycoin
 WorkingDirectory=~
 
 Type=forking
-ExecStart=/usr/bin/qwertycoind --config-file /etc/qwertycoind.conf --detach
+ExecStart=/usr/bin/qwertycoind --config-file /etc/Qwertycoin.conf --detach
 
 # This is necessary because qwertycoind does not yet support
 # writing a PID file, which means systemd tries to guess the PID
