@@ -2,24 +2,24 @@
 
 ## Build with 'docker build'
 
-'''bash
+```bash
 git clone https://github.com/qwertycoin-org/qwertycoin.git
 cd qwertycoin
 docker build -t local/qwertycoin:latest
-'''
+```
 
 ### with buildx (multiarch)
 currently only compatible with amd 
-'''
+```bash
 docker buildx build \
 	-t local/qwertycoin \
 	--platform=linux/amd64,linux/arm64,linux/arm/v7,darwin \
 	.
-'''
+```
 
 ## Run
 
-'''bash
+```bash
 docker run -d \
 	-p 8196:8196 \
 	-p 8197:8197 \
@@ -28,32 +28,32 @@ docker run -d \
 	-v /blockchain/path:/blockchain \
 	--name qwertycoin \
 	qwertycoin/qwertycoin:latest
-'''
+```
 
 ## Update
 
-'''bash
+```
 docker stop qwertycoin
 docker rm qwertycoin
 docker pull qwertycoin/qwertycoin
 docker run ... # above mentioned
-'''
+```
 
 ### update easy way
 
 using ["watchtower"](https://github.com/containrrr/watchtower) to update and rerun container
 
-'''bash
+```bash
 docker run -d --rm \
     -v /var/run/docker.sock:/var/run/docker.sock \
     containrrr/watchtower \
     qwertycoin
-'''
+```
 
 ## run with docker-compose
 
 docker-compose.yml
-'''yaml
+```yaml
 version: "3"
 services:
   qwertycoin:
@@ -68,7 +68,7 @@ services:
     volumes:
       - /home/{USER}/.Qwertycoin:/blockchain
       - /home/{USER}/.Qwertycoin/logs:/logs
-'''
+```
 
 ## List of environment variables
 
