@@ -265,7 +265,8 @@ public:
             uint64_t>> getOutputHistorgram(const std::vector<uint64_t> &amounts,
                                            bool unlocked,
                                            uint64_t recentCutoff) const;
-    void doResize(uint64_t sizeIncrease=0);
+    virtual uint64_t getMapSize();
+    virtual void doResize(uint64_t sizeIncrease=0);
 
 private:
     virtual void addBlock(const CryptoNote::Block &block,

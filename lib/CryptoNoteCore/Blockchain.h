@@ -543,6 +543,8 @@ private:
     void removeLastBlock();
     bool checkUpgradeHeight(const UpgradeDetector &upgradeDetector);
 
+    uint16_t blockCounter;
+
     bool mDbDefaultSync;
     void getTxpoolTxs(std::list<Transaction> &txs);
     std::string filenameMDB;

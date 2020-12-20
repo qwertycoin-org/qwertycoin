@@ -474,7 +474,8 @@ protected:
     Hardfork* mHardfork;
 
 public:
-    virtual void doResize();
+    virtual uint64_t getMapSize() = 0;
+    virtual void doResize(uint64_t sizeIncrease=0) = 0;
     friend class BlockchainLMDB;
 
     BlockchainDB() : mOpen(false) {}

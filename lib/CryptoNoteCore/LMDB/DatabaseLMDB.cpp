@@ -429,11 +429,25 @@ inline int lmdbTxnRenew(MDB_txn *txn)
     return res;
 }
 
+uint64_t BlockchainLMDB::getMapSize ()
+{
+    // std::lock_guard<std::recursive_mutex> lockGuard(mSynchronizationLock);
+
+    MDB_envinfo mdbEnvinfo;
+    mdb_env_info(mEnv, &mdbEnvinfo);
+
+    uint64_t mapSize = (double)mdbEnvinfo.me_mapsize;
+
+    return mapSize;
+}
+
 void BlockchainLMDB::doResize(uint64_t sizeIncrease)
 {
     std::lock_guard<std::recursive_mutex> lockGuard(mSynchronizationLock);
 
-    const uint64_t addSize = 64 * Constants::MEGABYTE;
+    const uint64_t addSize = 32 * Constants::MEGABYTE;
+
+    std::cout << "doResize now, adding " << addSize << " MB" << std::endl;
 
     //check disk capacity
     try {

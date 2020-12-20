@@ -149,11 +149,6 @@ void BlockchainDB::setHardFork(Hardfork *hf)
     mHardfork = hf;
 }
 
-void BlockchainDB::doResize()
-{
-    doResize();
-}
-
 void BlockchainDB::popBlock(CryptoNote::Block &blk, std::vector<CryptoNote::Transaction> &txs)
 {
     blk = getTopBlock ();

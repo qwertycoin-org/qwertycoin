@@ -3464,6 +3464,7 @@ bool Blockchain::addNewBlock(const Block &bl, block_verification_context &bvc)
     bool r = Tools::getDefaultDBType() != "lmdb";
 
     if (!r) {
+        logger(DEBUGGING, BRIGHT_RED) << "pre addNewBlockLMDB";
         if (!addNewBlockLMDB(bl, bvc)) {
             return false;
         }
@@ -3766,7 +3767,7 @@ bool Blockchain::pushBlock(
                 auto block_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::steady_clock::now() - blockProcessingStart).count();
                 logger(DEBUGGING)
-                        << "+++++ BLOCK SUCCESSFULLY ADDED" << ENDL
+                        << "+++++ LMDB-BLOCK SUCCESSFULLY ADDED" << ENDL
                         << "id:\t" << blockHash << ENDL
                         << "PoW:\t" << proof_of_work << ENDL
                         << "HEIGHT " << newHeight-1 << ", difficulty:\t" << currentDifficulty << ENDL
@@ -3845,6 +3846,7 @@ bool Blockchain::addNewBlockLMDB(const Block& b, block_verification_context& bvc
 {
     Block bl = b;
     Crypto::Hash id = getObjectHash(bl);
+    logger (DEBUGGING, BRIGHT_YELLOW) << "addNewBlockLMDB";
     DB_TX_START
     if(haveBlock(id))
     {
@@ -3853,7 +3855,9 @@ bool Blockchain::addNewBlockLMDB(const Block& b, block_verification_context& bvc
         DB_TX_STOP
         return false;
     }
-    if (mDb->height() & 255 == 0) {
+    logger(DEBUGGING, BRIGHT_MAGENTA) << "checkResize height: " << ((mDb->height() % 100) == 0);
+    if ((mDb->height() % 100) == 0) {
+        logger(DEBUGGING, BRIGHT_MAGENTA) << "resize LMDB now";
         mDb->doResize();
     }
 
@@ -4873,6 +4877,18 @@ bool Blockchain::prepareHandleIncomingBlocks(const std::vector<block_complete_en
         {
             bytes += tx_blob.size();
         }
+        blockCounter++;
+    }
+
+    logger(DEBUGGING, BRIGHT_MAGENTA) << "checkResize height: " << blockCounter;
+    logger (DEBUGGING, BRIGHT_MAGENTA) << "mDb->height(): " << mDb->height();
+    logger (DEBUGGING, BRIGHT_MAGENTA) << "DB folder: " << mDb->getFilenames()[0];
+    logger (DEBUGGING, BRIGHT_MAGENTA) << "DBFileSize: " << mDb->getMapSize() / Constants::MEGABYTE << " MB";
+
+    if (blockCounter >= 10000) {
+        logger(INFO, BRIGHT_MAGENTA) << "resize LMDB now";
+        mDb->doResize();
+        blockCounter = 0;
     }
 
     mDb->batchStart(blocks_entry.size(), bytes);
@@ -4891,7 +4907,7 @@ bool Blockchain::prepareHandleIncomingBlocks(const std::vector<block_complete_en
         uint64_t height = mDb->height();
         int batches = blocks_entry.size() / threads;
         int extra = blocks_entry.size() % threads;
-        logger(INFO,BRIGHT_WHITE) << "block_batches: " << std::to_string(batches);
+        // logger(INFO,BRIGHT_WHITE) << "block_batches: " << std::to_string(batches);
         std::vector<std::unordered_map<Crypto::Hash, Crypto::Hash>> maps(threads);
         std::vector < std::vector < Block >> blocks(threads);
         auto it = blocks_entry.begin();
