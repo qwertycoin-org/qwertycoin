@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020, The Qwertycoin Group.
+// Copyright (c) 2018-2021, The Qwertycoin Group.
 //
 // Licensed under the GNU General Public License, Version 3.
 // See the file LICENSE from this package for details.
