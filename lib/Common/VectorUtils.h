@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020, The Qwertycoin Group.
+// Copyright (c) 2018-2021, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //

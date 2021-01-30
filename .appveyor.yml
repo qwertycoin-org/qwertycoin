@@ -29,6 +29,7 @@ build_script:
     - cd build
     - >
         cmake -G "%QWC_GENERATOR_NAME%"
+        -DCMAKE_SYSTEM_VERSION="10.0.18362.0"
         -DCMAKE_BUILD_TYPE=%QWC_BUILD_TYPE%
         -DCMAKE_TOOLCHAIN_FILE=%QWC_TOOLCHAIN_FILE_NAME%
         -DBUILD_ALL:BOOL=TRUE
