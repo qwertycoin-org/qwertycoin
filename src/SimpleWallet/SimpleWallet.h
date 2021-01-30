@@ -2,7 +2,7 @@
 // Copyright (c) 2014-2016, XDN developers
 // Copyright (c) 2014-2017, The Monero Project
 // Copyright (c) 2016-2018, The Karbo developers
-// Copyright (c) 2018-2020, The Qwertycoin Group.
+// Copyright (c) 2018-2021, The Qwertycoin Group.
 //
 // All rights reserved.
 //

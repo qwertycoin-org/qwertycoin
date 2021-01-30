@@ -1,7 +1,20 @@
 # Qwertycoin: C++ client, tools and libraries.
-# Copyright 2019 (c) The Qwertycoin Group.
-# Licensed under the GNU General Public License, Version 3.
-# See the file LICENSE from this package for details.
+# Copyright 2019-2021 (c) The Qwertycoin Group.
+#
+# This file is part of Qwertycoin.
+#
+# Qwertycoin is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Qwertycoin is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 cmake_minimum_required(VERSION 3.12)
 
@@ -78,7 +91,7 @@ set(PROJECT_SHORT_NAME "qwcc")
 set(PROJECT_NAME "qwertycoin")
 set(PROJECT_DESCRIPTION "Safe. Simple. Seamless. Secure.")
 set(PROJECT_VERSION "${PROJECT_GIT_TAG}")
-set(PROJECT_COPYRIGHT "Copyright (c) 2018-2020, The Qwertycoin Group.")
+set(PROJECT_COPYRIGHT "Copyright (c) 2018-2021, The Qwertycoin Group.")
 set(PROJECT_VENDOR_NAME "The Qwertycoin Group")
 set(PROJECT_VENDOR_URL "https://qwertycoin.org")
 set(PROJECT_VENDOR_DOMAIN_REVERSED "org.qwertycoin")
