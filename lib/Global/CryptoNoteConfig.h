@@ -3,7 +3,7 @@
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2018, Ryo Currency Project
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2020, The Qwertycoin Group.
+// Copyright (c) 2018-2021, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //
@@ -80,7 +80,6 @@ const uint64_t MAXIMUM_FEE_V2                                 = UINT64_C(10000);
 const uint32_t MINIMUM_FEE_V0_HEIGHT                          = 50710;
 
 // TODO: Check fee Upgrade heights
-const uint32_t MINIMUM_FEE_V1_HEIGHT                          = 800000;
 const uint32_t MINIMUM_FEE_V2_HEIGHT                          = 1000000;
 
 /* This section defines the fees are remote node will receive from the sender */
@@ -99,13 +98,9 @@ const uint64_t MAX_TX_MIXIN_SIZE_V1                           = 20;
 const uint64_t MIN_TX_MIXIN_SIZE_V2                           = 2;
 const uint64_t MAX_TX_MIXIN_SIZE_V2                           = 20;
 
-const uint64_t MIN_TX_MIXIN_SIZE_V3                           = 3;
-const uint64_t MAX_TX_MIXIN_SIZE_V3                           = 3;
-
 /* The heights to activate the mixin limits at */
 const uint32_t MIXIN_LIMITS_V1_HEIGHT                         = 200000;
 const uint32_t MIXIN_LIMITS_V2_HEIGHT                         = 1000000;
-const uint32_t MIXIN_LIMITS_V3_HEIGHT                         = 1200000;
 
 /* Maximum transaction size in byte */
 const uint64_t MAX_TRANSACTION_SIZE_LIMIT                     = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
