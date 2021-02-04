@@ -49,9 +49,9 @@ WORKDIR /src
 COPY . .
 
 RUN set -ex && \
-    mkdir ./build && \
-    cd /src/cmake && \
-    git clone https://github.com/ruslo/polly.git polly
+    mkdir ./build
+#    cd /src/cmake && \
+#    git clone https://github.com/ruslo/polly.git polly
 
 #RUN set -ex && \
 #    git submodule init && git submodule update && \
