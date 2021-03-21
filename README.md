@@ -86,7 +86,7 @@ cmake --build . --config Release
 
 ##### Building
 
-####Visual Studio 2017
+#### Visual Studio 2017
 
 - From the start menu, open "x64 Native Tools Command Prompt for vs2017";
 - And the run the following commands:
@@ -99,7 +99,7 @@ cmake -G "Visual Studio 15 2017 Win64" -DBUILD_ALL:BOOL=TRUE ..
 cmake --build . --config Release
 ```
 
-####Visual Studio 2019
+#### Visual Studio 2019
 
 - From the start menu, open "x64 Native Tools Command Prompt for vs2017";
 - And the run the following commands:
