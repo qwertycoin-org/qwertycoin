@@ -80,7 +80,7 @@ COPY --from=builder /src/build/src/ /usr/local/bin/
 RUN mkdir -p /app /blockchain /logs
 
 
-COPY ./entrypoint.sh /app/entrypoint.sh
+COPY ./utils/docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 VOLUME /blockchain
