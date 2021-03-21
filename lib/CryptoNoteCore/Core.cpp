@@ -165,6 +165,13 @@ void core::getTransactions(
     m_blockchain.getTransactions(txs_ids, txs, missed_txs, checkTxPool);
 }
 
+bool core::getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash> &txsIds,
+												  std::list<Crypto::Hash> &missedTxs,
+												  std::vector<std::pair<Transaction, std::vector<uint32_t>>> &txs)
+{
+	return m_blockchain.getTransactionsWithOutputGlobalIndexes(txsIds, missedTxs, txs);
+}
+
 bool core::get_alternative_blocks(std::list<Block> &blocks)
 {
     return m_blockchain.getAlternativeBlocks(blocks);

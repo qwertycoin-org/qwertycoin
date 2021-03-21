@@ -233,6 +233,10 @@ public:
         std::list<Transaction> &txs,
         std::list<Crypto::Hash> &missed_txs,
         bool checkTxPool = false) override;
+    bool getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash> &txsIds,
+												std::list<Crypto::Hash> &missedTxs,
+												std::vector<std::pair<Transaction,
+																	  std::vector<uint32_t>>> &txs) override;
     bool getBlockByHash(const Crypto::Hash &h, Block &blk) override;
     bool getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeight) override;
 
@@ -263,6 +267,8 @@ public:
     void update_block_template_and_resume_mining() override;
 
     Blockchain &get_blockchain_storage() { return m_blockchain; }
+
+    std::string getConfigFolder() { return m_config_folder; }
 
     // debug functions
     void print_blockchain(uint32_t start_index, uint32_t end_index);
@@ -349,7 +355,6 @@ private:
 
     size_t median(std::vector<size_t> &v);
 
-private:
     const Currency &m_currency;
     Logging::LoggerRef logger;
     CryptoNote::RealTimeProvider m_timeProvider;

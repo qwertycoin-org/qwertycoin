@@ -177,7 +177,8 @@ set(QwertycoinFramework_Common_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Common/int-util.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/pod-class.h"
     "${CMAKE_CURRENT_LIST_DIR}/Common/static_assert.h"
-)
+    "${CMAKE_CURRENT_LIST_DIR}/Common/HardwareInfo.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Common/HardwareInfo.h")
 
 set(QwertycoinFramework_Common_LIBS
     Threads::Threads
