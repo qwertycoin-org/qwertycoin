@@ -486,6 +486,7 @@ bool tx_memory_pool::fill_block_template(
 
     total_size = 0;
     fee = 0;
+    uint8_t maxTxCount = 125;
 
     size_t max_total_size = (125 * median_size) / 100;
     max_total_size = std::min(max_total_size, maxCumulativeSize) - m_currency.minerTxBlobReservedSize();
@@ -494,6 +495,10 @@ bool tx_memory_pool::fill_block_template(
 
     for (auto it = m_fee_index.rbegin(); it != m_fee_index.rend() && it->fee == 0; ++it) {
         const auto &txd = *it;
+
+        if (blockTemplate.getTransactions().size() > maxTxCount) {
+            break;
+        }
 
         if (m_ttlIndex.count(txd.id) > 0) {
             continue;
@@ -513,6 +518,10 @@ bool tx_memory_pool::fill_block_template(
 
     for (auto i = m_fee_index.begin(); i != m_fee_index.end(); ++i) {
         const auto &txd = *i;
+
+        if (blockTemplate.getTransactions().size() > maxTxCount) {
+            break;
+        }
 
         if (m_ttlIndex.count(txd.id) > 0) {
             continue;
