@@ -26,7 +26,7 @@
 namespace CryptoNote {
 
 template<class t_array>
-struct array_hasher : std::unary_function<t_array &, size_t>
+struct array_hasher
 {
     size_t operator()(const t_array &val) const
     {
