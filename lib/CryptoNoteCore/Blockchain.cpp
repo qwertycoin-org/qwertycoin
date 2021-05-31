@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <boost/foreach.hpp>
 #include <Common/Math.h>
@@ -559,8 +560,8 @@ bool Blockchain::init(const std::string &config_folder,
 	}
 	else if (Tools::getDefaultDBType(cDBType)) {
 		logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". LMDB";
-		mAsyncWorkIdle = std::unique_ptr<boost::asio::io_service::work> (new boost::asio::io_service::work(mAsyncService));
-		mAsyncPool.create_thread(boost::bind(&boost::asio::io_service::run, &mAsyncService));
+		mAsyncWorkIdle = std::make_unique<boost::asio::io_service::work> (mAsyncService);
+		mAsyncPool.create_thread([ObjectPtr = &mAsyncService] { ObjectPtr->run(); });
 
 		const std::string cFilename = m_config_folder;
 

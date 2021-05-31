@@ -17,6 +17,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <random>
@@ -249,17 +250,9 @@ namespace CryptoNote {
 
 	int BlockchainLMDB::compareString(const MDB_val *a, const MDB_val *b)
 	{
-		const char *va = (const char *) a->mv_data;
-		const char *vb = (const char *) b->mv_data;
-		const size_t sz = std::min(a->mv_size, b->mv_size);
-		int ret = strncmp(va, vb, sz);
-		if (ret)
-			return ret;
-		if (a->mv_size < b->mv_size)
-			return -1;
-		if (a->mv_size > b->mv_size)
-			return 1;
-		return 0;
+        const char *va = (const char*) a->mv_data;
+        const char *vb = (const char*) b->mv_data;
+        return strcmp(va, vb);
 	}
 
 	typedef struct FBlockInfo
