@@ -13,6 +13,7 @@ set(QwertycoinFramework_INCLUDE_DIRS
     "${SPARSEHASH_INCLUDE_DIRS}"
     "${CMAKE_CURRENT_BINARY_DIR}"
     "${CMAKE_CURRENT_LIST_DIR}"
+    "${CMAKE_CURRENT_LIST_DIR}/../external"
     "${CMAKE_CURRENT_LIST_DIR}/../include"
 )
 
