@@ -15,19 +15,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#pragma once
+
 #include <iostream>
 #include <ctime>
 
 #ifdef _WIN32
-#include <winsock2.h>
-#endif
-
-#ifdef WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-
-#include <windows.h>
+#include <Windows.h>
 #endif
 
 #ifdef __MACH__
@@ -35,7 +32,6 @@
 #include <mach/mach.h>
 #endif
 
-#pragma once
 
 namespace Common {
 	inline uint64_t getNanoSeconds()

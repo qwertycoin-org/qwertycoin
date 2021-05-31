@@ -21,7 +21,7 @@
 
 #include <atomic>
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio.hpp>
 
 #include <google/sparse_hash_set>
 #include <google/sparse_hash_map>

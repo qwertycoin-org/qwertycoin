@@ -14,19 +14,6 @@
 
 #endif
 
-#ifdef _WIN32
-
-#define WIN32_LEAN_AND_MEAN
-#include <thread>
-#include <windows.h>
-
-#endif
-
-#if __APPLE__
-#include <sys/param.h>
-#include <sys/sysctl.h>
-#endif
-
 #include <vector>
 
 #include <Common/HardwareInfo.h>
