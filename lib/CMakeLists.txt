@@ -320,11 +320,20 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/UpgradeDetector.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/VerificationContext.h"
-)
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BlockchainDB.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BlockchainDB.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/DBLMDB.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/DBLMDB.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/LMDBBlob.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/LMDBBlob.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/LMDBExceptions.h"
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/Structures.h")
 
 set(QwertycoinFramework_CryptoNoteCore_LIBS
     Boost::filesystem
     Boost::program_options
+    Boost::thread
+    lmdb-adv
     sparsehash::sparsehash
     QwertycoinFramework::BlockchainExplorer
     QwertycoinFramework::Common
