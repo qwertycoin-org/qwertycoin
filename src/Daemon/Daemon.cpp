@@ -26,11 +26,14 @@
 #include <Common/PathTools.h>
 #include <crypto/hash.h>
 #include <Breakpad/Breakpad.h>
+
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/Core.h>
 #include <CryptoNoteCore/CoreConfig.h>
 #include <CryptoNoteCore/Currency.h>
 #include <CryptoNoteCore/MinerConfig.h>
+#include <CryptoNoteCore/LMDB/BlockchainDB.h>
+
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <CryptoNoteProtocol/ICryptoNoteProtocolQuery.h>
 #include <Global/Checkpoints.h>
@@ -228,6 +231,8 @@ int main(int argc, char *argv[])
         // tools::get_default_data_dir() can't be called during static initialization
         command_line::add_arg(desc_cmd_only, command_line::arg_data_dir, Tools::getDefaultDataDirectory());
         command_line::add_arg(desc_cmd_only, arg_config_file);
+        command_line::add_arg(desc_cmd_only, command_line::arg_db_type);
+        command_line::add_arg(desc_cmd_only, command_line::arg_db_sync_mode);
 
         command_line::add_arg(desc_cmd_sett, arg_log_file);
         command_line::add_arg(desc_cmd_sett, arg_log_level);
@@ -265,6 +270,8 @@ int main(int argc, char *argv[])
 
             std::string data_dir = command_line::get_arg(vm, command_line::arg_data_dir);
             std::string config = command_line::get_arg(vm, arg_config_file);
+            std::string cDBType = command_line::get_arg(vm, command_line::arg_db_type);
+            std::string cDBSyncMode = command_line::get_arg(vm, command_line::arg_db_sync_mode);
 
             boost::filesystem::path data_dir_path(data_dir);
             boost::filesystem::path config_path(config);
@@ -348,8 +355,10 @@ int main(int argc, char *argv[])
                 << CryptoNote::CRYPTONOTE_NAME << "d --" << arg_print_genesis_tx.name;
             return 1;
         }
+        std::unique_ptr<BlockchainDB> sFakeDB(newDB(Tools::getDefaultDBType(), logManager));
         CryptoNote::Currency currency = currencyBuilder.currency();
         CryptoNote::core ccore(
+            sFakeDB,
             currency,
             nullptr,
             logManager,
@@ -422,8 +431,24 @@ int main(int argc, char *argv[])
         logger(INFO) << "P2p server initialized OK";
 
         // initialize core here
+        bool bLoadExisting = false;
+        boost::filesystem::path folder(coreConfig.configFolder);
+        // TODO: Make this non-static
+        r = coreConfig.cDBType == "lmdb";
+        if (!r) {
+        	if (boost::filesystem::exists(folder / "blockindexes.bin")) {
+				bLoadExisting = true;
+        	}
+        } else if (r) {
+        	// TODO: Make this non-static
+			boost::filesystem::path cDBFolder = folder / "lmdb";
+			if (boost::filesystem::exists(cDBFolder / "data.mdb")) {
+				bLoadExisting = true;
+			}
+        }
+
         logger(INFO) << "Initializing core...";
-        if (!ccore.init(coreConfig, minerConfig, true)) {
+        if (!ccore.init(coreConfig, minerConfig, bLoadExisting)) {
             logger(ERROR, BRIGHT_RED) << "Failed to initialize core";
             return 1;
         }

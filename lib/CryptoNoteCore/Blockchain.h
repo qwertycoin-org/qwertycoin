@@ -20,10 +20,15 @@
 #pragma once
 
 #include <atomic>
+
+#include <boost/asio/io_service.hpp>
+
 #include <google/sparse_hash_set>
 #include <google/sparse_hash_map>
+
 #include <Common/ObserverManager.h>
 #include <Common/Util.h>
+
 #include <CryptoNoteCore/BlockchainIndices.h>
 #include <CryptoNoteCore/BlockchainMessages.h>
 #include <CryptoNoteCore/BlockIndex.h>
@@ -38,6 +43,8 @@
 #include <CryptoNoteCore/SwappedVector.h>
 #include <CryptoNoteCore/TransactionPool.h>
 #include <CryptoNoteCore/UpgradeDetector.h>
+#include <CryptoNoteCore/LMDB/BlockchainDB.h>
+
 #include <Logging/LoggerRef.h>
 
 #undef ERROR
@@ -56,11 +63,17 @@ class Blockchain : public CryptoNote::ITransactionValidator
 {
 public:
     Blockchain(
+        std::unique_ptr<BlockchainDB> &sDB,
         const Currency &currency,
         tx_memory_pool &tx_pool,
         Logging::ILogger &logger,
         bool blockchainIndexesEnabled
     );
+	bool pushBlock(const Block &blockData, block_verification_context &bvc);
+	bool pushBlock(
+			const Block &blockData,
+			const std::vector<Transaction> &transactions,
+			block_verification_context &bvc);
 
     bool addObserver(IBlockchainStorageObserver *observer);
     bool removeObserver(IBlockchainStorageObserver *observer);
@@ -71,8 +84,17 @@ public:
     bool haveSpentKeyImages(const Transaction &tx) override;
     bool checkTransactionSize(size_t blobSize) override;
 
-    bool init() { return init(Tools::getDefaultDataDirectory(), true); }
-    bool init(const std::string &config_folder, bool load_existing);
+    bool init()
+    {
+    	return init(Tools::getDefaultDataDirectory(),
+				 	Tools::getDefaultDBType(),
+				 	0,
+				 	true);
+    }
+    bool init(const std::string &config_folder,
+			  const std::string &cDBType,
+			  const int &iDBFlags,
+			  bool load_existing);
     bool deinit();
 
     bool getLowerBound(uint64_t timestamp, uint64_t startOffset, uint32_t &height);
@@ -249,8 +271,21 @@ public:
     void rollbackBlockchainTo(uint32_t height);
     bool have_tx_keyimg_as_spent(const Crypto::KeyImage &key_im);
 
-    void rebuildCache();
-    bool storeCache();
+    void safeSyncMode(const bool bOnOFf);
+
+    BlockchainDB *pDB;
+    uint64_t pSyncCounter;
+    uint64_t pDBBlocksPerSync;
+
+    const BlockchainDB &getDB() const
+    {
+        return *pDB;
+    }
+
+    BlockchainDB &getDB()
+    {
+        return *pDB;
+    }
 
 private:
     struct MultisignatureOutputUsage
@@ -327,6 +362,12 @@ private:
     friend class BlockCacheSerializer;
     friend class BlockchainIndicesSerializer;
 
+    std::atomic<bool> mCancel;
+
+    boost::asio::io_service mAsyncService;
+    boost::thread_group mAsyncPool;
+    std::unique_ptr<boost::asio::io_service::work> mAsyncWorkIdle;
+
     Blocks m_blocks;
     CryptoNote::BlockIndex m_blockIndex;
     TransactionMap m_transactionMap;
@@ -347,6 +388,9 @@ private:
 
     Logging::LoggerRef logger;
 
+    void rebuildCache();
+    bool storeCache();
+    bool storeBlockchain();
     bool switch_to_alternative_blockchain(
         std::list<blocks_ext_by_hash::iterator> &alt_chain,
         bool discard_disconnected_chain);
@@ -402,11 +446,6 @@ private:
         uint32_t *pmax_used_block_height = nullptr);
     bool checkTransactionInputs(const Transaction &tx, uint32_t *pmax_used_block_height = nullptr);
     const TransactionEntry &transactionByIndex(TransactionIndex index);
-    bool pushBlock(const Block &blockData, block_verification_context &bvc);
-    bool pushBlock(
-        const Block &blockData,
-        const std::vector<Transaction> &transactions,
-        block_verification_context &bvc);
     bool pushBlock(BlockEntry &block);
     void popBlock();
     bool pushTransaction(
@@ -433,6 +472,9 @@ private:
     void sendMessage(const BlockchainMessage &message);
 
     friend class LockedBlockchainStorage;
+
+    std::string mFilenameMDB;
+    int mFlagsMDB;
 };
 
 class LockedBlockchainStorage: boost::noncopyable

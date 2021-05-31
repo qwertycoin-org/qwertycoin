@@ -150,6 +150,10 @@ const uint32_t UPGRADE_WINDOW                                = EXPECTED_NUMBER_O
 static_assert(UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
+// LMDB
+const char     CRYPTONOTE_BLOCKCHAINDATA_LOCK_FILENAME[]     = "mdb.lock";
+const char     CRYPTONOTE_BLOCKCHAINDATA_FILENAME[]          = "data.mdb";
+
 const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.bin";
 const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.bin";
 const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.bin";

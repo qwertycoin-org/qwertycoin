@@ -27,6 +27,8 @@
 #include <CryptoNoteCore/TransactionExtra.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/Currency.h>
+#include <CryptoNoteCore/VerificationContext.h>
+
 #include <Global/Constants.h>
 #include <Global/CryptoNoteConfig.h>
 #include <Logging/LoggerRef.h>
@@ -735,5 +737,78 @@ bool is_valid_decomposed_amount(uint64_t amount) {
     }
     return true;
 }
+
+	bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+											 CryptoNote::Transaction &sTransaction,
+											 Crypto::Hash &sTransactionHash,
+											 Crypto::Hash &sTransactionPrefixHash)
+	{
+		std::stringstream cStringStream;
+		cStringStream << sTransactionBlob;
+		BinaryArray sBinArr = fromHex(cStringStream.str());
+		sBinArr.pop_back();
+		bool r = parseAndValidateTransactionFromBinaryArray(sBinArr,
+															sTransaction,
+															sTransactionHash,
+															sTransactionPrefixHash);
+
+		return r;
+	}
+
+	bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+											 CryptoNote::Transaction &sTransaction)
+	{
+		BinaryArray sBinArr = asBinaryArray(sTransactionBlob.c_str());
+		sBinArr.pop_back();
+		Crypto::Hash sTransactionHash;
+		Crypto::Hash sTransactionPrefixHash;
+
+		bool r = parseAndValidateTransactionFromBinaryArray(sBinArr,
+															sTransaction,
+															sTransactionHash,
+															sTransactionPrefixHash);
+
+		return r;
+	}
+
+	bool parseAndValidateBlockFromBlob(const CryptoNote::blobData &sBlockBlob,
+									   CryptoNote::Block &sBlock)
+	{
+		std::stringstream cStringStream;
+		cStringStream << sBlockBlob;
+		BinaryArray sBinArr = fromHex(cStringStream.str());
+		sBinArr.pop_back();
+		block_verification_context sBvs = boost::value_initialized<block_verification_context>();
+		bool r = fromBinaryArray(sBlock, sBinArr);
+
+		return r;
+	}
+
+	blobData blockToBlob(const CryptoNote::Block &sBlock)
+	{
+		blobData cBlobData;
+		BinaryArray sBinArr = storeToBinary(sBlock);
+		cBlobData = Common::asString(sBinArr);
+
+		return cBlobData;
+	}
+
+	blobData transactionToBlob(const CryptoNote::Transaction &sTransaction)
+	{
+		blobData cBlobData;
+		BinaryArray sBinArr = storeToBinary(sTransaction);
+		cBlobData = Common::asString(sBinArr);
+
+		return cBlobData;
+	}
+
+	bool transactionToBlob(const CryptoNote::Transaction &sTransaction,
+						   CryptoNote::blobData &sTransactionBlob)
+	{
+		BinaryArray sBinArr = storeToBinary(sTransaction);
+		sTransactionBlob = Common::asString(sBinArr);
+
+		return !sTransactionBlob.empty();
+	}
 
 } // namespace CryptoNote

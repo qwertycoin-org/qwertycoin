@@ -62,6 +62,7 @@ set(QwertycoinTests_CoreTests_LIBS
     Boost::date_time
     Boost::program_options
     Boost::serialization
+    Boost::thread
     codecov
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
@@ -355,6 +356,7 @@ set(QwertycoinTests_UnitTests_SOURCES
 )
 
 set(QwertycoinTests_UnitTests_LIBS
+    Boost::thread
     codecov
     GTest::gtest_main
     QwertycoinFramework::CryptoNoteCore
