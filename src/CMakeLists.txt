@@ -68,6 +68,7 @@ endif()
 
 set(QwertycoinTools_Daemon_LIBS
     Boost::filesystem
+    Boost::thread
     QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore

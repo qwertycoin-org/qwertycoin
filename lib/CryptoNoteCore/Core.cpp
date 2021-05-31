@@ -19,13 +19,19 @@
 
 #include <sstream>
 #include <unordered_set>
+
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/utility/value_init.hpp>
 #include <boost/range/combine.hpp>
+
 #include <Common/CommandLine.h>
 #include <Common/Math.h>
 #include <Common/StringTools.h>
 #include <Common/Util.h>
+
 #include <crypto/crypto.h>
+
 #include <CryptoNoteCore/Core.h>
 #include <CryptoNoteCore/CoreConfig.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
@@ -34,9 +40,13 @@
 #include <CryptoNoteCore/IBlock.h>
 #include <CryptoNoteCore/Miner.h>
 #include <CryptoNoteCore/TransactionExtra.h>
+
 #include <CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h>
+
 #include <Global/CryptoNoteConfig.h>
+
 #include <Logging/LoggerRef.h>
+
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
 
 #undef ERROR
@@ -74,14 +84,16 @@ private:
 };
 
 core::core(
+    std::unique_ptr<BlockchainDB> &sDB,
     const Currency &currency,
     i_cryptonote_protocol *pprotocol,
     Logging::ILogger &logger,
     bool blockchainIndexesEnabled)
-    : m_currency(currency),
+    : mDB(),
+      m_currency(currency),
       logger(logger, "core"),
       m_mempool(currency, m_blockchain, *this, m_timeProvider, logger, blockchainIndexesEnabled),
-      m_blockchain(currency, m_mempool, logger, blockchainIndexesEnabled),
+      m_blockchain(sDB, currency, m_mempool, logger, blockchainIndexesEnabled),
       m_miner(new miner(currency, *this, logger)),
       m_starter_message_showed(false)
 {
@@ -138,8 +150,12 @@ uint8_t core::getBlockMajorVersionForHeight(uint32_t height)
 
 void core::get_blockchain_top(uint32_t &height, Crypto::Hash &top_id)
 {
-    assert(m_blockchain.getCurrentBlockchainHeight() > 0);
-    top_id = m_blockchain.getTailId(height);
+	height = m_blockchain.getCurrentBlockchainHeight();
+	if(!m_blockchain.getCurrentBlockchainHeight()) {
+		top_id = NULL_HASH;
+	} else {
+		top_id = m_blockchain.getTailId(height);
+	}
 }
 
 bool core::get_blocks(
@@ -196,7 +212,106 @@ bool core::init(const CoreConfig &config, const MinerConfig &minerConfig, bool l
         return false;
     }
 
-    r = m_blockchain.init(m_config_folder, load_existing);
+	boost::filesystem::path sFolder(m_config_folder);
+
+	// Make sure the data directory exists, and try to lock it
+	bool bDir = boost::filesystem::exists(sFolder) || boost::filesystem::create_directories(sFolder);
+	assert(bDir == true);
+
+	if (!bDir) {
+		logger(ERROR, BRIGHT_RED) << "Failed to create directory!";
+	}
+
+	try {
+		const boost::filesystem::path sOldFiles = sFolder;
+		if (boost::filesystem::exists(sOldFiles / parameters::CRYPTONOTE_BLOCKINDEXES_FILENAME)) {
+			logger(ERROR, BRIGHT_RED) << "Found old-style " << parameters::CRYPTONOTE_BLOCKS_FILENAME << " in "
+									  << sOldFiles.string();
+			logger(ERROR, BRIGHT_RED) << CRYPTONOTE_NAME << " now uses a new format. Remove "
+									  << parameters::CRYPTONOTE_BLOCKS_FILENAME << " to start syncing";
+
+			return false;
+		} else {
+			mDBType = config.cDBType;
+			mDBSyncMode = config.cDBSyncMode;
+		}
+	} catch (std::exception &e) {
+		logger(ERROR, BRIGHT_RED) << "Exception caught in Core init: " << e.what();
+	}
+
+	std::unique_ptr<BlockchainDB> sDB(newDB(config.cDBType, logger.getLogger()));
+
+	// TODO: Make this non-static
+	if (config.cDBType == "lmdb") {
+		sFolder /= sDB->getDBName();
+	} else {
+		logger(INFO, WHITE) << "Loading blockchain from folder " << sFolder.string() << " ...";
+	}
+
+	EBlockchainDBSyncMode sSyncMode = DBDefaultSync;
+	uint64_t uBlocksPerSync = 1;
+	uint64_t uDBFlags = 0;
+
+	const std::string cFilename = sFolder.string();
+
+	// TODO: Make this non-static
+	if (config.cDBType == "lmdb") {
+		// Default to fast:async:1
+		try {
+			std::vector<std::string> vOptions;
+			mDBSyncMode = Tools::getDefaultDBSyncMode();
+			boost::trim(mDBSyncMode);
+			boost::split(vOptions, mDBSyncMode, boost::is_any_of(" :"));
+
+			// Default to fast:async:1
+			uint64_t DEFAULT_FLAGS = DBF_FAST;
+
+			if (vOptions.size() == 0) {
+				// Default to fast:async:1
+				uDBFlags = DEFAULT_FLAGS;
+			}
+
+			bool bSafeMode = false;
+			if (vOptions.size() >= 1) {
+				if(vOptions[0] == "safe") {
+					bSafeMode = true;
+					uDBFlags = DBF_SAFE;
+					sSyncMode = DBNoSync;
+				} else if (vOptions[0] == "fast") {
+					uDBFlags = DBF_FAST;
+					sSyncMode = DBAsync;
+				} else if (vOptions[0] == "fastest") {
+					uDBFlags = DBF_FASTEST;
+					uBlocksPerSync = 1000;
+					sSyncMode - DBAsync;
+				} else {
+					uDBFlags = DEFAULT_FLAGS;
+				}
+			}
+
+			if (vOptions.size() >= 2) {
+				if (vOptions[1] == "sync") {
+					sSyncMode = DBSync;
+				} else if(vOptions[1] == "async") {
+					sSyncMode = DBAsync;
+				}
+			}
+
+			if (vOptions.size() >= 3) {
+				char *cEndPtr;
+				uint64_t uBPS = strtoull(vOptions[2].c_str(), &cEndPtr, 0);
+				if (*cEndPtr == '\0') {
+					uBlocksPerSync = uBPS;
+				}
+			}
+		} catch (const DB_ERROR &e) {
+			logger(ERROR, BRIGHT_RED) << "Error opening database: " << e.what();
+
+			return false;
+		}
+	}
+
+    r = m_blockchain.init(sFolder.string(), config.cDBType, uDBFlags, load_existing);
     if (!(r)) {
         logger(ERROR, BRIGHT_RED) << "Failed to initialize blockchain storage";
         return false;
@@ -1026,7 +1141,35 @@ bool core::handle_incoming_block(
         pause_mining();
     }
 
-    m_blockchain.addNewBlock(b, bvc);
+    LockedBlockchainStorage sLBS(m_blockchain);
+    block_complete_entry sBlockEntry;
+    std::vector<Transaction> vTransactions;
+    try {
+    	BlockFullInfo sBlockFullInfo;
+		std::list<Transaction> sTransactions;
+		std::list<Crypto::Hash> sMissedTransactionHashes;
+    	sBlockFullInfo.block_id = get_block_hash(b);
+
+    	block_complete_entry &sCompleteEntry = sBlockEntry;
+    	m_blockchain.getTransactions(b.transactionHashes, sTransactions, sMissedTransactionHashes);
+
+    	sCompleteEntry.block = asString(toBinaryArray(b));
+    	for (auto &transaction : sTransactions) {
+    		vTransactions.push_back(transaction);
+    		sCompleteEntry.txs.push_back(asString(toBinaryArray(transaction)));
+    	}
+    } catch (const std::exception &e) {
+    	logger(ERROR, BRIGHT_RED) << "Something went wrong when handling incoming blocks!";
+    }
+
+    sLBS->pushBlock(b, vTransactions, bvc);
+
+    // m_blockchain.addNewBlock(b, bvc);
+    if (bvc.m_verification_failed) {
+    	logger(ERROR, BRIGHT_RED) << "Error: incoming block failed verification!";
+
+    	return false;
+    }
 
     if (control_miner) {
         update_block_template_and_resume_mining();
@@ -1119,8 +1262,15 @@ std::list<CryptoNote::tx_memory_pool::TransactionDetails> core::getMemoryPool() 
 
 std::vector<Crypto::Hash> core::buildSparseChain()
 {
-    assert(m_blockchain.getCurrentBlockchainHeight() != 0);
-    return m_blockchain.buildSparseChain();
+	LockedBlockchainStorage lbs(m_blockchain);
+	std::vector<Crypto::Hash> chain;
+	if (m_blockchain.getCurrentBlockchainHeight() < 1) {
+		chain.push_back(m_currency.genesisBlockHash());
+
+		return chain;
+	}
+
+	return lbs->buildSparseChain();
 }
 
 std::vector<Crypto::Hash> core::buildSparseChain(const Crypto::Hash& startBlockId)

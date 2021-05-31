@@ -255,6 +255,13 @@ void ICoreStub::getTransactions(const std::vector<Crypto::Hash>& txs_ids, std::l
   }
 }
 
+bool ICoreStub::getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash> &txsIds,
+                                                       std::list<Crypto::Hash> &missedTxs,
+                                                       std::vector<std::pair<CryptoNote::Transaction, std::vector<uint32_t>>> &txs)
+{
+    return true;
+}
+
 bool ICoreStub::getBackwardBlocksSizes(uint32_t fromHeight, std::vector<size_t>& sizes, size_t count) {
   return true;
 }

@@ -20,6 +20,7 @@
 #pragma once
 
 #include <boost/utility/value_init.hpp>
+#include <CryptoNoteCore/LMDB/LMDBBlob.h>
 #include "CryptoNoteCore/CryptoNoteBasic.h"
 #include "CryptoNoteCore/CryptoNoteSerialization.h"
 #include "Serialization/BinaryOutputStreamSerializer.h"
@@ -208,5 +209,20 @@ void get_tx_tree_hash(const std::vector<Crypto::Hash> &tx_hashes, Crypto::Hash &
 Crypto::Hash get_tx_tree_hash(const std::vector<Crypto::Hash> &tx_hashes);
 Crypto::Hash get_tx_tree_hash(const Block &b);
 bool is_valid_decomposed_amount(uint64_t amount);
+
+bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+										 CryptoNote::Transaction &sTransaction,
+										 Crypto::Hash &sTransactionHash,
+										 Crypto::Hash &sTransactionPrefixHash);
+bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+										 CryptoNote::Transaction &sTransaction);
+bool parseAndValidateBlockFromBlob(const CryptoNote::blobData &sBlockBlob,
+								   CryptoNote::Block &sBlock);
+CryptoNote::blobData blockToBlob(const CryptoNote::Block &sBlock);
+bool blockToBlob(const CryptoNote::Block &sBlock,
+				 CryptoNote::blobData &sBlockBlob);
+CryptoNote::blobData transactionToBlob(const CryptoNote::Transaction &sTransaction);
+bool transactionToBlob(const CryptoNote::Transaction &sTransaction,
+					   CryptoNote::blobData &sTransactionBlob);
 
 } // namespace CryptoNote

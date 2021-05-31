@@ -21,14 +21,21 @@
 #include <algorithm>
 #include <cstdint>
 #include <ctime>
+
 #include <Common/StringTools.h>
+#include <Common/Util.h>
+
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/Currency.h>
+#include <CryptoNoteCore/LMDB/BlockchainDB.h>
+
 #include <Global/CryptoNoteConfig.h>
+
 #include <Logging/LoggerRef.h>
 
 namespace CryptoNote {
+#define HEIGHT (bIsLMDB ? mDB.height() : m_blockchain.size())
 
 class UpgradeDetectorBase
 {
@@ -51,9 +58,11 @@ public:
     BasicUpgradeDetector(
         const Currency &currency,
         BC &blockchain,
+        BlockchainDB &sDB,
         uint8_t targetVersion,
         Logging::ILogger &log)
-        : m_currency(currency),
+        : mDB(sDB),
+          m_currency(currency),
           m_blockchain(blockchain),
           m_targetVersion(targetVersion),
           m_votingCompleteHeight(UNDEF_HEIGHT),
@@ -153,15 +162,30 @@ public:
 
     void blockPushed()
     {
-        assert(!m_blockchain.empty());
+		bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+		if (bIsLMDB) {
+			logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__ << ". mDB.height(): "
+															 << mDB.height();
+		} else {
+			logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+															 << ". !m_blockchain.empty(): "
+															 << !m_blockchain.empty();
+		}
 
-        if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT) {
-            if (m_blockchain.size() <= m_currency.upgradeHeight(m_targetVersion) + 1) {
-                assert(m_blockchain.back().bl.majorVersion <= m_targetVersion - 1);
-            } else {
-                assert(m_blockchain.back().bl.majorVersion >= m_targetVersion);
-            }
-        } else if (m_votingCompleteHeight != UNDEF_HEIGHT) {
+		if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT) {
+			if (HEIGHT <= m_currency.upgradeHeight(m_targetVersion) + 1) {
+				logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+																 << ((bIsLMDB ? mDB.getTopBlock().majorVersion
+																			  : m_blockchain.back().bl.majorVersion) <=
+																	 m_targetVersion - 1);
+			}
+			else {
+				logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+																 << ((bIsLMDB ? mDB.getTopBlock().majorVersion
+																			  : m_blockchain.back().bl.majorVersion) >=
+																	 m_targetVersion);
+			}
+		} else if (m_votingCompleteHeight != UNDEF_HEIGHT) {
             assert(m_blockchain.size() > m_votingCompleteHeight);
 
             if (m_blockchain.size() <= upgradeHeight()) {
@@ -282,6 +306,7 @@ private:
 private:
     Logging::LoggerRef logger;
     const Currency &m_currency;
+    BlockchainDB &mDB;
     BC &m_blockchain;
     uint8_t m_targetVersion;
     uint32_t m_votingCompleteHeight;

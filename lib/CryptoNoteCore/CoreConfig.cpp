@@ -36,6 +36,20 @@ void CoreConfig::init(const boost::program_options::variables_map &options)
         configFolder = command_line::get_arg(options, command_line::arg_data_dir);
         configFolderDefaulted = options[command_line::arg_data_dir.name].defaulted();
     }
+
+	if (options.count(command_line::arg_db_type.name) != 0 &&
+		(!options[command_line::arg_db_type.name].defaulted() ||
+		cDBType == Tools::getDefaultDBType())) {
+		cDBType = command_line::get_arg(options, command_line::arg_db_type);
+		bDBTypeDefaulted = options[command_line::arg_db_type.name].defaulted();
+	}
+
+	if (options.count(command_line::arg_db_sync_mode.name) != 0 &&
+		(!options[command_line::arg_db_sync_mode.name].defaulted() ||
+		cDBSyncMode == Tools::getDefaultDBSyncMode())) {
+		cDBSyncMode = command_line::get_arg(options, command_line::arg_db_sync_mode);
+		bDBSyncModeDefaulted = options[command_line::arg_db_sync_mode.name].defaulted();
+	}
 }
 
 void CoreConfig::initOptions(boost::program_options::options_description &desc)

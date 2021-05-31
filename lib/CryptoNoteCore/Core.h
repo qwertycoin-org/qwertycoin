@@ -50,6 +50,7 @@ class core : public ICore,
 {
 public:
     core(
+        std::unique_ptr<BlockchainDB> &sDB,
         const Currency &currency,
         i_cryptonote_protocol *pprotocol,
         Logging::ILogger &logger,
@@ -355,6 +356,9 @@ private:
 
     size_t median(std::vector<size_t> &v);
 
+    BlockchainDB *mDB;
+    std::string mDBSyncMode;
+    std::string mDBType;
     const Currency &m_currency;
     Logging::LoggerRef logger;
     CryptoNote::RealTimeProvider m_timeProvider;

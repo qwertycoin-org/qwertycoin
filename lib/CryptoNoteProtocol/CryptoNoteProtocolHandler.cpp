@@ -640,6 +640,13 @@ int CryptoNoteProtocolHandler::handle_request_chain(int command,
         return 1;
     }
 
+	logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "CryptoNoteProtocol::" << __func__
+													 << ". arg.block_ids.back(): "
+													 << arg.block_ids.back();
+	logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "CryptoNoteProtocol::" << __func__
+													 << ". m_core.getBlockIdByHeight(0): "
+													 << m_core.getBlockIdByHeight(0);
+
     if (arg.block_ids.back() != m_core.getBlockIdByHeight(0)) {
         logger(Logging::ERROR)
             << context
