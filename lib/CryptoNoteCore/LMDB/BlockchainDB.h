@@ -462,6 +462,32 @@ namespace CryptoNote {
 		virtual CryptoNote::Block getBlockFromHeight(const uint64_t &uHeight) const;
 
 		/**
+		 * @brief fetch a block's timestamp
+         *
+         * The subclass should return the timestamp of the block with the
+         * given height.
+         *
+         * If the block does not exist, the subclass should throw BLOCK_DNE
+         *
+		 * @param uHeight The height requested
+		 *
+		 * @return The timestamp
+		 */
+		virtual uint64_t getBlockTimestamp(const uint64_t &uHeight) const = 0;
+
+        /**
+         * @brief Fetch the top block's timestamp
+         *
+         * The subclass should return the timestamp of the block with the
+         * given height.
+         *
+         * If the block does not exist, the subclass should throw BLOCK_DNE
+         *
+         * @return The timestamp
+         */
+        virtual uint64_t getTopBlockTimestamp() const = 0;
+
+		/**
 		 * @brief Fetch a block's size
          *
          * The subclass should return the size of the block with the

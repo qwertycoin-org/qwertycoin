@@ -178,6 +178,10 @@ namespace CryptoNote {
 
 		virtual CryptoNote::blobData getBlockBlobFromHeight(const uint64_t &uHeight) const;
 
+        virtual uint64_t getBlockTimestamp(const uint64_t &uHeight) const;
+
+        virtual uint64_t getTopBlockTimestamp() const;
+
         virtual size_t getBlockSize(const uint64_t &uHeight) const;
 
 		virtual CryptoNote::difficulty_type getBlockCumulativeDifficulty(const uint64_t &uHeight) const;
