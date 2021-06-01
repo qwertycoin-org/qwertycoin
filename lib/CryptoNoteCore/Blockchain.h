@@ -131,6 +131,7 @@ public:
     uint64_t getCoinsInCirculation();
     uint8_t getBlockMajorVersionForHeight(uint32_t height) const;
     bool addNewBlock(const Block &bl, block_verification_context &bvc);
+    bool addNewDBBlock(const Block &sBlock, block_verification_context &bvc);
     bool resetAndSetGenesisBlock(const Block &b);
     bool haveBlock(const Crypto::Hash &id);
     size_t getTotalTransactions();
@@ -234,6 +235,12 @@ public:
             }
         }
     }
+
+    template<class T, class D, class S>
+    void getTransactionsBlobs(const T &sTxIds, D &sTransactions, S &sMissedTxs);
+
+    template<class T, class D, class S>
+    void getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissedTxs);
 
     template<class T, class D, class S>
     void getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool = false)

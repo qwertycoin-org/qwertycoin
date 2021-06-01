@@ -128,6 +128,17 @@ namespace CryptoNote {
 		return sBlock;
 	}
 
+	CryptoNote::Block BlockchainDB::getBlock(const Crypto::Hash &sHash) const
+	{
+        CryptoNote::blobData sBlobData = getBlockBlob(sHash);
+        CryptoNote::Block sBlock;
+        if (!parseAndValidateBlockFromBlob(sBlobData, sBlock)) {
+            throw(DB_ERROR("Failed to parse block from blob retrieved from the db"));
+        }
+
+        return sBlock;
+    }
+
 	bool BlockchainDB::getTransaction(const Crypto::Hash &sHash, CryptoNote::Transaction &sTransaction) const
 	{
 		CryptoNote::blobData sBlobData;

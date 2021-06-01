@@ -21,7 +21,7 @@
 
 #include <boost/thread/tss.hpp>
 
-#include <lmdb-adv/lmdb-adv.h>
+#include <lmdb-adv/lmdb.h>
 
 #include <CryptoNoteCore/LMDB/BlockchainDB.h>
 #include <CryptoNoteCore/LMDB/Structures.h>
@@ -150,7 +150,7 @@ namespace CryptoNote {
 
 		~BlockchainLMDB();
 
-		virtual void open(const std::string &cFileName, const int iDBFlags = 0);
+		virtual void open(const std::string &cFileName, const int iDBFlags);
 
 		virtual void close();
 
@@ -170,7 +170,15 @@ namespace CryptoNote {
 
 		virtual bool blockExists(const Crypto::Hash &sHash, uint64_t *height = NULL) const;
 
+        virtual CryptoNote::blobData getBlockBlob(const Crypto::Hash &sHash) const;
+
+        virtual uint64_t getBlockHeight(const Crypto::Hash &sHash) const;
+
+        virtual CryptoNote::BlockHeader getBlockHeader(const Crypto::Hash &sHash) const;
+
 		virtual CryptoNote::blobData getBlockBlobFromHeight(const uint64_t &uHeight) const;
+
+        virtual size_t getBlockSize(const uint64_t &uHeight) const;
 
 		virtual CryptoNote::difficulty_type getBlockCumulativeDifficulty(const uint64_t &uHeight) const;
 
@@ -263,6 +271,7 @@ namespace CryptoNote {
 
 		virtual void fixUp();
 
+    private:
 		MDB_env *mDbEnv;
 
 		MDB_dbi mBlocks;

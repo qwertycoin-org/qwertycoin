@@ -172,29 +172,36 @@ public:
 															 << !m_blockchain.empty();
 		}
 
-		if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT) {
-			if (HEIGHT <= m_currency.upgradeHeight(m_targetVersion) + 1) {
-				logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
-																 << ((bIsLMDB ? mDB.getTopBlock().majorVersion
-																			  : m_blockchain.back().bl.majorVersion) <=
-																	 m_targetVersion - 1);
-			}
-			else {
-				logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
-																 << ((bIsLMDB ? mDB.getTopBlock().majorVersion
-																			  : m_blockchain.back().bl.majorVersion) >=
-																	 m_targetVersion);
-			}
-		} else if (m_votingCompleteHeight != UNDEF_HEIGHT) {
-            assert(m_blockchain.size() > m_votingCompleteHeight);
+        if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT) {
+            logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+                                                             << "if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT)";
+            if (HEIGHT <= m_currency.upgradeHeight(m_targetVersion) + 1) {
+                /*
+                logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+                                                                 << ". " << (bIsLMDB ? mDB.getTopBlock().majorVersion
+                                                                                     : m_blockchain.back().bl.majorVersion);
+                                                                                     */
+            } else {
+                /*
+                logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+                                                                 << (bIsLMDB ? mDB.getTopBlock().majorVersion
+                                                                             : m_blockchain.back().bl.majorVersion);
+                                                                             */
+            }
+        }
+		else if (m_votingCompleteHeight != UNDEF_HEIGHT) {
+            logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+            << "else if (m_votingCompleteHeight != UNDEF_HEIGHT)";
+            assert(HEIGHT > m_votingCompleteHeight);
 
-            if (m_blockchain.size() <= upgradeHeight()) {
-                assert(m_blockchain.back().bl.majorVersion == m_targetVersion - 1);
+            if (HEIGHT <= upgradeHeight()) {
+                assert((bIsLMDB ? mDB.getTopBlock().majorVersion : m_blockchain.back().bl.majorVersion) ==
+                       m_targetVersion - 1);
 
-                if (m_blockchain.size() % (60 * 60 / m_currency.difficultyTarget()) == 0) {
+                if (HEIGHT % (60 * 60 / m_currency.difficultyTarget()) == 0) {
                     auto interval =
                         m_currency.difficultyTarget()
-                        * (upgradeHeight() - m_blockchain.size() + 2);
+                        * (upgradeHeight() - HEIGHT + 2);
                     time_t upgradeTimestamp = time(nullptr) + static_cast<time_t>(interval);
                     struct tm *upgradeTime = localtime(&upgradeTimestamp);
                     char upgradeTimeStr[40];
@@ -208,12 +215,13 @@ public:
                         << " (in "
                         << Common::timeIntervalToString(interval)
                         << ")! Current last block index "
-                        << (m_blockchain.size() - 1)
+                        << (HEIGHT - 1)
                         << ", hash "
-                        << get_block_hash(m_blockchain.back().bl);
+                        << (bIsLMDB ? mDB.getTopBlockHash() : get_block_hash((m_blockchain.back().bl)));
                 }
-            } else if (m_blockchain.size() == upgradeHeight() + 1) {
-                assert(m_blockchain.back().bl.majorVersion == m_targetVersion - 1);
+            } else if (HEIGHT == upgradeHeight() + 1) {
+                assert((bIsLMDB ? mDB.getTopBlock().majorVersion : m_blockchain.back().bl.majorVersion) ==
+                       m_targetVersion - 1);
 
                 logger(Logging::INFO, Logging::BRIGHT_GREEN)
                     << "###### UPGRADE has happened! Starting from block index "
@@ -222,10 +230,13 @@ public:
                     << static_cast<int>(m_targetVersion)
                     << " will be rejected!";
             } else {
-                assert(m_blockchain.back().bl.majorVersion == m_targetVersion);
+                assert((bIsLMDB ? mDB.getTopBlock().majorVersion : m_blockchain.back().bl.majorVersion) == m_targetVersion);
             }
-        } else {
-            uint32_t lastBlockHeight = m_blockchain.size() - 1;
+        }
+		else {
+            logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+            << "else {";
+            uint32_t lastBlockHeight = HEIGHT - 1;
             if (isVotingComplete(lastBlockHeight)) {
                 m_votingCompleteHeight = lastBlockHeight;
                 logger(Logging::INFO, Logging::BRIGHT_GREEN)

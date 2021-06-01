@@ -487,7 +487,9 @@ bool Blockchain::have_tx_keyimg_as_spent(const Crypto::KeyImage &key_im)
 uint32_t Blockchain::getCurrentBlockchainHeight()
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    return static_cast<uint32_t>(m_blocks.size());
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+    return static_cast<uint32_t>(HEIGHT_COND);
 }
 
 bool Blockchain::init(const std::string &config_folder,
@@ -561,7 +563,7 @@ bool Blockchain::init(const std::string &config_folder,
 	else if (Tools::getDefaultDBType(cDBType)) {
 		logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". LMDB";
 		mAsyncWorkIdle = std::make_unique<boost::asio::io_service::work> (mAsyncService);
-		mAsyncPool.create_thread([ObjectPtr = &mAsyncService] { ObjectPtr->run(); });
+		mAsyncPool.create_thread(boost::bind(&boost::asio::io_service::run, &mAsyncService));
 
 		const std::string cFilename = m_config_folder;
 
@@ -570,7 +572,7 @@ bool Blockchain::init(const std::string &config_folder,
 			mFlagsMDB = iDBFlags;
 
 			pDB->open(cFilename, iDBFlags);
-			if (!pDB->isOpen()) {
+			if (!pDB->pOpen) {
 				return false;
 			}
 		} catch (std::exception &e) {
@@ -661,8 +663,8 @@ bool Blockchain::init(const std::string &config_folder,
     if (!checkUpgradeHeight(m_upgradeDetectorV2)) {
         uint32_t upgradeHeight = m_upgradeDetectorV2.upgradeHeight();
         assert(upgradeHeight != UpgradeDetectorBase::UNDEF_HEIGHT);
-        Block sBlock = bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
-        						 m_blocks[upgradeHeight + 1].bl;
+        Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
+        						 m_blocks[upgradeHeight + 1].bl);
         logger(WARNING, BRIGHT_YELLOW)
             << "Invalid block version at " << upgradeHeight + 1
             << ": real=" << static_cast<int>(sBlock.majorVersion)
@@ -672,8 +674,8 @@ bool Blockchain::init(const std::string &config_folder,
         reinitUpgradeDetectors = true;
     } else if (!checkUpgradeHeight(m_upgradeDetectorV3)) {
         uint32_t upgradeHeight = m_upgradeDetectorV3.upgradeHeight();
-		Block sBlock = bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
-					   m_blocks[upgradeHeight + 1].bl;
+        Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
+                        m_blocks[upgradeHeight + 1].bl);
 		logger(WARNING, BRIGHT_YELLOW)
 				<< "Invalid block version at " << upgradeHeight + 1
 				<< ": real=" << static_cast<int>(sBlock.majorVersion)
@@ -683,8 +685,8 @@ bool Blockchain::init(const std::string &config_folder,
         reinitUpgradeDetectors = true;
     } else if (!checkUpgradeHeight(m_upgradeDetectorV4)) {
         uint32_t upgradeHeight = m_upgradeDetectorV4.upgradeHeight();
-		Block sBlock = bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
-					   m_blocks[upgradeHeight + 1].bl;
+        Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
+                        m_blocks[upgradeHeight + 1].bl);
 		logger(WARNING, BRIGHT_YELLOW)
 				<< "Invalid block version at " << upgradeHeight + 1
 				<< ": real=" << static_cast<int>(sBlock.majorVersion)
@@ -694,8 +696,8 @@ bool Blockchain::init(const std::string &config_folder,
         reinitUpgradeDetectors = true;
     } else if (!checkUpgradeHeight(m_upgradeDetectorV5)) {
         uint32_t upgradeHeight = m_upgradeDetectorV5.upgradeHeight();
-		Block sBlock = bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
-					   m_blocks[upgradeHeight + 1].bl;
+        Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
+                        m_blocks[upgradeHeight + 1].bl);
 		logger(WARNING, BRIGHT_YELLOW)
 				<< "Invalid block version at " << upgradeHeight + 1
 				<< ": real=" << static_cast<int>(sBlock.majorVersion)
@@ -705,8 +707,8 @@ bool Blockchain::init(const std::string &config_folder,
         reinitUpgradeDetectors = true;
     } else if (!checkUpgradeHeight(m_upgradeDetectorV6)) {
         uint32_t upgradeHeight = m_upgradeDetectorV6.upgradeHeight();
-		Block sBlock = bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
-					   m_blocks[upgradeHeight + 1].bl;
+        Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
+                        m_blocks[upgradeHeight + 1].bl);
 		logger(WARNING, BRIGHT_YELLOW)
 				<< "Invalid block version at " << upgradeHeight + 1
 				<< ": real=" << static_cast<int>(sBlock.majorVersion)
@@ -721,7 +723,8 @@ bool Blockchain::init(const std::string &config_folder,
 			// TODO: this section needs cleaned up
     		uNumPoppedBlocks = uBeforePopping - getCurrentBlockchainHeight();
     		if (uNumPoppedBlocks > 0) {
-
+                // Maybe Hardfork stuff
+                m_tx_pool.on_blockchain_dec(pDB->height()-1, getTailId());
     		}
     	}
     }
@@ -741,12 +744,18 @@ bool Blockchain::init(const std::string &config_folder,
     update_next_cumulative_size_limit();
 
     uint64_t timestamp_diff = 0;
-    if (bIsLMDB ? pDB->height() : !m_blocks.empty()) {
-    	timestamp_diff = time(NULL) - (bIsLMDB ? pDB->getTopBlock().timestamp : m_blocks.back().bl.timestamp);
+    if ((bIsLMDB ? pDB->height() : !m_blocks.empty())) {
+        // logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". height: " << pDB->height();
+        if (bIsLMDB) {
+            CryptoNote::Block sBlock = pDB->getTopBlock();
+            timestamp_diff = time(NULL) - sBlock.timestamp;
+        } else if (!bIsLMDB) {
+            timestamp_diff = time(NULL) - m_blocks.back().bl.timestamp;
+        }
     } else  {
-        timestamp_diff = time(nullptr) - 1341378000;
+        timestamp_diff = time(NULL) - 1341378000;
     }
-
+    logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << "timestamp_diff: " << timestamp_diff;
     logger(INFO, BRIGHT_GREEN)
         << "Blockchain initialized. last block: " << HEIGHT_COND << ", "
         << Common::timeIntervalToString(timestamp_diff)
@@ -953,10 +962,16 @@ bool Blockchain::resetAndSetGenesisBlock(const Block &b)
 
 Crypto::Hash Blockchain::getTailId(uint32_t &height)
 {
-    assert(!m_blocks.empty());
+    // assert(!m_blocks.empty());
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 	logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__;
-    height = getCurrentBlockchainHeight() - 1;
+	if (bIsLMDB) {
+        height = getCurrentBlockchainHeight();
+	} else {
+        height = getCurrentBlockchainHeight() - 1;
+	}
+
     return getTailId();
 }
 
@@ -1821,16 +1836,18 @@ bool Blockchain::getBackwardBlocksSize(size_t from_height, std::vector<size_t> &
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
 
-    if (from_height >= m_blocks.size()) {
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+    if (!(from_height < HEIGHT_COND)) {
         logger(ERROR, BRIGHT_RED)
-            << "Internal error: get_backward_blocks_sizes called with from_height=" << from_height
-            << ", blockchain height = " << m_blocks.size();
+            << "Internal error: getBackwardBlocksSize called with from_height=" << from_height
+            << ", blockchain height = " << HEIGHT_COND;
         return false;
     }
 
     size_t start_offset = (from_height + 1) - std::min((from_height + 1), count);
     for (size_t i = start_offset; i != from_height + 1; i++) {
-        sz.push_back(m_blocks[i].block_cumulative_size);
+        sz.push_back((bIsLMDB ? pDB->getBlockSize(i) : m_blocks[i].block_cumulative_size));
     }
 
     return true;
@@ -1839,11 +1856,12 @@ bool Blockchain::getBackwardBlocksSize(size_t from_height, std::vector<size_t> &
 bool Blockchain::get_last_n_blocks_sizes(std::vector<size_t> &sz, size_t count)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    if (!m_blocks.size()) {
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+    if (!HEIGHT_COND) {
         return true;
     }
 
-    return getBackwardBlocksSize(m_blocks.size() - 1, sz, count);
+    return getBackwardBlocksSize(HEIGHT_COND - 1, sz, count);
 }
 
 uint64_t Blockchain::getCurrentCumulativeBlocksizeLimit()
@@ -1888,6 +1906,7 @@ bool Blockchain::handle_alternative_block(
     bool sendNewAlternativeBlockMessage)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
     auto block_height = get_block_height(b);
     if (block_height == 0) {
@@ -1937,8 +1956,15 @@ bool Blockchain::handle_alternative_block(
 
     // block is not related with head of main chain
     // first of all - look in alternative chains container
-    uint32_t mainPrevHeight = 0;
-    const bool mainPrev = m_blockIndex.getBlockHeight(b.previousBlockHash, mainPrevHeight);
+    uint32_t mainPrevHeight;
+    bool bMainPrevNc = false;
+    if (bIsLMDB) {
+        mainPrevHeight = pDB->getBlockHeight(b.previousBlockHash);
+        bMainPrevNc = mainPrevHeight != 0;
+    } else {
+        bMainPrevNc = m_blockIndex.getBlockHeight(b.previousBlockHash, mainPrevHeight);
+    }
+    const bool mainPrev = bMainPrevNc;
     const auto it_prev = m_alternative_chains.find(b.previousBlockHash);
 
     if (it_prev != m_alternative_chains.end() || mainPrev) {
@@ -1958,13 +1984,15 @@ bool Blockchain::handle_alternative_block(
         // main chain -- that is, if we're adding on to an alternate chain
         if (alt_chain.size()) {
             // make sure alt chain doesn't somehow start past the end of the main chain
-            if (m_blocks.size() <= alt_chain.front()->second.height) {
+            if (HEIGHT_COND < alt_chain.front()->second.height) {
                 logger(ERROR, BRIGHT_RED) << "main blockchain wrong height";
                 return false;
             }
             // make sure block connects correctly to the main chain
             Crypto::Hash h = NULL_HASH;
-            get_block_hash(m_blocks[alt_chain.front()->second.height - 1].bl, h);
+            get_block_hash((bIsLMDB ?
+                               pDB->getBlockFromHeight(alt_chain.front()->second.height - 1) :
+                               m_blocks[alt_chain.front()->second.height - 1].bl), h);
             if (!(h == alt_chain.front()->second.bl.previousBlockHash)) {
                 logger(ERROR, BRIGHT_RED)<<"alternative chain have wrong connection to main chain";
                 return false;
@@ -2043,7 +2071,9 @@ bool Blockchain::handle_alternative_block(
 
         bei.cumulative_difficulty =
             !alt_chain.empty() ? it_prev->second.cumulative_difficulty
-                               : m_blocks[mainPrevHeight].cumulative_difficulty;
+                               : (bIsLMDB ?
+                                  pDB->getBlockCumulativeDifficulty(mainPrevHeight) :
+                                  m_blocks[mainPrevHeight].cumulative_difficulty);
         bei.cumulative_difficulty += current_diff;
 
 #ifdef _DEBUG
@@ -2070,7 +2100,7 @@ bool Blockchain::handle_alternative_block(
             // TODO: do reorganize!
             logger(INFO, BRIGHT_GREEN)
                 << "###### REORGANIZE on height: " << alt_chain.front()->second.height
-                << " of " << m_blocks.size() - 1
+                << " of " << HEIGHT_COND - 1
                 << ", checkpoint is found in alternative chain on height " << bei.height;
             bool r = switch_to_alternative_blockchain(alt_chain, true);
             if (r) {
@@ -2080,15 +2110,19 @@ bool Blockchain::handle_alternative_block(
                 bvc.m_verification_failed = true;
             }
             return r;
-        } else if (m_blocks.back().cumulative_difficulty < bei.cumulative_difficulty) {
+        } else if ((bIsLMDB ?
+                    pDB->getBlockCumulativeDifficulty(pDB->height()-1) :
+                    m_blocks.back().cumulative_difficulty) < bei.cumulative_difficulty) {
             // check if difficulty bigger then in main chain
             // TODO: do reorganize!
             logger(INFO, BRIGHT_GREEN)
-                << "###### REORGANIZE on height: " << alt_chain.front()->second.height
-                << " of " << m_blocks.size() - 1
-                << " with cum_difficulty " << m_blocks.back().cumulative_difficulty << ENDL
-                << " alternative blockchain size: " << alt_chain.size()
-                << " with cum_difficulty " << bei.cumulative_difficulty;
+                    << "###### REORGANIZE on height: " << alt_chain.front()->second.height
+                    << " of " << HEIGHT_COND - 1
+                    << " with cum_difficulty " << (bIsLMDB ?
+                                                   pDB->getBlockCumulativeDifficulty(pDB->height() - 1) :
+                                                   m_blocks.back().cumulative_difficulty) << ENDL
+                    << " alternative blockchain size: " << alt_chain.size()
+                    << " with cum_difficulty " << bei.cumulative_difficulty;
             bool r = switch_to_alternative_blockchain(alt_chain, false);
             if (r) {
                 bvc.m_added_to_main_chain = true;
@@ -2361,6 +2395,54 @@ bool Blockchain::getRandomOutsByAmount(
     return true;
 }
 
+template<class T, class D, class S>
+void Blockchain::getTransactionsBlobs(const T &sTxIds, D &sTransactions, S &sMissedTxs)
+{
+    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+    for (const auto &sTxHash : sTxIds) {
+        try {
+            CryptoNote::blobData sTx;
+            if (pDB->getTransactionBlob(sTxHash, sTx)) {
+                sTransactions.push_back(std::move(sTx));
+            } else {
+                sMissedTxs.push_back(sTxHash);
+            }
+        } catch (std::exception &e) {
+            logger(ERROR, BRIGHT_RED) << "Exception at getTransactionsBlobs: " << e.what();
+
+            return;
+        }
+    }
+
+    return;
+}
+
+template<class T, class D, class S>
+void Blockchain::getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissedTxs)
+{
+    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+    for (const auto &sTxHash : sTxIds) {
+        try {
+            CryptoNote::blobData sTx;
+            if (pDB->getTransactionBlob(sTxHash, sTx)) {
+                if (!parseAndValidateTransactionFromBlob(sTx, sTransactions.back())) {
+                    logger(ERROR, BRIGHT_RED) << "Invalid transaction";
+
+                    return;
+                }
+            } else {
+                sMissedTxs.push_back(sTxHash);
+            }
+        } catch (std::exception &e) {
+            logger(ERROR, BRIGHT_RED) << "Exception at getTransactionsBlobs: " << e.what();
+
+            return;
+        }
+    }
+
+    return;
+}
+
 uint32_t Blockchain::findBlockchainSupplement(const std::vector<Crypto::Hash> &qblock_ids)
 {
     assert(!qblock_ids.empty());
@@ -2489,9 +2571,16 @@ std::vector<Crypto::Hash> Blockchain::findBlockchainSupplement(
 bool Blockchain::haveBlock(const Crypto::Hash &id)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    if (m_blockIndex.hasBlock(id)) {
-        return true;
+    if (Tools::getDefaultDBType("lmdb")) {
+        if (pDB->blockExists(id)) {
+            return true;
+        }
+    } else {
+        if (m_blockIndex.hasBlock(id)) {
+            return true;
+        }
     }
+
 
     return m_alternative_chains.count(id);
 }
@@ -2897,6 +2986,7 @@ bool Blockchain::checkParentBlockSize(const Block &b, const Crypto::Hash &blockH
             return false;
         }
 
+        // TODO: Maybe increase this?
         if (parentBlockSize > 2 * 1024) {
             logger(INFO, BRIGHT_WHITE)
                 << "Block " << blockHash
@@ -2932,7 +3022,13 @@ bool Blockchain::getBlockCumulativeSize(const Block &block, size_t &cumulativeSi
 {
     std::vector<Transaction> blockTxs;
     std::vector<Crypto::Hash> missedTxs;
-    getTransactions(block.transactionHashes, blockTxs, missedTxs, true);
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+    if (bIsLMDB) {
+        getDBTransactions(block.transactionHashes, blockTxs, missedTxs);
+    } else {
+        getTransactions(block.transactionHashes, blockTxs, missedTxs, true);
+    }
 
     cumulativeSize = getObjectBinarySize(block.baseTransaction);
     for (const Transaction &tx : blockTxs) {
@@ -2945,8 +3041,9 @@ bool Blockchain::getBlockCumulativeSize(const Block &block, size_t &cumulativeSi
 // precondition: m_blockchain_lock is locked.
 bool Blockchain::update_next_cumulative_size_limit()
 {
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
     uint8_t nextBlockMajorVersion =
-        getBlockMajorVersionForHeight(static_cast<uint32_t>(m_blocks.size()));
+        getBlockMajorVersionForHeight(static_cast<uint32_t>(HEIGHT_COND));
     size_t nextBlockGrantedFullRewardZone =
         m_currency.blockGrantedFullRewardZoneByBlockVersion(nextBlockMajorVersion);
 
@@ -2963,8 +3060,16 @@ bool Blockchain::update_next_cumulative_size_limit()
     return true;
 }
 
-bool Blockchain::addNewBlock(const Block &bl, block_verification_context &bvc)
+bool Blockchain::addNewBlock(const Block &sBl, block_verification_context &bvc)
 {
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+    if (bIsLMDB) {
+        if (!addNewDBBlock(sBl, bvc)) {
+            return false;
+        }
+    }
+
+    Block bl = sBl;
     Crypto::Hash id;
     if (!get_block_hash(bl, id)) {
         logger(ERROR, BRIGHT_RED) << "Failed to get block hash, possible block has invalid format";
@@ -2975,8 +3080,8 @@ bool Blockchain::addNewBlock(const Block &bl, block_verification_context &bvc)
     bool add_result;
 
     { // to avoid deadlock lets lock tx_pool for whole add/reorganize process
-        std::lock_guard<decltype(m_tx_pool)> poolLock(m_tx_pool);
-        std::lock_guard<decltype(m_blockchain_lock)> bcLock(m_blockchain_lock);
+        // std::lock_guard<decltype(m_tx_pool)> poolLock(m_tx_pool);
+        // std::lock_guard<decltype(m_blockchain_lock)> bcLock(m_blockchain_lock);
 
         if (haveBlock(id)) {
             logger(TRACE) << "block with id = " << id << " already exists";
@@ -2984,8 +3089,10 @@ bool Blockchain::addNewBlock(const Block &bl, block_verification_context &bvc)
             return false;
         }
 
+        DB_TX_START
+
         // check that block refers to chain tail
-        if (!(bl.previousBlockHash == getTailId())) {
+        if (bl.previousBlockHash != getTailId()) {
             // chain switching or wrong block
             logger(DEBUGGING)
                 << "handling alternative block " << Common::podToHex(id)
@@ -3006,7 +3113,34 @@ bool Blockchain::addNewBlock(const Block &bl, block_verification_context &bvc)
         m_observerManager.notify(&IBlockchainStorageObserver::blockchainUpdated);
     }
 
+    DB_TX_STOP
+
     return add_result;
+}
+
+bool Blockchain::addNewDBBlock(const Block &sBlock, block_verification_context &bvc)
+{
+    logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    Block sBl;
+    Crypto::Hash id = getObjectHash(sBl);
+    DB_TX_START
+    if (haveBlock(id)) {
+        logger(ERROR,BRIGHT_RED) << "block with id = " << id << " already exists";
+        bvc.m_already_exists = true;
+
+        DB_TX_STOP
+
+        return false;
+    }
+
+    if (pDB->height() & 255 == 0) {
+        pDB->doResize();
+    }
+
+    bool bAdd = pushBlock(sBl, bvc);
+    DB_TX_STOP
+
+    return bAdd;
 }
 
 const Blockchain::TransactionEntry &Blockchain::transactionByIndex(TransactionIndex index)
@@ -3052,7 +3186,8 @@ bool Blockchain::pushBlock(
 			bvc.m_verification_failed = true;
 			return false;
 		}
-    } else if (bIsLMDB) {
+    }
+    else if (bIsLMDB) {
     	if (pDB->blockExists(blockHash)) {
 			logger(ERROR, BRIGHT_RED) << "Block " << blockHash << " already exists in database.";
 
@@ -3261,11 +3396,13 @@ bool Blockchain::pushBlock(
 				auto block_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(
 						std::chrono::steady_clock::now() - blockProcessingStart).count();
 				logger(DEBUGGING) <<
-								  "+++++ BLOCK SUCCESSFULLY ADDED" << ENDL << "id:\t" << blockHash
-								  << ENDL << "PoW:\t" << proof_of_work
-								  << ENDL << "HEIGHT " << uNewHeight - 1 << ", difficulty:\t" << currentDifficulty
-								  << ENDL << "block reward: " << m_currency.formatAmount(reward) << ", fee = "
+								  "+++++ LMDB BLOCK SUCCESSFULLY ADDED" << ENDL
+								  << "id:\t" << blockHash << ENDL
+								  << "PoW:\t" << proof_of_work << ENDL
+								  << "HEIGHT " << uNewHeight - 1 << ", difficulty:\t" << currentDifficulty << ENDL
+								  << "block reward: " << m_currency.formatAmount(reward) << ", fee = "
 								  << m_currency.formatAmount(fee_summary)
+								  << ", timestamp = " << block.bl.timestamp
 								  << ", coinbase_blob_size: " << coinbase_blob_size << ", cumulative size: "
 								  << cumulative_block_size
 								  << ", " << block_processing_time << "(" << target_calculating_time << "/"
@@ -3332,7 +3469,7 @@ bool Blockchain::pushBlock(BlockEntry &block)
 	logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". m_blockIndex.size(): " << m_blockIndex.size();
 	logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". HEIGHT_COND: " << HEIGHT_COND;
 
-    assert(m_blockIndex.size() == (HEIGHT_COND + 1));
+    // assert(m_blockIndex.size() == (HEIGHT_COND + 1));
 
     return true;
 }
@@ -3888,6 +4025,9 @@ bool Blockchain::loadTransactions(const Block &block, std::vector<Transaction> &
 {
 	logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__;
     transactions.resize(block.transactionHashes.size());
+
+    DB_TX_START
+
     size_t transactionSize;
     uint64_t fee;
     for (size_t i = 0; i < block.transactionHashes.size(); ++i) {

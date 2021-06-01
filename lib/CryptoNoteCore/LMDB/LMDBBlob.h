@@ -1,3 +1,20 @@
+// Copyright (c) 2018-2021, The Qwertycoin Group.
+//
+// This file is part of Qwertycoin.
+//
+// Qwertycoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Qwertycoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
+
 #pragma once
 
 #include <cassert>
@@ -15,7 +32,6 @@
 #include <boost/type_traits/is_integral.hpp>
 #include <boost/type_traits/make_unsigned.hpp>
 
-// #include <Common/>
 #include <Common/Varint.h>
 #include <CryptoNote.h>
 #include <Serialization/BinarySerializationTools.h>
@@ -29,11 +45,11 @@
  * purpose is to define the functions used for the binary_archive. Its
  * a header, basically. I think it was declared simply to save typing...
  */
-template<class QStream, bool bIsSaving>
+template<class Stream, bool bIsSaving>
 struct FBinaryArchiveBase
 {
-    typedef QStream streamType;
-    typedef FBinaryArchiveBase<QStream, bIsSaving> FBaseType;
+    typedef Stream streamType;
+    typedef FBinaryArchiveBase<Stream, bIsSaving> FBaseType;
     typedef boost::mpl::bool_<bIsSaving> sIsSaving;
     typedef uint8_t uVariantTagType;
 
@@ -74,7 +90,7 @@ struct FBinaryArchive<false> : public FBinaryArchiveBase<std::istream, false>
 {
     explicit FBinaryArchive(streamType &s) : FBaseType(s)
     {
-        std::streampos pos = sStream.tellg();
+        streamType::pos_type pos = sStream.tellg();
         sStream.seekg(0, std::ios_base::end);
         sEoFPos = sStream.tellg();
         sStream.seekg(pos);
@@ -325,7 +341,7 @@ namespace CryptoNote {
              */
             template<class QStream>
             bool doCheckStreamState(QStream &sStream,
-                                    boost::mpl::bool_<true> *bCheckState)
+                                    boost::mpl::bool_<true>)
             {
                 return sStream.good();
             }
@@ -337,7 +353,7 @@ namespace CryptoNote {
              */
             template<class QStream>
             bool doCheckStreamState(QStream &sStream,
-                                    boost::mpl::bool_<false> *bCheckState)
+                                    boost::mpl::bool_<false>)
             {
                 bool result = false;
 
