@@ -1,3 +1,7 @@
 [submodule "cmake/polly"]
 	path = cmake/polly
 	url = https://github.com/ruslo/polly.git
+
+[submodule "external/lmdb-adv"]
+    path = external/lmdb-adv
+    url = https://github.com/qwertycoin-org/lmdb
