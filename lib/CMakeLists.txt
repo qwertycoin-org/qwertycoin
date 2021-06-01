@@ -592,6 +592,7 @@ set(QwertycoinFramework_Rpc_SOURCES
 )
 
 set(QwertycoinFramework_Rpc_LIBS
+    Boost::thread
     QwertycoinFramework::BlockchainExplorer
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Global

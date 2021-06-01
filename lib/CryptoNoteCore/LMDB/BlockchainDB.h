@@ -348,11 +348,94 @@ namespace CryptoNote {
 
 		virtual void blockTxnAbort() = 0;
 
+		/**
+		 * @brief Handles the addition of a new block to BlockchainDB
+         *
+         * This function organizes block addition and calls various functions as
+         * necessary.
+         *
+         * NOTE: subclass implementations of this (or the functions it calls) need
+         * to handle undoing any partially-added blocks in the event of a failure.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+		 *
+		 * @param block                 The block to be added
+		 * @param uBlockSize            The size of the block (transactions and all)
+		 * @param uCumulativeDifficulty The accumulated difficulty after this block
+		 * @param uCoinsGenerated       The number of coins generated total after this block
+		 * @param transactions          The transactions in the block
+		 *
+		 * @return The height of the chain post-addition
+		 */
 		virtual uint64_t addBlock(const CryptoNote::Block &block,
 								  const size_t &uBlockSize,
 								  const CryptoNote::difficulty_type &uCumulativeDifficulty,
 								  const uint64_t &uCoinsGenerated,
 								  const std::vector<CryptoNote::Transaction> &transactions);
+
+        /**
+         * @brief Checks if a block exists
+         *
+         * @param sHash     The hash of the requested block
+         * @param uHeight   If non NULL, returns the block's height if found
+         *
+         * @return True if the block exists, otherwise false
+         */
+        virtual bool blockExists(const Crypto::Hash &sHash, uint64_t *uHeight = NULL) const = 0;
+
+        /**
+         * @brief Fetches the block with the given hash
+         *
+         * The subclass should return the requested block.
+         *
+         * If the block does not exist, the subclass should throw BLOCK_DNE
+         *
+         * @param sHash The hash to look for
+         *
+         * @return The block requested
+         */
+		virtual CryptoNote::blobData getBlockBlob(const Crypto::Hash &sHash) const = 0;
+
+		/**
+		 * @brief Fetches the block with the given hash
+         *
+         * Returns the requested block.
+         *
+         * If the block does not exist, the subclass should throw BLOCK_DNE
+		 *
+		 * @param sHash The hash to look for
+		 *
+		 * @return The block requested
+		 */
+		virtual CryptoNote::Block getBlock(const Crypto::Hash &sHash) const;
+
+		/**
+		 * @brief Gets the height of the block with a given hash
+         *
+         * The subclass should return the requested height.
+         *
+         * If the block does not exist, the subclass should throw BLOCK_DNE
+         *
+		 * @param sHash The hash to look for
+		 *
+		 * @return The height
+		 */
+		virtual uint64_t getBlockHeight(const Crypto::Hash &sHash) const =0;
+
+		/**
+		 * @brief Fetch a block header
+         *
+         * The subclass should return the block header from the block with
+         * the given hash.
+         *
+         * If the block does not exist, the subclass should throw BLOCK_DNE
+         *
+		 * @param sHash The hash to look for
+		 *
+		 * @return The block header
+		 */
+		virtual CryptoNote::BlockHeader getBlockHeader(const Crypto::Hash &sHash) const = 0;
 
 		/**
 		 * @brief Fetch a block blob by height
@@ -377,6 +460,20 @@ namespace CryptoNote {
 		 * @return The Block
 		 */
 		virtual CryptoNote::Block getBlockFromHeight(const uint64_t &uHeight) const;
+
+		/**
+		 * @brief Fetch a block's size
+         *
+         * The subclass should return the size of the block with the
+         * given height.
+         *
+         * If the block does not exist, the subclass should throw BLOCK_DNE
+         *
+		 * @param uHeight The height requested
+		 *
+		 * @return The size
+		 */
+		virtual size_t getBlockSize(const uint64_t &uHeight) const = 0;
 
 		/**
 		 * @brief Fetch a block's cumulative difficulty
@@ -430,16 +527,6 @@ namespace CryptoNote {
 		 * @return The hash
 		 */
 		virtual Crypto::Hash getBlockHashFromHeight(const uint64_t &uHeight) const = 0;
-
-		/**
-		 * @brief Checks if a block exists
-		 *
-		 * @param sHash The hash of the requested block
-		 * @param uHeight If non NULL, returns the block's height if found
-		 *
-		 * @return true if the block exists, otherwise false
-		 */
-		virtual bool blockExists(const Crypto::Hash &sHash, uint64_t *uHeight = NULL) const = 0;
 
 		/**
 		 * @brief Fetch the top block's hash
