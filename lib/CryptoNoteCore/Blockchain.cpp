@@ -747,8 +747,7 @@ bool Blockchain::init(const std::string &config_folder,
     if ((bIsLMDB ? pDB->height() : !m_blocks.empty())) {
         // logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". height: " << pDB->height();
         if (bIsLMDB) {
-            CryptoNote::Block sBlock = pDB->getTopBlock();
-            timestamp_diff = time(NULL) - sBlock.timestamp;
+            timestamp_diff = time(NULL) - pDB->getTopBlockTimestamp();
         } else if (!bIsLMDB) {
             timestamp_diff = time(NULL) - m_blocks.back().bl.timestamp;
         }

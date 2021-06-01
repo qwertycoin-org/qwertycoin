@@ -909,6 +909,45 @@ namespace CryptoNote {
         return sBlobData;
     }
 
+    uint64_t BlockchainLMDB::getBlockTimestamp(const uint64_t &uHeight) const
+    {
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(BlockInfo);
+
+        MDBValSet(sValHeight, uHeight);
+        auto getResult = mdb_cursor_get(sCurBlockInfo, (MDB_val *) &cZeroKVal, &sValHeight, MDB_GET_BOTH);
+        if (getResult == MDB_NOTFOUND) {
+            throw (BLOCK_DNE(std::string("Attempt to get cumulative difficulty from height ").append(
+                    boost::lexical_cast<std::string>(uHeight)).append(" failed -- block size not in db").c_str()));
+        } else if (getResult) {
+            throw (DB_ERROR("Error attempting to retrieve a cumulative difficulty from the db"));
+        }
+
+        FBlockInfo *sBI = (FBlockInfo *) sValHeight.mv_data;
+        uint64_t uRet = sBI->uBITimestamp;
+
+        TXN_POSTFIX_READONLY();
+
+        return uRet;
+    }
+
+    uint64_t BlockchainLMDB::getTopBlockTimestamp() const
+    {
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        uint64_t uHeight = height();
+
+        if (uHeight < 1) {
+            return 0;
+        }
+
+        return getBlockTimestamp(uHeight - 1);
+    }
+
     size_t BlockchainLMDB::getBlockSize(const uint64_t &uHeight) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
