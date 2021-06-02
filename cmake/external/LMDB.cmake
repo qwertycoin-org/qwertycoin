@@ -9,12 +9,12 @@ ExternalProject_Add(lmdb-adv
         UPDATE_COMMAND ""
         PATCH_COMMAND ""
 
-        #CONFIGURE_COMMAND ${LMDB_CONFIGURE_COMMAND}
+        CONFIGURE_COMMAND
+            COMMAND ${CMAKE_COMMAND} -E make_directory <BINARY_DIR>/include
         #BUILD_COMMAND ${LMDB_BUILD_COMMAND}
         BUILD_ALWAYS OFF
         TEST_COMMAND ""
         INSTALL_COMMAND
-            COMMAND ${CMAKE_COMMAND} -E make_directory <BINARY_DIR>/include
             COMMAND ${CMAKE_COMMAND} -E copy_directory "<SOURCE_DIR>" "<BINARY_DIR>/include"
             COMMAND ${CMAKE_COMMAND} --build . --config Release
         )
@@ -30,5 +30,5 @@ add_dependencies(lmdb::lmdb lmdb-adv)
 
 set_target_properties(lmdb::lmdb PROPERTIES
     IMPORTED_LOCATION "${LMDB_STATIC_LIBRARY}"
-    INTERFACE_INCLUDE_DIRECTORIES ${LMDB_INCLUDE_DIRS}
+    #INTERFACE_INCLUDE_DIRECTORIES ${LMDB_INCLUDE_DIRS}
     INTERFACE_COMPILE_DEFINITIONS "LMDB_STATICLIB")
