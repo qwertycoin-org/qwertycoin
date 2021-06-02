@@ -115,11 +115,11 @@ include(external/Boost)
 include(external/Breakpad)
 include(external/codecov)
 include(external/GTest)
+include(external/LMDB)
 include(external/MiniUPnP)
 include(external/sparsehash)
 include(external/Threads)
 
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external")
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/lib")
 
 if(BUILD_WITH_TOOLS)
