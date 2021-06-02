@@ -9,12 +9,12 @@ ExternalProject_Add(lmdb-adv
         UPDATE_COMMAND ""
         PATCH_COMMAND ""
 
-        CONFIGURE_COMMAND
-            COMMAND ${CMAKE_COMMAND} -E make_directory <BINARY_DIR>/include
+        #CONFIGURE_COMMAND ${LMDB_BUILD_COMMAND}
         #BUILD_COMMAND ${LMDB_BUILD_COMMAND}
         BUILD_ALWAYS OFF
         TEST_COMMAND ""
         INSTALL_COMMAND
+            COMMAND ${CMAKE_COMMAND} -E make_directory <BINARY_DIR>/include
             COMMAND ${CMAKE_COMMAND} -E copy_directory "<SOURCE_DIR>" "<BINARY_DIR>/include"
             COMMAND ${CMAKE_COMMAND} --build . --config Release
         )
