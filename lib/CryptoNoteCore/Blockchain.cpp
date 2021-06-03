@@ -26,21 +26,28 @@
 #include <limits>
 #include <memory>
 #include <numeric>
+
 #include <boost/foreach.hpp>
+
 #include <Common/Math.h>
 #include <Common/int-util.h>
 #include <Common/ShuffleGenerator.h>
 #include <Common/StdInputStream.h>
 #include <Common/StdOutputStream.h>
+#include <Common/Threadpool.h>
 
 #include <CryptoNoteCore/Blockchain.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
-#include <CryptoNoteCore/LMDB/BlockchainDB.h>
-#include <CryptoNoteCore/LMDB/Structures.h>
+
 
 #include <Global/Constants.h>
+
+#include <Lmdb/BlockchainDB.h>
+#include <Lmdb/Structures.h>
+
 #include <Rpc/CoreRpcServerCommandsDefinitions.h>
+
 #include <Serialization/BinarySerializationTools.h>
 
 using namespace Logging;

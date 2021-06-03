@@ -32,8 +32,9 @@
 
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/Currency.h>
-#include <CryptoNoteCore/LMDB/LMDBExceptions.h>
-#include <CryptoNoteCore/LMDB/Structures.h>
+
+#include <Lmdb/LMDBExceptions.h>
+#include <Lmdb/Structures.h>
 
 #include <Logging/LoggerRef.h>
 

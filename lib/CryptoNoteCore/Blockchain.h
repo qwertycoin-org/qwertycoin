@@ -43,7 +43,10 @@
 #include <CryptoNoteCore/SwappedVector.h>
 #include <CryptoNoteCore/TransactionPool.h>
 #include <CryptoNoteCore/UpgradeDetector.h>
-#include <CryptoNoteCore/LMDB/BlockchainDB.h>
+
+#include <CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h>
+
+#include <Lmdb/BlockchainDB.h>
 
 #include <Logging/LoggerRef.h>
 

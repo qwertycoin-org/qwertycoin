@@ -21,10 +21,13 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
+
 #include <Common/SignalHandler.h>
 #include <Common/StringTools.h>
 #include <Common/PathTools.h>
+
 #include <crypto/hash.h>
+
 #include <Breakpad/Breakpad.h>
 
 #include <CryptoNoteCore/CryptoNoteTools.h>
@@ -32,17 +35,24 @@
 #include <CryptoNoteCore/CoreConfig.h>
 #include <CryptoNoteCore/Currency.h>
 #include <CryptoNoteCore/MinerConfig.h>
-#include <CryptoNoteCore/LMDB/BlockchainDB.h>
 
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <CryptoNoteProtocol/ICryptoNoteProtocolQuery.h>
+
 #include <Global/Checkpoints.h>
+
+#include <Lmdb/BlockchainDB.h>
+
 #include <Logging/LoggerManager.h>
+
 #include <P2p/NetNode.h>
 #include <P2p/NetNodeConfig.h>
+
 #include <Rpc/RpcServer.h>
 #include <Rpc/RpcServerConfig.h>
+
 #include <version.h>
+
 #include "DaemonCommandsHandler.h"
 
 #if defined(WIN32)

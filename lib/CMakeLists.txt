@@ -9,7 +9,7 @@ message(STATUS "Generated version.h header: ${CMAKE_CURRENT_BINARY_DIR}/version.
 set(QwertycoinFramework_INCLUDE_DIRS
     "${Boost_INCLUDE_DIRS}"
     "${Breakpad_INCLUDE_DIRS}"
-    "${LMDB_INCLUDE_DIRS}"
+    "${lmdb_INCLUDE_DIRS}"
     "${MINIUPNP_INCLUDE_DIRS}"
     "${SPARSEHASH_INCLUDE_DIRS}"
     "${CMAKE_CURRENT_BINARY_DIR}"
@@ -51,6 +51,7 @@ set(QwertycoinFramework_LIBS
     QwertycoinFramework_InProcessNode
     QwertycoinFramework_JsonRpcServer
     QwertycoinFramework_Logging
+    QwertycoinFramework_Lmdb
     QwertycoinFramework_Mnemonics
     QwertycoinFramework_NodeRpcProxy
     QwertycoinFramework_P2p
@@ -322,26 +323,18 @@ set(QwertycoinFramework_CryptoNoteCore_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/TransactionUtils.h"
     "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/UpgradeDetector.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/VerificationContext.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BlockchainDB.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/BlockchainDB.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/DBLMDB.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/DBLMDB.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/LMDBBlob.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/LMDBBlob.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/LMDBExceptions.h"
-    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/LMDB/Structures.h")
+    "${CMAKE_CURRENT_LIST_DIR}/CryptoNoteCore/VerificationContext.h")
 
 set(QwertycoinFramework_CryptoNoteCore_LIBS
     Boost::filesystem
     Boost::program_options
     Boost::thread
-    lmdb::lmdb
     sparsehash::sparsehash
     QwertycoinFramework::BlockchainExplorer
     QwertycoinFramework::Common
     QwertycoinFramework::Crypto
     QwertycoinFramework::Global
+    QwertycoinFramework::Lmdb
     QwertycoinFramework::Logging
     QwertycoinFramework::Serialization
 )
@@ -456,6 +449,23 @@ set(QwertycoinFramework_Logging_SOURCES
 add_library(QwertycoinFramework_Logging STATIC ${QwertycoinFramework_Logging_SOURCES})
 add_library(QwertycoinFramework::Logging ALIAS QwertycoinFramework_Logging)
 target_include_directories(QwertycoinFramework_Logging PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
+
+# QwertycoinFramework::Lmdb
+
+set(QwertycoinFramework_Lmdb_SOURCES
+    "${LMDB_SOURCES}"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/BlockchainDB.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/BlockchainDB.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/DBLMDB.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/DBLMDB.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/LMDBBlob.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/LMDBBlob.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/LMDBExceptions.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Lmdb/Structures.h")
+
+add_library(QwertycoinFramework_Lmdb STATIC ${QwertycoinFramework_Lmdb_SOURCES})
+add_library(QwertycoinFramework::Lmdb ALIAS QwertycoinFramework_Lmdb)
+target_include_directories(QwertycoinFramework_Lmdb PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
 
 # QwertycoinFramework::Mnemonics
 
