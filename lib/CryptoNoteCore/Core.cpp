@@ -151,6 +151,7 @@ uint8_t core::getBlockMajorVersionForHeight(uint32_t height)
 
 void core::get_blockchain_top(uint32_t &height, Crypto::Hash &top_id)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
 	height = m_blockchain.getCurrentBlockchainHeight();
 	if(!m_blockchain.getCurrentBlockchainHeight()) {
 		top_id = NULL_HASH;
@@ -420,6 +421,7 @@ bool core::handle_incoming_tx(
     bool keeped_by_block,
     bool loose_check)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     tvc = boost::value_initialized<tx_verification_context>();
     // want to process all transactions sequentially
 
@@ -753,7 +755,12 @@ bool core::add_new_tx(
         return true;
     }
 
-    return m_mempool.add_tx(tx, tx_hash, blob_size, tvc, keeped_by_block);
+    if (m_blockchain.isSynchronized()) {
+        return m_mempool.add_tx(tx, tx_hash, blob_size, tvc, keeped_by_block);
+    } else {
+        // logger(DEBUGGING) << "Node is not synchronized...";
+        return false;
+    }
 }
 
 bool core::get_block_template(
@@ -1069,6 +1076,7 @@ bool core::handle_block_found(Block &b)
 
 void core::on_synchronized()
 {
+    m_blockchain.isSynchronized(true);
     m_miner->on_synchronized();
 }
 
@@ -1121,6 +1129,7 @@ bool core::handle_incoming_block_blob(
     bool control_miner,
     bool relay_block)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << "0";
     if (block_blob.size() > m_currency.maxBlockBlobSize()) {
         logger(INFO) << "WRONG BLOCK BLOB, too big size " << block_blob.size() << ", rejected";
         bvc.m_verification_failed = true;
@@ -1143,6 +1152,7 @@ bool core::handle_incoming_block(
     bool control_miner,
     bool relay_block)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << "1";
     if (control_miner) {
         pause_mining();
     }
@@ -1172,8 +1182,7 @@ bool core::handle_incoming_block(
 
     // m_blockchain.addNewBlock(b, bvc);
     if (bvc.m_verification_failed) {
-    	logger(ERROR, BRIGHT_RED) << "Error: incoming block failed verification!";
-
+    	// logger(ERROR, BRIGHT_RED) << "Error: incoming block failed verification!";
     	return false;
     }
 
@@ -1268,6 +1277,7 @@ std::list<CryptoNote::tx_memory_pool::TransactionDetails> core::getMemoryPool() 
 
 std::vector<Crypto::Hash> core::buildSparseChain()
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << "0";
 	LockedBlockchainStorage lbs(m_blockchain);
 	std::vector<Crypto::Hash> chain;
 	if (m_blockchain.getCurrentBlockchainHeight() < 1) {
@@ -1281,6 +1291,7 @@ std::vector<Crypto::Hash> core::buildSparseChain()
 
 std::vector<Crypto::Hash> core::buildSparseChain(const Crypto::Hash& startBlockId)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << "1";
     LockedBlockchainStorage lbs(m_blockchain);
     assert(m_blockchain.haveBlock(startBlockId));
     return m_blockchain.buildSparseChain(startBlockId);
@@ -1291,6 +1302,7 @@ bool core::handle_get_objects(
     NOTIFY_REQUEST_GET_OBJECTS::request &arg,
     NOTIFY_RESPONSE_GET_OBJECTS::request &rsp)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     return m_blockchain.handleGetObjects(arg, rsp);
 }
 
@@ -1327,6 +1339,7 @@ bool core::update_miner_block_template()
 
 bool core::on_idle()
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     if (!m_starter_message_showed) {
         logger(INFO)
             << ENDL

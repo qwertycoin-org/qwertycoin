@@ -108,11 +108,6 @@ namespace CryptoNote {
 
     void BlockchainDB::removeBlock() {}
 
-    void BlockchainDB::doResize()
-    {
-        doResize();
-    }
-
     bool BlockchainDB::isOpen() const
     {
         return pOpen;
@@ -167,6 +162,7 @@ namespace CryptoNote {
 
         return sTransaction;
     }
+/*
 
     void BlockchainDB::resetStats()
     {
@@ -190,6 +186,7 @@ namespace CryptoNote {
                   << "time_commit1: " << gTimeCommit << "ms" << std::endl
                   << "*********************************" << std::endl;
     }
+*/
 
     void BlockchainDB::fixUp()
     {

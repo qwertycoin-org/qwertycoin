@@ -17,6 +17,8 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 // Parts of this file are copyright (c) 2016-2018, The Monero Project
 
+#include <limits>
+
 #include <Common/Base58.h>
 #include <Common/int-util.h>
 #include <crypto/hash.h>
@@ -30,7 +32,7 @@ using namespace Common;
 
 namespace CryptoNote {
 
-uint64_t getPenalizedAmount(uint64_t amount, size_t medianSize, size_t currentBlockSize)
+uint64_t getPenalizedAmount(uint64_t amount, uint64_t medianSize, uint64_t currentBlockSize)
 {
     static_assert(sizeof(size_t) >= sizeof(uint32_t), "size_t is too small");
 
