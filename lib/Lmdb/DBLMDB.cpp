@@ -23,6 +23,7 @@
 #include <random>
 
 #include <boost/filesystem.hpp>
+#include <boost/format.hpp>
 
 #include <Common/Util.h>
 #include <Common/TimeUtils.h>
@@ -31,8 +32,9 @@
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/Currency.h>
-#include <CryptoNoteCore/LMDB/DBLMDB.h>
-#include <CryptoNoteCore/LMDB/LMDBBlob.h>
+
+#include <Lmdb/DBLMDB.h>
+#include <Lmdb/LMDBBlob.h>
 
 #if defined(__i386) || defined(__x86_64)
 #define MISALIGNED_OK    1
@@ -165,8 +167,6 @@ namespace {
 
 #define CURSOR(name)                                                                        \
     if (sCur ## name) {                                                                     \
-        std::cout << "Print current cursor: " << sCur##name << std::endl;                   \
-        std::cout << "Print current cursor as bool: " << !!sCur##name << std::endl;          \
     } else {                                                                                \
         int iRes = mdb_cursor_open(*mWriteDBTxnSafe, m ## name, &sCur ## name);             \
         if (iRes) {                                                                         \
@@ -512,15 +512,170 @@ namespace CryptoNote {
 
     }
 
+    bool BlockchainLMDB::needResize(uint64_t uIncreaseSize) const
+    {
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+#if defined(ENABLE_AUTO_RESIZE)
+        MDB_envinfo sMEnvIn;
+        mdb_env_info(mDbEnv, &sMEnvIn);
+        MDB_stat sMStat;
+        mdb_env_stat(mDbEnv, &sMStat);
+
+        // size_used doesn't include data yet to be committed, which can be
+        // significant size during batch transactions. For that, we estimate the size
+        // needed at the beginning of the batch transaction and pass in the
+        // additional size needed.
+        uint64_t uSizeUsed = sMStat.ms_psize * sMEnvIn.me_last_pgno;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "DB map size: " << sMEnvIn.me_mapsize;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "Space used: " << uSizeUsed;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "Space remaining: " << sMEnvIn.me_mapsize - uSizeUsed;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "Size threshold: " << uIncreaseSize;
+        float fResizePercent = RESIZE_PERCENT;
+        mLogger(DEBUGGING, BRIGHT_CYAN) <<
+                                        boost::format("Percent used: %.04f  Percent threshold: %.04f") %
+                                        (100. * uSizeUsed / sMEnvIn.me_mapsize) % (100. * fResizePercent);
+
+        if (uIncreaseSize > 0) {
+            if (sMEnvIn.me_mapsize - uSizeUsed < uIncreaseSize) {
+                mLogger(DEBUGGING, BRIGHT_CYAN) << "Threshold met (size-based)";
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        if ((double) uSizeUsed / sMEnvIn.me_mapsize > fResizePercent) {
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "Threshold met (size-based)";
+            return true;
+        }
+
+        return false;
+#else
+        return false;
+#endif
+    }
+
+    void BlockchainLMDB::checkAndResizeForBatch(uint64_t uBatchNumBlocks, uint64_t uBatchBytes)
+    {
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        const uint64_t uMinIncSize = 512 * (1 << 20);
+        uint64_t uThreshold;
+        uint64_t uIncrease;
+        if (uBatchNumBlocks) {
+            uThreshold = getEstimatedBatchSize(uBatchNumBlocks, uBatchBytes);
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "Calculated batch size: " << uThreshold;
+            // The increased DB size could be a multiple of threshold_size, a fixed
+            // size increase (> uThreshold), or other variations.
+            //
+            // Currently we use the greater of threshold size and a minimum size. The
+            // minimum size increase is used to avoid frequent resizes when the batch
+            // size is set to a very small numbers of blocks.
+            uIncrease = (uThreshold > uMinIncSize) ? uThreshold : uMinIncSize;
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "Increase size: " << uIncrease;
+        }
+
+        // if threshold_size is 0 (i.e. number of blocks for batch not passed in), it
+        // will fall back to the percent-based threshold check instead of the
+        // size-based check
+        if (needResize(uThreshold)) {
+            mLogger(INFO, BRIGHT_CYAN) << "DB Resize needed.";
+            doResize(uIncrease);
+        }
+    }
+
+    uint64_t BlockchainLMDB::getEstimatedBatchSize(uint64_t uBatchNumBlocks, uint64_t uBatchBytes) const
+    {
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        uint64_t uThreshold = 0;
+
+        // Batch size estimate * batch safety factor = final size estimate
+        // Takes into account "reasonable" block size increases in batch.
+        float fBatchSafetyFactor = 1.8f;
+        float fBatchFudgeFactor = fBatchSafetyFactor * uBatchNumBlocks;
+        // estimate of stored block expanded from raw block, including denormalization and db overhead.
+        // Note that this probably doesn't grow linearly with block size.
+        float fDBExpandFactor = 4.5f;
+        uint64_t uNumPrevBlocks = 500;
+        // For resizing purposes, allow for at least 4k average block size.
+        uint64_t uMinBlockSize = 4 * 1024;
+        uint64_t uBlockStop = 0;
+        uint64_t uHeight = height();
+        if (uHeight > 1) {
+            uBlockStop = uHeight - 1;
+        }
+        uint64_t uBlockStart = 0;
+        if (uBlockStop >= uNumPrevBlocks) {
+            uBlockStart = uBlockStop - uNumPrevBlocks + 1;
+        }
+        uint32_t uNumBlocksUsed = 0;
+        uint64_t uTotalBlockSize = 0;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                        << "uHeight: " << uHeight
+                                        << " uBlockStart: " << uBlockStart
+                                        << " uBlockStop: " << uBlockStop << ENDL;
+        uint64_t uAvgBlockSize = 0;
+        if (uBatchBytes) {
+            uAvgBlockSize = uBatchBytes / uBatchNumBlocks;
+            goto estimated;
+        }
+
+        if (uHeight == 0) {
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "No existing blocks to check for average block size";
+        } else if (mCumCount >= uNumPrevBlocks) {
+            uAvgBlockSize = mCumSize / mCumCount;
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "Average block size across recent " << mCumCount << " blocks: "
+                                            << uAvgBlockSize;
+            mCumSize = 0;
+            mCumCount = 0;
+        } else {
+            MDB_txn *sTxn;
+            FMdbTxnCursors *sRCursors;
+            bool bReadTxn = blockReadTxnStart(&sTxn, &sRCursors);
+            for (uint64_t uBlockNum = uBlockStart; uBlockNum <= uBlockStop; ++uBlockNum) {
+                // we have access to block weight, which will be greater or equal to block size,
+                // so use this as a proxy. If it's too much off, we might have to check actual size,
+                // which involves reading more data, so is not really wanted
+                uint64_t uBlockSize = getBlockSize(uBlockNum);
+                uTotalBlockSize += uBlockSize;
+                // Track number of blocks being totalled here instead of assuming, in case
+                // some blocks were to be skipped for being outliers.
+                ++uNumBlocksUsed;
+            }
+
+            if (bReadTxn) {
+                blockReadTxnStop();
+                uAvgBlockSize = uTotalBlockSize / (uNumBlocksUsed ? uNumBlocksUsed : 1);
+                mLogger(DEBUGGING, BRIGHT_CYAN) << "Average block size across recent " << uNumBlocksUsed << " blocks: "
+                                                << uAvgBlockSize;
+            }
+        }
+
+        estimated:
+        if (uAvgBlockSize < uMinBlockSize) {
+            uAvgBlockSize = uMinBlockSize;
+        }
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                        << "Estimated average block size for batch: " << uAvgBlockSize;
+
+        // bigger safety margin on smaller block sizes
+        if (fBatchFudgeFactor < 5000.0) {
+            fBatchFudgeFactor = 5000.0;
+        }
+
+        uThreshold = uAvgBlockSize * fDBExpandFactor * fBatchFudgeFactor;
+
+        return uThreshold;
+    }
+
     Crypto::Hash BlockchainLMDB::getTopBlockHash() const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
-        uint64_t uHeight = height() - 1;
+        uint64_t uHeight = height();
 
         if (uHeight > 0) {
-            return getBlockHashFromHeight(uHeight);
+            return getBlockHashFromHeight(uHeight - 1);
         }
 
         return NULL_HASH;
@@ -534,8 +689,10 @@ namespace CryptoNote {
 
         CryptoNote::Block sBlock;
         if (uHeight > 0) {
-            sBlock = getBlockFromHeight(uHeight -1);
+            sBlock = getBlockFromHeight(uHeight - 1);
         }
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
 
         return sBlock;
     }
@@ -560,7 +717,7 @@ namespace CryptoNote {
 
     uint64_t BlockchainLMDB::numOutputs() const
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -568,14 +725,11 @@ namespace CryptoNote {
 
         MDB_stat sDBStats;
         if ((iResult = mdb_stat(pTxn, mOutputTransactions, &sDBStats))) {
-            mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". bad iResult: " << iResult;
+            // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". bad iResult: " << iResult;
             throw (DB_ERROR(lmdbError("Failed to query mOutputTransactions: ", iResult).c_str()));
         }
 
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". good iResult: " << iResult;
-
         uint64_t uRetVal = sDBStats.ms_entries;
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uRetVal: " << uRetVal;
 
         return uRetVal;
     }
@@ -791,6 +945,7 @@ namespace CryptoNote {
             sBlockInfo.uBIHeight = uHeight;
             sBlockInfo.uBITimestamp = block.timestamp;
             sBlockInfo.uBIGeneratedCoins = uCoinsGenerated;
+            sBlockInfo.uBISize = uBlockSize;
             sBlockInfo.uBIDifficulty = uCumulativeDifficulty;
             sBlockInfo.sBIHash = sBlockHash;
 
@@ -812,7 +967,7 @@ namespace CryptoNote {
 
     bool BlockchainLMDB::blockExists(const Crypto::Hash &sHash, uint64_t *height) const
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -822,7 +977,7 @@ namespace CryptoNote {
         MDBValSet(sValHash, sHash);
         auto getResult = mdb_cursor_get(sCurBlockHeights, (MDB_val *) &cZeroKVal, &sValHash, MDB_GET_BOTH);
         if (getResult == MDB_NOTFOUND) {
-            mLogger(DEBUGGING, BRIGHT_CYAN) << " Block with hash " << sHash << " not found in DB";
+            // mLogger(DEBUGGING, BRIGHT_CYAN) << " Block with hash " << sHash << " not found in DB";
         } else if (getResult) {
             throw (DB_ERROR(lmdbError("DB error attempting to fetch block index from hash", getResult).c_str()));
         } else {
@@ -950,7 +1105,7 @@ namespace CryptoNote {
 
     size_t BlockchainLMDB::getBlockSize(const uint64_t &uHeight) const
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -1133,7 +1288,7 @@ namespace CryptoNote {
                                        const uint64_t &uIndex,
                                        const uint64_t &uUnlockTime)
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         FMdbTxnCursors *sCursor = &mWriteCursors;
@@ -1148,8 +1303,7 @@ namespace CryptoNote {
         MDBValSet(sValOutTx, sOutTx);
         result = mdb_cursor_put(sCurOutputTransactions, (MDB_val *) &cZeroKVal, &sValOutTx,
                                 MDB_APPENDDUP);
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". result sCurOutputTransactions: "
-                                        << result;
+        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". result sCurOutputTransactions: " << result;
         if (result) {
             throw (DB_ERROR(lmdbError("Failed to add output tx hash to db transaction: ", result).c_str()));
         }
@@ -1160,8 +1314,7 @@ namespace CryptoNote {
         MDB_val sData;
         FMdbValCopy<uint64_t> sValAmount(sTxOutput.amount);
         result = mdb_cursor_get(sCurOutputAmounts, &sValAmount, &sData, MDB_SET);
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". result sCurOutputAmounts: "
-                                        << result;
+        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". result sCurOutputAmounts: " << result;
         if (!result) {
             uint64_t uNumElements = 0;
             result = mdb_cursor_count(sCurOutputAmounts, &uNumElements);
@@ -1202,7 +1355,7 @@ namespace CryptoNote {
     void BlockchainLMDB::addTransactionAmountOutputIndices(const uint64_t uTxId,
                                                            const std::vector<uint64_t> &vAmountOutputIndices)
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
         FMdbTxnCursors *sCursor = &mWriteCursors;
 
@@ -1215,11 +1368,12 @@ namespace CryptoNote {
         MDB_val sVal;
         sVal.mv_data = (void *) vAmountOutputIndices.data();
         sVal.mv_size = sizeof(uint64_t) * iNumOutputs;
+        /*
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
                                         << ". tx_outputs[tx_hash] size: "
                                         << sVal.mv_size;
-
-        result = mdb_cursor_put(sCurTransactionOutputs, (MDB_val *) &cZeroKVal, &sVal, MDB_APPEND);
+*/
+        result = mdb_cursor_put(sCurTransactionOutputs, &sValTxId, &sVal, MDB_APPEND);
         if (result) {
             throw (DB_ERROR(
                     std::string("Failed to add <tx hash, amount output index array> to db transaction: ").append(
@@ -1558,7 +1712,7 @@ namespace CryptoNote {
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         if (mBatchActive) {
-            mLogger(DEBUGGING, BRIGHT_CYAN) << "close() first calling batch_abort() due to active batch transaction";
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "close() first calling batchAbort() due to active batch transaction";
             batchAbort();
         }
 
@@ -1744,6 +1898,9 @@ namespace CryptoNote {
     void BlockchainLMDB::blockTxnStop()
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        if (!mWriteDBTxnSafe) {
+            // throw(DB_ERROR_TXN_START((std::string("Attempted to stop write txn when no such txn exists in ")+__FUNCTION__).c_str()));
+        }
         if (mWriteDBTxnSafe && mWriter == boost::this_thread::get_id()) {
             if (!mBatchActive) {
                 mWriteDBTxnSafe->commit();
@@ -1823,6 +1980,53 @@ namespace CryptoNote {
     bool BlockchainLMDB::batchStart(uint64_t uBatchNumBlocks, uint64_t uBatchBytes)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+
+        if (!mBatchTransactions) {
+            throw (DB_ERROR("batch transactions not enabled"));
+        }
+
+        if (mBatchActive) {
+            return false;
+        }
+
+        if (mWriteBatchDBTxnSafe != nullptr) {
+            return false;
+        }
+
+        if (mWriteDBTxnSafe) {
+            throw (DB_ERROR("batch transaction attempted, but m_write_txn already in use"));
+        }
+
+        checkOpen();
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". Is Open";
+
+        mWriter = boost::this_thread::get_id();
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". mWriter Set";
+        checkAndResizeForBatch(uBatchNumBlocks, uBatchNumBlocks);
+
+        mWriteBatchDBTxnSafe = new FMdbTxnSafe();
+
+        // NOTE: need to make sure it's destroyed properly when done
+        if (auto getDBRes = lmdbTxnBegin(mDbEnv, NULL, 0, *mWriteBatchDBTxnSafe)) {
+            delete mWriteBatchDBTxnSafe;
+            mWriteBatchDBTxnSafe = nullptr;
+            throw(DB_ERROR(lmdbError("Failed to create a transaction for the db: ", getDBRes).c_str()));
+        }
+
+        // indicates this transaction is for batch transactions, but not whether it's
+        // active
+        mWriteBatchDBTxnSafe->pBatchTxn = true;
+        mWriteDBTxnSafe = mWriteBatchDBTxnSafe;
+        mBatchActive = true;
+
+        memset(&mWriteCursors, 0, sizeof(mWriteCursors));
+        if (mTInfo.get()) {
+            if (mTInfo->sTReadFlags.bRfTxn) {
+                mdb_txn_reset(mTInfo->sTReadTxn);
+            }
+            memset(&mTInfo->sTReadFlags, 0, sizeof(mTInfo->sTReadFlags));
+        }
+
         return true;
     }
 
@@ -1862,9 +2066,43 @@ namespace CryptoNote {
         memset(&mWriteCursors, 0, sizeof(mWriteCursors));
     }
 
+    void BlockchainLMDB::batchCleanup()
+    {
+        mWriteDBTxnSafe = nullptr;
+        delete mWriteDBTxnSafe;
+        mWriteBatchDBTxnSafe = nullptr;
+        mBatchActive = false;
+        memset(&mWriteCursors, 0, sizeof(mWriteCursors));
+    }
+
     void BlockchainLMDB::batchStop()
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        if (!mBatchTransactions) {
+            throw (DB_ERROR("Batch transactions not enabled."));
+        }
+
+        if (!mBatchActive) {
+            throw (DB_ERROR("Batch transaction not in progress."));
+        }
+
+        if (mWriteBatchDBTxnSafe == nullptr) {
+            throw (DB_ERROR("Batch transaction not in progress."));
+        }
+
+        if (mWriter != boost::this_thread::get_id()) {
+            throw (DB_ERROR("Batch transactions owned by another thread."));
+        }
+
+        checkOpen();
+
+        try {
+            mWriteDBTxnSafe->commit();
+            batchCleanup();
+        } catch (const std::exception &e) {
+            batchCleanup();
+            throw;
+        }
     }
 
     bool BlockchainLMDB::isReadOnly() const

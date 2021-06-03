@@ -35,7 +35,7 @@
 #include "BoostSerializationHelper.h"
 #include "AccountBoostSerialization.h"
 
-#include <CryptoNoteCore/LMDB/BlockchainDB.h>
+#include <Lmdb/BlockchainDB.h>
 
 #include <Logging/LoggerGroup.h>
 #include <Logging/ConsoleLogger.h>

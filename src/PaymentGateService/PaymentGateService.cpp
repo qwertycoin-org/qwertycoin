@@ -25,13 +25,15 @@
 
 #include <CryptoNoteCore/CoreConfig.h>
 #include <CryptoNoteCore/Core.h>
-#include <CryptoNoteCore/LMDB/BlockchainDB.h>
 
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 
 #include <Global/Checkpoints.h>
 
 #include <InProcessNode/InProcessNode.h>
+
+#include <Lmdb/BlockchainDB.h>
+
 #include <Logging/LoggerRef.h>
 #include <P2p/NetNode.h>
 #include <PaymentGate/PaymentServiceJsonRpcServer.h>

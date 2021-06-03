@@ -20,11 +20,14 @@
 #pragma once
 
 #include <boost/utility/value_init.hpp>
-#include <CryptoNoteCore/LMDB/LMDBBlob.h>
-#include "CryptoNoteCore/CryptoNoteBasic.h"
-#include "CryptoNoteCore/CryptoNoteSerialization.h"
-#include "Serialization/BinaryOutputStreamSerializer.h"
-#include "Serialization/BinaryInputStreamSerializer.h"
+
+#include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <CryptoNoteCore/CryptoNoteSerialization.h>
+
+#include <Lmdb/LMDBBlob.h>
+
+#include <Serialization/BinaryOutputStreamSerializer.h>
+#include <Serialization/BinaryInputStreamSerializer.h>
 
 namespace Logging {
 

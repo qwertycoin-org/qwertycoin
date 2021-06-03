@@ -28,9 +28,10 @@
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/Currency.h>
-#include <CryptoNoteCore/LMDB/BlockchainDB.h>
 
 #include <Global/CryptoNoteConfig.h>
+
+#include <Lmdb/BlockchainDB.h>
 
 #include <Logging/LoggerRef.h>
 
