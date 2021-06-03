@@ -204,7 +204,7 @@ bool Checkpoints::load_checkpoints_from_dns()
                 << ". Ignoring DNS checkpoint.";
         } else {
             add_checkpoint(height, hash_str);
-            logger(DEBUGGING) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
+            logger(TRACE) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
         }
     }
 

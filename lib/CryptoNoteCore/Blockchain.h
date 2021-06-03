@@ -134,6 +134,8 @@ public:
     uint8_t getBlockMajorVersionForHeight(uint32_t height) const;
     bool addNewBlock(const Block &bl, block_verification_context &bvc);
     bool addNewDBBlock(const Block &sBlock, block_verification_context &bvc);
+    bool cleanupHandleIncomingBlocks(bool bForceSync);
+    bool prepareHandleIncomingBlocks(const std::vector<block_complete_entry> &vBlocksEntry);
     bool resetAndSetGenesisBlock(const Block &b);
     bool haveBlock(const Crypto::Hash &id);
     size_t getTotalTransactions();
@@ -198,6 +200,7 @@ public:
     template<class T, class D, class S>
     bool getBlocks(const T &block_ids, D &blocks, S &missed_bs)
     {
+        logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "Blockchain::" << __func__;
         std::lock_guard<std::recursive_mutex> lk(m_blockchain_lock);
 
         for (const auto &bl_id : block_ids) {
@@ -206,14 +209,25 @@ public:
                 if (!m_blockIndex.getBlockHeight(bl_id, height)) {
                     missed_bs.push_back(bl_id);
                 } else {
-                    if (height >= m_blocks.size()) {
-                        logger(Logging::ERROR, Logging::BRIGHT_RED)
-                            << "Internal error: bl_id=" << Common::podToHex(bl_id)
-                            << " have index record with offset=" << height
-                            << ", bigger then m_blocks.size()=" << m_blocks.size();
-                        return false;
+                    if (Tools::getDefaultDBType("lmdb")) {
+                        if (!(height < pDB->height())) {
+                            logger(Logging::ERROR, Logging::BRIGHT_RED)
+                                    << "Internal error: bl_id=" << Common::podToHex(bl_id)
+                                    << " have index record with offset=" << height
+                                    << ", bigger then LMDB height=" << pDB->height();
+                            return false;
+                        }
+                        blocks.push_back(pDB->getBlockFromHeight(height));
+                    } else {
+                        if (height >= m_blocks.size()) {
+                            logger(Logging::ERROR, Logging::BRIGHT_RED)
+                                    << "Internal error: bl_id=" << Common::podToHex(bl_id)
+                                    << " have index record with offset=" << height
+                                    << ", bigger then m_blocks.size()=" << m_blocks.size();
+                            return false;
+                        }
+                        blocks.push_back(m_blocks[height].bl);
                     }
-                    blocks.push_back(m_blocks[height].bl);
                 }
             } catch (const std::exception &e) {
                 return false;
@@ -285,6 +299,13 @@ public:
     BlockchainDB *pDB;
     uint64_t pSyncCounter;
     uint64_t pDBBlocksPerSync;
+
+    void isSynchronized(bool bSynced) { pNodeSyncronized = bSynced; }
+    bool isSynchronized() {
+        return pNodeSyncronized;
+    }
+
+    bool pNodeSyncronized;
 
     const BlockchainDB &getDB() const
     {
@@ -364,18 +385,13 @@ private:
     Checkpoints m_checkpoints;
 
     typedef SwappedVector<BlockEntry> Blocks;
+    typedef SwappedVector<FBlockExtendedInfo> vExtendedBlocks;
     typedef std::unordered_map<Crypto::Hash, uint32_t> BlockMap;
     typedef std::unordered_map<Crypto::Hash, TransactionIndex> TransactionMap;
     typedef BasicUpgradeDetector<Blocks> UpgradeDetector;
 
     friend class BlockCacheSerializer;
     friend class BlockchainIndicesSerializer;
-
-    std::atomic<bool> mCancel;
-
-    boost::asio::io_service mAsyncService;
-    boost::thread_group mAsyncPool;
-    std::unique_ptr<boost::asio::io_service::work> mAsyncWorkIdle;
 
     Blocks m_blocks;
     CryptoNote::BlockIndex m_blockIndex;
@@ -484,6 +500,18 @@ private:
 
     std::string mFilenameMDB;
     int mFlagsMDB;
+    std::atomic<bool> mCancel;
+    boost::asio::io_service mAsyncService;
+    boost::thread_group mAsyncPool;
+    std::unique_ptr<boost::asio::io_service::work> mAsyncWorkIdle;
+    std::vector<Crypto::Hash> mBlocksHashCheck;
+    std::vector<Crypto::Hash> mBlocksTxCheck;
+    std::unordered_map<Crypto::Hash,
+            std::unordered_map<Crypto::KeyImage,
+                    std::vector<FOutputData>>> mScanTable;
+    std::unordered_map<Crypto::Hash, Crypto::Hash> mBlocksLonghashTable;
+    std::unordered_map<Crypto::Hash,
+            std::unordered_map<Crypto::KeyImage, bool>> mCheckTxinTable;
 };
 
 class LockedBlockchainStorage: boost::noncopyable

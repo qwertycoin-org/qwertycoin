@@ -165,17 +165,14 @@ public:
     {
 		bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 		if (bIsLMDB) {
-			logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__ << ". mDB.height(): "
-															 << mDB.height();
+			logger(Logging::TRACE, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__ << ". mDB.height(): " << mDB.height();
 		} else {
-			logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+			logger(Logging::TRACE, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
 															 << ". !m_blockchain.empty(): "
 															 << !m_blockchain.empty();
 		}
 
         if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT) {
-            logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
-                                                             << "if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT)";
             if (HEIGHT <= m_currency.upgradeHeight(m_targetVersion) + 1) {
                 /*
                 logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__

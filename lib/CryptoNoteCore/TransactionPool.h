@@ -21,15 +21,19 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+
 #include <boost/utility.hpp>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/ordered_index.hpp>
+
 #include <Common/int-util.h>
 #include <Common/ObserverManager.h>
 #include <Common/Util.h>
+
 #include <crypto/hash.h>
+
 #include <CryptoNoteCore/BlockchainIndices.h>
 #include <CryptoNoteCore/CryptoNoteBasic.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
@@ -39,6 +43,7 @@
 #include <CryptoNoteCore/ITransactionValidator.h>
 #include <CryptoNoteCore/ITxPoolObserver.h>
 #include <CryptoNoteCore/VerificationContext.h>
+
 #include <Logging/LoggerRef.h>
 
 namespace CryptoNote {

@@ -49,6 +49,8 @@ struct MultisignatureInput;
 struct KeyInput;
 struct TransactionPrefixInfo;
 struct tx_verification_context;
+class Blockchain;
+class BlockchainDB;
 
 class ICore
 {
@@ -221,6 +223,7 @@ public:
     virtual bool removeMessageQueue(MessageQueue<BlockchainMessage> &messageQueue) = 0;
 
     virtual void rollbackBlockchain(const uint32_t height) = 0;
+    virtual Blockchain &getBlockchainStorage() = 0;
 };
 
 } // namespace CryptoNote

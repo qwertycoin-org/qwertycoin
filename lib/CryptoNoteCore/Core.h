@@ -302,6 +302,7 @@ public:
     bool is_key_image_spent(const Crypto::KeyImage &key_im);
 
     bool fillTxExtra(const std::vector<uint8_t> &rawExtra, TransactionExtraDetails2 &extraDetails);
+    Blockchain &getBlockchainStorage() {return m_blockchain;}
 
     void setBlocksToFind(uint64_t blocksToFind);
 

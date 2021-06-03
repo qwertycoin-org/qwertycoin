@@ -148,7 +148,8 @@ bool Currency::getBlockReward(
     uint32_t height,
     uint64_t blockTarget) const
 {
-    //assert(alreadyGeneratedCoins <= m_moneySupply);
+    logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    assert(alreadyGeneratedCoins <= m_moneySupply);
     assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
 
     // Consistency
@@ -204,6 +205,7 @@ bool Currency::getBlockReward(
 
 size_t Currency::maxBlockCumulativeSize(uint64_t height) const
 {
+    logger(DEBUGGING, BRIGHT_CYAN) << "Currency::" << __func__;
     assert(height <= std::numeric_limits<uint64_t>::max() / m_maxBlockSizeGrowthSpeedNumerator);
 
     size_t maxSize =
@@ -217,6 +219,7 @@ size_t Currency::maxBlockCumulativeSize(uint64_t height) const
 
 bool Currency::isGovernanceEnabled(uint32_t height) const
 {
+    logger(DEBUGGING, BRIGHT_CYAN) << "Currency::" << __func__;
     if (height >= m_governanceHeightStart && height <= m_governanceHeightEnd) {
         return true;
     }
@@ -234,6 +237,7 @@ uint64_t Currency::getGovernanceReward(uint64_t base_reward) const
 
 bool Currency::validate_government_fee(const Transaction &baseTx) const
 {
+    logger(DEBUGGING, BRIGHT_CYAN) << "Currency::" << __func__;
     AccountKeys governanceKeys;
     getGovernanceAddressAndKey(governanceKeys);
 

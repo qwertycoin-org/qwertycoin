@@ -48,12 +48,16 @@ namespace Tools {
             boost::mutex sMt;
             boost::condition_variable sCv;
             int iNum;
+            bool bErrorFlag;
         public:
             void increase();
 
             void decrease();
 
-            void wait();
+            bool wait();
+
+            void setError() noexcept { bErrorFlag = true;}
+            bool error() const noexcept {return bErrorFlag; }
 
             QWaiter() : iNum(0) {}
 
@@ -68,7 +72,7 @@ namespace Tools {
          * @param sWaiter
          * @param UFu
          */
-        void submit(QWaiter *sWaiter, std::function<void()> UFu);
+        void submit(QWaiter *sWaiter, std::function<void()> UFu, bool bLeaf);
 
         int getMaxConcurrency();
 
@@ -81,6 +85,7 @@ namespace Tools {
         {
             QWaiter *sWaiterObj;
             std::function<void()> UFu;
+            bool bLeaf;
         } FEntry;
 
         std::deque<FEntry> sQueue;

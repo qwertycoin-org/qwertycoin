@@ -21,6 +21,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <Common/StdInputStream.h>
 #include <Common/StdOutputStream.h>
+#include <Common/StringUtils.h>
 #include <P2p/LevinProtocol.h>
 #include <P2p/P2pConnectionProxy.h>
 #include <P2p/P2pContext.h>
@@ -37,6 +38,7 @@
 #include <System/TcpConnector.h>
 
 using namespace Common;
+using namespace StringUtils;
 using namespace Logging;
 using namespace System;
 
@@ -428,6 +430,7 @@ P2pNode::ContextPtr P2pNode::tryToConnectPeer(const NetworkAddress &address)
 
 bool P2pNode::fetchPeerList(ContextPtr connection)
 {
+    logger(TRACE, BRIGHT_CYAN) << "P2PNode::" << __func__;
     try {
         COMMAND_HANDSHAKE::request request{ getNodeData(), getGenesisPayload() };
         COMMAND_HANDSHAKE::response response;
@@ -457,6 +460,7 @@ bool P2pNode::fetchPeerList(ContextPtr connection)
             return false;
         }
 
+        // if (compareVersionsLess(response.node_data.node_version, CryptoNote::P2P_MINIMUM_STRING_VERSION)) {
         if (response.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
             logger(ERROR)
                 << *connection
@@ -624,12 +628,14 @@ void P2pNode::tryPing(P2pContext &ctx)
 
 void P2pNode::handleNodeData(const basic_node_data &node, P2pContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "P2PNode::" << __func__;
     if (node.network_id != m_cfg.getNetworkId()) {
         std::ostringstream msg;
         msg << context << "COMMAND_HANDSHAKE Failed, wrong network!  (" << node.network_id << ")";
         throw std::runtime_error(msg.str());
     }
 
+    // if (compareVersionsLess(node.node_version, CryptoNote::P2P_MINIMUM_STRING_VERSION)) {
     if (node.version < CryptoNote::P2P_MINIMUM_VERSION) {
         std::ostringstream msg;
         msg << context

@@ -16,6 +16,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cassert>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <system_error>
@@ -31,6 +32,7 @@
 #endif
 
 static THREADV int iDepth = 0;
+static THREADV bool bIsLeaf = false;
 
 namespace Tools {
     QThreadpool::QThreadpool() : bRunning(true), iActive(0)
@@ -57,22 +59,29 @@ namespace Tools {
         }
     }
 
-    void QThreadpool::submit(QWaiter *sWaiter, std::function<void()> UFu)
+    void QThreadpool::submit(QWaiter *sWaiter, std::function<void()> UFu, bool bLLeaf)
     {
-        FEntry sE = {sWaiter, UFu};
+        FEntry sE = {sWaiter, UFu, bLLeaf};
         boost::unique_lock<boost::mutex> lock(sMut);
 
-        if ((iActive == iMax) && !sQueue.empty() || iDepth > 0) {
+        if (!bLLeaf && (iActive == iMax) && !sQueue.empty() || iDepth > 0) {
             lock.unlock();
             ++iDepth;
+            bIsLeaf = bLLeaf;
             UFu();
             --iDepth;
+            bIsLeaf = false;
         } else {
             if (sWaiter) {
                 sWaiter->increase();
             }
 
-            sQueue.push_back(sE);
+            if (bLLeaf) {
+                sQueue.push_front(sE);
+            } else {
+                sQueue.push_back(sE);
+            }
+
             sHasWork.notify_one();
         }
     }
@@ -84,8 +93,14 @@ namespace Tools {
 
     QThreadpool::QWaiter::~QWaiter()
     {
-        {
+        try {
             boost::unique_lock<boost::mutex> lock(sMt);
+            if (iNum) {
+                std::cout << "wait should have been called before waiter dtor - waiting now" <<
+                          std::endl;
+            }
+        } catch (...) {
+
         }
 
         try {
@@ -95,12 +110,14 @@ namespace Tools {
         }
     }
 
-    void QThreadpool::QWaiter::wait()
+    bool QThreadpool::QWaiter::wait()
     {
         boost::unique_lock<boost::mutex> lock(sMt);
         while (iNum) {
             sCv.wait(lock);
         }
+
+        return !error();
     }
 
     void QThreadpool::QWaiter::increase()
@@ -114,7 +131,7 @@ namespace Tools {
         boost::unique_lock<boost::mutex> lock(sMt);
         iNum--;
         if (!iNum) {
-            sCv.notify_one();
+            sCv.notify_all();
         }
     }
 
@@ -127,13 +144,27 @@ namespace Tools {
                 sHasWork.wait(lock);
             }
 
+            if (!bRunning) {
+                break;
+            }
+
             iActive++;
-            sE = sQueue.front();
+            sE = std::move(sQueue.front());
             sQueue.pop_front();
             lock.unlock();
             ++iDepth;
-            sE.UFu();
+            bIsLeaf = sE.bLeaf;
+            try {
+                sE.UFu();
+            } catch (std::exception &e) {
+                sE.sWaiterObj->setError();
+                try {
+                    std::cout << "Exception in threadpool job: " << e.what() << std::endl;
+                } catch (...) {}
+
+            }
             --iDepth;
+            bIsLeaf = false;
 
             if (sE.sWaiterObj) {
                 sE.sWaiterObj->decrease();

@@ -164,11 +164,11 @@ namespace CryptoNote {
 
         virtual bool blockExists(const Crypto::Hash &sHash, uint64_t *height = NULL) const;
 
-        virtual CryptoNote::blobData getBlockBlob(const Crypto::Hash &sHash) const;
-
         virtual uint64_t getBlockHeight(const Crypto::Hash &sHash) const;
 
         virtual CryptoNote::BlockHeader getBlockHeader(const Crypto::Hash &sHash) const;
+
+        virtual CryptoNote::blobData getBlockBlob(const Crypto::Hash &sHash) const;
 
         virtual CryptoNote::blobData getBlockBlobFromHeight(const uint64_t &uHeight) const;
 
@@ -228,7 +228,7 @@ namespace CryptoNote {
                                   const uint64_t &uCoinsGenerated,
                                   const std::vector<CryptoNote::Transaction> &transactions);
 
-        void doResize(uint64_t uIncreaseSize = 0);
+        virtual void doResize(uint64_t uIncreaseSize = 0);
 
         // helper functions
         static int compareUInt64(const MDB_val *a, const MDB_val *b);
@@ -276,6 +276,10 @@ namespace CryptoNote {
         virtual bool isReadOnly() const;
 
         virtual void fixUp();
+
+        virtual void resetStats();
+
+        virtual void showStats();
 
     private:
         MDB_env *mDbEnv;

@@ -27,7 +27,10 @@
 #include <initializer_list>
 #include <limits>
 #include <string>
+
 #include <boost/uuid/uuid.hpp>
+
+#include <version.h>
 
 namespace CryptoNote {
 
@@ -170,6 +173,7 @@ const uint32_t GOVERNANCE_HEIGHT_END                         = 4000000;
 } // namespace parameters
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
+const char     CRYPTONOTE_VERSION[]                          = PROJECT_VERSION;
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
 const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.qwertycoin.org";
 
@@ -200,8 +204,9 @@ const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
 
 // P2P Network Configuration Section - This defines our current P2P network version
 // and the minimum version for communication between nodes
-const uint8_t  P2P_CURRENT_VERSION                           = 6;
+const uint8_t  P2P_CURRENT_VERSION                           = APP_VER_MAJOR;
 const uint8_t  P2P_MINIMUM_VERSION                           = 6;
+const char     P2P_MINIMUM_STRING_VERSION[]                  = "6.0.5";
 
 // This defines the number of versions ahead we must see peers before we start displaying
 // warning messages that we need to upgrade our software.

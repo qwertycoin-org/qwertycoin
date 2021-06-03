@@ -28,9 +28,12 @@
 #include <boost/utility/value_init.hpp>
 #include <miniupnpc/miniupnpc.h>
 #include <miniupnpc/upnpcommands.h>
+
 #include <Common/StdInputStream.h>
 #include <Common/StdOutputStream.h>
+#include <Common/StringUtils.h>
 #include <Common/Util.h>
+
 #include <crypto/crypto.h>
 #include <P2p/ConnectionContext.h>
 #include <P2p/LevinProtocol.h>
@@ -50,6 +53,7 @@
 #include <version.h>
 
 using namespace Common;
+using namespace StringUtils;
 using namespace Logging;
 using namespace CryptoNote;
 
@@ -320,6 +324,7 @@ int NodeServer::handleCommand(const LevinProtocol::Command &cmd,
                               P2pConnectionContext &ctx,
                               bool &handled)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     int ret = 0;
     handled = true;
 
@@ -684,6 +689,7 @@ CryptoNote::CryptoNoteProtocolHandler& NodeServer::get_payload_object()
 
 bool NodeServer::run()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     logger(INFO) << "Starting node_server";
 
     m_workingContextGroup.spawn(std::bind(&NodeServer::acceptLoop, this));
@@ -710,11 +716,13 @@ uint64_t NodeServer::get_connections_count()
 
 bool NodeServer::deinit()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     return store_config();
 }
 
 bool NodeServer::store_config()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     try {
         if (!Tools::create_directories_if_necessary(m_config_folder)) {
             logger(INFO) << "Failed to create data directory: " << m_config_folder;
@@ -758,6 +766,7 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
                            P2pConnectionContext &context,
                            bool just_take_peerlist)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     COMMAND_HANDSHAKE::request arg;
     COMMAND_HANDSHAKE::response rsp;
     get_local_node_data(arg.node_data);
@@ -771,6 +780,10 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
     }
 
     context.version = rsp.node_data.version;
+    context.node_version = rsp.node_data.node_version;
+
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
 
     if (rsp.node_data.network_id != m_network_id) {
         logger(Logging::DEBUGGING)
@@ -790,6 +803,7 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
         }
     }
 
+    //if (compareVersionsLess(rsp.node_data.node_version, CryptoNote::P2P_MINIMUM_STRING_VERSION)) {
     if (rsp.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
         logger(Logging::DEBUGGING,BRIGHT_RED)
             << context
@@ -916,6 +930,7 @@ bool NodeServer::is_peer_used(const PeerlistEntry &peer)
 
 bool NodeServer::is_addr_connected(const NetworkAddress &peer)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     for (const auto &conn : m_connections) {
         if (!conn.second.m_is_income
             && peer.ip == conn.second.m_remote_ip
@@ -931,6 +946,7 @@ bool NodeServer::try_to_connect_and_handshake_with_new_peer(const NetworkAddress
                                                             uint64_t last_seen_stamp,
                                                             bool white)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     logger(DEBUGGING)
         << "Connecting to "
         << na
@@ -1000,6 +1016,9 @@ bool NodeServer::try_to_connect_and_handshake_with_new_peer(const NetworkAddress
         if (just_take_peerlist) {
             logger(Logging::DEBUGGING, Logging::BRIGHT_GREEN)
                 << ctx
+                << "FETCH PEERLIST...";
+            logger(Logging::DEBUGGING, Logging::BRIGHT_GREEN)
+                << ctx
                 << "CONNECTION HANDSHAKED OK AND CLOSED.";
             return true;
         }
@@ -1038,6 +1057,7 @@ bool NodeServer::try_to_connect_and_handshake_with_new_peer(const NetworkAddress
 
 bool NodeServer::make_new_connection_from_peerlist(bool use_white_list)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     size_t local_peers_count = use_white_list ? m_peerlist.get_white_peers_count()
                                               : m_peerlist.get_gray_peers_count();
     if(!local_peers_count) {
@@ -1102,6 +1122,7 @@ bool NodeServer::make_new_connection_from_peerlist(bool use_white_list)
 
 bool NodeServer::connections_maker()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if (!connect_to_peerlist(m_exclusive_peers)) {
         return false;
     }
@@ -1196,6 +1217,7 @@ size_t NodeServer::get_outgoing_connections_count()
 
 bool NodeServer::idle_worker()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     try {
         m_connections_maker_interval.call(std::bind(&NodeServer::connections_maker, this));
         m_peerlist_store_interval.call(std::bind(&NodeServer::store_config, this));
@@ -1234,6 +1256,7 @@ bool NodeServer::handle_remote_peerlist(const std::list<PeerlistEntry> &peerlist
                                         time_t local_time,
                                         const CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     int64_t delta = 0;
     std::list<PeerlistEntry> peerlist_ = peerlist;
     if(!fix_time_delta(peerlist_, local_time, delta)) {
@@ -1244,16 +1267,17 @@ bool NodeServer::handle_remote_peerlist(const std::list<PeerlistEntry> &peerlist
         << context
         << "REMOTE PEERLIST: TIME_DELTA: " << delta
         << ", remote peerlist size=" << peerlist_.size();
-
+/*
     logger(Logging::TRACE)
         << context
         << "REMOTE PEERLIST: " <<  print_peerlist_to_string(peerlist_);
-
+*/
     return m_peerlist.merge_peerlist(peerlist_);
 }
 
 bool NodeServer::get_local_node_data(basic_node_data &node_data)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     node_data.version = CryptoNote::P2P_CURRENT_VERSION;
     time_t local_time;
     time(&local_time);
@@ -1264,7 +1288,7 @@ bool NodeServer::get_local_node_data(basic_node_data &node_data)
     } else {
         node_data.my_port = 0;
     }
-    node_data.node_version = m_node_version;
+    node_data.node_version = CryptoNote::CRYPTONOTE_VERSION;
     node_data.network_id = m_network_id;
     return true;
 }
@@ -1323,6 +1347,7 @@ int NodeServer::handle_get_stat_info(int command,
                                      COMMAND_REQUEST_STAT_INFO::response &rsp,
                                      P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if(!check_trust(arg.tr)) {
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
@@ -1343,6 +1368,7 @@ int NodeServer::handle_get_network_state(int command,
                                          COMMAND_REQUEST_NETWORK_STATE::response &rsp,
                                          P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if(!check_trust(arg.tr)) {
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
@@ -1370,6 +1396,7 @@ int NodeServer::handle_get_peer_id(int command,
                                    COMMAND_REQUEST_PEER_ID::response &rsp,
                                    P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     rsp.my_id = m_config.m_peer_id;
     return 1;
 }
@@ -1465,6 +1492,7 @@ int NodeServer::handle_timed_sync(int command,
                                   COMMAND_TIMED_SYNC::response &rsp,
                                   P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if(!m_payload_handler.process_payload_sync_data(arg.payload_data, context, false)) {
         logger(Logging::ERROR) << context << "Failed to process_payload_sync_data(), dropping connection";
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
@@ -1485,6 +1513,7 @@ int NodeServer::handle_handshake(int command,
                                  COMMAND_HANDSHAKE::response &rsp,
                                  P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     context.version = arg.node_data.version;
 
 	if (!is_remote_host_allowed(context.m_remote_ip)) {
@@ -1506,6 +1535,7 @@ int NodeServer::handle_handshake(int command,
         return 1;
     }
 
+    // if (compareVersionsLess(arg.node_data.node_version, CryptoNote::P2P_MINIMUM_STRING_VERSION)) {
     if (arg.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
         logger(Logging::DEBUGGING)
             << context
@@ -1587,6 +1617,7 @@ int NodeServer::handle_ping(int command,
                             COMMAND_PING::response &rsp,
                             P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     logger(Logging::TRACE) << context << "COMMAND_PING";
 
     rsp.status = PING_OK_RESPONSE_STATUS_TEXT;
@@ -1659,6 +1690,7 @@ bool NodeServer::is_priority_node(const NetworkAddress &na)
 
 bool NodeServer::connect_to_peerlist(const std::vector<NetworkAddress> &peers)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     for(const auto &na: peers) {
         if (!is_addr_connected(na)) {
             try_to_connect_and_handshake_with_new_peer(na);
@@ -1689,6 +1721,7 @@ bool NodeServer::parse_peers_and_add_to_container(
 
 void NodeServer::acceptLoop()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     while(!m_stop) {
         try {
             P2pConnectionContext ctx(m_dispatcher, logger.getLogger(), m_listener.accept());
@@ -1781,6 +1814,7 @@ void NodeServer::timedSyncLoop()
 void NodeServer::connectionHandler(const boost::uuids::uuid &connectionId,
                                    P2pConnectionContext &ctx)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     // This inner context is necessary in order to stop connection handler at any moment
     System::Context<> context(m_dispatcher, [this, &connectionId, &ctx] {
         System::Context<> writeContext(
