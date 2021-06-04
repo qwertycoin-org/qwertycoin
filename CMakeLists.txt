@@ -125,12 +125,12 @@ add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/lib")
 if(BUILD_WITH_TOOLS)
     add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/src")
 endif()
-
+#[[
 if(BUILD_WITH_TESTS)
     enable_testing()
     add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/tests")
 endif()
-
+]]
 if(BUILD_WITH_PACKAGE)
     include(project/CPackConfig)
 endif()
