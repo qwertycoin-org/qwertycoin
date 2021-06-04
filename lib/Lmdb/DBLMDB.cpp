@@ -324,7 +324,7 @@ namespace CryptoNote {
     {
 
         if (!pCheck) {
-            std::cout << "~FMdbTxnSafe::!pCheck" << std::endl;
+            // std::cout << "~FMdbTxnSafe::!pCheck" << std::endl;
             return;
         }
 
@@ -391,6 +391,7 @@ namespace CryptoNote {
 
     void FMdbTxnSafe::preventNewTxns()
     {
+        std::cout << "preventNewTxns" << std::endl;
         while (pCreationGate.test_and_set());
     }
 
@@ -473,7 +474,7 @@ namespace CryptoNote {
         std::lock_guard<std::recursive_mutex> lockGuard(pSyncronizationLock);
 
         // const uint64_t uAddSize = (size_t) 1 << 30;
-        const uint64_t uAddSize = 32 * 1024 *1024;
+        const uint64_t uAddSize = 64 * 1024 *1024;
 
         try {
             mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". Try begin";
@@ -484,13 +485,14 @@ namespace CryptoNote {
                 mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". sSpaceInfo.available < uAddSize";
                 return;
             } else {
+                pIsResizing = true;
                 mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". else";
                 MDB_envinfo sLMDBEnvInfo;
                 mdb_env_info(mDbEnv, &sLMDBEnvInfo);
                 MDB_stat sLMDBStat;
                 mdb_env_stat(mDbEnv, &sLMDBStat);
                 uint64_t uOldMapSize = sLMDBEnvInfo.me_mapsize;
-                uint64_t uNewMapSize = (double) uOldMapSize + uAddSize;
+                uint64_t uNewMapSize = uOldMapSize + uAddSize;
 
                 if (uIncreaseSize > 0) {
                     mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uIncreaseSize > 0";
@@ -499,11 +501,13 @@ namespace CryptoNote {
                     uNewMapSize = 64 * 1024 * 1024;
                 }
 
-                uNewMapSize += (uNewMapSize % sLMDBStat.ms_psize);
+                uint32_t uMB = 1024 * 1024;
 
-                mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". Before preventNewTxns";
-                FMdbTxnSafe::preventNewTxns();
-                mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". After preventNewTxns";
+                mLogger(INFO, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uIncreaseSize: " << (uIncreaseSize / uMB) << "MiB";
+                mLogger(INFO, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uAddSize: " << (uAddSize / uMB) << "MiB";
+                mLogger(INFO, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uNewMapSize: " << (uNewMapSize / uMB) << "MiB";
+                mLogger(INFO, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uOldMapSize: " << (uOldMapSize / uMB) << "MiB";
+                uNewMapSize += (uNewMapSize % sLMDBStat.ms_psize);
 
                 if (mWriteDBTxnSafe != nullptr) {
                     mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". mWriteDBTxnSafe != nullptr";
@@ -516,10 +520,6 @@ namespace CryptoNote {
                     }
                 }
 
-                mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". Before waitNoActiveTxns";
-                FMdbTxnSafe::waitNoActiveTxns();
-                mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". After waitNoActiveTxns";
-
                 int iResult = mdb_env_set_mapsize(mDbEnv, uNewMapSize);
                 if (iResult) {
                     throw (DB_ERROR(lmdbError("Failed to set new mapsize: ", iResult).c_str()));
@@ -529,6 +529,7 @@ namespace CryptoNote {
                                            << "MiB" << ", New: " << uNewMapSize / (1024 * 1024) << "MiB";
 
                 FMdbTxnSafe::allowNewTxns();
+                pIsResizing = false;
             }
         } catch (std::exception &e) {
             mLogger(ERROR, BRIGHT_RED) << "Error during resizing: " << e.what();
@@ -559,20 +560,25 @@ namespace CryptoNote {
             uIncreaseSize = 8 * uMB;
         }
 
-        // if (fmod(uActualPercent, 5.0f) == 0 && uActualPercent != 0) {
+        if ((uActualPercent ==  5.0 ||
+             uActualPercent == 10.0 ||
+             uActualPercent == 25.0 ||
+             uActualPercent == 50.0 ||
+             uActualPercent == 75.0 ||
+             uActualPercent == (fResizePercent * 100.0)) && uActualPercent != 0) {
             mLogger(INFO, BRIGHT_CYAN) << "uActualPercent: " << fmod(uActualPercent, 5.0f);
-            mLogger(INFO, BRIGHT_CYAN) << "DB map size: " << (sMEnvIn.me_mapsize / uMB) << "mB";
-            mLogger(INFO, BRIGHT_CYAN) << "Space used: " << (uSizeUsed / uMB) << "mB";
+            mLogger(INFO, BRIGHT_CYAN) << "DB map size: " << (sMEnvIn.me_mapsize / uMB) << "MiB";
+            mLogger(INFO, BRIGHT_CYAN) << "Space used: " << (uSizeUsed / uMB) << "MiB";
             mLogger(INFO, BRIGHT_CYAN)
-                    << "Space remaining: " << ((sMEnvIn.me_mapsize - uSizeUsed) / uMB) << "mB";
-            mLogger(INFO, BRIGHT_CYAN) << "Size threshold: " << (uIncreaseSize / uMB) << "mB";
+                    << "Space remaining: " << ((sMEnvIn.me_mapsize - uSizeUsed) / uMB) << "MiB";
+            mLogger(INFO, BRIGHT_CYAN) << "Size threshold: " << (uIncreaseSize / uMB) << "MiB";
             if (uSizeUsed > 0) {
                 mLogger(INFO, BRIGHT_CYAN)
                         << boost::format("Percent used: %.04f  Percent threshold: %.04f")
                            % (100. * uSizeUsed / sMEnvIn.me_mapsize) % (100. * fResizePercent);
             }
 
-        //}
+        }
 
         if (uIncreaseSize > 0) {
             if (sMEnvIn.me_mapsize - uSizeUsed < uIncreaseSize) {
@@ -597,7 +603,7 @@ namespace CryptoNote {
     void BlockchainLMDB::checkAndResizeForBatch(uint64_t uBatchNumBlocks, uint64_t uBatchBytes)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
-        const uint64_t uMinIncSize = 512 * (1 << 20);
+        const uint64_t uMinIncSize = 32 * (1 << 20);
         uint64_t uThreshold = 0;
         uint64_t uIncrease;
         if (uBatchNumBlocks) {
@@ -619,6 +625,8 @@ namespace CryptoNote {
         if (needResize(uThreshold)) {
             mLogger(INFO, BRIGHT_CYAN) << "DB Resize needed.";
             doResize(uIncrease);
+        } else {
+            FMdbTxnSafe::allowNewTxns();
         }
     }
 
@@ -649,7 +657,7 @@ namespace CryptoNote {
         uint32_t uNumBlocksUsed = 0;
         uint64_t uTotalBlockSize = 0;
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
-                                        << "uHeight: " << uHeight
+                                        << ". Height: " << uHeight
                                         << " uBlockStart: " << uBlockStart
                                         << " uBlockStop: " << uBlockStop << ENDL;
         uint64_t uAvgBlockSize = 0;
@@ -672,6 +680,7 @@ namespace CryptoNote {
             FMdbTxnCursors *sRCursors;
             mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". Before blockReadTxnStart";
             bool bReadTxn = blockReadTxnStart(&sTxn, &sRCursors);
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". bReadTxn: " << bReadTxn;
             for (uint64_t uBlockNum = uBlockStart; uBlockNum <= uBlockStop; ++uBlockNum) {
                 // we have access to block weight, which will be greater or equal to block size,
                 // so use this as a proxy. If it's too much off, we might have to check actual size,
@@ -696,7 +705,7 @@ namespace CryptoNote {
             uAvgBlockSize = uMinBlockSize;
         }
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
-                                        << "Estimated average block size for batch: " << uAvgBlockSize;
+                                        << ". Estimated average block size for batch: " << uAvgBlockSize;
 
         // bigger safety margin on smaller block sizes
         if (fBatchFudgeFactor < 5000.0) {
@@ -818,7 +827,7 @@ namespace CryptoNote {
 
     uint64_t BlockchainLMDB::height() const
     {
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
 
         checkOpen();
         TXN_PREFIX_READONLY();
@@ -831,14 +840,12 @@ namespace CryptoNote {
             throw (DB_ERROR(lmdbError("Failed to query m_blocks: ", iResult).c_str()));
         }
 
-        TXN_POSTFIX_READONLY()
-
         return sDBStats.ms_entries;
     }
 
     uint64_t BlockchainLMDB::numOutputs() const
     {
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -1133,7 +1140,7 @@ namespace CryptoNote {
 
     size_t BlockchainLMDB::getBlockSize(const uint64_t &uHeight) const
     {
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -1363,7 +1370,7 @@ namespace CryptoNote {
                                        const uint64_t &uIndex,
                                        const uint64_t &uUnlockTime)
     {
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         FMdbTxnCursors *sCursor = &mWriteCursors;
@@ -1378,7 +1385,6 @@ namespace CryptoNote {
         MDBValSet(sValOutTx, sOutTx);
         result = mdb_cursor_put(sCurOutputTransactions, (MDB_val *) &cZeroKVal, &sValOutTx,
                                 MDB_APPENDDUP);
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". result sCurOutputTransactions: " << result;
         if (result) {
             throw (DB_ERROR(lmdbError("Failed to add output tx hash to db transaction: ", result).c_str()));
         }
@@ -1389,7 +1395,6 @@ namespace CryptoNote {
         MDB_val sData;
         FMdbValCopy<uint64_t> sValAmount(sTxOutput.amount);
         result = mdb_cursor_get(sCurOutputAmounts, &sValAmount, &sData, MDB_SET);
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". result sCurOutputAmounts: " << result;
         if (!result) {
             uint64_t uNumElements = 0;
             result = mdb_cursor_count(sCurOutputAmounts, &uNumElements);
@@ -1430,7 +1435,7 @@ namespace CryptoNote {
     void BlockchainLMDB::addTransactionAmountOutputIndices(const uint64_t uTxId,
                                                            const std::vector<uint64_t> &vAmountOutputIndices)
     {
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
         FMdbTxnCursors *sCursor = &mWriteCursors;
 
@@ -1789,6 +1794,7 @@ namespace CryptoNote {
 
         mdb_env_close(mDbEnv);
         pOpen = false;
+        pIsResizing = false;
     }
 
     void BlockchainLMDB::sync()
@@ -1991,7 +1997,7 @@ namespace CryptoNote {
 
     bool BlockchainLMDB::blockReadTxnStart(MDB_txn **sMdbTxn, FMdbTxnCursors **sCurs) const
     {
-        // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         bool bRet = false;
         FMdbThreadInfo *sTInfo;
 
@@ -2072,10 +2078,9 @@ namespace CryptoNote {
         }
 
         checkOpen();
-
         mWriter = boost::this_thread::get_id();
-        checkAndResizeForBatch(uBatchNumBlocks, uBatchNumBlocks);
 
+        checkAndResizeForBatch(uBatchNumBlocks, uBatchNumBlocks);
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". Before new FMdbTxnSafe()";
         mWriteBatchDBTxnSafe = new FMdbTxnSafe();
 
@@ -2100,6 +2105,7 @@ namespace CryptoNote {
             memset(&mTInfo->sTReadFlags, 0, sizeof(mTInfo->sTReadFlags));
         }
 
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << " successfully started";
         return true;
     }
 
@@ -2168,6 +2174,7 @@ namespace CryptoNote {
         mWriteDBTxnSafe = nullptr;
         delete mWriteDBTxnSafe;
         mWriteBatchDBTxnSafe = nullptr;
+        delete mWriteBatchDBTxnSafe;
         mBatchActive = false;
         memset(&mWriteCursors, 0, sizeof(mWriteCursors));
     }
@@ -2180,7 +2187,7 @@ namespace CryptoNote {
         }
 
         if (!mBatchActive) {
-            throw (DB_ERROR("Batch transaction not in progress."));
+            throw (DB_ERROR("Batch transaction not active."));
         }
 
         if (mWriteBatchDBTxnSafe == nullptr) {

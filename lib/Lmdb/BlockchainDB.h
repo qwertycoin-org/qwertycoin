@@ -283,7 +283,7 @@ namespace CryptoNote {
     public:
         friend class BlockchainLMDB;
 
-        BlockchainDB() : pOpen(false) {}
+        BlockchainDB() : pOpen(false), pIsResizing(false) {}
 
         virtual ~BlockchainDB() {};
 
@@ -317,6 +317,8 @@ namespace CryptoNote {
         virtual void open(const std::string &cFileName, const int iDBFlags = 0) = 0;
 
         bool isOpen() const;
+
+        bool isResizing() const;
 
         virtual void close() = 0;
 
@@ -655,6 +657,7 @@ namespace CryptoNote {
         virtual void fixUp();
 
         bool pOpen; // Whether or not the BlockchainDB is open/ready for use
+        bool pIsResizing; // Whether or not the BlockchainDB is resizing/ready for use
         mutable std::recursive_mutex pSyncronizationLock; // A lock, currently for when BlockchainLMDB
         // needs to resize the backing db file
     };

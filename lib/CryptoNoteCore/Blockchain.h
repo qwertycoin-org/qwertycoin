@@ -306,6 +306,11 @@ public:
         return pNodeSyncronized;
     }
 
+    bool isResizing()
+    {
+        return Tools::getDefaultDBType("lmdb") && pDB->isResizing();
+    }
+
     bool pNodeSyncronized;
 
     const BlockchainDB &getDB() const

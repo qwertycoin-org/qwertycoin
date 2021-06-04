@@ -2661,7 +2661,7 @@ std::vector<Crypto::Hash> Blockchain::findBlockchainSupplement(
 
 bool Blockchain::haveBlock(const Crypto::Hash &id)
 {
-    // logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    // logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     if (Tools::getDefaultDBType("lmdb")) {
         if (pDB->blockExists(id)) {
@@ -4195,7 +4195,9 @@ bool Blockchain::prepareHandleIncomingBlocks(const std::vector<block_complete_en
         }
     }
 
-    pDB->batchStart(uEntriesSize, uBytes);
+    if (!pDB->batchStart(uEntriesSize, uBytes)) {
+        logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". Fail while starting batchStart.";
+    }
 
     if ((pDB->height() + uEntriesSize) < mBlocksHashCheck.size()) {
         return true;

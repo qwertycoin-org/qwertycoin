@@ -308,16 +308,19 @@ int CryptoNoteProtocolHandler::handleCommand(bool is_notify,
     int ret = 0;
 
     handled = true;
-    switch (command) {
-    HANDLE_NOTIFY(NOTIFY_NEW_BLOCK, &CryptoNoteProtocolHandler::handle_notify_new_block)
-    HANDLE_NOTIFY(NOTIFY_NEW_TRANSACTIONS, &CryptoNoteProtocolHandler::handle_notify_new_transactions)
-    HANDLE_NOTIFY(NOTIFY_REQUEST_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_request_get_objects)
-    HANDLE_NOTIFY(NOTIFY_RESPONSE_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_response_get_objects)
-    HANDLE_NOTIFY(NOTIFY_REQUEST_CHAIN, &CryptoNoteProtocolHandler::handle_request_chain)
-    HANDLE_NOTIFY(NOTIFY_RESPONSE_CHAIN_ENTRY, &CryptoNoteProtocolHandler::handle_response_chain_entry)
-    HANDLE_NOTIFY(NOTIFY_REQUEST_TX_POOL, &CryptoNoteProtocolHandler::handleRequestTxPool)
-    default:
-        handled = false;
+    if (!m_core.getBlockchainStorage().isResizing()) {
+        // logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__ << ". DB is not set or is not resizing.";
+        switch (command) {
+            HANDLE_NOTIFY(NOTIFY_NEW_BLOCK, &CryptoNoteProtocolHandler::handle_notify_new_block)
+            HANDLE_NOTIFY(NOTIFY_NEW_TRANSACTIONS, &CryptoNoteProtocolHandler::handle_notify_new_transactions)
+            HANDLE_NOTIFY(NOTIFY_REQUEST_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_request_get_objects)
+            HANDLE_NOTIFY(NOTIFY_RESPONSE_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_response_get_objects)
+            HANDLE_NOTIFY(NOTIFY_REQUEST_CHAIN, &CryptoNoteProtocolHandler::handle_request_chain)
+            HANDLE_NOTIFY(NOTIFY_RESPONSE_CHAIN_ENTRY, &CryptoNoteProtocolHandler::handle_response_chain_entry)
+            HANDLE_NOTIFY(NOTIFY_REQUEST_TX_POOL, &CryptoNoteProtocolHandler::handleRequestTxPool)
+            default:
+                handled = false;
+        }
     }
 
     return ret;
@@ -809,6 +812,13 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
         return 1;
     }
 
+    if (m_core.getBlockchainStorage().isResizing()) {
+        logger(Logging::WARNING) << "Attention: DB is resizing. Please try again later.";
+        context.m_state = CryptoNoteConnectionContext::state_shutdown;
+
+        return 1;
+    }
+
     if (!m_core.have_block(arg.m_block_ids.front())) {
         logger(Logging::ERROR)
             << context << "sent m_block_ids starting from unknown id: "
@@ -851,8 +861,8 @@ int CryptoNoteProtocolHandler::handleRequestTxPool(int command,
                                                    NOTIFY_REQUEST_TX_POOL::request &arg,
                                                    CryptoNoteConnectionContext &context)
 {
-    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
-    logger(Logging::TRACE) << context << "NOTIFY_REQUEST_TX_POOL: txs.size() = " << arg.txs.size();
+    // logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
+    // logger(Logging::TRACE) << context << "NOTIFY_REQUEST_TX_POOL: txs.size() = " << arg.txs.size();
 
     bool val_expected = false;
 
