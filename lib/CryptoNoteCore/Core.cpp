@@ -1235,6 +1235,7 @@ size_t core::get_pool_transactions_count()
 
 bool core::have_block(const Crypto::Hash &id)
 {
+    // logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     return m_blockchain.haveBlock(id);
 }
 

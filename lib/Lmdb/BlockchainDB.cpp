@@ -113,6 +113,11 @@ namespace CryptoNote {
         return pOpen;
     }
 
+    bool BlockchainDB::isResizing() const
+    {
+        return pIsResizing;
+    }
+
     CryptoNote::Block BlockchainDB::getBlockFromHeight(const uint64_t &uHeight) const
     {
         CryptoNote::blobData sBlobData = getBlockBlobFromHeight(uHeight);
