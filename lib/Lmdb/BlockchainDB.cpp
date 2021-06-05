@@ -107,6 +107,18 @@ namespace CryptoNote {
     }
 
     void BlockchainDB::removeBlock() {}
+    void BlockchainDB::removeTransaction(const Crypto::Hash &sTxHash)
+    {
+        CryptoNote::Transaction sTransaction = getTransaction(sTxHash);
+
+        for (const CryptoNote::TransactionInput &sTxIn : sTransaction.inputs) {
+            if (sTxIn.type() == typeid(CryptoNote::KeyInput)) {
+                removeSpentKey(boost::get<CryptoNote::KeyInput>(sTxIn).keyImage);
+            }
+        }
+
+        removeTransactionData(sTxHash, sTransaction);
+    }
 
     bool BlockchainDB::isOpen() const
     {
