@@ -272,6 +272,16 @@ namespace CryptoNote {
         uint64_t mTimeAddTransaction = 0;
 
     protected:
+        /**
+         * @brief helper function for add_transactions, to add each individual transaction
+         *
+         * This function is called by add_transactions() for each transaction to be
+         * added.
+         *
+         * @param sBlockHash        Hash of the block which has the transaction
+         * @param sTransactions     The transaction to add
+         * @param sTxHashPtr        The hash of the transaction, if already calculated
+         */
         void addTransaction(const Crypto::Hash &sBlockHash,
                             const CryptoNote::Transaction &sTransactions,
                             const Crypto::Hash *sTxHashPtr = NULL);
@@ -285,10 +295,22 @@ namespace CryptoNote {
 
         BlockchainDB() : pOpen(false), pIsResizing(false) {}
 
+        /**
+         * @brief An empty destructor.
+         */
         virtual ~BlockchainDB() {};
 
+        /**
+         * @brief Reset profiling stats
+         */
         virtual void resetStats() = 0;
 
+        /**
+         * @brief Show profiling stats
+         *
+         * This function prints current performance/profiling data to whichever
+         * log file(s) are set up (possibly including stdout or stderr)
+         */
         virtual void showStats() = 0;
 
         /**
@@ -316,28 +338,155 @@ namespace CryptoNote {
          */
         virtual void open(const std::string &cFileName, const int iDBFlags = 0) = 0;
 
+        /**
+         * @brief Gets the current open/ready state of the BlockchainDB
+         *
+         * @return true if open/ready, otherwise false
+         */
         bool isOpen() const;
 
+        /**
+         * @brief Gets the current resizing/ready state of the BlockchainDB
+         *
+         * @return true if resizing/ready, otherwise false
+         */
         bool isResizing() const;
 
+        /**
+         * @brief Close the BlockchainDB
+         *
+         * At minimum, this call ensures that further use of the BlockchainDB
+         * instance will not have effect.  In any case where it is necessary
+         * to do so, a subclass implementing this will sync with disk.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         */
         virtual void close() = 0;
 
+        /**
+         * @brief Sync the BlockchainDB with disk
+         *
+         * This function should write any changes to whatever permanent backing
+         * store the subclass uses.  Example: a BlockchainDB instance which
+         * keeps the whole blockchain in RAM won't need to regularly access a
+         * disk, but should write out its state when this is called.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         */
         virtual void sync() = 0;
 
+        /**
+         * @brief Toggle safe syncs for the DB
+         *
+         * Used to switch DBF_SAFE on or off after starting up with DBF_FAST.
+         */
         virtual void safeSyncMode(const bool bOnOff) = 0;
 
+        /**
+         * @brief Remove everything from the BlockchainDB
+         *
+         * This function should completely remove all data from a BlockchainDB.
+         *
+         * Use with caution!
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         */
         virtual void reset() = 0;
 
+        /**
+         * @brief Gets the name of the folder the BlockchainDB's file(s) should be in
+         *
+         * The subclass implementation should return the name of the folder in which
+         * it stores files, or an empty string if there is none.
+         *
+         * @return The name of the folder with the BlockchainDB's files, if any.
+         */
         virtual std::string getDBName() const = 0;
 
+        /**
+         * @brief Acquires the BlockchainDB lock
+         *
+         * This function is a stub until such a time as locking is implemented at
+         * this level.
+         *
+         * The subclass implementation should return true unless implementing a
+         * locking scheme of some sort, in which case it should return true upon
+         * acquisition of the lock and block until then.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         *
+         * @return True, unless at a future time false makes sense (timeout, etc)
+         */
         virtual bool lock() = 0;
 
+        /**
+         * @brief This function releases the BlockchainDB lock
+         *
+         * The subclass, should it have implemented lock(), will release any lock
+         * held by the calling thread.  In the case of recursive locking, it should
+         * release one instance of a lock.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         */
         virtual void unlock() = 0;
 
+        /**
+         * @brief Tells the BlockchainDB to start a new "batch" of blocks
+         *
+         * If the subclass implements a batching method of caching blocks in RAM to
+         * be added to a backing store in groups, it should start a batch which will
+         * end either when <batch_num_blocks> has been added or batch_stop() has
+         * been called.  In either case, it should end the batch and write to its
+         * backing store.
+         *
+         * If a batch is already in-progress, this function must return false.
+         * If a batch was started by this call, it must return true.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         *
+         * @param uBatchNumBlocks   Number of blocks to batch together
+         * @param uBatchBytes       Number of bytes from the batch
+         *
+         * @return True if we started the batch, false if already started
+         */
         virtual bool batchStart(uint64_t uBatchNumBlocks = 0, uint64_t uBatchBytes = 0) = 0;
 
+        /**
+         * @brief Ends a batch transaction
+         *
+         * If the subclass implements batching, this function should store the
+         * batch it is currently on and mark it finished.
+         *
+         * If no batch is in-progress, this function should throw a DB_ERROR.
+         * This exception may change in the future if it is deemed necessary to
+         * have a more granular exception type for this scenario.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         */
         virtual void batchStop() = 0;
 
+        /**
+         * @brief Sets whether or not to batch transactions
+         *
+         * If the subclass implements batching, this function tells it to begin
+         * batching automatically.
+         *
+         * If the subclass implements batching and has a batch in-progress, a
+         * parameter of false should disable batching and call batch_stop() to
+         * store the current batch.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         *
+         * @param Bool batch whether or not to use batch transactions.
+         */
         virtual void setBatchTransactions(bool) = 0;
 
         virtual void blockTxnStart(bool bReadOnly = false) = 0;
