@@ -702,6 +702,24 @@ namespace CryptoNote {
         virtual Crypto::Hash getBlockHashFromHeight(const uint64_t &uHeight) const = 0;
 
         /**
+         * @brief Fetch a list of blocks
+         *
+         * The subclass should return a vector of blocks with heights starting at
+         * h1 and ending at h2, inclusively.
+         *
+         * If the height range requested goes past the end of the blockchain,
+         * the subclass should throw BLOCK_DNE.  (current implementations simply
+         * don't catch this exception as thrown by methods called within)
+         *
+         * @param uStartHeight  The start height
+         * @param uEndHeight    The end height
+         *
+         * @return A vector of blocks
+         */
+        virtual std::vector<CryptoNote::Block> getBlocksRange(const uint64_t &uStartHeight,
+                                                              const uint64_t &uEndHeight) = 0;
+
+        /**
          * @brief Fetch the top block's hash
          *
          * The subclass should return the hash of the most recent block
