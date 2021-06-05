@@ -1514,127 +1514,128 @@ namespace CryptoNote {
 		return true;
 	}
 
-	bool RpcServer::onGetTransactionsByHeights(
-			const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
-			COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res)
-	{
-		try {
-			std::vector<Crypto::Hash> vh;
+        bool RpcServer::onGetTransactionsByHeights(
+                const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
+                COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res)
+        {
+            try {
+                std::vector<Crypto::Hash> vh;
 
-			if (req.range) {
-				if (req.heights.size() != 2) {
-					res.status = "Range set true but heights size != 2";
-					return true;
-				}
+                if (req.range) {
+                    if (req.heights.size() != 2) {
+                        res.status = "Range set true but heights size != 2";
+                        return true;
+                    }
 
-				uint32_t upperBorder = std::min(req.heights[1], m_core.get_current_blockchain_height());
+                    uint32_t upperBorder =
+                            std::min(req.heights[1], m_core.get_current_blockchain_height());
 
-				for (size_t i = 0; i < (upperBorder - req.heights[0]); i++) {
-					Block blk;
-					Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[0] + i);
+                    for (size_t i = 0; i < (upperBorder - req.heights[0]); i++) {
+                        Block blk;
+                        Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[0] + i);
 
-					if (!m_core.getBlockByHash(blockHash, blk)) {
-						throw JsonRpc::JsonRpcError{CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-													"Internal error: can't get block by hash. Hash = "
-													+ podToHex(blockHash) + '.'};
-					}
+                        if (!m_core.getBlockByHash(blockHash, blk)) {
+                            throw JsonRpc::JsonRpcError {
+                                CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                                "Internal error: can't get block by hash. Hash = "
+                                        + podToHex(blockHash) + '.'
+                            };
+                        }
 
-					if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
-						throw JsonRpc::JsonRpcError{
-								CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-								"Internal error: coinbase transaction in the block has the wrong type"
-						};
-					}
+                        if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
+                            throw JsonRpc::JsonRpcError { CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                                                          "Internal error: coinbase transaction in "
+                                                          "the block has the wrong type" };
+                        }
 
-					for (Crypto::Hash &bTxs : blk.transactionHashes) {
-						vh.push_back(bTxs);
-					}
+                        for (Crypto::Hash &bTxs : blk.transactionHashes) {
+                            vh.push_back(bTxs);
+                        }
 
-					if (req.include_miner_txs) {
-						vh.push_back(getObjectHash(blk.baseTransaction));
-					}
-				}
-			}
-			else {
-				for (size_t i = 0; i < req.heights.size(); i++) {
-					Block blk;
-					Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[i]);
+                        if (req.include_miner_txs) {
+                            vh.push_back(getObjectHash(blk.baseTransaction));
+                        }
+                    }
+                } else {
+                    for (size_t i = 0; i < req.heights.size(); i++) {
+                        Block blk;
+                        Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[i]);
 
-					for (Crypto::Hash &bTxs : blk.transactionHashes) {
-						vh.push_back(bTxs);
-					}
+                        for (Crypto::Hash &bTxs : blk.transactionHashes) {
+                            vh.push_back(bTxs);
+                        }
 
-					if (req.include_miner_txs) {
-						vh.push_back(getObjectHash(blk.baseTransaction));
-					}
-				}
-			}
+                        if (req.include_miner_txs) {
+                            vh.push_back(getObjectHash(blk.baseTransaction));
+                        }
+                    }
+                }
 
-			std::list<Crypto::Hash> missedTxs;
-			std::list<Transaction> txs;
+                std::list<Crypto::Hash> missedTxs;
+                std::list<Transaction> txs;
 
-			m_core.getTransactions(vh, txs, missedTxs, true);
+                m_core.getTransactions(vh, txs, missedTxs, true);
 
-			std::list<std::string> txHashes;
-			for (auto &tx : txs) {
-				txHashes.push_back(Common::podToHex(getObjectHash(tx)));
-			}
+                std::list<std::string> txHashes;
+                for (auto &tx : txs) {
+                    txHashes.push_back(Common::podToHex(getObjectHash(tx)));
+                }
 
-			logger(DEBUGGING) << "Found " << txs.size() << "/" << vh.size()
-							  << " transactions on the blockchain.";
+                logger(DEBUGGING) << "Found " << txs.size() << "/" << vh.size()
+                                  << " transactions on the blockchain.";
 
-			std::list<std::string>::const_iterator txHi = txHashes.begin();
-			std::vector<Crypto::Hash>::const_iterator vHi = vh.begin();
+                std::list<std::string>::const_iterator txHi = txHashes.begin();
+                std::vector<Crypto::Hash>::const_iterator vHi = vh.begin();
 
-			for (const Transaction &tx : txs) {
-				res.txs.push_back(COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry());
-				COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry &e = res.txs.back();
+                for (const Transaction &tx : txs) {
+                    res.txs.push_back(COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry());
+                    COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry &e = res.txs.back();
 
-				Crypto::Hash blockHash;
-				uint32_t blockHeight;
-				uint64_t fee;
-				get_tx_fee(tx, fee);
+                    Crypto::Hash blockHash;
+                    uint32_t blockHeight;
+                    uint64_t fee;
+                    get_tx_fee(tx, fee);
 
-				Crypto::Hash txHash = *vHi++;
-				e.tx_hash = *txHi++;
+                    Crypto::Hash txHash = *vHi++;
+                    e.tx_hash = *txHi++;
 
-				bool r = m_core.getBlockContainingTx(txHash, blockHash, blockHeight);
-				bool oR = m_core.get_tx_outputs_gindexs(txHash, e.output_indices);
+                    bool r = m_core.getBlockContainingTx(txHash, blockHash, blockHeight);
+                    bool oR = m_core.get_tx_outputs_gindexs(txHash, e.output_indices);
 
-				if (req.as_json) {
-					e.as_json = tx;
-				}
+                    if (req.as_json) {
+                        e.as_json = tx;
+                    }
 
-				e.block_height = blockHeight;
-				e.block_timestamp = m_core.getBlockTimestamp(blockHeight);
-				e.fee = fee;
-			}
+                    e.block_height = blockHeight;
+                    e.block_timestamp = m_core.getBlockTimestamp(blockHeight);
+                    e.fee = fee;
+                }
 
-			if (txs.empty() || !missedTxs.empty()) {
-				std::ostringstream oss;
-				std::string seperator;
-				for (auto h : missedTxs) {
-					oss << seperator << Common::podToHex(h);
-					seperator = ",";
-				}
-				res.status = "transaction(s) not found: " + oss.str() + ".";
-			}
+                if (txs.empty() || !missedTxs.empty()) {
+                    std::ostringstream oss;
+                    std::string seperator;
+                    for (auto h : missedTxs) {
+                        oss << seperator << Common::podToHex(h);
+                        seperator = ",";
+                    }
+                    res.status = "transaction(s) not found: " + oss.str() + ".";
+                }
 
-			res.status = CORE_RPC_STATUS_OK;
-			return true;
+                res.status = CORE_RPC_STATUS_OK;
+                return true;
 
-		} catch (std::system_error &e) {
-			res.status = e.what();
-			return false;
-		} catch (std::exception &e) {
-			res.status = "Error: " + std::string(e.what());
-			return false;
-		}
+            } catch (std::system_error &e) {
+                res.status = e.what();
+                return false;
+            } catch (std::exception &e) {
+                res.status = "Error: " + std::string(e.what());
+                return false;
+            }
 
-		return true;
-	}
+            return true;
+        }
 
-	bool RpcServer::onGetRawTransactionsByHeights(const COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::request &req,
+        bool RpcServer::onGetRawTransactionsByHeights(const COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::request &req,
 												  COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::response &res)
 	{
 		try {

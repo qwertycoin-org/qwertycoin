@@ -214,6 +214,8 @@ namespace CryptoNote {
 
         virtual void blockReadTxnStop() const;
 
+        virtual void popBlock(CryptoNote::Block &sBlock, std::vector<CryptoNote::Transaction> &vTransactions);
+
         virtual Crypto::Hash getTopBlockHash() const;
 
         virtual CryptoNote::Block getTopBlock() const;

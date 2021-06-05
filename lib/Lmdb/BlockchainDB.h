@@ -267,6 +267,15 @@ namespace CryptoNote {
         virtual void removeSpentKey(const Crypto::KeyImage &sSpentKeyImage) = 0;
 
         /**
+         * @brief The private version of popBlock, for undoing if an add_block fails
+         *
+         * This function simply calls popBlock(CryptoNote::Block &sBlock,
+                                               std::vector<CryptoNote::Transaction> &sTransactions);
+         * with dummy parameters, as the returns-by-reference can be discarded.
+         */
+        void popBlock();
+
+        /**
          * @brief helper function to remove transaction from the blockchain
          *
          * This function encapsulates aspects of removing a transaction.
@@ -772,6 +781,28 @@ namespace CryptoNote {
          * @return the current blockchain height
          */
         virtual uint64_t height() const = 0;
+
+        /**
+         * <!--
+         * TODO: Rewrite (if necessary) such that all calls to remove_* are
+         *       done in concrete members of this base class.
+         * -->
+         *
+         * @brief pops the top block off the blockchain
+         *
+         * The subclass should remove the most recent block from the blockchain,
+         * along with all transactions, outputs, and other metadata created as
+         * a result of its addition to the blockchain.  Most of this is handled
+         * by the concrete members of the base class provided the subclass correctly
+         * implements remove_* functions.
+         *
+         * The subclass should return by reference the popped block and
+         * its associated transactions
+         *
+         * @param blk return-by-reference the block which was popped
+         * @param txs return-by-reference the transactions from the popped block
+         */
+        virtual void popBlock(CryptoNote::Block &sBlock, std::vector<CryptoNote::Transaction> &vTransactions);
 
         /**
          * @brief Check if a transaction with a given hash exists

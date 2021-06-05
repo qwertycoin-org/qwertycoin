@@ -18,7 +18,9 @@
 
 #pragma once
 
+#include <iostream>
 #include <limits>
+
 #include <Common/MemoryInputStream.h>
 #include <Common/StringTools.h>
 #include <Common/VectorOutputStream.h>
@@ -107,7 +109,6 @@ bool getObjectHash(const T &object, Crypto::Hash &hash)
         hash = NULL_HASH;
         return false;
     }
-
     hash = getBinaryArrayHash(ba);
 
     return true;
