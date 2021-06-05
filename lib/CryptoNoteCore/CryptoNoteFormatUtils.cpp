@@ -738,105 +738,100 @@ bool is_valid_decomposed_amount(uint64_t amount) {
     return true;
 }
 
-	bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
-											 CryptoNote::Transaction &sTransaction,
-											 Crypto::Hash &sTransactionHash,
-											 Crypto::Hash &sTransactionPrefixHash)
-	{
-		std::stringstream cStringStream;
-		cStringStream << sTransactionBlob;
-		BinaryArray sBinArr = fromHex(cStringStream.str());
-		sBinArr.pop_back();
-		bool r = parseAndValidateTransactionFromBinaryArray(sBinArr,
-															sTransaction,
-															sTransactionHash,
-															sTransactionPrefixHash);
+bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+                                         CryptoNote::Transaction &sTransaction,
+                                         Crypto::Hash &sTransactionHash,
+                                         Crypto::Hash &sTransactionPrefixHash)
+{
+    std::stringstream cStringStream;
+    cStringStream << sTransactionBlob;
+    BinaryArray sBinArr = fromHex(cStringStream.str());
+    sBinArr.pop_back();
+    bool r = parseAndValidateTransactionFromBinaryArray(sBinArr, sTransaction, sTransactionHash,
+                                                        sTransactionPrefixHash);
 
-		return r;
-	}
+    return r;
+}
 
-	bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
-											 CryptoNote::Transaction &sTransaction)
-	{
-		BinaryArray sBinArr = asBinaryArray(sTransactionBlob.c_str());
-		sBinArr.pop_back();
-		Crypto::Hash sTransactionHash;
-		Crypto::Hash sTransactionPrefixHash;
+bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+                                         CryptoNote::Transaction &sTransaction)
+{
+    BinaryArray sBinArr = asBinaryArray(sTransactionBlob.c_str());
+    sBinArr.pop_back();
+    Crypto::Hash sTransactionHash;
+    Crypto::Hash sTransactionPrefixHash;
 
-		bool r = parseAndValidateTransactionFromBinaryArray(sBinArr,
-															sTransaction,
-															sTransactionHash,
-															sTransactionPrefixHash);
+    bool r = parseAndValidateTransactionFromBinaryArray(sBinArr, sTransaction, sTransactionHash,
+                                                        sTransactionPrefixHash);
 
-		return r;
-	}
+    return r;
+}
 
-	bool parseAndValidateBlockFromBlob(const CryptoNote::blobData &sBlockBlob,
-									   CryptoNote::Block &sBlock)
-	{
-		std::stringstream cStringStream;
-		cStringStream << sBlockBlob;
-		FBinaryArchive<false> sBinArr(cStringStream);
+bool parseAndValidateBlockFromBlob(const CryptoNote::blobData &sBlockBlob,
+                                   CryptoNote::Block &sBlock)
+{
+    std::stringstream cStringStream;
+    cStringStream << sBlockBlob;
+    FBinaryArchive<false> sBinArr(cStringStream);
 
-		bool r = Serial::serialize(sBinArr, sBlock);
+    bool r = Serial::serialize(sBinArr, sBlock);
 
-		return r;
-	}
+    return r;
+}
 
-	blobData blockToBlob(const CryptoNote::Block &sBlock)
-	{
+blobData blockToBlob(const CryptoNote::Block &sBlock)
+{
     /*
-		blobData cBlobData;
-		BinaryArray sBinArr = storeToBinary(sBlock);
-		cBlobData = Common::asString(sBinArr);
+                blobData cBlobData;
+                BinaryArray sBinArr = storeToBinary(sBlock);
+                cBlobData = Common::asString(sBinArr);
 
-		return cBlobData;
+                return cBlobData;
      */
-        blobData cBlobData;
-        std::stringstream cStringStream;
-        FBinaryArchive<true> sBinArc(cStringStream);
-        bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Block &>(sBlock));
-        cBlobData = cStringStream.str();
+    blobData cBlobData;
+    std::stringstream cStringStream;
+    FBinaryArchive<true> sBinArc(cStringStream);
+    bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Block &>(sBlock));
+    cBlobData = cStringStream.str();
 
-        return cBlobData;
-	}
+    return cBlobData;
+}
 
-	blobData transactionToBlob(const CryptoNote::Transaction &sTransaction)
-	{
-		blobData cBlobData;
-		// BinaryArray sBinArr = storeToBinary(sTransaction);
-		// cBlobData = Common::asString(sBinArr);
+blobData transactionToBlob(const CryptoNote::Transaction &sTransaction)
+{
+    blobData cBlobData;
+    // BinaryArray sBinArr = storeToBinary(sTransaction);
+    // cBlobData = Common::asString(sBinArr);
 
-        std::stringstream cStringStream;
-        FBinaryArchive<true> sBinArc(cStringStream);
-        bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Transaction &>(sTransaction));
-        cBlobData = cStringStream.str();
+    std::stringstream cStringStream;
+    FBinaryArchive<true> sBinArc(cStringStream);
+    bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Transaction &>(sTransaction));
+    cBlobData = cStringStream.str();
 
-		return cBlobData;
-	}
+    return cBlobData;
+}
 
-	bool transactionToBlob(const CryptoNote::Transaction &sTransaction,
-						   CryptoNote::blobData &sTransactionBlob)
-	{
-		// BinaryArray sBinArr = storeToBinary(sTransaction);
-		// sTransactionBlob = Common::asString(sBinArr);
-        std::stringstream cStringStream;
-        FBinaryArchive<true> sBinArc(cStringStream);
-        bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Transaction &>(sTransaction));
-        sTransactionBlob = cStringStream.str();
+bool transactionToBlob(const CryptoNote::Transaction &sTransaction,
+                       CryptoNote::blobData &sTransactionBlob)
+{
+    // BinaryArray sBinArr = storeToBinary(sTransaction);
+    // sTransactionBlob = Common::asString(sBinArr);
+    std::stringstream cStringStream;
+    FBinaryArchive<true> sBinArc(cStringStream);
+    bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Transaction &>(sTransaction));
+    sTransactionBlob = cStringStream.str();
 
-		return r;
-	}
+    return r;
+}
 
-    bool blockToBlob(const CryptoNote::Block &sBlock,
-                     CryptoNote::blobData &sBlockBlob)
-    {
-        std::stringstream cStringStream;
-        FBinaryArchive<true> sBinArc(cStringStream);
-        bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Block &>(sBlock));
-        sBlockBlob = cStringStream.str();
+bool blockToBlob(const CryptoNote::Block &sBlock, CryptoNote::blobData &sBlockBlob)
+{
+    std::stringstream cStringStream;
+    FBinaryArchive<true> sBinArc(cStringStream);
+    bool r = Serial::serialize(sBinArc, const_cast<CryptoNote::Block &>(sBlock));
+    sBlockBlob = cStringStream.str();
 
-        return r;
-    }
+    return r;
+}
 
 } // namespace CryptoNote

@@ -799,35 +799,35 @@ void Blockchain::rebuildCache()
             blockHash = get_block_hash(sBlock);
             m_blockIndex.push(blockHash);
             Transaction sTransaction = boost::value_initialized<Transaction>();
-			for (uint16_t t = 0; t < sBlock.transactionHashes.size(); ++t) {
-				const BlockEntry &sBlockEntry = m_blocks[b];
-				const TransactionEntry &transaction = sBlockEntry.transactions[t];
-				logger(DEBUGGING, BRIGHT_GREEN) << "Transaction index: " << std::to_string(t);
-				Crypto::Hash transactionHash = getObjectHash(transaction.tx);
-				TransactionIndex transactionIndex = { b, t };
-				m_transactionMap.insert(std::make_pair(transactionHash, transactionIndex));
+            for (uint16_t t = 0; t < sBlock.transactionHashes.size(); ++t) {
+                const BlockEntry &sBlockEntry = m_blocks[b];
+                const TransactionEntry &transaction = sBlockEntry.transactions[t];
+                logger(DEBUGGING, BRIGHT_GREEN) << "Transaction index: " << std::to_string(t);
+                Crypto::Hash transactionHash = getObjectHash(transaction.tx);
+                TransactionIndex transactionIndex = { b, t };
+                m_transactionMap.insert(std::make_pair(transactionHash, transactionIndex));
 
-				// process inputs
-				for (auto &i : transaction.tx.inputs) {
-					if (i.type() == typeid(KeyInput)) {
-						m_spent_keys.insert(::boost::get<KeyInput>(i).keyImage);
-					} else if (i.type() == typeid(MultisignatureInput)) {
-						auto out = ::boost::get<MultisignatureInput>(i);
-						m_multisignatureOutputs[out.amount][out.outputIndex].isUsed = true;
-					}
-				}
+                // process inputs
+                for (auto &i : transaction.tx.inputs) {
+                    if (i.type() == typeid(KeyInput)) {
+                        m_spent_keys.insert(::boost::get<KeyInput>(i).keyImage);
+                    } else if (i.type() == typeid(MultisignatureInput)) {
+                        auto out = ::boost::get<MultisignatureInput>(i);
+                        m_multisignatureOutputs[out.amount][out.outputIndex].isUsed = true;
+                    }
+                }
 
-				// process outputs
-				for (uint16_t o = 0; o < transaction.tx.outputs.size(); ++o) {
-					const auto &out = transaction.tx.outputs[o];
-					if (out.target.type() == typeid(KeyOutput)) {
-						m_outputs[out.amount].push_back(std::make_pair<>(transactionIndex, o));
-					} else if (out.target.type() == typeid(MultisignatureOutput)) {
-						MultisignatureOutputUsage usage = { transactionIndex, o, false };
-						m_multisignatureOutputs[out.amount].push_back(usage);
-					}
-				}
-			}
+                // process outputs
+                for (uint16_t o = 0; o < transaction.tx.outputs.size(); ++o) {
+                    const auto &out = transaction.tx.outputs[o];
+                    if (out.target.type() == typeid(KeyOutput)) {
+                        m_outputs[out.amount].push_back(std::make_pair<>(transactionIndex, o));
+                    } else if (out.target.type() == typeid(MultisignatureOutput)) {
+                        MultisignatureOutputUsage usage = { transactionIndex, o, false };
+                        m_multisignatureOutputs[out.amount].push_back(usage);
+                    }
+                }
+            }
         }
         else if (bIsLMDB) {
             DB_TX_START
@@ -3556,18 +3556,34 @@ bool Blockchain::pushBlock(BlockEntry &block)
 
 void Blockchain::popBlock()
 {
-    if (m_blocks.empty()) {
-        logger(ERROR, BRIGHT_RED) << "Attempt to pop block from empty blockchain.";
-        return;
-    }
+    if (!Tools::getDefaultDBType("lmdb")) {
+        if (m_blocks.empty()) {
+            logger(ERROR, BRIGHT_RED) << "Attempt to pop block from empty blockchain.";
+            return;
+        }
 
-    std::vector<Transaction> transactions(m_blocks.back().transactions.size() - 1);
-    for (size_t i = 0; i < m_blocks.back().transactions.size() - 1; ++i) {
-        transactions[i] = m_blocks.back().transactions[1 + i].tx;
-    }
+        std::vector<Transaction> transactions(m_blocks.back().transactions.size() - 1);
+        for (size_t i = 0; i < m_blocks.back().transactions.size() - 1; ++i) {
+            transactions[i] = m_blocks.back().transactions[1 + i].tx;
+        }
 
-    saveTransactions(transactions);
-    removeLastBlock();
+        saveTransactions(transactions);
+        removeLastBlock();
+    } else {
+        if (pDB->height() < 1) {
+            logger(ERROR, BRIGHT_RED) << "Attempt to pop block from empty blockchain.";
+            return;
+        }
+
+        CryptoNote::Block sBlock = pDB->getTopBlock();
+        std::vector<CryptoNote::Transaction> vTxs;
+        for (const auto &sTxHash : sBlock.transactionHashes) {
+            CryptoNote::Transaction sTx = pDB->getTransaction(sTxHash);
+            vTxs.push_back(sTx);
+        }
+
+        pDB->popBlock(sBlock, vTxs);
+    }
 
     m_upgradeDetectorV2.blockPopped();
     m_upgradeDetectorV3.blockPopped();
@@ -3858,29 +3874,43 @@ bool Blockchain::checkCheckpoints(uint32_t &lastValidCheckpointHeight)
 
 void Blockchain::rollbackBlockchainTo(uint32_t height)
 {
-    while (height + 1 < m_blocks.size()) {
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+    while (height + 1 < HEIGHT_COND) {
         removeLastBlock();
     }
 }
 
 void Blockchain::removeLastBlock()
 {
-    if (m_blocks.empty()) {
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+    if ((bIsLMDB ? !pDB->height() : m_blocks.empty())) {
         logger(ERROR, BRIGHT_RED) << "Attempt to pop block from empty blockchain.";
         return;
     }
 
-    logger(DEBUGGING) << "Removing last block with height " << m_blocks.back().height;
-    popTransactions(m_blocks.back(), getObjectHash(m_blocks.back().bl.baseTransaction));
+    logger(DEBUGGING) << "Removing last block with height " << (bIsLMDB ? pDB->height()-1 : m_blocks.back().height);
+    if (!bIsLMDB) {
+        popTransactions(m_blocks.back(), getObjectHash(m_blocks.back().bl.baseTransaction));
+    } else {
+        std::vector<Transaction> vTxs;
+        Block sBl = pDB->getTopBlock();
+        logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". Before push_back.";
+        vTxs.push_back(std::move(sBl.baseTransaction));
+        logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". After push_back.";
+        pDB->popBlock(sBl, vTxs);
+    }
 
-    Crypto::Hash blockHash = getBlockIdByHeight(m_blocks.back().height);
-    m_timestampIndex.remove(m_blocks.back().bl.timestamp, blockHash);
-    m_generatedTransactionsIndex.remove(m_blocks.back().bl);
+    Crypto::Hash blockHash = getBlockIdByHeight((bIsLMDB ? (pDB->height()-1) : m_blocks.back().height));
+    m_timestampIndex.remove((bIsLMDB ? pDB->getTopBlockTimestamp() : m_blocks.back().bl.timestamp), blockHash);
+    m_generatedTransactionsIndex.remove((bIsLMDB ? pDB->getTopBlock() : m_blocks.back().bl));
 
-    m_blocks.pop_back();
+    if (!bIsLMDB) {
+        m_blocks.pop_back();
+    }
     m_blockIndex.pop();
 
-    assert(m_blockIndex.size() == m_blocks.size());
+    assert(m_blockIndex.size() == HEIGHT_COND);
 }
 
 bool Blockchain::checkUpgradeHeight(const UpgradeDetector &upgradeDetector)

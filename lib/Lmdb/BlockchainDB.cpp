@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <boost/range/adaptor/reversed.hpp>
+
 #include <Common/StringTools.h>
 
 #include <CryptoNoteCore/CryptoNoteTools.h>
@@ -31,6 +33,14 @@ namespace CryptoNote {
         else {
             return NULL;
         }
+    }
+
+    void BlockchainDB::popBlock()
+    {
+        CryptoNote::Block sBlock;
+        std::vector<CryptoNote::Transaction> vTransactions;
+
+        popBlock(sBlock, vTransactions);
     }
 
     void BlockchainDB::addTransaction(const Crypto::Hash &sBlockHash,
@@ -106,10 +116,34 @@ namespace CryptoNote {
         return uPrevheight;
     }
 
-    void BlockchainDB::removeBlock() {}
+    void BlockchainDB::popBlock(CryptoNote::Block &sBlock,
+                                std::vector<CryptoNote::Transaction> &vTransactions)
+    {
+        sBlock = getTopBlock();
+        std::cout << "BlockchainDB::" << __func__ << ". Before removeBlock." << std::endl;
+
+        removeBlock();
+
+        for (const auto &sHash : boost::adaptors::reverse(sBlock.transactionHashes)) {
+            CryptoNote::Transaction sTransaction;
+            if (!getTransaction(sHash, sTransaction)) {
+                throw DB_ERROR("Failed to get transaction from the db");
+            }
+
+            vTransactions.push_back(std::move(sTransaction));
+            removeTransaction(sHash);
+        }
+
+        std::cout << "BlockchainDB::" << __func__ << ". Before for." << std::endl;
+
+        // TODO: Add baseTx removing
+    }
+
     void BlockchainDB::removeTransaction(const Crypto::Hash &sTxHash)
     {
+        std::cout << "BlockchainDB::" << __func__ << ". Before getTransaction." << std::endl;
         CryptoNote::Transaction sTransaction = getTransaction(sTxHash);
+        std::cout << "BlockchainDB::" << __func__ << ". After removeTransaction." << std::endl;
 
         for (const CryptoNote::TransactionInput &sTxIn : sTransaction.inputs) {
             if (sTxIn.type() == typeid(CryptoNote::KeyInput)) {

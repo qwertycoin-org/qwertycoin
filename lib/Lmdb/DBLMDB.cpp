@@ -1003,6 +1003,22 @@ namespace CryptoNote {
         return ++uHeight;
     }
 
+    void BlockchainLMDB::popBlock(CryptoNote::Block &sBlock,
+                                  std::vector<CryptoNote::Transaction> &vTransactions)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+        blockTxnStart(false);
+
+        try {
+            BlockchainDB::popBlock(sBlock, vTransactions);
+            blockTxnStop();
+        } catch (...) {
+            blockTxnAbort();
+            throw;
+        }
+    }
+
     bool BlockchainLMDB::blockExists(const Crypto::Hash &sHash, uint64_t *height) const
     {
         // mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
@@ -1140,7 +1156,7 @@ namespace CryptoNote {
 
     size_t BlockchainLMDB::getBlockSize(const uint64_t &uHeight) const
     {
-        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -1393,6 +1409,31 @@ namespace CryptoNote {
                                                const CryptoNote::Transaction &tx)
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+        int iResult;
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+        CURSOR(Transactions)
+        CURSOR(TransactionIndices)
+        CURSOR(TransactionOutputs)
+
+        MDBValSet(sValHash, sTxHash);
+        if (mdb_cursor_get(sCurTransactionIndices, (MDB_val *) &cZeroKVal, &sValHash, MDB_GET_BOTH)) {
+            throw (TX_DNE("Attempting to remove transaction that isn't in the db"));
+        }
+
+        FTransactionIndex *sTIn = (FTransactionIndex *) sValHash.mv_data;
+        MDBValSet(sValTxIndex, sTIn->data.uTxID);
+        if ((iResult = mdb_cursor_get(sCurTransactions, &sValTxIndex, NULL, MDB_SET))) {
+            throw (DB_ERROR(lmdbError("Failed to locate tx for removal: ", iResult).c_str()));
+        }
+
+        iResult = mdb_cursor_del(sCurTransactions, 0);
+        if (iResult) {
+            throw (DB_ERROR(lmdbError("Failed to add removal of tx to db transaction: ", iResult).c_str()));
+        }
+
+        // removeTxOutputs
     }
 
     uint64_t BlockchainLMDB::addOutput(const Crypto::Hash &sTxHash,
