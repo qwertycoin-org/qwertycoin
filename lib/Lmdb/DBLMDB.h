@@ -189,6 +189,9 @@ namespace CryptoNote {
         virtual std::vector<CryptoNote::Block> getBlocksRange(const uint64_t &uStartHeight,
                                                               const uint64_t &uEndHeight);
 
+        virtual std::vector<Crypto::Hash> getHashesRange(const uint64_t &uStartHeight,
+                                                         const uint64_t &uEndHeight);
+
         virtual void setBatchTransactions(bool bBatchTransactions);
 
         virtual bool batchStart(uint64_t uBatchNumBlocks = 0, uint64_t uBatchBytes = 0);
