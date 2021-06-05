@@ -1256,6 +1256,21 @@ namespace CryptoNote {
 
     }
 
+    std::vector<CryptoNote::Block> BlockchainLMDB::getBlocksRange(const uint64_t &uStartHeight,
+                                                                  const uint64_t &uEndHeight)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        std::vector<CryptoNote::Block> vBlocks;
+
+        for (uint64_t uHeight = uStartHeight; uHeight <= uEndHeight; ++uHeight) {
+            vBlocks.push_back(getBlockFromHeight(uHeight));
+        }
+
+        return vBlocks;
+    }
+
     void BlockchainLMDB::removeBlock()
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
