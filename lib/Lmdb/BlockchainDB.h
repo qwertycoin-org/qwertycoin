@@ -266,6 +266,15 @@ namespace CryptoNote {
          */
         virtual void removeSpentKey(const Crypto::KeyImage &sSpentKeyImage) = 0;
 
+        /**
+         * @brief helper function to remove transaction from the blockchain
+         *
+         * This function encapsulates aspects of removing a transaction.
+         *
+         * @param tx_hash the hash of the transaction to be removed
+         */
+        void removeTransaction(const Crypto::Hash &sTxHash);
+
         uint64_t mNumCalls = 0;
         uint64_t mTimeBlockHash = 0;
         uint64_t mTimeAddBlock = 0;
