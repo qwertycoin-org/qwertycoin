@@ -36,6 +36,8 @@
 
 #include <Common/Varint.h>
 
+#include <CryptoNoteCore/CryptoNoteSerialization.h>
+
 #include <Serialization/BinarySerializationTools.h>
 
 /**
@@ -105,14 +107,14 @@ struct FBinaryArchive<false> : public FBinaryArchiveBase<std::istream, false>
     }
 
     template<class T>
-    void serializeUInt(T &value, size_t width = sizeof(T))
+    void serializeUInt(T &value, uint64_t width = sizeof(T))
     {
         T ret = 0;
         unsigned uShift = 0;
-        for (size_t i = 0; i < width; i++) {
+        for (uint64_t i = 0; i < width; i++) {
             char cC;
             sStream.get(cC);
-            T b = (unsigned char) cC;
+            T b = (uint8_t) cC;
             ret += (b << uShift);
             uShift += 8;
         }
