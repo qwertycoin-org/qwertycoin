@@ -137,6 +137,7 @@ namespace CryptoNote {
         std::cout << "BlockchainDB::" << __func__ << ". Before for." << std::endl;
 
         // TODO: Add baseTx removing
+        removeTransaction(getObjectHash(sBlock.baseTransaction));
     }
 
     void BlockchainDB::removeTransaction(const Crypto::Hash &sTxHash)

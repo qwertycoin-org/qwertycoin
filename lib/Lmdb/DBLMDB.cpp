@@ -1053,7 +1053,8 @@ namespace CryptoNote {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
-        return getBlockBlobFromHeight(getBlockHeight(sHash));
+        CryptoNote::blobData sBlob = getBlockBlobFromHeight(getBlockHeight(sHash));
+        return sBlob;
     }
 
     uint64_t BlockchainLMDB::getBlockHeight(const Crypto::Hash &sHash) const
@@ -1377,9 +1378,12 @@ namespace CryptoNote {
 
         if (iResult == 0) {
             FTransactionIndex *sTxIndexP = (FTransactionIndex *) sValTxHash.mv_data;
-            {}
+            throw (TX_EXISTS(std::string("Attempting to add transaction that's already in the db (tx id ").append(
+                    boost::lexical_cast<std::string>(sTxIndexP->data.uTxID)).append(")").c_str()));
         } else if (iResult != MDB_NOTFOUND) {
-            {}
+            throw (DB_ERROR(lmdbError(
+                    std::string("Error checking if tx index exists for tx hash ") + Common::podToHex(sTxHash) + ": ",
+                    iResult).c_str()));
         }
 
         FTransactionIndex sTxIndex;
@@ -1396,7 +1400,9 @@ namespace CryptoNote {
             throw (DB_ERROR(lmdbError("Failed to add tx data to db transaction: ", iResult).c_str()));
         }
 
-        FMdbValCopy<blobData> cBlob(transactionToBlob(sTransaction));
+        blobData sTxBlobData = transactionToBlob(sTransaction);
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". sTxBlobData: " << sTxBlobData;
+        FMdbValCopy<blobData> cBlob(sTxBlobData);
         iResult = mdb_cursor_put(sCurTransactions, &sValTxId, &cBlob, MDB_APPEND);
         if (iResult) {
             throw (DB_ERROR(lmdbError("Failed to add tx blob to db transaction: ", iResult).c_str()));
