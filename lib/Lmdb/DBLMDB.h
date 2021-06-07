@@ -231,6 +231,9 @@ namespace CryptoNote {
 
         virtual uint64_t getTransactionCount() const;
 
+        virtual std::vector<CryptoNote::Transaction>
+        getTransactionList(const std::vector<Crypto::Hash> &vHashList) const;
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,
