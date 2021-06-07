@@ -869,6 +869,24 @@ namespace CryptoNote {
         virtual uint64_t getTransactionCount() const = 0;
 
         /**
+         * @brief Fetches a list of transactions based on their hashes
+         *
+         * The subclass should attempt to fetch each transaction referred to by
+         * the hashes passed.
+         *
+         * Currently, if any of the transactions is not in BlockchainDB, the call
+         * to get_tx in the implementation will throw TX_DNE.
+         *
+         * <!-- TODO: decide if this behavior is correct for missing transactions -->
+         *
+         * @param vHashList A list of hashes
+         *
+         * @return The list of transactions
+         */
+        virtual std::vector<CryptoNote::Transaction>
+        getTransactionList(const std::vector<Crypto::Hash> &vHashList) const = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */

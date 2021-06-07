@@ -981,6 +981,21 @@ namespace CryptoNote {
         return sDBStats.ms_entries;
     }
 
+    std::vector<CryptoNote::Transaction> BlockchainLMDB::getTransactionList(
+            const std::vector<Crypto::Hash> &vHashList) const
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        std::vector<CryptoNote::Transaction> vTxs;
+
+        for (auto &sHash : vHashList) {
+            vTxs.push_back(getTransaction(sHash));
+        }
+
+        return vTxs;
+    }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,
