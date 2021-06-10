@@ -103,6 +103,7 @@ public:
     bool getLowerBound(uint64_t timestamp, uint64_t startOffset, uint32_t &height);
     std::vector<Crypto::Hash> getBlockIds(uint32_t startHeight, uint32_t maxCount);
 
+    Crypto::PublicKey getOutputKey(uint64_t uAmount, uint64_t uGlobIndex) const;
     void setCheckpoints(Checkpoints &&chk_pts) { m_checkpoints = chk_pts; }
     bool getBlocks(uint32_t start_offset, uint32_t count, std::list<Block> &blocks, std::list<Transaction> &txs);
     bool getBlocks(uint32_t start_offset, uint32_t count, std::list<Block> &blocks);
@@ -210,7 +211,7 @@ public:
                     missed_bs.push_back(bl_id);
                 } else {
                     if (Tools::getDefaultDBType("lmdb")) {
-                        if (!(height < pDB->height())) {
+                        if (height >= pDB->height()) {
                             logger(Logging::ERROR, Logging::BRIGHT_RED)
                                     << "Internal error: bl_id=" << Common::podToHex(bl_id)
                                     << " have index record with offset=" << height
@@ -291,7 +292,7 @@ public:
         uint16_t transaction;
     };
 
-    void rollbackBlockchainTo(uint32_t height);
+    void rollbackBlockchainTo(uint64_t height);
     bool have_tx_keyimg_as_spent(const Crypto::KeyImage &key_im);
 
     void safeSyncMode(const bool bOnOFf);

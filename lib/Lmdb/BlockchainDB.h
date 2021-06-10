@@ -818,6 +818,8 @@ namespace CryptoNote {
 
         virtual bool transactionExists(const Crypto::Hash &sHash, uint64_t &uTransactionId) const = 0;
 
+        virtual uint64_t getTransactionUnlockTime(const Crypto::Hash &sHash) const = 0;
+
         /**
          * @brief Fetches the transaction with the given hash
          *
@@ -885,6 +887,158 @@ namespace CryptoNote {
          */
         virtual std::vector<CryptoNote::Transaction>
         getTransactionList(const std::vector<Crypto::Hash> &vHashList) const = 0;
+
+        /**
+         * @brief Fetches the height of a transaction's block
+         *
+         * The subclass should attempt to return the height of the block containing
+         * the transaction with the given hash.
+         *
+         * If the transaction cannot be found, the subclass should throw TX_DNE.
+         *
+         * @param sHash the hash of the transaction
+         *
+         * @return The height of the transaction's block
+         */
+        virtual uint64_t getTransactionBlockHeight(const Crypto::Hash &sHash) const = 0;
+
+        /**
+         * @brief fetches the number of outputs of a given amount
+         *
+         * The subclass should return a count of outputs of the given amount,
+         * or zero if there are none.
+         *
+         * <!-- TODO: should outputs spent with a low mixin (especially 0) be
+         * excluded from the count? -->
+         *
+         * @param uAmount
+         * @return The number of outputs of the given amount
+         */
+        virtual uint64_t getNumOutputs(const uint64_t &uAmount) const = 0;
+
+        /**
+         * @brief Return index of the first element (should be hidden, but isn't)
+         *
+         * @return The index
+         */
+        virtual uint64_t getIndexingBase() const { return 0; }
+
+        /**
+         * @brief Get some of an output's data
+         *
+         * The subclass should return the public key, unlock time, and block height
+         * for the output with the given amount and index, collected in a struct.
+         *
+         * If the output cannot be found, the subclass should throw OUTPUT_DNE.
+         *
+         * If any of these parts cannot be found, but some are, the subclass
+         * should throw DB_ERROR with a message stating as much.
+         *
+         * @param uAmount the output amount
+         * @param uIndex the output's index (indexed by amount)
+         *
+         * @return The requested output data
+         */
+        virtual FOutputData getOutputKey(const uint64_t &uAmount, const uint32_t &uIndex) = 0;
+
+        /**
+         * @brief Get some of an output's data
+         *
+         * The subclass should return the public key, unlock time, and block height
+         * for the output with the given global index, collected in a struct.
+         *
+         * If the output cannot be found, the subclass should throw OUTPUT_DNE.
+         *
+         * If any of these parts cannot be found, but some are, the subclass
+         * should throw DB_ERROR with a message stating as much.
+         *
+         * @param uGlobalIndex the output's index (global)
+         *
+         * @return The requested output data
+         */
+        virtual FOutputData getOutputKey(const uint32_t &uGlobalIndex) const = 0;
+
+        /**
+         * @brief Gets an output's tx hash and index
+         *
+         * The subclass should return the hash of the transaction which created the
+         * output with the global index given, as well as its index in that transaction.
+         *
+         * @param uIndex an output's global index
+         *
+         * @return The tx hash and output index
+         */
+        virtual txOutIndex getOutputTransactionAndIndexFromGlobal(const uint64_t &uIndex) const = 0;
+
+        /**
+         * @brief Gets an output's tx hash and index
+         *
+         * The subclass should return the hash of the transaction which created the
+         * output with the amount and index given, as well as its index in that
+         * transaction.
+         *
+         * @param uAmount an output amount
+         * @param uIndex an output's amount-specific index
+         *
+         * @return The tx hash and output index
+         */
+        virtual txOutIndex getOutputTransactionAndIndex(const uint64_t &uAmount, const uint32_t &uIndex) const = 0;
+
+        /**
+         * @brief Gets some outputs' tx hashes and indices
+         *
+         * This function is a mirror of
+         * get_output_tx_and_index(const uint64_t& amount, const uint64_t& index),
+         * but for a list of outputs rather than just one.
+         *
+         * @param uAmount an output amount
+         * @param vOffsets a list of amount-specific output indices
+         * @param vIndices return-by-reference a list of tx hashes and output indices (as pairs)
+         */
+        virtual void getOutputTransactionAndIndex(const uint64_t &uAmount,
+                                                  const std::vector<uint32_t> &vOffsets,
+                                                  std::vector<txOutIndex> &vIndices) const = 0;
+
+        /**
+           * @brief Gets outputs' data
+           *
+           * This function is a mirror of
+           * get_output_data(const uint64_t& amount, const uint64_t& index)
+           * but for a list of outputs rather than just one.
+           *
+           * @param uAmount an output amount
+           * @param vOffsets a list of amount-specific output indices
+           * @param vOutputs return-by-reference a list of outputs' metadata
+           */
+        virtual void getOutputKey(const uint64_t &uAmount,
+                                  const std::vector<uint32_t> &vOffsets,
+                                  std::vector<FOutputData> &vOutputs,
+                                  bool bAllowPartial = false) = 0;
+
+        /**
+         * @brief Gets output indices (amount-specific) for a transaction's outputs
+         *
+         * The subclass should fetch the amount-specific output indices for each
+         * output in the transaction with the given ID.
+         *
+         * If the transaction does not exist, the subclass should throw TX_DNE.
+         *
+         * If an output cannot be found, the subclass should throw OUTPUT_DNE.
+         *
+         * @param uTxId a transaction ID
+         *
+         * @return A list of amount-specific output indices
+         */
+        virtual std::vector<uint64_t> getTransactionAmountOutputIndices(const uint64_t uTxId) const = 0;
+
+        /**
+         * @brief Check if a key image is stored as spent
+         *
+         * @param sImg the key image to check for
+         *
+         * @return True if the image is present, otherwise false
+         */
+        virtual bool hasKeyImage(const Crypto::KeyImage &sImg) const = 0;
 
         /**
          * @brief Is BlockchainDB in read-only mode?

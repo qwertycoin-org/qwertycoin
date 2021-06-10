@@ -122,8 +122,6 @@ namespace CryptoNote {
         sBlock = getTopBlock();
         std::cout << "BlockchainDB::" << __func__ << ". Before removeBlock." << std::endl;
 
-        removeBlock();
-
         for (const auto &sHash : boost::adaptors::reverse(sBlock.transactionHashes)) {
             CryptoNote::Transaction sTransaction;
             if (!getTransaction(sHash, sTransaction)) {
@@ -138,6 +136,7 @@ namespace CryptoNote {
 
         // TODO: Add baseTx removing
         removeTransaction(getObjectHash(sBlock.baseTransaction));
+        removeBlock();
     }
 
     void BlockchainDB::removeTransaction(const Crypto::Hash &sTxHash)
