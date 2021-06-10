@@ -21,6 +21,7 @@
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/random_access_index.hpp>
 #include <crypto/hash.h>
+#include <Lmdb/BlockchainDB.h>
 
 namespace CryptoNote {
 
@@ -83,8 +84,11 @@ public:
 
     Crypto::Hash getBlockId(uint32_t height) const;
     std::vector<Crypto::Hash> getBlockIds(uint32_t startBlockIndex, uint32_t maxCount) const;
+    std::vector<Crypto::Hash> getBlockIds(uint32_t startBlockIndex, uint32_t maxCount, BlockchainDB &sDB) const;
     bool findSupplement(const std::vector<Crypto::Hash> &ids, uint32_t &offset) const;
+    bool findSupplement(const std::vector<Crypto::Hash> &ids, uint32_t &offset, BlockchainDB &sDB) const;
     std::vector<Crypto::Hash> buildSparseChain(const Crypto::Hash &startBlockId) const;
+    std::vector<Crypto::Hash> buildSparseChain(const Crypto::Hash &startBlockId, BlockchainDB &sDB) const;
     Crypto::Hash getTailId() const;
 
     void serialize(ISerializer &s);

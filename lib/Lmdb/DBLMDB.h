@@ -226,6 +226,8 @@ namespace CryptoNote {
 
         virtual bool transactionExists(const Crypto::Hash &sHash, uint64_t &uTransactionId) const;
 
+        virtual uint64_t getTransactionUnlockTime(const Crypto::Hash &sHash) const;
+
         virtual bool getTransactionBlob(const Crypto::Hash &sHash,
                                         CryptoNote::blobData &sTransactionBlob) const;
 
@@ -233,6 +235,33 @@ namespace CryptoNote {
 
         virtual std::vector<CryptoNote::Transaction>
         getTransactionList(const std::vector<Crypto::Hash> &vHashList) const;
+
+        virtual uint64_t getTransactionBlockHeight(const Crypto::Hash &sHash) const;
+
+        virtual uint64_t getNumOutputs(const uint64_t &uAmount) const;
+
+        virtual FOutputData getOutputKey(const uint64_t &uAmount, const uint32_t &uIndex);
+
+        virtual FOutputData getOutputKey(const uint32_t &uGlobalIndex) const;
+
+        virtual void getOutputKey(const uint64_t &uAmount,
+                                  const std::vector<uint32_t> &vOffsets,
+                                  std::vector<FOutputData> &vOutputs,
+                                  bool bAllowPartial = false);
+
+        virtual std::vector<uint64_t> getTransactionAmountOutputIndices(const uint64_t uTxId) const;
+
+        virtual txOutIndex getOutputTransactionAndIndexFromGlobal(const uint64_t &uIndex) const;
+        virtual void getOutputTransactionAndIndexFromGlobal(const std::vector<uint64_t> &vGlobalIndices,
+                                                            std::vector<txOutIndex> &vTxOutIndices) const;
+
+        virtual txOutIndex getOutputTransactionAndIndex(const uint64_t &uAmount, const uint32_t &uIndex) const;
+
+        virtual void getOutputTransactionAndIndex(const uint64_t &uAmount,
+                                                  const std::vector<uint32_t> &vOffsets,
+                                                  std::vector<txOutIndex> &vIndices) const;
+
+        virtual bool hasKeyImage(const Crypto::KeyImage &sImg) const;
 
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
@@ -272,9 +301,11 @@ namespace CryptoNote {
                                    const CryptoNote::TransactionOutput &sTxOutput,
                                    const uint64_t &uIndex, const uint64_t &uUnlockTime);
 
-        virtual void
-        addTransactionAmountOutputIndices(const uint64_t uTxId,
-                                          const std::vector<uint64_t> &vAmountOutputIndices);
+        virtual void addTransactionAmountOutputIndices(const uint64_t uTxId,
+                                                       const std::vector<uint64_t> &vAmountOutputIndices);
+
+        virtual void removeTransactionOutputs(const uint64_t uTxId,
+                                              const CryptoNote::Transaction &sTransaction);
 
         virtual void addSpentKey(const Crypto::KeyImage &sSpentKeyImage);
 
