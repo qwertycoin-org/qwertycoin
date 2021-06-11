@@ -1404,6 +1404,23 @@ namespace CryptoNote {
         return uNumEntries;
     }
 
+    bool BlockchainLMDB::txPoolHasTransaction(const Crypto::Hash &sHash) const
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(TransactionPoolMeta)
+
+        MDB_val sValHash = {sizeof(sHash), (void *)&sHash};
+        auto getResult = mdb_cursor_get(sCurTransactionPoolMeta, &sValHash, NULL, MDB_SET);
+        if (getResult != 0 && getResult != MDB_NOTFOUND) {
+            throw(DB_ERROR(lmdbError("Error finding TxPool transaction meta: ", getResult).c_str()));
+        }
+
+        return getResult != MDB_NOTFOUND;
+    }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,

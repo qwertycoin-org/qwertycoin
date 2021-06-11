@@ -1063,6 +1063,11 @@ namespace CryptoNote {
         virtual uint64_t getTxPoolTransactionCount() const = 0;
 
         /**
+         * @brief check whether a sHash is in the TxPool
+         */
+        virtual bool txPoolHasTransaction(const Crypto::Hash &sHash) const = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */
