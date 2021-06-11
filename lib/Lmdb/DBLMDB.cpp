@@ -1421,6 +1421,44 @@ namespace CryptoNote {
         return getResult != MDB_NOTFOUND;
     }
 
+    void BlockchainLMDB::removeTxPoolTransaction(const Crypto::Hash &sHash)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(TransactionPoolMeta)
+        CURSOR(TransactionPoolBlob)
+
+        MDB_val sValHash = {sizeof(sHash), (void *)&sHash};
+        auto getResult = mdb_cursor_get(sCurTransactionPoolMeta, &sValHash, NULL, MDB_SET);
+        if (getResult != 0 && getResult != MDB_NOTFOUND) {
+            // Uncomment this for debugging
+            // throw(DB_ERROR(lmdbError("Error finding TxPool transaction meta to remove: ", getResult).c_str()));
+        }
+
+        if (!getResult) {
+            getResult = mdb_cursor_del(sCurTransactionPoolMeta, 0);
+            if (getResult) {
+                throw(DB_ERROR(lmdbError("Error adding removal of TxPool transaction metadata to db transaction: ", getResult).c_str()));
+            }
+        }
+
+        getResult = mdb_cursor_get(sCurTransactionPoolBlob, &sValHash, NULL, MDB_SET);
+        if (getResult != 0 && getResult != MDB_NOTFOUND) {
+            // Uncomment this for debugging
+            // throw(DB_ERROR(lmdbError("Error finding TxPool transaction blob to remove: ", getResult).c_str()));
+        }
+
+        if (!getResult) {
+            getResult = mdb_cursor_del(sCurTransactionPoolBlob, 0);
+            if (getResult) {
+                throw(DB_ERROR(lmdbError("Error adding removal of TxPool transaction blob to db transaction: ", getResult).c_str()));
+            }
+        }
+    }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,
