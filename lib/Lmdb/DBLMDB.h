@@ -263,6 +263,9 @@ namespace CryptoNote {
 
         virtual bool hasKeyImage(const Crypto::KeyImage &sImg) const;
 
+        virtual void addTxPoolTransaction(const CryptoNote::Transaction &sTransaction,
+                                          const FTxPoolMeta &sDetails);
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,

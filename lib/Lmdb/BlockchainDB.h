@@ -1041,6 +1041,14 @@ namespace CryptoNote {
         virtual bool hasKeyImage(const Crypto::KeyImage &sImg) const = 0;
 
         /**
+         * @brief Add a TxPool transaction
+         *
+         * @param Details the details of the transaction to add
+         */
+        virtual void addTxPoolTransaction(const CryptoNote::Transaction &sTransaction,
+                                          const FTxPoolMeta &sDetails) = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */
