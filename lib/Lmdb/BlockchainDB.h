@@ -1068,6 +1068,13 @@ namespace CryptoNote {
         virtual bool txPoolHasTransaction(const Crypto::Hash &sHash) const = 0;
 
         /**
+         * @brief remove a TxPool transaction
+         *
+         * @param sHash The transaction id of the Transation to remove
+         */
+        virtual void removeTxPoolTransaction(const Crypto::Hash &sHash) = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */
