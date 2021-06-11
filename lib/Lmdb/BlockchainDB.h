@@ -1049,6 +1049,15 @@ namespace CryptoNote {
                                           const FTxPoolMeta &sDetails) = 0;
 
         /**
+         * @brief Update a TxPool transaction's metadata
+         *
+         * @param sHash     The Hash of the transaction to update
+         * @param sDetails  The details of the transaction to update
+         */
+        virtual void updateTxPoolTransaction(const Crypto::Hash &sHash,
+                                             const FTxPoolMeta &sDetails) = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */
