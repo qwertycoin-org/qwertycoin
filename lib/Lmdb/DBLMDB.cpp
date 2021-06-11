@@ -1995,7 +1995,7 @@ namespace CryptoNote {
         FMdbValCopy<uint64_t> sValAmount(sTxOutput.amount);
         result = mdb_cursor_get(sCurOutputAmounts, &sValAmount, &sData, MDB_SET);
         if (!result) {
-            uint64_t uNumElements = 0;
+            mdb_size_t uNumElements = 0;
             result = mdb_cursor_count(sCurOutputAmounts, &uNumElements);
             if (result) {
                 throw (DB_ERROR(std::string("Failed to get number of outputs for amount: ").append(
