@@ -1361,7 +1361,28 @@ namespace CryptoNote {
                 throw(DB_ERROR(lmdbError("Error adding TxPool tx blob to db transaction: ", getResult).c_str()));
             }
         }
-    };
+    }
+
+    void BlockchainLMDB::updateTxPoolTransaction(const Crypto::Hash &sHash, const FTxPoolMeta &sDetails)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(TransactionPoolMeta)
+        CURSOR(TransactionPoolBlob)
+
+        MDB_val sValHash = {sizeof(sHash), (void *)&sHash};
+        MDB_val sValMeta;
+        auto getResult = mdb_cursor_get(sCurTransactionPoolMeta, &sValHash, &sValMeta, MDB_SET);
+        getResult = mdb_cursor_del(sCurTransactionPoolMeta, 0);
+        sValMeta = MDB_val({sizeof(sDetails), (void *)&sDetails});
+
+        if ((getResult = mdb_cursor_put(sCurTransactionPoolMeta, &sValHash, &sValMeta, MDB_NODUPDATA)) != 0) {
+            // Some log
+        }
+    }
 
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
