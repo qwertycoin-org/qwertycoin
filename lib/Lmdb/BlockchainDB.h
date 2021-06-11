@@ -1058,6 +1058,11 @@ namespace CryptoNote {
                                              const FTxPoolMeta &sDetails) = 0;
 
         /**
+         * @brief Get the number of transactions in the TxPool
+         */
+        virtual uint64_t getTxPoolTransactionCount() const = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */
