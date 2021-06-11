@@ -1384,6 +1384,26 @@ namespace CryptoNote {
         }
     }
 
+    uint64_t BlockchainLMDB::getTxPoolTransactionCount() const
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        int iRes;
+        uint64_t uNumEntries = 0;
+
+        TXN_PREFIX_READONLY();
+
+        MDB_stat sDBStats;
+        if ((iRes = mdb_stat(pTxn, mTransactionPoolMeta, &sDBStats))) {
+            throw(DB_ERROR(lmdbError("Failed to query mTransactionPoolMeta: ", iRes).c_str()));
+        }
+
+        uNumEntries = sDBStats.ms_entries;
+
+        return uNumEntries;
+    }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,

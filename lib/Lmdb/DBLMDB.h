@@ -269,6 +269,8 @@ namespace CryptoNote {
         virtual void updateTxPoolTransaction(const Crypto::Hash &sHash,
                                              const FTxPoolMeta &sDetails);
 
+        virtual uint64_t getTxPoolTransactionCount() const;
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,
