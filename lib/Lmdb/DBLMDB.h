@@ -275,6 +275,12 @@ namespace CryptoNote {
 
         virtual void removeTxPoolTransaction(const Crypto::Hash &sHash);
 
+        virtual bool getTxPoolTransactionMeta(const Crypto::Hash &sHash, FTxPoolMeta &sDetails) const;
+
+        virtual bool getTxPoolTransactionBlob(const Crypto::Hash &sHash, CryptoNote::blobData &sBlobData) const;
+
+        virtual CryptoNote::blobData getTxPoolTransactionBlob(const Crypto::Hash &sHash) const;
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,
