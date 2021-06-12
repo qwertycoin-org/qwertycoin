@@ -3701,7 +3701,7 @@ bool Blockchain::pushBlock(
 								  "+++++ LMDB BLOCK SUCCESSFULLY ADDED" << ENDL
 								  << "id:\t" << blockHash << ENDL
 								  << "PoW:\t" << proof_of_work << ENDL
-								  << "HEIGHT " << uNewHeight - 1 << ", difficulty:\t" << currentDifficulty << ENDL
+								  << "HEIGHT " << uNewHeight << ", difficulty:\t" << currentDifficulty << ENDL
 								  << "block reward: " << m_currency.formatAmount(reward) << ", fee = "
 								  << m_currency.formatAmount(fee_summary)
 								  << ", timestamp = " << block.bl.timestamp
