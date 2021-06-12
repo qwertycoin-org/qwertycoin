@@ -463,9 +463,14 @@ set(QwertycoinFramework_Lmdb_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Lmdb/LMDBExceptions.h"
     "${CMAKE_CURRENT_LIST_DIR}/Lmdb/Structures.h")
 
+set(QwertycoinFramework_Lmdb_LIBS
+    Boost::filesystem
+)
+
 add_library(QwertycoinFramework_Lmdb STATIC ${QwertycoinFramework_Lmdb_SOURCES})
 add_library(QwertycoinFramework::Lmdb ALIAS QwertycoinFramework_Lmdb)
 target_include_directories(QwertycoinFramework_Lmdb PRIVATE ${QwertycoinFramework_INCLUDE_DIRS})
+target_link_libraries(QwertycoinFramework_Lmdb PRIVATE ${QwertycoinFramework_Lmdb_LIBS})
 
 # QwertycoinFramework::Mnemonics
 
