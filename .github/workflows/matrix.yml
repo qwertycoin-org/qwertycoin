@@ -37,6 +37,11 @@ jobs:
             package_name: 'gcc-11 g++-11'
             cc: gcc-11
             label: linux-gcc-11
+          - build_name: 'Ubuntu Clang 6'
+            package_name: 'clang'
+            cc: clang-6.0
+            cxx: clang++-6.0
+            label: linux-clang-6
             deployable: true
     env:
         CCACHE_DIR: $GITHUB_WORKSPACE/.ccache
