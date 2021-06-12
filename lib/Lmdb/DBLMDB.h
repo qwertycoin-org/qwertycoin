@@ -281,6 +281,12 @@ namespace CryptoNote {
 
         virtual CryptoNote::blobData getTxPoolTransactionBlob(const Crypto::Hash &sHash) const;
 
+        virtual bool forAllTxPoolTransactions(std::function<bool(const Crypto::Hash &,
+                                                                 const FTxPoolMeta &,
+                                                                 const CryptoNote::blobData *)>,
+                                              bool bIncludeBlob = false,
+                                              bool bIncludeUnrelayedTransactions = true) const;
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,

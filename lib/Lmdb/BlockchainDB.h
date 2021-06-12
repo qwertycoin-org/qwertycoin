@@ -1104,6 +1104,25 @@ namespace CryptoNote {
         virtual CryptoNote::blobData getTxPoolTransactionBlob(const Crypto::Hash &sHash) const = 0;
 
         /**
+         * @brief Runs a function over all TxPool transactions
+         *
+         * The subclass should run the passed function for each TxPool transaction it has
+         * stored, passing the transaction id and metadata as its parameters.
+         *
+         * If any call to the function returns false, the subclass should return
+         * false.  Otherwise, the subclass returns true.
+         *
+         * @param std::function fn the function to run
+         *
+         * @return false if the function returns false for any transaction, otherwise true
+         */
+        virtual bool forAllTxPoolTransactions(std::function<bool(const Crypto::Hash &,
+                                                                 const FTxPoolMeta &,
+                                                                 const CryptoNote::blobData *)>,
+                                              bool bIncludeBlob = false,
+                                              bool bIncludeUnrelayedTransactions = true) const = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */
