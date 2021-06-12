@@ -1068,11 +1068,40 @@ namespace CryptoNote {
         virtual bool txPoolHasTransaction(const Crypto::Hash &sHash) const = 0;
 
         /**
-         * @brief remove a TxPool transaction
+         * @brief Remove a TxPool transaction
          *
-         * @param sHash The transaction id of the Transation to remove
+         * @param sHash The transaction id of the Transaction to remove
          */
         virtual void removeTxPoolTransaction(const Crypto::Hash &sHash) = 0;
+
+        /**
+         * @brief Get a TxPool transaction's metadata
+         *
+         * @param sHash the transaction id of the transaction to lookup
+         * @param meta the metadata to return
+         *
+         * @return true if the tx meta was found, false otherwise
+         */
+        virtual bool getTxPoolTransactionMeta(const Crypto::Hash &sHash, FTxPoolMeta &sDetails) const = 0;
+
+        /**
+         * @brief Get a TxPool transaction's blob
+         *
+         * @param sHash the transaction id of the transaction to lookup
+         * @param bd the blob to return
+         *
+         * @return true if the hash was in the TxPool, false otherwise
+         */
+        virtual bool getTxPoolTransactionBlob(const Crypto::Hash &sHash, CryptoNote::blobData &sBlobData) const = 0;
+
+        /**
+         * @brief Get a TxPool transaction's blob
+         *
+         * @param sHash the transaction id of the transaction to lookup
+         *
+         * @return the blob for that transaction
+         */
+        virtual CryptoNote::blobData getTxPoolTransactionBlob(const Crypto::Hash &sHash) const = 0;
 
         /**
          * @brief Is BlockchainDB in read-only mode?

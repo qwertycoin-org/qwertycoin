@@ -1459,6 +1459,65 @@ namespace CryptoNote {
         }
     }
 
+    bool BlockchainLMDB::getTxPoolTransactionMeta(const Crypto::Hash &sHash, FTxPoolMeta &sDetails) const
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(TransactionPoolMeta)
+
+        MDB_val sValHash = {sizeof(sHash), (void *)&sHash};
+        MDB_val sVal;
+        auto getResult = mdb_cursor_get(sCurTransactionPoolMeta, &sValHash, &sVal, MDB_SET);
+        if (getResult == MDB_NOTFOUND) {
+            // TODO: Add log
+            return false;
+        }
+
+        if (getResult != 0) {
+            throw(DB_ERROR(lmdbError("Error finding TxPool transaction meta: ", getResult).c_str()));
+        }
+
+        sDetails = *(const FTxPoolMeta *)sVal.mv_data;
+
+        return true;
+    }
+
+    bool BlockchainLMDB::getTxPoolTransactionBlob(const Crypto::Hash &sHash, CryptoNote::blobData &sBlobData) const
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(TransactionPoolBlob)
+
+        MDB_val sValHash = {sizeof(sHash), (void *)&sHash};
+        MDB_val sVal;
+        auto getResult = mdb_cursor_get(sCurTransactionPoolBlob, &sValHash, &sVal, MDB_SET);
+        if (getResult == MDB_NOTFOUND) {
+            return false;
+        }
+
+        if (getResult != 0) {
+            throw(DB_ERROR(lmdbError("Error finding TxPool transaction blob: ", getResult).c_str()));
+        }
+
+        sBlobData.assign(reinterpret_cast<const char *>(sVal.mv_data), sVal.mv_size);
+
+        return true;
+    }
+
+    CryptoNote::blobData BlockchainLMDB::getTxPoolTransactionBlob(const Crypto::Hash &sHash) const
+    {
+        CryptoNote::blobData sBlobData;
+        if (!getTxPoolTransactionBlob(sHash, sBlobData)) {
+            throw(DB_ERROR("Tx not found in txpool: "));
+        }
+
+        return sBlobData;
+    }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,
