@@ -1518,6 +1518,66 @@ namespace CryptoNote {
         return sBlobData;
     }
 
+    bool BlockchainLMDB::forAllTxPoolTransactions(
+            std::function<bool(const Crypto::Hash &,
+                               const FTxPoolMeta &,
+                               const CryptoNote::blobData *)> UFu,
+            bool bIncludeBlob,
+            bool bIncludeUnrelayedTransactions) const
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(TransactionPoolMeta)
+        READ_CURSOR(TransactionPoolBlob)
+
+        MDB_val sValKey;
+        MDB_val sValValue;
+        bool bRet = true;
+
+        MDB_cursor_op sOp = MDB_FIRST;
+
+        while (1) {
+            int iRes = mdb_cursor_get(sCurTransactionPoolMeta, &sValKey, &sValValue, sOp);
+            sOp = MDB_NEXT;
+            if (iRes == MDB_NOTFOUND) {
+                break;
+            }
+
+            if (iRes) {
+                throw(DB_ERROR(lmdbError("Failed to enumerate TxPool transaction metadata: ", iRes).c_str()));
+            }
+
+            const Crypto::Hash &sHash = *(const Crypto::Hash *)sValKey.mv_data;
+            const FTxPoolMeta &sDetail = *(const FTxPoolMeta *)sValValue.mv_data;
+            const CryptoNote::blobData *sPassedBlob = NULL;
+            CryptoNote::blobData sBlobData;
+            if (bIncludeBlob) {
+                MDB_val sValBlob;
+                iRes = mdb_cursor_get(sCurTransactionPoolBlob, &sValKey, &sValBlob, MDB_SET);
+
+                if (iRes == MDB_NOTFOUND) {
+                    throw(DB_ERROR("Failed to find TxPool transaction blob to match metadata"));
+                }
+
+                if (iRes) {
+                    throw(DB_ERROR(lmdbError("Failed to enumerate TxPool transaction blob: ", iRes).c_str()));
+                }
+
+                sBlobData.assign(reinterpret_cast<const char *>(sValBlob.mv_data), sValBlob.mv_size);
+                sPassedBlob = &sBlobData;
+            }
+
+            if (!UFu(sHash, sDetail, sPassedBlob)) {
+                bRet = false;
+                break;
+            }
+        }
+
+        return bRet;
+    }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,
