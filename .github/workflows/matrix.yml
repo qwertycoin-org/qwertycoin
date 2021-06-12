@@ -34,6 +34,7 @@ jobs:
             label: linux
             deployable: true
           - build_name: 'Ubuntu Clang 6'
+            package_name: 'clang'
             cc: clang-6.0
             cxx: clang++-6.0
             label: linux-clang-6
