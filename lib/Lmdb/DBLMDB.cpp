@@ -835,7 +835,7 @@ namespace CryptoNote {
 
     uint64_t BlockchainLMDB::height() const
     {
-        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
 
         checkOpen();
         TXN_PREFIX_READONLY();
@@ -897,7 +897,7 @@ namespace CryptoNote {
         TXN_POSTFIX_READONLY();
 
         if (!bTransactionFound) {
-            mLogger(TRACE, BRIGHT_CYAN) << "Transaction with hash " << sHash << "not found in database";
+            mLogger(TRACE, BRIGHT_CYAN) << "Transaction with hash " << sHash << " not found in database";
             return false;
         }
 
@@ -952,10 +952,10 @@ namespace CryptoNote {
             throw (TX_DNE(lmdbError(std::string("tx data with hash ") + Common::podToHex(sHash) + " not found in db: ",
                                     getResult).c_str()));
         } else if (getResult) {
-            throw(DB_ERROR(lmdbError("DB error attempting to fetch tx data from hash: ", getResult).c_str()));
+            throw (DB_ERROR(lmdbError("DB error attempting to fetch tx data from hash: ", getResult).c_str()));
         }
 
-        FTransactionIndex *sTIn = (FTransactionIndex *)sValHash.mv_data;
+        FTransactionIndex *sTIn = (FTransactionIndex *) sValHash.mv_data;
         uint64_t uRet = sTIn->data.uUnlockTime;
 
         return uRet;
@@ -1168,7 +1168,7 @@ namespace CryptoNote {
             if (getResult == MDB_NOTFOUND) {
                 if (bAllowPartial) {
                     mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
-                    << "Partial result: " << vOutputs.size() << "/" << vOffsets.size();
+                                                << "Partial result: " << vOutputs.size() << "/" << vOffsets.size();
                     break;
                 } else {
                     throw (OUTPUT_DNE((std::string("Attempting to get output pubkey by global index (amount ") +
@@ -1179,12 +1179,12 @@ namespace CryptoNote {
                                        boost::lexical_cast<std::string>(height()) + ")").c_str()));
                 }
             } else if (getResult) {
-                throw(DB_ERROR(lmdbError("Error attempting to retrieve an output pubkey from the db",
-                                         getResult).c_str()));
+                throw (DB_ERROR(lmdbError("Error attempting to retrieve an output pubkey from the db",
+                                          getResult).c_str()));
             }
 
             FOutputData sData;
-            const FOutputKey *sOKe = (const FOutputKey *)sValIndex.mv_data;
+            const FOutputKey *sOKe = (const FOutputKey *) sValIndex.mv_data;
             memcpy(&sData, &sOKe->sData, sizeof(FOutputData));
 
             vOutputs.push_back(sData);
@@ -1307,10 +1307,10 @@ namespace CryptoNote {
         if (iRes == MDB_NOTFOUND) {
 
         } else if (iRes) {
-            throw(DB_ERROR(lmdbError("DB error attempting to get data for TransactionOutputs[uTxId]", iRes).c_str()));
+            throw (DB_ERROR(lmdbError("DB error attempting to get data for TransactionOutputs[uTxId]", iRes).c_str()));
         }
 
-        const uint64_t *uIndices = (const uint64_t *)sV.mv_data;
+        const uint64_t *uIndices = (const uint64_t *) sV.mv_data;
         int iNumOutputs = sV.mv_size / sizeof(uint64_t);
 
         vAmountOutputIndices.reserve(iNumOutputs);
@@ -1344,6 +1344,11 @@ namespace CryptoNote {
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
+        uint64_t uTxSize = getObjectBinarySize(sTransaction);
+        if (needResize()) {
+            mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map needs to be resized, doing that now.";
+            doResize(uTxSize);
+        }
 
         FMdbTxnCursors *sCursor = &mWriteCursors;
 
@@ -1355,6 +1360,15 @@ namespace CryptoNote {
         MDB_val sValHash = {sizeof(sHash), (void *)&sHash};
         MDB_val sValMeta = {sizeof(sDetails), (void *)&sDetails};
         if (auto getResult = mdb_cursor_put(sCurTransactionPoolMeta, &sValHash, &sValMeta, MDB_NODUPDATA)) {
+            if (getResult == MDB_KEYEXIST) {
+                throw(DB_ERROR("Attempting to add TxPool tx meta that's already in the db"));
+            } else {
+                throw(DB_ERROR(lmdbError("Error adding TxPool tx meta to db transaction: ", getResult).c_str()));
+            }
+        }
+
+        FMdbValCopy<CryptoNote::blobData> sValBlob(transactionToBlob(sTransaction));
+        if (auto getResult = mdb_cursor_put(sCurTransactionPoolBlob, &sValHash, &sValBlob, MDB_NODUPDATA)) {
             if (getResult == MDB_KEYEXIST) {
                 throw(DB_ERROR("Attempting to add TxPool tx blob that's already in the db"));
             } else {
@@ -1496,10 +1510,13 @@ namespace CryptoNote {
         MDB_val sVal;
         auto getResult = mdb_cursor_get(sCurTransactionPoolBlob, &sValHash, &sVal, MDB_SET);
         if (getResult == MDB_NOTFOUND) {
+            mLogger(ERROR, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". " << lmdbError("Error finding TxPool transaction blob: ", getResult).c_str();
             return false;
         }
 
         if (getResult != 0) {
+            mLogger(ERROR, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". " << lmdbError("Error finding TxPool transaction blob: ", getResult).c_str();
+            return false;
             throw(DB_ERROR(lmdbError("Error finding TxPool transaction blob: ", getResult).c_str()));
         }
 
@@ -1582,13 +1599,14 @@ namespace CryptoNote {
     {
         return false;
     }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,
                                       const std::vector<CryptoNote::Transaction> &transactions)
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << "0";
-
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << "0. tx size: " << transactions.size();
         checkOpen();
         uint64_t uHeight = height();
 
@@ -1731,7 +1749,7 @@ namespace CryptoNote {
 
     uint64_t BlockchainLMDB::getBlockTimestamp(const uint64_t &uHeight) const
     {
-        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -2077,7 +2095,7 @@ namespace CryptoNote {
 
         // Don't delete the tx_indices entry until the end, after we're done with val_tx_id
         if (mdb_cursor_del(sCurTransactionIndices, 0)) {
-            throw(DB_ERROR("Failed to add removal of tx index to db transaction"));
+            throw (DB_ERROR("Failed to add removal of tx index to db transaction"));
         }
 
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__

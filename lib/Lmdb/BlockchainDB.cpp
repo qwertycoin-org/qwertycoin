@@ -120,7 +120,6 @@ namespace CryptoNote {
                                 std::vector<CryptoNote::Transaction> &vTransactions)
     {
         sBlock = getTopBlock();
-        std::cout << "BlockchainDB::" << __func__ << ". Before removeBlock." << std::endl;
 
         for (const auto &sHash : boost::adaptors::reverse(sBlock.transactionHashes)) {
             CryptoNote::Transaction sTransaction;
@@ -132,8 +131,6 @@ namespace CryptoNote {
             removeTransaction(sHash);
         }
 
-        std::cout << "BlockchainDB::" << __func__ << ". Before for." << std::endl;
-
         // TODO: Add baseTx removing
         removeTransaction(getObjectHash(sBlock.baseTransaction));
         removeBlock();
@@ -141,9 +138,7 @@ namespace CryptoNote {
 
     void BlockchainDB::removeTransaction(const Crypto::Hash &sTxHash)
     {
-        std::cout << "BlockchainDB::" << __func__ << ". Before getTransaction." << std::endl;
         CryptoNote::Transaction sTransaction = getTransaction(sTxHash);
-        std::cout << "BlockchainDB::" << __func__ << ". After removeTransaction." << std::endl;
 
         for (const CryptoNote::TransactionInput &sTxIn : sTransaction.inputs) {
             if (sTxIn.type() == typeid(CryptoNote::KeyInput)) {

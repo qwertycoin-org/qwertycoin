@@ -40,7 +40,6 @@
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/TransactionExtra.h>
 
-
 #include <Global/Constants.h>
 
 #include <Lmdb/BlockchainDB.h>
@@ -2654,7 +2653,7 @@ void Blockchain::getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissed
             CryptoNote::blobData sTx;
             if (pDB->getTransactionBlob(sTxHash, sTx)) {
                 if (!parseAndValidateTransactionFromBlob(sTx, sTransactions.back())) {
-                    logger(ERROR, BRIGHT_RED) << "Invalid transaction";
+                    logger(ERROR, BRIGHT_RED) << "Invalid transaction: " << sTxHash;
 
                     return;
                 }
@@ -2670,6 +2669,35 @@ void Blockchain::getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissed
 
     return;
 }
+
+    template<class T, class D, class S>
+    void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool)
+    {
+        if (checkTxPool) {
+            std::lock_guard<decltype(m_tx_pool)> txLock(m_tx_pool);
+            getBlockchainTransactions(txs_ids, txs, missed_txs);
+            auto poolTxIds = std::move(missed_txs);
+            missed_txs.clear();
+            std::vector<Crypto::Hash> vTxsHashes;
+            std::vector<CryptoNote::Transaction> vTxs;
+            std::vector<Crypto::Hash> vMTxsHashes;
+            for (const auto &sHash : poolTxIds) {
+                vTxsHashes.push_back(std::move(sHash));
+            }
+
+            for (const auto &sTx : txs) {
+                vTxs.push_back(sTx);
+            }
+
+            for (const auto &sHash : missed_txs) {
+                vMTxsHashes.push_back(std::move(sHash));
+            }
+
+            m_tx_pool.getTransactions(vTxsHashes, vTxs, vMTxsHashes);
+        } else {
+            getBlockchainTransactions(txs_ids, txs, missed_txs);
+        }
+    }
 
 Crypto::PublicKey Blockchain::getOutputKey(uint64_t uAmount, uint64_t uGlobIndex) const
 {
@@ -3814,6 +3842,7 @@ bool Blockchain::pushTransaction(
     const Crypto::Hash &transactionHash,
     TransactionIndex transactionIndex)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
     bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
     DB_TX_START

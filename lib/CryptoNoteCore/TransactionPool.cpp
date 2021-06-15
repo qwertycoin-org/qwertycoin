@@ -446,10 +446,12 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                     mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::"<<__func__<< "found tx with hash " << sId << "in mempool" << ENDL;
                     CryptoNote::blobData sBlobData;
                     CryptoNote::Transaction sTx;
+                    mBlockchain.pDB->blockTxnStart(false);
                     mBlockchain.pDB->getTxPoolTransactionBlob(sId, sBlobData);
+                    mBlockchain.pDB->blockTxnStop();
 
-                    if (!parseAndValidateTransactionFromBlob(sBlobData, sTx)) {
-                        mLogger(ERROR, BRIGHT_RED) << "Invalid transaction";
+                    if (!parseAndValidateTransactionFromBlob(std::move(sBlobData), sTx)) {
+                        mLogger(ERROR, BRIGHT_RED) << "TxMemoryPool::"<<__func__ << "Invalid transaction: " << sId;
                     }
 
                     vTransactions.push_back(sTx);
