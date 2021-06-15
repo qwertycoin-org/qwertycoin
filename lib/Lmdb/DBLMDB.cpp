@@ -734,7 +734,11 @@ namespace CryptoNote {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << "1";
 
         checkOpen();
-        needResize(uBlockSize);
+        const uint64_t uMinIncSize = 32 * (1 << 20);
+        if (needResize(uMinIncSize)) {
+            mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map needs to be resized, doing that now.";
+            doResize(uMinIncSize);
+        }
 
         {
             FMdbTxnCursors *sCursor = &mWriteCursors;
@@ -1344,10 +1348,10 @@ namespace CryptoNote {
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
-        uint64_t uTxSize = getObjectBinarySize(sTransaction);
-        if (needResize()) {
+        const uint64_t uMinIncSize = 32 * (1 << 20);
+        if (needResize(uMinIncSize)) {
             mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map needs to be resized, doing that now.";
-            doResize(uTxSize);
+            doResize(uMinIncSize);
         }
 
         FMdbTxnCursors *sCursor = &mWriteCursors;

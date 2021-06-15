@@ -325,7 +325,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                 mBlockchain.pDB->blockTxnStart(false);
                 mBlockchain.pDB->removeTxPoolTransaction(getObjectHash(sTransaction));
                 mBlockchain.pDB->blockTxnStop();
-                CryptoNote::Transaction sTx = sTransaction;
+                const CryptoNote::Transaction& sTx = sTransaction;
                 mBlockchain.pDB->blockTxnStart(false);
                 mBlockchain.pDB->addTxPoolTransaction(sTx, sMeta);
                 mBlockchain.pDB->blockTxnStop();
