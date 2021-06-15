@@ -2257,6 +2257,7 @@ bool core::handleIncomingTransaction(
     uint32_t height,
     bool loose_check)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     if (!check_tx_syntax(tx)) {
         logger(INFO)
             << "WRONG TRANSACTION BLOB, Failed to check tx "

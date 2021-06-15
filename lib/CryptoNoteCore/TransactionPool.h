@@ -151,31 +151,6 @@ using namespace boost::multi_index;
                                              std::vector<Crypto::Hash> &vHashes,
                                              uint64_t &uTransactionsNumberWithinTimestamps);
 
-        template<class I, class T, class M>
-        void getTransactions(const I &vTxHashes, T &vTransactions, M &vMissedTxs)
-        {
-            std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
-            bool bIsLMDB = Tools::getDefaultDBType("lmdb");
-
-            for (const auto &sId : vTxHashes) {
-                std::cout << "TxMemoryPool::"<<__func__<< ". sId: " << sId << ENDL;
-
-                if (bIsLMDB) {
-
-                } else {
-                    auto sIt = mTransactions.find(sId);
-                    if (sIt == mTransactions.end()) {
-                        std::cout << "TxMemoryPool::"<<__func__<< "couldn't find tx with hash " << sId << "in mempool" << ENDL;
-                        vMissedTxs.push_back(sId);
-                    } else {
-                        std::cout << "TxMemoryPool::"<<__func__<< "found tx with hash " << sId << "in mempool" << ENDL;
-                        vTransactions.push_back(sIt->sTransaction);
-                    }
-                }
-
-            }
-        }
-
         void serialize(ISerializer &s);
         void getTransactions(std::list<Transaction> &lTransactions,
                              bool bIncludeUnrelayedTransactions) const;

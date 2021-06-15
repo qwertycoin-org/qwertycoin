@@ -63,6 +63,8 @@ struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_request;
 struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response;
 struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_outs_for_amount;
 
+class TxMemoryPool;
+
 class Blockchain : public CryptoNote::ITransactionValidator
 {
 public:
@@ -262,20 +264,7 @@ public:
     void getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissedTxs);
 
     template<class T, class D, class S>
-    void getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool = false)
-    {
-        if (checkTxPool) {
-            std::lock_guard<decltype(m_tx_pool)> txLock(m_tx_pool);
-
-            getBlockchainTransactions(txs_ids, txs, missed_txs);
-
-            auto poolTxIds = std::move(missed_txs);
-            missed_txs.clear();
-            m_tx_pool.getTransactions(poolTxIds, txs, missed_txs);
-        } else {
-            getBlockchainTransactions(txs_ids, txs, missed_txs);
-        }
-    }
+    void getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool = false);
 
     // debug functions
     void print_blockchain(uint64_t start_index, uint64_t end_index);
