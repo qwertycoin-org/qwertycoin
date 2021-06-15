@@ -4433,7 +4433,7 @@ bool Blockchain::loadTransactions(const Block &block, std::vector<Transaction> &
 
     DB_TX_START
 
-    size_t transactionSize;
+    uint64_t transactionSize;
     uint64_t fee;
     for (size_t i = 0; i < block.transactionHashes.size(); i++) {
         if (!m_tx_pool.takeTransaction(block.transactionHashes[i], transactions[i], transactionSize, fee)) {
