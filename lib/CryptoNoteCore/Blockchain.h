@@ -63,8 +63,6 @@ struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_request;
 struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response;
 struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_outs_for_amount;
 
-class TxMemoryPool;
-
 class Blockchain : public CryptoNote::ITransactionValidator
 {
 public:
