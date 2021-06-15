@@ -367,7 +367,7 @@ size_t core::addChain(const std::vector<const IBlock *> &chain)
             const Transaction &tx = block->getTransaction(txNumber);
 
             Crypto::Hash txHash = NULL_HASH;
-            size_t blobSize = 0;
+            uint64_t blobSize = 0;
             getObjectHash(tx, txHash, blobSize);
             tx_verification_context tvc = boost::value_initialized<tx_verification_context>();
 
