@@ -1008,7 +1008,7 @@ namespace CryptoNote {
         int iResult;
 
         MDB_stat sDBStats;
-        if (iResult = mdb_stat(pTxn, mTransactions, &sDBStats)) {
+        if ((iResult = mdb_stat(pTxn, mTransactions, &sDBStats))) {
             throw (DB_ERROR(lmdbError("Failed to query m_txs: ", iResult).c_str()));
         }
 
