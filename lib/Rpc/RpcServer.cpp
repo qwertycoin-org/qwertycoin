@@ -1763,12 +1763,12 @@ namespace CryptoNote {
 			res.transactions.push_back(TxWithOutputGlobalIndices());
 			TxWithOutputGlobalIndices &e = res.transactions.back();
 
-			e.hash = txd.id;
+			e.hash = txd.sTransactionHash;
 			e.height = boost::value_initialized<uint32_t>();
 			e.block_hash = boost::value_initialized<Crypto::Hash>();
-			e.timestamp = txd.receiveTime;
-			e.transaction = *static_cast<const TransactionPrefix *>(&txd.tx);
-			e.fee = txd.fee;
+			e.timestamp = txd.sReceiveTime;
+			e.transaction = *static_cast<const TransactionPrefix *>(&txd.sTransaction);
+			e.fee = txd.uFee;
 		}
 
 		res.status = CORE_RPC_STATUS_OK;
@@ -2276,21 +2276,21 @@ namespace CryptoNote {
 								  COMMAND_RPC_GET_MEMPOOL::response &res)
 	{
 		auto pool = m_core.getMemoryPool();
-		for (const CryptoNote::tx_memory_pool::TransactionDetails txd : pool) {
+		for (const CryptoNote::TxMemoryPool::FTransactionDetails txd : pool) {
 			MEMPOOL_TRANSACTION_RESPONSE mempool_transaction;
-			uint64_t amount_out = getOutputAmount(txd.tx);
+			uint64_t amount_out = getOutputAmount(txd.sTransaction);
 
-			mempool_transaction.hash = Common::podToHex(txd.id);
-			mempool_transaction.fee = txd.fee;
+			mempool_transaction.hash = Common::podToHex(txd.sTransactionHash);
+			mempool_transaction.fee = txd.uFee;
 			mempool_transaction.amount_out = amount_out;
-			mempool_transaction.size = txd.blobSize;
-			mempool_transaction.receiveTime = txd.receiveTime;
-			mempool_transaction.keptByBlock = txd.keptByBlock;
+			mempool_transaction.size = txd.uBlobSize;
+			mempool_transaction.receiveTime = txd.sReceiveTime;
+			mempool_transaction.keptByBlock = txd.bKeepedByBlock;
 			mempool_transaction.max_used_block_height = txd.maxUsedBlock.height;
 			mempool_transaction.max_used_block_id = Common::podToHex(txd.maxUsedBlock.id);
 			mempool_transaction.last_failed_height = txd.lastFailedBlock.height;
 			mempool_transaction.last_failed_id = Common::podToHex(txd.lastFailedBlock.id);
-			mempool_transaction.tx_json = txd.tx;
+			mempool_transaction.tx_json = txd.sTransaction;
 			res.transactions.push_back(mempool_transaction);
 		}
 

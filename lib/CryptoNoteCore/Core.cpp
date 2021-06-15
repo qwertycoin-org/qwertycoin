@@ -129,6 +129,8 @@ void core::init_options(boost::program_options::options_description &desc)
 bool core::handle_command_line(const boost::program_options::variables_map &vm)
 {
     m_config_folder = command_line::get_arg(vm, command_line::arg_data_dir);
+    mDBSyncMode = command_line::get_arg(vm, command_line::arg_db_sync_mode);
+    mDBType = command_line::get_arg(vm, command_line::arg_db_type);
     return true;
 }
 
@@ -464,7 +466,7 @@ bool core::get_stat_info(core_stat_info &st_inf)
     st_inf.mining_speed = m_miner->get_speed();
     st_inf.alternative_blocks = m_blockchain.getAlternativeBlocksCount();
     st_inf.blockchain_height = m_blockchain.getCurrentBlockchainHeight();
-    st_inf.tx_pool_size = m_mempool.get_transactions_count();
+    st_inf.tx_pool_size = m_mempool.getTransactionsCount();
     st_inf.top_block_id_str = Common::podToHex(m_blockchain.getTailId());
 
     return true;
@@ -733,13 +735,24 @@ size_t core::get_blockchain_total_transactions()
     return m_blockchain.getTotalTransactions();
 }
 
+    bool core::add_new_tx(const Transaction &tx,
+                          const Crypto::Hash &tx_hash,
+                          size_t blob_size,
+                          tx_verification_context &tvc,
+                          bool keeped_by_block)
+    {
+        return add_new_tx(tx, tx_hash, blob_size, tvc, keeped_by_block, m_blockchain.getDB());
+    }
+
 bool core::add_new_tx(
     const Transaction &tx,
     const Crypto::Hash &tx_hash,
     size_t blob_size,
     tx_verification_context &tvc,
-    bool keeped_by_block)
+    bool keeped_by_block,
+    BlockchainDB &sDB)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     // Locking on m_mempool and m_blockchain closes possibility to add tx
     // to memory pool which is already in blockchain
     std::lock_guard<decltype(m_mempool)> lk(m_mempool);
@@ -750,17 +763,20 @@ bool core::add_new_tx(
         return true;
     }
 
-    if (m_mempool.have_tx(tx_hash)) {
+    if (m_mempool.haveTransaction(tx_hash)) {
         logger(TRACE) << "tx " << tx_hash << " is already in transaction pool";
         return true;
     }
 
+    return m_mempool.addTransaction(tx, tx_hash, blob_size, tvc, keeped_by_block);
+/*
     if (m_blockchain.isSynchronized()) {
-        return m_mempool.add_tx(tx, tx_hash, blob_size, tvc, keeped_by_block);
+        return m_mempool.addTransaction(tx, tx_hash, blob_size, tvc, keeped_by_block);
     } else {
         // logger(DEBUGGING) << "Node is not synchronized...";
         return false;
     }
+    */
 }
 
 bool core::get_block_template(
@@ -855,7 +871,7 @@ bool core::get_block_template(
 
     size_t txs_size;
     uint64_t fee;
-    if (!m_mempool.fill_block_template(
+    if (!m_mempool.fillBlockTemplate(
             b,
             median_size,
             m_currency.maxBlockCumulativeSize(height),
@@ -1117,7 +1133,7 @@ void core::getPoolChanges(
 {
     std::vector<Crypto::Hash> addedTxsIds;
     auto guard = m_mempool.obtainGuard();
-    m_mempool.get_difference(knownTxsIds, addedTxsIds, deletedTxsIds);
+    m_mempool.getDifference(knownTxsIds, addedTxsIds, deletedTxsIds);
     std::vector<Crypto::Hash> misses;
     m_mempool.getTransactions(addedTxsIds, addedTxs, misses);
     assert(misses.empty());
@@ -1167,8 +1183,7 @@ bool core::handle_incoming_block(
     	sBlockFullInfo.block_id = get_block_hash(b);
 
     	block_complete_entry &sCompleteEntry = sBlockEntry;
-    	m_blockchain.getTransactions(b.transactionHashes, sTransactions, sMissedTransactionHashes);
-
+    	m_blockchain.getTransactions(b.transactionHashes, sTransactions, sMissedTransactionHashes, true);
     	sCompleteEntry.block = asString(toBinaryArray(b));
     	for (auto &transaction : sTransactions) {
     		vTransactions.push_back(transaction);
@@ -1236,7 +1251,7 @@ Crypto::Hash core::get_tail_id()
 
 size_t core::get_pool_transactions_count()
 {
-    return m_mempool.get_transactions_count();
+    return m_mempool.getTransactionsCount();
 }
 
 bool core::have_block(const Crypto::Hash &id)
@@ -1262,7 +1277,7 @@ bool core::check_tx_syntax(const Transaction &tx)
 std::vector<Transaction> core::getPoolTransactions()
 {
     std::list<Transaction> txs;
-    m_mempool.get_transactions(txs);
+    m_mempool.getTransactions(txs);
 
     std::vector<Transaction> result;
     for (auto &tx : txs) {
@@ -1271,7 +1286,7 @@ std::vector<Transaction> core::getPoolTransactions()
     return result;
 }
 
-std::list<CryptoNote::tx_memory_pool::TransactionDetails> core::getMemoryPool() const
+std::list<CryptoNote::TxMemoryPool::FTransactionDetails> core::getMemoryPool() const
 {
     return m_mempool.getMemoryPool();
 }
@@ -1329,7 +1344,7 @@ bool core::getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeight)
 
 std::string core::print_pool(bool short_format)
 {
-    return m_mempool.print_pool(short_format);
+    return m_mempool.printTransactionPool(short_format);
 }
 
 bool core::update_miner_block_template()
@@ -1360,7 +1375,7 @@ bool core::on_idle()
     }
 
     m_miner->on_idle();
-    m_mempool.on_idle();
+    m_mempool.onIdle();
 
     return true;
 }
@@ -1783,7 +1798,7 @@ bool core::getPoolTransactionsByTimestamp(
     uint64_t &transactionsNumberWithinTimestamps)
 {
     std::vector<Crypto::Hash> poolTransactionHashes;
-    if (!m_mempool.getTransactionIdsByTimestamp(
+    if (!m_mempool.getTransactionHashesByTimestamp(
             timestampBegin,
             timestampEnd,
             transactionsNumberLimit,
@@ -1814,7 +1829,7 @@ bool core::getTransactionsByPaymentId(
     m_blockchain.getTransactionIdsByPaymentId(paymentId, blockchainTransactionHashes);
 
     std::vector<Crypto::Hash> poolTransactionHashes;
-    m_mempool.getTransactionIdsByPaymentId(paymentId, poolTransactionHashes);
+    m_mempool.getTransactionHashesByPaymentId(paymentId, poolTransactionHashes);
 
     std::list<Transaction> txs;
     std::list<Crypto::Hash> missed_txs;
@@ -1849,7 +1864,7 @@ std::vector<Crypto::Hash> core::getTransactionHashesByPaymentId(const Crypto::Ha
     m_blockchain.getTransactionIdsByPaymentId(paymentId, blockchainTransactionHashes);
 
     std::vector<Crypto::Hash> poolTransactionHashes;
-    m_mempool.getTransactionIdsByPaymentId(paymentId, poolTransactionHashes);
+    m_mempool.getTransactionHashesByPaymentId(paymentId, poolTransactionHashes);
 
     blockchainTransactionHashes.reserve(
         blockchainTransactionHashes.size() + poolTransactionHashes.size()

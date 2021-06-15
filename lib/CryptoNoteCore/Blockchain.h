@@ -43,6 +43,7 @@
 #include <CryptoNoteCore/SwappedVector.h>
 #include <CryptoNoteCore/TransactionPool.h>
 #include <CryptoNoteCore/UpgradeDetector.h>
+#include <CryptoNoteCore/VerificationContext.h>
 
 #include <CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h>
 
@@ -62,13 +63,15 @@ struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_request;
 struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response;
 struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_outs_for_amount;
 
+class TxMemoryPool;
+
 class Blockchain : public CryptoNote::ITransactionValidator
 {
 public:
     Blockchain(
         std::unique_ptr<BlockchainDB> &sDB,
         const Currency &currency,
-        tx_memory_pool &tx_pool,
+        TxMemoryPool &tx_pool,
         Logging::ILogger &logger,
         bool blockchainIndexesEnabled
     );
@@ -378,7 +381,7 @@ private:
     typedef google::sparse_hash_map<uint64_t, std::vector<MultisignatureOutputUsage>> MultisignatureOutputsContainer;
 
     const Currency &m_currency;
-    tx_memory_pool &m_tx_pool;
+    TxMemoryPool &m_tx_pool;
     std::recursive_mutex m_blockchain_lock; // TODO: add here reader/writer lock
     Crypto::cn_context m_cn_context;
     Tools::ObserverManager<IBlockchainStorageObserver> m_observerManager;

@@ -1123,6 +1123,21 @@ namespace CryptoNote {
                                               bool bIncludeUnrelayedTransactions = true) const = 0;
 
         /**
+         * @brief Runs a function over all key images stored
+         *
+         * The subclass should run the passed function for each key image it has
+         * stored, passing the key image as its parameter.
+         *
+         * If any call to the function returns false, the subclass should return
+         * false.  Otherwise, the subclass returns true.
+         *
+         * @param std::function fn the function to run
+         *
+         * @return false if the function returns false for any key image, otherwise true
+         */
+        virtual bool forAllKeyImages(std::function<bool(const Crypto::KeyImage &)>) const = 0;
+
+        /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false
          */

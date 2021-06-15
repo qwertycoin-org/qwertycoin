@@ -287,6 +287,8 @@ namespace CryptoNote {
                                               bool bIncludeBlob = false,
                                               bool bIncludeUnrelayedTransactions = true) const;
 
+        virtual bool forAllKeyImages(std::function<bool(const Crypto::KeyImage &)>) const;
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,

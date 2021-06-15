@@ -866,23 +866,21 @@ int CryptoNoteProtocolHandler::handleRequestTxPool(int command,
 
     bool val_expected = false;
 
-    if (m_synchronized.compare_exchange_strong(val_expected, true)) {
-        std::vector<Transaction> addedTransactions;
-        std::vector<Crypto::Hash> deletedTransactions;
-        m_core.getPoolChanges(arg.txs, addedTransactions, deletedTransactions);
+    std::vector<Transaction> addedTransactions;
+    std::vector<Crypto::Hash> deletedTransactions;
+    m_core.getPoolChanges(arg.txs, addedTransactions, deletedTransactions);
 
-        if (!addedTransactions.empty()) {
-            NOTIFY_NEW_TRANSACTIONS::request notification;
-            for (auto &tx : addedTransactions) {
-                notification.txs.push_back(asString(toBinaryArray(tx)));
-            }
+    if (!addedTransactions.empty()) {
+        NOTIFY_NEW_TRANSACTIONS::request notification;
+        for (auto &tx : addedTransactions) {
+            notification.txs.push_back(asString(toBinaryArray(tx)));
+        }
 
-            bool ok = post_notify<NOTIFY_NEW_TRANSACTIONS>(*m_p2p, notification, context);
-            if (!ok) {
-                logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
-                        << "Failed to post notification NOTIFY_NEW_TRANSACTIONS to "
-                        << context.m_connection_id;
-            }
+        bool ok = post_notify<NOTIFY_NEW_TRANSACTIONS>(*m_p2p, notification, context);
+        if (!ok) {
+            logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
+                    << "Failed to post notification NOTIFY_NEW_TRANSACTIONS to "
+                    << context.m_connection_id;
         }
     }
 
