@@ -115,7 +115,7 @@ bool getObjectHash(const T &object, Crypto::Hash &hash)
 }
 
 template<class T>
-bool getObjectHash(const T &object, Crypto::Hash &hash, size_t &size)
+bool getObjectHash(const T &object, Crypto::Hash &hash, uint64_t &size)
 {
     BinaryArray ba;
     if (!toBinaryArray(object, ba)) {
