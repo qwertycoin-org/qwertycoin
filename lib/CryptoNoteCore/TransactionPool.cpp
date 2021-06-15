@@ -832,14 +832,14 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
 
     void TxMemoryPool::onIdle()
     {
-        mLogger(INFO, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        mLogger(TRACE, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
 
         mTxCheckInterval.call([this](){ return removeExpiredTransactions(); });
     }
 
     bool TxMemoryPool::removeExpiredTransactions()
     {
-        mLogger(INFO, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        mLogger(TRACE, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
         bool bSomethingRemoved = false;
         {
             std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
