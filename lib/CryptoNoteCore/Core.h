@@ -275,7 +275,7 @@ public:
     void print_blockchain(uint32_t start_index, uint32_t end_index);
     void print_blockchain_index();
     std::string print_pool(bool short_format);
-    std::list<CryptoNote::tx_memory_pool::TransactionDetails> getMemoryPool() const;
+    std::list<CryptoNote::TxMemoryPool::FTransactionDetails> getMemoryPool() const;
     void print_blockchain_outs(const std::string &file);
     bool getPoolChanges(
         const Crypto::Hash &tailBlockId,
@@ -313,6 +313,13 @@ private:
         size_t blob_size,
         tx_verification_context &tvc,
         bool keeped_by_block);
+    bool add_new_tx(
+            const Transaction &tx,
+            const Crypto::Hash &tx_hash,
+            size_t blob_size,
+            tx_verification_context &tvc,
+            bool keeped_by_block,
+            BlockchainDB &sDB);
     bool load_state_data();
     bool parse_tx_from_blob(
         Transaction &tx,
@@ -363,7 +370,7 @@ private:
     const Currency &m_currency;
     Logging::LoggerRef logger;
     CryptoNote::RealTimeProvider m_timeProvider;
-    tx_memory_pool m_mempool;
+    TxMemoryPool m_mempool;
     Blockchain m_blockchain;
     i_cryptonote_protocol *m_pprotocol;
     std::unique_ptr<miner> m_miner;

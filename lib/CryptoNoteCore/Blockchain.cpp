@@ -95,6 +95,7 @@ namespace CryptoNote {
 
 class BlockCacheSerializer;
 class BlockchainIndicesSerializer;
+class TxMemoryPool;
 
 template<typename K, typename V, typename Hash>
 bool serialize(
@@ -376,7 +377,7 @@ private:
 Blockchain::Blockchain(
     std::unique_ptr<BlockchainDB> &sDB,
     const Currency &currency,
-    tx_memory_pool &tx_pool,
+    TxMemoryPool &tx_pool,
     ILogger &logger,
     bool blockchainIndexesEnabled)
     : logger(logger, "Blockchain"),
@@ -693,7 +694,8 @@ bool Blockchain::init(const std::string &config_folder,
             << ". Rollback blockchain to height=" << upgradeHeight;
         rollbackBlockchainTo(upgradeHeight);
         reinitUpgradeDetectors = true;
-    } else if (!checkUpgradeHeight(m_upgradeDetectorV3)) {
+    }
+    else if (!checkUpgradeHeight(m_upgradeDetectorV3)) {
         uint32_t upgradeHeight = m_upgradeDetectorV3.upgradeHeight();
         Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
                         m_blocks[upgradeHeight + 1].bl);
@@ -704,7 +706,8 @@ bool Blockchain::init(const std::string &config_folder,
             << ". Rollback blockchain to height=" << upgradeHeight;
         rollbackBlockchainTo(upgradeHeight);
         reinitUpgradeDetectors = true;
-    } else if (!checkUpgradeHeight(m_upgradeDetectorV4)) {
+    }
+    else if (!checkUpgradeHeight(m_upgradeDetectorV4)) {
         uint32_t upgradeHeight = m_upgradeDetectorV4.upgradeHeight();
         Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
                         m_blocks[upgradeHeight + 1].bl);
@@ -715,7 +718,8 @@ bool Blockchain::init(const std::string &config_folder,
             << ". Rollback blockchain to height=" << upgradeHeight;
         rollbackBlockchainTo(upgradeHeight);
         reinitUpgradeDetectors = true;
-    } else if (!checkUpgradeHeight(m_upgradeDetectorV5)) {
+    }
+    else if (!checkUpgradeHeight(m_upgradeDetectorV5)) {
         uint32_t upgradeHeight = m_upgradeDetectorV5.upgradeHeight();
         Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
                         m_blocks[upgradeHeight + 1].bl);
@@ -726,7 +730,8 @@ bool Blockchain::init(const std::string &config_folder,
             << ". Rollback blockchain to height=" << upgradeHeight;
         rollbackBlockchainTo(upgradeHeight);
         reinitUpgradeDetectors = true;
-    } else if (!checkUpgradeHeight(m_upgradeDetectorV6)) {
+    }
+    else if (!checkUpgradeHeight(m_upgradeDetectorV6)) {
         uint32_t upgradeHeight = m_upgradeDetectorV6.upgradeHeight();
         Block sBlock = (bIsLMDB ? pDB->getBlockFromHeight(upgradeHeight + 1) :
                         m_blocks[upgradeHeight + 1].bl);
@@ -745,7 +750,7 @@ bool Blockchain::init(const std::string &config_folder,
     		uNumPoppedBlocks = uBeforePopping - getCurrentBlockchainHeight();
     		if (uNumPoppedBlocks > 0) {
                 // Maybe Hardfork stuff
-                m_tx_pool.on_blockchain_dec(pDB->height()-1, getTailId());
+                m_tx_pool.onBlockchainDecrement(pDB->height()-1, getTailId());
     		}
     	}
     }
@@ -3680,7 +3685,7 @@ bool Blockchain::pushBlock(
 												block.already_generated_coins,
 												transactions);
 
-			logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". NewHeight: " << uNewHeight;
+			logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". NewHeight: " << (uNewHeight - 1);
 			if (uNewHeight > pDB->height() - 1) {
 				auto block_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(
 						std::chrono::steady_clock::now() - blockProcessingStart).count();
@@ -3688,7 +3693,7 @@ bool Blockchain::pushBlock(
 								  "+++++ LMDB BLOCK SUCCESSFULLY ADDED" << ENDL
 								  << "id:\t" << blockHash << ENDL
 								  << "PoW:\t" << proof_of_work << ENDL
-								  << "HEIGHT " << uNewHeight << ", difficulty:\t" << currentDifficulty << ENDL
+								  << "HEIGHT " << (uNewHeight - 1) << ", difficulty:\t" << currentDifficulty << ENDL
 								  << "block reward: " << m_currency.formatAmount(reward) << ", fee = "
 								  << m_currency.formatAmount(fee_summary)
 								  << ", timestamp = " << block.bl.timestamp
@@ -3756,7 +3761,7 @@ bool Blockchain::pushBlock(BlockEntry &block)
     m_timestampIndex.add(block.bl.timestamp, blockHash);
     m_generatedTransactionsIndex.add(block.bl);
 
-	logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". HEIGHT_COND: " << HEIGHT_COND;
+	logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". HEIGHT_COND: " << HEIGHT_COND -1;
 
     // assert(m_blockIndex.size() == (HEIGHT_COND + 1));
 
@@ -4164,7 +4169,7 @@ void Blockchain::removeLastBlock()
 
     logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". blockHash: " << blockHash;
     logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". m_blockIndex.size(): " << m_blockIndex.size();
-    logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". HEIGHT_COND: " << HEIGHT_COND;
+    logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". HEIGHT_COND: " << HEIGHT_COND -1;
 
     assert(m_blockIndex.size() == HEIGHT_COND);
 }
@@ -4431,17 +4436,15 @@ bool Blockchain::loadTransactions(const Block &block, std::vector<Transaction> &
     size_t transactionSize;
     uint64_t fee;
     for (size_t i = 0; i < block.transactionHashes.size(); i++) {
-        if (!m_tx_pool.take_tx(block.transactionHashes[i], transactions[i], transactionSize, fee)) {
-            if (isSynchronized()) {
-                tx_verification_context context;
-                for (size_t j = 0; j < i; j++) {
-                    if (!m_tx_pool.add_tx(transactions[i - 1 - j], context, true)) {
-                        throw std::runtime_error(
-                                "Blockchain::loadTransactions, failed to add transaction to pool"
-                        );
-                        DB_TX_STOP
-                        return false;
-                    }
+        if (!m_tx_pool.takeTransaction(block.transactionHashes[i], transactions[i], transactionSize, fee)) {
+            tx_verification_context context;
+            for (size_t j = 0; j < i; j++) {
+                if (!m_tx_pool.addTransaction(transactions[i - 1 - j], context, true)) {
+                    throw std::runtime_error(
+                            "Blockchain::loadTransactions, failed to add transaction to pool"
+                    );
+                    DB_TX_STOP
+                    return false;
                 }
             }
 
@@ -4454,15 +4457,18 @@ bool Blockchain::loadTransactions(const Block &block, std::vector<Transaction> &
 
 void Blockchain::saveTransactions(const std::vector<Transaction> &transactions)
 {
-    if (isSynchronized()) {
-        tx_verification_context context;
-        for (size_t i = 0; i < transactions.size(); ++i) {
-            if (!m_tx_pool.add_tx(transactions[transactions.size() - 1 - i], context, true)) {
-                logger(WARNING, BRIGHT_YELLOW)
-                        << "Blockchain::saveTransactions, failed to add transaction to pool";
-            }
+    tx_verification_context context;
+    DB_TX_START
+    for (size_t i = 0; i < transactions.size(); ++i) {
+        FTxPoolMeta sMeta;
+        pDB->addTxPoolTransaction(transactions[i], sMeta);
+        if (!m_tx_pool.addTransaction(transactions[transactions.size() - 1 - i], context, true)) {
+            logger(WARNING, BRIGHT_YELLOW)
+                    << "Blockchain::saveTransactions, failed to add transaction to pool";
+            DB_TX_STOP
         }
     }
+    DB_TX_STOP
 }
 
 bool Blockchain::addMessageQueue(MessageQueue<BlockchainMessage> &messageQueue)

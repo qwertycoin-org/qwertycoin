@@ -1578,6 +1578,10 @@ namespace CryptoNote {
         return bRet;
     }
 
+    bool BlockchainLMDB::forAllKeyImages(std::function<bool(const Crypto::KeyImage &)>) const
+    {
+        return false;
+    }
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,
@@ -1597,7 +1601,8 @@ namespace CryptoNote {
             blockTxnAbort();
             throw;
         }
-        return ++uHeight;
+
+        return uHeight++;
     }
 
     void BlockchainLMDB::popBlock(CryptoNote::Block &sBlock,
