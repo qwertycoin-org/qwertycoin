@@ -467,6 +467,7 @@ set(QwertycoinFramework_Lmdb_SOURCES
 set(QwertycoinFramework_Lmdb_LIBS
     Boost::filesystem
     Boost::thread
+    QwertycoinFramework::Common
 )
 
 add_library(QwertycoinFramework_Lmdb STATIC ${QwertycoinFramework_Lmdb_SOURCES})
