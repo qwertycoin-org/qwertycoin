@@ -863,7 +863,7 @@ bool core::get_block_template(
         already_generated_coins = m_blockchain.getCoinsInCirculation();
     }
 
-    size_t txs_size;
+    uint64_t txs_size;
     uint64_t fee;
     if (!m_mempool.fillBlockTemplate(
             b,
