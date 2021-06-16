@@ -59,6 +59,14 @@ public:
         m_consoleHandler.stop();
     }
 
+    void stop_benchmark()
+    {
+        std::vector<std::string> args;
+        status(args);
+        m_consoleHandler.requestStop();
+        m_srv.sendStopSignal();
+    }
+
 private:
     std::string get_commands_str();
     std::string get_mining_speed(uint32_t hr);

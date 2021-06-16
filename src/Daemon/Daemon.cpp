@@ -19,6 +19,9 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <thread>
+
+#include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
@@ -168,6 +171,11 @@ const command_line::arg_descriptor<std::string> arg_rollback = {
     "Rollback blockchain to <height>"
 };
 
+const command_line::arg_descriptor<std::string> arg_benchmark = {
+    "benchmark",
+    "Benchmarking sync efficiency for <X> minutes"
+};
+
 } // namespace
 
 bool command_line_preprocessor(const boost::program_options::variables_map &vm, LoggerRef &logger);
@@ -231,6 +239,8 @@ int main(int argc, char *argv[])
     LoggerManager logManager;
     LoggerRef logger(logManager, "daemon");
 
+    boost::asio::io_service sIo;
+
     try {
         po::options_description desc_cmd_only("Command line options");
         po::options_description desc_cmd_sett("Command line options and settings options");
@@ -259,6 +269,7 @@ int main(int argc, char *argv[])
         command_line::add_arg(desc_cmd_sett, arg_disable_checkpoints);
         command_line::add_arg(desc_cmd_sett, arg_rollback);
         command_line::add_arg(desc_cmd_sett, arg_set_contact);
+        command_line::add_arg(desc_cmd_sett, arg_benchmark);
 
         RpcServerConfig::initOptions(desc_cmd_sett);
         CoreConfig::initOptions(desc_cmd_sett);
@@ -505,6 +516,28 @@ int main(int argc, char *argv[])
         if (command_line::has_arg(vm, arg_set_contact)) {
             if (!contact_str.empty()) {
                 rpcServer.setContactInfo(contact_str);
+            }
+        }
+        if (command_line::has_arg(vm, arg_benchmark)) {
+            std::string benchmark_str = command_line::get_arg(vm, arg_benchmark);
+            if (!benchmark_str.empty()) {
+                uint64_t _minutes = 0;
+                if (!Common::fromString(benchmark_str, _minutes)) {
+                    std::cout << "wrong benchmark parameter" << ENDL;
+                    return 1;
+                }
+
+                std::thread sTh([&] {
+                    boost::asio::deadline_timer sT(sIo, boost::posix_time::minutes(_minutes));
+                    sT.async_wait([&dch](const boost::system::error_code& /*e*/){
+                        dch.stop_benchmark();
+                    });
+
+                    logger(INFO, BRIGHT_MAGENTA) << "Starting benchmark for " << _minutes << " minutes";
+
+                    sIo.run();
+                });
+                sTh.detach();
             }
         }
         logger(INFO) << "Core rpc server started ok";
