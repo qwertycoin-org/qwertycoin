@@ -920,7 +920,7 @@ bool Blockchain::storeBlockchain()
 		DB_TX_START
 		pDB->fixUp();
 	} catch (const std::exception &e) {
-		logger(ERROR, BRIGHT_RED) << "Exception thrown at store_blockchain(): "
+		logger(ERROR, BRIGHT_RED) << "Exception thrown at storeBlockchain(): "
 		    << e.what() << " -- shutting down to prevent issues!";
 		pDB->blockTxnAbort();
 

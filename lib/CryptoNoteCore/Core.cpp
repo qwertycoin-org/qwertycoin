@@ -129,13 +129,31 @@ bool core::handle_command_line(const boost::program_options::variables_map &vm)
 {
     m_config_folder = command_line::get_arg(vm, command_line::arg_data_dir);
     mDBSyncMode = command_line::get_arg(vm, command_line::arg_db_sync_mode);
-    mDBType = command_line::get_arg(vm, command_line::arg_db_type);
+    pDBType = command_line::get_arg(vm, command_line::arg_db_type);
     return true;
 }
 
 uint32_t core::get_current_blockchain_height()
 {
     return m_blockchain.getCurrentBlockchainHeight();
+}
+
+uint64_t core::getDBMapSize()
+{
+    if (Tools::getDefaultDBType(pDBType)) {
+        return m_blockchain.pDB->getDBMapSize();
+    } else {
+        return 0;
+    }
+}
+
+uint64_t core::getDBUsedSize()
+{
+    if (Tools::getDefaultDBType(pDBType)) {
+        return m_blockchain.pDB->getDBUsedSize();
+    } else {
+        return 0;
+    }
 }
 
 uint8_t core::getCurrentBlockMajorVersion()
@@ -235,7 +253,7 @@ bool core::init(const CoreConfig &config, const MinerConfig &minerConfig, bool l
 
 			return false;
 		} else {
-			mDBType = config.cDBType;
+            pDBType = config.cDBType;
 			mDBSyncMode = config.cDBSyncMode;
 		}
 	} catch (std::exception &e) {
@@ -500,7 +518,7 @@ bool core::check_tx_mixin(const Transaction &tx, uint32_t height)
 
 bool core::check_tx_fee(
     const Transaction &tx,
-    size_t blobSize,
+    uint64_t blobSize,
     tx_verification_context &tvc,
     uint32_t height,
     bool loose_check)

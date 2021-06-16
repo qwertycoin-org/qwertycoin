@@ -296,6 +296,10 @@ namespace CryptoNote {
 
         virtual void doResize(uint64_t uIncreaseSize = 0);
 
+        virtual uint64_t getDBMapSize();
+
+        virtual uint64_t getDBUsedSize();
+
         // helper functions
         static int compareUInt64(const MDB_val *a, const MDB_val *b);
 

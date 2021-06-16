@@ -393,7 +393,6 @@ namespace CryptoNote {
 
     void FMdbTxnSafe::preventNewTxns()
     {
-        std::cout << "preventNewTxns" << std::endl;
         while (pCreationGate.test_and_set());
     }
 
@@ -589,7 +588,10 @@ namespace CryptoNote {
         }
 
         if (uIncreaseSize > 0) {
-            if (sMEnvIn.me_mapsize - uSizeUsed < uIncreaseSize) {
+            uint64_t uSize = (sMEnvIn.me_mapsize - uSizeUsed);
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uSize: " << uSize;
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uIncreaseSize: " << uIncreaseSize;
+            if (uSize < uIncreaseSize) {
                 mLogger(DEBUGGING, BRIGHT_CYAN) << "Threshold met (size-based)";
                 return true;
             } else {
@@ -630,6 +632,7 @@ namespace CryptoNote {
         // if threshold_size is 0 (i.e. number of blocks for batch not passed in), it
         // will fall back to the percent-based threshold check instead of the
         // size-based check
+        FMdbTxnSafe::preventNewTxns();
         if (needResize(uThreshold)) {
             mLogger(INFO, BRIGHT_CYAN) << "DB Resize needed.";
             doResize(uIncrease);
@@ -725,6 +728,28 @@ namespace CryptoNote {
         return uThreshold;
     }
 
+    uint64_t BlockchainLMDB::getDBMapSize()
+    {
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+
+        MDB_envinfo sMEnvIn;
+        mdb_env_info(mDbEnv, &sMEnvIn);
+
+        return sMEnvIn.me_mapsize;
+    }
+
+    uint64_t BlockchainLMDB::getDBUsedSize()
+    {
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+
+        MDB_envinfo sMEnvIn;
+        mdb_env_info(mDbEnv, &sMEnvIn);
+        MDB_stat sMStat;
+        mdb_env_stat(mDbEnv, &sMStat);
+
+        return sMStat.ms_psize * sMEnvIn.me_last_pgno;
+    }
+
     void BlockchainLMDB::addBlock(const CryptoNote::Block &block,
                                   const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
@@ -734,10 +759,13 @@ namespace CryptoNote {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << "1";
 
         checkOpen();
+        FMdbTxnSafe::preventNewTxns();
         const uint64_t uMinIncSize = 32 * (1 << 20);
         if (needResize(uMinIncSize)) {
             mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map needs to be resized, doing that now.";
             doResize(uMinIncSize);
+        } else {
+            FMdbTxnSafe::allowNewTxns();
         }
 
         {
@@ -1348,10 +1376,13 @@ namespace CryptoNote {
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
+        FMdbTxnSafe::preventNewTxns();
         const uint64_t uMinIncSize = 32 * (1 << 20);
         if (needResize(uMinIncSize)) {
             mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map needs to be resized, doing that now.";
             doResize(uMinIncSize);
+        } else {
+            FMdbTxnSafe::allowNewTxns();
         }
 
         FMdbTxnCursors *sCursor = &mWriteCursors;
@@ -2361,7 +2392,7 @@ namespace CryptoNote {
         }
 
         // size_t uMapSize = DEFAULT_MAPSIZE;
-        size_t uMapSize = 16 * 1024 * 1024;
+        size_t uMapSize = 64 * 1024 * 1024;
 
         if (iDBFlags & DBF_FAST) {
             iMdbFlags |= MDB_NOSYNC;
@@ -2397,9 +2428,12 @@ namespace CryptoNote {
             mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map size: " << uCurMapSize;
         }
 
+        FMdbTxnSafe::preventNewTxns();
         if (needResize()) {
             mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map needs to be resized, doing that now.";
             doResize(uMapSize);
+        } else {
+            FMdbTxnSafe::allowNewTxns();
         }
 
         int iTxnFlags = 0;
