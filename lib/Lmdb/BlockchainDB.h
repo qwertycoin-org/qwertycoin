@@ -1143,6 +1143,10 @@ namespace CryptoNote {
          */
         virtual bool isReadOnly() const = 0;
 
+        virtual uint64_t getDBMapSize() = 0;
+
+        virtual uint64_t getDBUsedSize() = 0;
+
         // TODO: this should perhaps be (or call) a series of functions which progressively update
         // through version updates
         /**

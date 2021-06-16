@@ -309,6 +309,12 @@ public:
 
     void setBlocksToFind(uint64_t blocksToFind);
 
+    //LMDB Stuff
+    uint64_t getDBMapSize();
+    uint64_t getDBUsedSize();
+
+    std::string pDBType;
+
 private:
     bool add_new_tx(
         const Transaction &tx,
@@ -343,7 +349,7 @@ private:
     // check if the mixin is not too large
     bool check_tx_fee(
         const Transaction &tx,
-        size_t blobSize,
+        uint64_t blobSize,
         tx_verification_context &tvc,
         uint32_t height,
         bool loose_check);
@@ -369,7 +375,6 @@ private:
 
     BlockchainDB *mDB;
     std::string mDBSyncMode;
-    std::string mDBType;
     const Currency &m_currency;
     Checkpoints m_checkpoints;
     Logging::LoggerRef logger;
