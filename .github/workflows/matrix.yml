@@ -37,7 +37,7 @@ jobs:
             package_name: 'gcc-9 g++-9'
             label: linux-gcc-9
             cc: gcc-9
-            cxx: g++-8
+            cxx: g++-9
             deployable: true
           - build_name: 'Ubuntu Clang'
           - build_name: 'Ubuntu GCC 11'
