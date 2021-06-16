@@ -14,12 +14,12 @@ jobs:
   # Common Build matrix for builds on Ubuntu VM
   ubuntu_build:
     name: ${{ matrix.build_name }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         # Add more compilers here if you need them
-        build_name: ['Ubuntu GCC 7', 'Ubuntu GCC 8', 'Ubuntu Clang 6']
+        build_name: ['Ubuntu GCC 7', 'Ubuntu GCC 8', 'Ubuntu GCC 9', 'Ubuntu Clang 10']
         include:
           - build_name: 'Ubuntu GCC 7'
             package_name: 'gcc-7 g++-7'
@@ -33,10 +33,16 @@ jobs:
             cxx: g++-8
             label: linux
             deployable: true
-          - build_name: 'Ubuntu Clang 6'
+          - build_name: 'Ubuntu GCC 9'
+            package_name: 'gcc-9 g++-9'
+            label: linux-gcc-9
+            cc: gcc-9
+            cxx: g++-8
+            deployable: true
+          - build_name: 'Ubuntu Clang'
             package_name: 'clang'
-            cc: clang-6.0
-            cxx: clang++-6.0
+            cc: clang
+            cxx: clang++
             label: linux-clang-6
             deployable: true
     env:
