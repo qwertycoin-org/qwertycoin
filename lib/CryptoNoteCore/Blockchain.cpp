@@ -1199,9 +1199,10 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t nextBlockTime)
     if (offset == 0) {
         ++offset;
     }
-    for (; offset < m_blocks.size(); offset++) {
+    for (; offset < HEIGHT_COND; offset++) {
         timestamps.push_back((bIsLMDB ? pDB->getBlockTimestamp(offset) : m_blocks[offset].bl.timestamp));
-        cumulative_difficulties.push_back((bIsLMDB ? pDB->getBlockCumulativeDifficulty(offset) : m_blocks[offset].cumulative_difficulty));
+        cumulative_difficulties.push_back((bIsLMDB ? pDB->getBlockCumulativeDifficulty(offset) :
+                                                     m_blocks[offset].cumulative_difficulty));
     }
     CryptoNote::Currency::lazy_stat_callback_type cb([&](IMinerHandler::stat_period p, uint64_t next_time)
     {
@@ -1721,7 +1722,7 @@ bool Blockchain::switch_to_alternative_blockchain(
 
     logger(INFO, BRIGHT_GREEN)
         << "REORGANIZE SUCCESS! on height: " << split_height
-        << ", new blockchain size: " << m_blocks.size();
+        << ", new blockchain size: " << HEIGHT_COND;
 
     return true;
 }
@@ -2057,7 +2058,7 @@ bool Blockchain::complete_timestamps_vector(
     if (start_top_height >= HEIGHT_COND) {
         logger(ERROR, BRIGHT_RED)
             << "internal error: passed start_height = " << start_top_height
-            << " not less then m_blocks.size()=" << HEIGHT_COND;
+            << " not less then HEIGHT_COND=" << HEIGHT_COND;
         return false;
     }
 
