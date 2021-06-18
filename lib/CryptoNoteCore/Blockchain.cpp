@@ -394,7 +394,8 @@ Blockchain::Blockchain(
       m_timestampIndex(blockchainIndexesEnabled),
       m_generatedTransactionsIndex(blockchainIndexesEnabled),
       m_orphanBlocksIndex(blockchainIndexesEnabled),
-      m_blockchainIndexesEnabled(blockchainIndexesEnabled)
+      m_blockchainIndexesEnabled(blockchainIndexesEnabled),
+      mCancel(false)
 {
     m_outputs.set_deleted_key(0);
     Crypto::KeyImage nullImage = boost::value_initialized<decltype(nullImage)>();
@@ -4552,7 +4553,7 @@ bool Blockchain::prepareHandleIncomingBlocks(const std::vector<block_complete_en
         uint64_t uHeight = pDB->height();
         int iBatches = uEntriesSize / iThreads;
         int iExtra = uEntriesSize % iThreads;
-        // logger(INFO, BRIGHT_WHITE) << "blockBatches: " << std::to_string(iBatches);
+        logger(DEBUGGING, BRIGHT_WHITE) << "Blockchain::" << __func__ << ". blockBatches: " << std::to_string(iBatches);
         std::vector<std::unordered_map<Crypto::Hash, Crypto::Hash>> vHashMap(iThreads);
         std::vector<std::vector<CryptoNote::Block>> vBlocks;
         auto sIterator = vBlocksEntry.begin();
@@ -4630,6 +4631,11 @@ bool Blockchain::prepareHandleIncomingBlocks(const std::vector<block_complete_en
 
     pDB->batchStop();
     return true;
+}
+
+void Blockchain::cancel()
+{
+    mCancel = true;
 }
 
 bool Blockchain::isBlockInMainChain(const Crypto::Hash &blockId)
