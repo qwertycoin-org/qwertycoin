@@ -1014,7 +1014,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             if (!boost::filesystem::exists(cStateFilePath, sEc)) {
                 return true;
             }
-            
+
             if (!loadFromBinaryFile(*this, cStateFilePath)) {
                 mLogger(ERROR) << "Failed to load memory pool from file " << cStateFilePath;
 
@@ -1043,20 +1043,22 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
         bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
-        if (!Tools::create_directories_if_necessary(mConfigFolder)) {
-            mLogger(INFO) << "Failed to create data directory: " << mConfigFolder;
-            return false;
+        if (!bIsLMDB) {
+            if (!Tools::create_directories_if_necessary(mConfigFolder)) {
+                mLogger(INFO) << "Failed to create data directory: " << mConfigFolder;
+                return false;
+            }
+
+            std::string cStateFilePath = mConfigFolder + "/" + mCurrency.txPoolFileName();
+
+            if (!storeToBinaryFile(*this, cStateFilePath)) {
+                mLogger(INFO) << "Failed to serialize memory pool to file " << cStateFilePath;
+            }
+
+            mPaymentIndex.clear();
+            mTimestampIndex.clear();
+            mTimeToLifeIndex.clear();
         }
-
-        std::string cStateFilePath = mConfigFolder + "/" + mCurrency.txPoolFileName();
-
-        if (!storeToBinaryFile(*this, cStateFilePath)) {
-            mLogger(INFO) << "Failed to serialize memory pool to file " << cStateFilePath;
-        }
-
-        mPaymentIndex.clear();
-        mTimestampIndex.clear();
-        mTimeToLifeIndex.clear();
 
         return true;
     }
