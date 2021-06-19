@@ -1221,6 +1221,12 @@ namespace CryptoNote {
          */
         virtual bool removeTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sHash) = 0;
 
+        virtual bool addTimeToLifeIndex(const Crypto::Hash &sTxHash, uint64_t uTimeToLife) = 0;
+
+        virtual uint64_t getTimeToLife(const Crypto::Hash &sTxHash) = 0;
+
+        virtual bool removeTimeToLifeIndex(const Crypto::Hash &sTxHash) = 0;
+
         /**
          * @brief Is BlockchainDB in read-only mode?
          * @return True if in read-only mode, otherwise false

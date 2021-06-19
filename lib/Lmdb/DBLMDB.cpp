@@ -143,6 +143,7 @@ namespace {
 
     const char *const LMDB_PAYMENT_INDEX = "PaymentIndex";
     const char *const LMDB_TIMESTAMP_INDEX = "TimestampIndex";
+    const char *const LMDB_TIME_TO_LIFE_INDEX = "TimeToLifeIndex";
 
     const char *const LMDB_PROPERTIES = "Properties";
 
@@ -1882,6 +1883,79 @@ namespace CryptoNote {
         }
     }
 
+    bool BlockchainLMDB::addTimeToLifeIndex(const Crypto::Hash &sTxHash, uint64_t uTimeToLife)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(TimeToLifeIndex)
+
+        int iRes;
+
+        MDBValSet(sValTxHash, sTxHash);
+        MDBValSet(sValTtl, uTimeToLife);
+
+        iRes = mdb_cursor_put(sCurTimestampIndex, &sValTxHash, &sValTtl, 0);
+        if (iRes) {
+            throw (DB_ERROR(lmdbError("Failed to add Timestamp to db transaction: ", iRes).c_str()));
+        }
+
+        return true;
+    }
+
+    uint64_t BlockchainLMDB::getTimeToLife(const Crypto::Hash &sTxHash)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(TimeToLifeIndex);
+
+        FMdbValCopy<Crypto::Hash> sKeyHash(sTxHash);
+        MDB_val sResult;
+
+        auto getResult = mdb_cursor_get(sCurTimeToLifeIndex, &sKeyHash, &sResult, MDB_SET);
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". getResult:" << getResult;
+        if (getResult == MDB_NOTFOUND) {
+            throw (BLOCK_DNE(std::string("Attempt to get ttl from TxHash ").append(
+                    boost::lexical_cast<std::string>(sTxHash)).append(" failed -- sTxHash not in db").c_str()));
+        } else if (getResult) {
+            throw (DB_ERROR("Error attempting to retrieve a block from the db"));
+        }
+
+        uint64_t &uRes = *(uint64_t *)sResult.mv_data;
+
+        return uRes;
+    }
+
+    bool BlockchainLMDB::removeTimeToLifeIndex(const Crypto::Hash &sTxHash)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(TimeToLifeIndex)
+
+        FMdbValCopy<Crypto::Hash> sKeyHash(sTxHash);
+        MDB_val sResult;
+
+        auto getResult = mdb_cursor_get(sCurTimeToLifeIndex, &sKeyHash, &sResult, MDB_SET);
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". getResult:" << getResult;
+        if (getResult != 0 && getResult != MDB_NOTFOUND) {
+            throw (DB_ERROR(lmdbError("Error finding ttl hash to remove", getResult).c_str()));
+        }
+
+        if (!getResult) {
+            getResult = mdb_cursor_del(sCurTimeToLifeIndex, 0);
+            if (getResult) {
+                throw (DB_ERROR(lmdbError("Error removal of ttl from db transaction", getResult).c_str()));
+            }
+        }
+    }
+
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                       const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                       const uint64_t &uCoinsGenerated,
@@ -2784,6 +2858,9 @@ namespace CryptoNote {
                  "Failed to open db handle for mPaymentIndex");
         lmdbOpen(sTxn, LMDB_TIMESTAMP_INDEX, MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, mTimestampIndex,
                  "Failed to open db handle for mTimestampIndex");
+        lmdbOpen(sTxn, LMDB_TIME_TO_LIFE_INDEX, MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, mTimeToLifeIndex,
+                 "Failed to open db handle for mTimeToLifeIndex");
+
 
         lmdbOpen(sTxn, LMDB_PROPERTIES, MDB_CREATE, mProperties, "Failed to open db handle for mProperties");
 
@@ -2798,6 +2875,7 @@ namespace CryptoNote {
         mdb_set_compare(sTxn, mTransactionPoolBlob, compareHash32);
         mdb_set_compare(sTxn, mPaymentIndex, compareHash32);
         mdb_set_compare(sTxn, mTimestampIndex, compareUInt64);
+        mdb_set_compare(sTxn, mTimeToLifeIndex, compareHash32);
         mdb_set_compare(sTxn, mProperties, compareString);
 
         MDB_stat iLMDBStats;

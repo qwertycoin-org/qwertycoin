@@ -53,6 +53,7 @@ namespace CryptoNote {
 
         MDB_cursor *sTxcPaymentIndex;
         MDB_cursor *sTxcTimestampIndex;
+        MDB_cursor *sTxcTimeToLifeIndex;
 
         MDB_cursor *sTxcProperties;
     } FMdbTxnCursors;
@@ -79,6 +80,7 @@ namespace CryptoNote {
 
         bool bRfPaymentIndex;
         bool bRfTimestampIndex;
+        bool bRfTimeToLifeIndex;
 
         bool bRfProperties;
     } FMdbReadFlags;
@@ -102,6 +104,7 @@ namespace CryptoNote {
 
 #define sCurPaymentIndex sCursor->sTxcPaymentIndex
 #define sCurTimestampIndex sCursor->sTxcTimestampIndex
+#define sCurTimeToLifeIndex sCursor->sTxcTimeToLifeIndex
 
 #define sCurProperties sCursor->sTxcProperties
 
@@ -317,6 +320,12 @@ namespace CryptoNote {
 
         virtual bool removeTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sHash);
 
+        virtual bool addTimeToLifeIndex(const Crypto::Hash &sTxHash, uint64_t uTimeToLife);
+
+        virtual uint64_t getTimeToLife(const Crypto::Hash &sTxHash);
+
+        virtual bool removeTimeToLifeIndex(const Crypto::Hash &sTxHash);
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,
@@ -404,6 +413,7 @@ namespace CryptoNote {
 
         MDB_dbi mPaymentIndex;
         MDB_dbi mTimestampIndex;
+        MDB_dbi mTimeToLifeIndex;
 
         MDB_dbi mProperties;
 
