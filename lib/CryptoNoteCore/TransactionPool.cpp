@@ -251,7 +251,9 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                     mBlockchain.pDB->blockTxnStart(false);
                     mBlockchain.pDB->addTxPoolTransaction(sTx, sMeta);
                     mBlockchain.pDB->blockTxnStop();
-                    mTimeToLifeIndex.emplace(std::make_pair(sTxHash, sTtl.ttl));
+                    mBlockchain.pDB->blockTxnStart(false);
+                    mBlockchain.pDB->addTimeToLifeIndex(sTxHash, sTtl.ttl);
+                    mBlockchain.pDB->blockTxnStop();
                 } catch (const std::exception &e) {
                     mLogger(ERROR, BRIGHT_RED) << "transaction already exists at inserting in memory pool: "
                                                << e.what();
@@ -323,8 +325,9 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             memset(sMeta.uPadding, 0, sizeof(sMeta.uPadding));
 
             try {
+                Crypto::Hash sHash = getObjectHash(sTransaction);
                 mBlockchain.pDB->blockTxnStart(false);
-                mBlockchain.pDB->removeTxPoolTransaction(getObjectHash(sTransaction));
+                mBlockchain.pDB->removeTxPoolTransaction(sHash);
                 mBlockchain.pDB->blockTxnStop();
                 const CryptoNote::Transaction& sTx = sTransaction;
                 mBlockchain.pDB->blockTxnStart(false);
@@ -334,8 +337,14 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                 mBlockchain.pDB->addPaymentIndex(sTx);
                 mBlockchain.pDB->blockTxnStop();
                 mBlockchain.pDB->blockTxnStart(false);
-                mBlockchain.pDB->addTimestampIndex(sMeta.uReceiveTime, getObjectHash(sTransaction));
+                mBlockchain.pDB->addTimestampIndex(sMeta.uReceiveTime, sHash);
                 mBlockchain.pDB->blockTxnStop();
+
+                if (sTtl.ttl != 0) {
+                    mBlockchain.pDB->blockTxnStart(false);
+                    mBlockchain.pDB->addTimeToLifeIndex(sHash, sTtl.ttl);
+                    mBlockchain.pDB->blockTxnStop();
+                }
             } catch (std::exception &e) {
                 mLogger(ERROR, BRIGHT_RED) << "internal error: transaction already exists at inserting in memory pool: "
                                            << e.what();
@@ -850,10 +859,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                    << "received_timestamp: " << sTxD.sReceiveTime << std::endl
                    << "received: " << std::ctime(&sTxD.sReceiveTime);
 
-                auto ttlIt = mTimeToLifeIndex.find(sTxD.sTransactionHash);
-                if (ttlIt != mTimeToLifeIndex.end()) {
-                    ss << "TTL: " << std::ctime(reinterpret_cast<const time_t*>(&ttlIt->second));
-                }
+                uint64_t sTtl = mBlockchain.pDB->getTimeToLife(sTxD.sTransactionHash);
+                ss << "TTL: " << std::ctime(reinterpret_cast<const time_t*>(sTtl));
 
                 ss << std::endl;
             }
@@ -1001,13 +1008,13 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
 
         mConfigFolder = config_folder;
 
-        std::string cStateFilePath = config_folder + "/" + mCurrency.txPoolFileName();
-        boost::system::error_code sEc;
-        if (!boost::filesystem::exists(cStateFilePath, sEc)) {
-            return true;
-        }
-
         if (!bIsLMDB) {
+            std::string cStateFilePath = config_folder + "/" + mCurrency.txPoolFileName();
+            boost::system::error_code sEc;
+            if (!boost::filesystem::exists(cStateFilePath, sEc)) {
+                return true;
+            }
+            
             if (!loadFromBinaryFile(*this, cStateFilePath)) {
                 mLogger(ERROR) << "Failed to load memory pool from file " << cStateFilePath;
 
@@ -1178,19 +1185,15 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                 bool bRemove = uTxAge > (sTxD.bKeepedByBlock ? mCurrency.mempoolTxFromAltBlockLiveTime() :
                                          mCurrency.mempoolTxLiveTime());
 
-                bool bIsTtlExpired = false;
-
-                std::vector<TransactionExtraField > vTxExtraFields;
-                parseTransactionExtra(sTxD.sTransaction.extra, vTxExtraFields);
-                TransactionExtraTTL sTtl;
-                if (findTransactionExtraFieldByType(vTxExtraFields, sTtl)) {
-                    bIsTtlExpired = sTtl.ttl <= uNow;
-                }
+                mBlockchain.pDB->blockTxnStart(true);
+                uint64_t uTtl = mBlockchain.pDB->getTimeToLife(sTxD.sTransactionHash);
+                mBlockchain.pDB->blockTxnStop();
+                bool bIsTtlExpired = uTtl <= uNow;
 
                 if (bRemove || bIsTtlExpired) {
                     if (bIsTtlExpired) {
                         mLogger(TRACE) << "Tx " << sTxD.sTransactionHash
-                                       << " removed from tx pool due to expired TTL, TTL : " << sTtl.ttl;
+                                       << " removed from tx pool due to expired TTL, TTL : " << uTtl;
                     } else {
                         mLogger(TRACE) << "Tx " << sTxD.sTransactionHash
                                        << " removed from tx pool due to outdated, age: " << uTxAge;
