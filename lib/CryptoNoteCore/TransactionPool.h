@@ -217,7 +217,7 @@ using namespace boost::multi_index;
 
         mTransactionContainerT::iterator removeTransaction(mTransactionContainerT::iterator sIt);
         bool removeExpiredTransactions();
-        bool isTranscationReadyToGo(const Transaction &sTransaction,
+        bool isTransactionReadyToGo(const Transaction &sTransaction,
                                     FTransactionCheckInfo &sTxCheckInfo) const;
 
         void buildIndices();

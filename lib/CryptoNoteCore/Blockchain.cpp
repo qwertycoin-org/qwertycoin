@@ -946,6 +946,7 @@ bool Blockchain::deinit()
 		mAsyncWorkIdle.reset();
 		mAsyncPool.join_all();
 		mAsyncService.stop();
+		mCancel = false;
 
 		storeBlockchain();
 		storeCache();

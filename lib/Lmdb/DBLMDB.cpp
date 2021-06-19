@@ -32,6 +32,7 @@
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/Currency.h>
+#include <CryptoNoteCore/TransactionExtra.h>
 
 #include <Lmdb/DBLMDB.h>
 #include <Lmdb/LMDBBlob.h>
@@ -106,6 +107,9 @@ namespace {
      * TransactionIndices    Tx Hash        {Tx Hash, metadata}
      * TransactionOutputs    Tx ID          {Tx Amount output indices}
      *
+     * PaymentIndex          PaymentID      tx hash
+     * TimestampIndex        Timestamp      tx hash/es
+     *
      * OutputTransactions    output ID      {txn hash, local index}
      * OutputAmounts         amount         [{amount output index, metadata}...]
      *
@@ -136,6 +140,9 @@ namespace {
 
     const char *const LMDB_TRANSACTIONPOOL_META = "TransactionPoolMeta";
     const char *const LMDB_TRANSACTIONPOOL_BLOB = "TransactionPoolBlob";
+
+    const char *const LMDB_PAYMENT_INDEX = "PaymentIndex";
+    const char *const LMDB_TIMESTAMP_INDEX = "TimestampIndex";
 
     const char *const LMDB_PROPERTIES = "Properties";
 
@@ -1638,9 +1645,241 @@ namespace CryptoNote {
         return bRet;
     }
 
-    bool BlockchainLMDB::forAllKeyImages(std::function<bool(const Crypto::KeyImage &)>) const
+    bool BlockchainLMDB::forAllKeyImages(std::function<bool(const Crypto::KeyImage &)> UFu) const
     {
-        return false;
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(SpentKeys);
+
+        MDB_val sValKey, sValValue;
+        bool bRet = true;
+
+        sValKey = cZeroKVal;
+        MDB_cursor_op sOp = MDB_FIRST;
+
+        while (1) {
+            int iRet = mdb_cursor_get(sCurSpentKeys, &sValKey, &sValValue, sOp);
+            sOp = MDB_NEXT;
+            if (iRet == MDB_NOTFOUND) {
+                break;
+            }
+
+            if (iRet < 0) {
+                throw(DB_ERROR("Failed to enumerate key images"));
+            }
+
+            const Crypto::KeyImage sKeyImg = *(const Crypto::KeyImage*)sValValue.mv_data;
+
+            if (!UFu(sKeyImg)) {
+                bRet = false;
+                break;
+            }
+        }
+
+        return bRet;
+    }
+
+    bool BlockchainLMDB::addPaymentIndex(const CryptoNote::Transaction &sTransaction)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(PaymentIndex)
+
+        int iRes;
+        Crypto::Hash sPaymentID;
+        Crypto::Hash sTxHash = getObjectHash(sTransaction);
+        if (!getPaymentIdFromTxExtra(sTransaction.extra, sPaymentID)) {
+            // Some log
+            return false;
+        }
+
+        MDBValSet(sValPaymentID, sPaymentID);
+        MDBValSet(sValTxHash, sTxHash);
+
+        iRes = mdb_cursor_put(sCurPaymentIndex, &sValPaymentID, &sValTxHash, 0);
+        if (iRes) {
+            throw (DB_ERROR(lmdbError("Failed to add payment id to db transaction: ", iRes).c_str()));
+        }
+
+        return true;
+    }
+
+    bool BlockchainLMDB::getPaymentIndices(const Crypto::Hash &sPaymentID, std::vector<Crypto::Hash> &vTxHashes)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(PaymentIndex);
+
+        bool bReturn = false;
+        FMdbValCopy<Crypto::Hash> sValPaymentID(sPaymentID);
+        MDB_val sResult;
+        std::vector<Crypto::Hash> vRes;
+
+        auto getResult = mdb_cursor_get(sCurPaymentIndex, &sValPaymentID, &sResult, MDB_SET);
+        mLogger(INFO, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". getResult:" << getResult;
+        if (getResult == MDB_NOTFOUND) {
+            throw (BLOCK_DNE(std::string("Attempt to get tx hash/es from PaymentID ").append(
+                    boost::lexical_cast<std::string>(sPaymentID)).append(" failed -- PaymentID not in db").c_str()));
+        } else if (getResult) {
+            throw (DB_ERROR("Error attempting to retrieve a tx hash/es from the db"));
+        }
+
+        Crypto::Hash &sResHash = *(Crypto::Hash *)sResult.mv_data;
+        vRes.push_back(sResHash);
+
+        while (mdb_cursor_get(sCurPaymentIndex, &sValPaymentID, &sResult, MDB_NEXT_DUP)) {
+            sResHash = *(Crypto::Hash *)sResult.mv_data;
+            vRes.push_back(sResHash);
+        }
+
+        vTxHashes = vRes;
+        return true;
+    }
+
+    std::vector<Crypto::Hash> BlockchainLMDB::getPaymentIndices(const Crypto::Hash &sPaymentID)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        std::vector<Crypto::Hash> vTxHashes;
+        if (!getPaymentIndices(sPaymentID, vTxHashes)) {
+
+        }
+
+        return vTxHashes;
+    }
+
+    bool BlockchainLMDB::removePaymentIndex(const Crypto::Hash &sPaymentID)
+    {
+        mLogger(INFO, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(PaymentIndex)
+
+        int iRes;
+        MDB_val sKey = {sizeof(sPaymentID), (void *) &sPaymentID};
+
+        auto getResult = mdb_cursor_get(sCurPaymentIndex, &sKey, (MDB_val *)&cZeroKey, MDB_GET_BOTH);
+        if (getResult != 0 && getResult != MDB_NOTFOUND) {
+            throw (DB_ERROR(lmdbError("Error finding PaymentID to remove", getResult).c_str()));
+        }
+
+        if (!getResult) {
+            getResult = mdb_cursor_del(sCurPaymentIndex, 0);
+            if (getResult) {
+                throw (DB_ERROR(lmdbError("Error removal of PaymentID to db transaction", getResult).c_str()));
+            }
+        }
+    }
+
+    bool BlockchainLMDB::addTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sTxHash)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(TimestampIndex)
+
+        int iRes;
+
+        MDBValSet(sValTimestamp, uTimestamp);
+        MDBValSet(sValTxHash, sTxHash);
+
+        iRes = mdb_cursor_put(sCurTimestampIndex, &sValTimestamp, &sValTxHash, 0);
+        if (iRes) {
+            throw (DB_ERROR(lmdbError("Failed to add Timestamp to db transaction: ", iRes).c_str()));
+        }
+
+        return true;
+    }
+
+    bool BlockchainLMDB::getTimestampIndex(uint64_t uTimestamp, Crypto::Hash &sTxHash)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        TXN_PREFIX_READONLY();
+        READ_CURSOR(TimestampIndex);
+
+        bool bReturn = true;
+        FMdbValCopy<uint64_t> sKeyHeight(uTimestamp);
+        MDB_val sResult;
+
+        auto getResult = mdb_cursor_get(sCurTimestampIndex, &sKeyHeight, &sResult, MDB_SET);
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". getResult:" << getResult;
+        if (getResult == MDB_NOTFOUND) {
+            bReturn = false;
+            throw (BLOCK_DNE(std::string("Attempt to get tx hash from timestamp ").append(
+                    boost::lexical_cast<std::string>(uTimestamp)).append(" failed -- timestamp not in db").c_str()));
+        } else if (getResult) {
+            bReturn = false;
+            throw (DB_ERROR("Error attempting to retrieve a block from the db"));
+        }
+
+        Crypto::Hash &sHash = *(Crypto::Hash *)sResult.mv_data;
+
+        sTxHash = sHash;
+        return bReturn;
+    }
+
+    bool BlockchainLMDB::getTimestampIndicesInRange(uint64_t uTimestampBegin,
+                                                    uint64_t uTimestampEnd,
+                                                    uint64_t uReturnHashesLimit,
+                                                    std::vector<Crypto::Hash> &vTxHashes,
+                                                    uint64_t &uHashesWithTimestamps)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+
+        uint64_t uMaxHashNumber = 0;
+
+        for (uint64_t uI = uTimestampBegin; uI <= uTimestampEnd && uMaxHashNumber < uReturnHashesLimit; ++uI) {
+            Crypto::Hash sTempHash;
+            if (!getTimestampIndex(uI, sTempHash)) {
+                // Some log
+                return false;
+            }
+
+            uHashesWithTimestamps++;
+            vTxHashes.push_back(sTempHash);
+        }
+
+        return true;
+    }
+
+    bool BlockchainLMDB::removeTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sHash)
+    {
+        mLogger(INFO, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(TimestampIndex)
+
+        int iRes;
+        MDB_val sKey = {sizeof(uTimestamp), (void *) &uTimestamp};
+        MDB_val sVal = {sizeof(sHash), (void *) &sHash};
+
+        auto getResult = mdb_cursor_get(sCurTimestampIndex, &sKey, &sVal, MDB_GET_BOTH);
+        if (getResult != 0 && getResult != MDB_NOTFOUND) {
+            throw (DB_ERROR(lmdbError("Error finding Timestamp to remove", getResult).c_str()));
+        }
+
+        if (!getResult) {
+            getResult = mdb_cursor_del(sCurTimestampIndex, 0);
+            if (getResult) {
+                throw (DB_ERROR(lmdbError("Error removal of Timestamp to db transaction", getResult).c_str()));
+            }
+        }
     }
 
     uint64_t BlockchainLMDB::addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
@@ -2105,6 +2344,8 @@ namespace CryptoNote {
         CURSOR(Transactions)
         CURSOR(TransactionIndices)
         CURSOR(TransactionOutputs)
+        CURSOR(PaymentIndex)
+        CURSOR(TimestampIndex)
 
         MDBValSet(sValHash, sTxHash);
         if (mdb_cursor_get(sCurTransactionIndices, (MDB_val *) &cZeroKVal, &sValHash, MDB_GET_BOTH)) {
@@ -2140,6 +2381,9 @@ namespace CryptoNote {
         if (mdb_cursor_del(sCurTransactionIndices, 0)) {
             throw (DB_ERROR("Failed to add removal of tx index to db transaction"));
         }
+
+        // Remove PaymentIndex
+        // Remove TimestampIndex
 
         mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
                                         << ". Removed Tx with hash: " << Common::podToHex(sTempHash) << ENDL
@@ -2247,7 +2491,60 @@ namespace CryptoNote {
 
     void BlockchainLMDB::removeTransactionOutputs(const uint64_t uTxId, const CryptoNote::Transaction &sTransaction)
     {
-        // std::vector<uint64_t> vAmountOutputIndices = getTr
+        std::vector<uint64_t> vAmountOutputIndices = getTransactionAmountOutputIndices(uTxId);
+
+        if (vAmountOutputIndices.empty()) {
+            if (sTransaction.outputs.empty()) {
+
+            } else {
+                throw(DB_ERROR("tx has outputs, but no output indices found"));
+            }
+        }
+
+        for (uint64_t i = sTransaction.outputs.size(); i-- > 0;) {
+            uint64_t uAmount = sTransaction.outputs[i].amount;
+            removeOutput(uAmount, vAmountOutputIndices[i]);
+        }
+    }
+
+    void BlockchainLMDB::removeOutput(const uint64_t uAmount, const uint64_t &uOutIndex)
+    {
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        checkOpen();
+        FMdbTxnCursors *sCursor = &mWriteCursors;
+
+        CURSOR(OutputAmounts)
+        CURSOR(OutputTransactions)
+
+        MDBValSet(sValKey, uAmount);
+        MDBValSet(sVal, uOutIndex);
+
+        auto getResult = mdb_cursor_get(sCurOutputAmounts, &sValKey, &sVal, MDB_GET_BOTH);
+        if (getResult) {
+            throw(DB_ERROR(lmdbError("DB error attempting to get an output", getResult).c_str()));
+        }
+
+        const FOutputKey *sOKe = (const FOutputKey *)sVal.mv_data;
+        MDBValSet(sValOTKe, sOKe->uOutputId);
+
+        getResult = mdb_cursor_get(sCurOutputTransactions, (MDB_val *)&cZeroKVal, &sValOTKe, MDB_GET_BOTH);
+        if (getResult == MDB_NOTFOUND) {
+            throw(DB_ERROR("Unexpected: global output index not found in mOutputTransactions"));
+        } else if (getResult) {
+            throw(DB_ERROR(lmdbError("Error adding removal of output tx to db transaction", getResult).c_str()));
+        }
+
+        getResult = mdb_cursor_del(sCurOutputTransactions, 0);
+        if (getResult) {
+            throw (DB_ERROR(lmdbError(std::string("Error deleting output index ").append(
+                    boost::lexical_cast<std::string>(uOutIndex).append(": ")).c_str(), getResult).c_str()));
+        }
+
+        getResult = mdb_cursor_del(sCurOutputAmounts, 0);
+        if (getResult) {
+            throw (DB_ERROR(lmdbError(std::string("Error deleting amount for output index ").append(
+                    boost::lexical_cast<std::string>(uOutIndex).append(": ")).c_str(), getResult).c_str()));
+        }
     }
 
     void BlockchainLMDB::addSpentKey(const KeyImage &sSpentKeyImage)
@@ -2483,6 +2780,11 @@ namespace CryptoNote {
         lmdbOpen(sTxn, LMDB_TRANSACTIONPOOL_BLOB, MDB_CREATE, mTransactionPoolBlob,
                  "Failed to open db handle for mTransactionPoolBlob");
 
+        lmdbOpen(sTxn, LMDB_PAYMENT_INDEX, MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, mPaymentIndex,
+                 "Failed to open db handle for mPaymentIndex");
+        lmdbOpen(sTxn, LMDB_TIMESTAMP_INDEX, MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, mTimestampIndex,
+                 "Failed to open db handle for mTimestampIndex");
+
         lmdbOpen(sTxn, LMDB_PROPERTIES, MDB_CREATE, mProperties, "Failed to open db handle for mProperties");
 
         mdb_set_dupsort(sTxn, mSpentKeys, compareHash32);
@@ -2494,13 +2796,9 @@ namespace CryptoNote {
 
         mdb_set_compare(sTxn, mTransactionPoolMeta, compareHash32);
         mdb_set_compare(sTxn, mTransactionPoolBlob, compareHash32);
+        mdb_set_compare(sTxn, mPaymentIndex, compareHash32);
+        mdb_set_compare(sTxn, mTimestampIndex, compareUInt64);
         mdb_set_compare(sTxn, mProperties, compareString);
-
-        /* do we need the hardfork stuff?
-        if (!(iMdbFlags & MDB_RDONLY)) {
-            iResult = mdb_drop(sTxn, )
-        }
-         */
 
         MDB_stat iLMDBStats;
         if ((iResult = mdb_stat(sTxn, mBlocks, &iLMDBStats))) {
