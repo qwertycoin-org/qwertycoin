@@ -308,7 +308,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             if (sTtl.ttl != 0) {
                 mTimeToLifeIndex.emplace(std::make_pair(sTxHash, sTtl.ttl));
             }
-        } else {
+        }
+        else {
             sMeta.uBlobSize = uBlobSize;
             sMeta.uKeptByBlock = bKeepedByBlock;
             sMeta.uFee = uFee;
@@ -329,6 +330,12 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                 mBlockchain.pDB->blockTxnStart(false);
                 mBlockchain.pDB->addTxPoolTransaction(sTx, sMeta);
                 mBlockchain.pDB->blockTxnStop();
+                mBlockchain.pDB->blockTxnStart(false);
+                mBlockchain.pDB->addPaymentIndex(sTx);
+                mBlockchain.pDB->blockTxnStop();
+                mBlockchain.pDB->blockTxnStart(false);
+                mBlockchain.pDB->addTimestampIndex(sMeta.uReceiveTime, getObjectHash(sTransaction));
+                mBlockchain.pDB->blockTxnStop();
             } catch (std::exception &e) {
                 mLogger(ERROR, BRIGHT_RED) << "internal error: transaction already exists at inserting in memory pool: "
                                            << e.what();
@@ -340,8 +347,10 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
         tvc.m_should_be_relayed = bInputsValid && (uFee > 0 || bIsFusionTransaction || sTtl.ttl != 0);
         tvc.m_verification_failed = false;
 
-        if (!addTransactionInputs(sTxHash, sTransaction, bKeepedByBlock)) {
-            return false;
+        if (!bIsLMDB) {
+            if (!addTransactionInputs(sTxHash, sTransaction, bKeepedByBlock)) {
+                return false;
+            }
         }
 
         tvc.m_verification_failed = false;
@@ -367,20 +376,52 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                        uint64_t &uFee)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
-        auto sIt = mTransactions.find(sTxHash);
-        if (sIt == mTransactions.end()) {
-            return false;
+        if (!bIsLMDB) {
+            auto sIt = mTransactions.find(sTxHash);
+            if (sIt == mTransactions.end()) {
+                return false;
+            }
+
+            auto &sTxD = *sIt;
+
+            sTransaction = sTxD.sTransaction;
+            uBlobSize = sTxD.uBlobSize;
+            uFee = sTxD.uFee;
+
+            removeTransaction(sIt);
+        } else if (bIsLMDB) {
+            FTxPoolMeta sMeta;
+            CryptoNote::blobData sTxBlob;
+            mBlockchain.pDB->blockTxnStart(false);
+            if (!mBlockchain.pDB->getTxPoolTransactionBlob(sTxHash, sTxBlob)) {
+                // Some log
+                return false;
+            }
+            mBlockchain.pDB->blockTxnStop();
+            Transaction sTx;
+            if (!parseAndValidateTransactionFromBlob(sTxBlob, sTx)) {
+                // Some log
+                return false;
+            }
+
+            mBlockchain.pDB->blockTxnStart(false);
+            if (!mBlockchain.pDB->getTxPoolTransactionMeta(sTxHash, sMeta)) {
+                // Some log
+                return false;
+            }
+            mBlockchain.pDB->blockTxnStop();
+
+            sTransaction = sTx;
+            uBlobSize = sMeta.uBlobSize;
+            uFee = sMeta.uFee;
+
+            mBlockchain.pDB->blockTxnStart(false);
+            mBlockchain.pDB->removeTxPoolTransaction(sTxHash);
+            mBlockchain.pDB->blockTxnStop();
         }
-
-        auto &sTxD = *sIt;
-
-        sTransaction = sTxD.sTransaction;
-        uBlobSize = sTxD.uBlobSize;
-        uFee = sTxD.uFee;
-
-        removeTransaction(sIt);
 
         return true;
     }
@@ -403,10 +444,26 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     void TxMemoryPool::getTransactions(std::list<Transaction> &lTransactions) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
-        for (const auto &sTx : mTransactions) {
-            lTransactions.push_back(sTx.sTransaction);
+        if (!bIsLMDB) {
+            for (const auto &sTx : mTransactions) {
+                lTransactions.push_back(sTx.sTransaction);
+            }
+        }
+        else if (bIsLMDB) {
+            mBlockchain.pDB->forAllTxPoolTransactions([&lTransactions](const Crypto::Hash &sTxhash,
+                                                                       const FTxPoolMeta &sMeta,
+                                                                       const CryptoNote::blobData *sBlobData) {
+                Transaction sTransaction;
+                if (!parseAndValidateTransactionFromBlob(*sBlobData, sTransaction)) {
+                    return false;
+                }
+
+                lTransactions.push_back(sTransaction);
+                return true;
+            }, true);
         }
     }
 
@@ -422,7 +479,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
         {
             Transaction sTransaction;
             if (!parseAndValidateTransactionFromBlob(*sBlobData, sTransaction)) {
-                return true;
+                return false;
             }
 
             lTransactions.push_back(sTransaction);
@@ -463,7 +520,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                     mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::"<<__func__<< "couldn't find tx with hash " << sId << "in mempool" << ENDL;
                     vMissedTxs.push_back(sId);
                 }
-            } else {
+            }
+            else {
                 auto sIt = mTransactions.find(sId);
                 if (sIt == mTransactions.end()) {
                     mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::"<<__func__<< "couldn't find tx with hash " << sId << "in mempool" << ENDL;
@@ -483,23 +541,81 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
-        for (const auto &sTxD : mFeeIndex) {
-            lTxD.push_back(sTxD);
+        if (!bIsLMDB) {
+            for (const auto &sTxD : mFeeIndex) {
+                lTxD.push_back(sTxD);
+            }
+        }
+        else if (bIsLMDB) {
+            mBlockchain.pDB->forAllTxPoolTransactions([&lTxD](const Crypto::Hash &sTxhash,
+                                                                       const FTxPoolMeta &sMeta,
+                                                                       const CryptoNote::blobData *sBlobData) {
+                Transaction sTransaction;
+                FTransactionDetails sTxD;
+                if (!parseAndValidateTransactionFromBlob(*sBlobData, sTransaction)) {
+                    return false;
+                }
+
+                sTxD.sTransactionHash = sTxhash;
+                sTxD.sTransaction = sTransaction;
+                sTxD.uBlobSize = sMeta.uBlobSize;
+                sTxD.uFee = sMeta.uFee;
+                sTxD.bKeepedByBlock = sMeta.uKeptByBlock;
+                sTxD.sReceiveTime = sMeta.uReceiveTime;
+                sTxD.maxUsedBlock.id = sMeta.uMaxUsedBlockID;
+                sTxD.maxUsedBlock.height = sMeta.uMaxUsedBlockHeight;
+                sTxD.lastFailedBlock.id = sMeta.uLastFailedID;
+                sTxD.lastFailedBlock.height = sMeta.uLastFailedHeight;
+
+                lTxD.push_back(sTxD);
+
+                return true;
+            }, true);
         }
     }
 
     std::list<CryptoNote::TxMemoryPool::FTransactionDetails> TxMemoryPool::getMemoryPool() const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
-        std::list<CryptoNote::TxMemoryPool::FTransactionDetails> lTxs;
-        for (const auto &sTxD : mFeeIndex) {
-            lTxs.push_back(sTxD);
+        std::list<CryptoNote::TxMemoryPool::FTransactionDetails> lTxD;
+        if (!bIsLMDB) {
+            for (const auto &sTxD : mFeeIndex) {
+                lTxD.push_back(sTxD);
+            }
+        }
+        else if (bIsLMDB) {
+            mBlockchain.pDB->forAllTxPoolTransactions([&lTxD](const Crypto::Hash &sTxhash,
+                                                              const FTxPoolMeta &sMeta,
+                                                              const CryptoNote::blobData *sBlobData) {
+                Transaction sTransaction;
+                FTransactionDetails sTxD;
+                if (!parseAndValidateTransactionFromBlob(*sBlobData, sTransaction)) {
+                    return false;
+                }
+
+                sTxD.sTransactionHash = sTxhash;
+                sTxD.sTransaction = sTransaction;
+                sTxD.uBlobSize = sMeta.uBlobSize;
+                sTxD.uFee = sMeta.uFee;
+                sTxD.bKeepedByBlock = sMeta.uKeptByBlock;
+                sTxD.sReceiveTime = sMeta.uReceiveTime;
+                sTxD.maxUsedBlock.id = sMeta.uMaxUsedBlockID;
+                sTxD.maxUsedBlock.height = sMeta.uMaxUsedBlockHeight;
+                sTxD.lastFailedBlock.id = sMeta.uLastFailedID;
+                sTxD.lastFailedBlock.height = sMeta.uLastFailedHeight;
+
+                lTxD.push_back(sTxD);
+
+                return true;
+            }, true);
         }
 
-        return lTxs;
+        return lTxD;
     }
 
     void TxMemoryPool::getDifference(const std::vector<Crypto::Hash> &vKnownTxHashes,
@@ -507,20 +623,41 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                      std::vector<Crypto::Hash> &vDeletedTxHashes) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
         std::unordered_set<Crypto::Hash> sReadyTxHashes;
-        for (const auto &sTx : mTransactions) {
-            FTransactionCheckInfo sCheckInfo(sTx);
-            if (mValidatedTransactions.find(sTx.sTransactionHash) != mValidatedTransactions.end()) {
-                sReadyTxHashes.insert(sTx.sTransactionHash);
-                mLogger(DEBUGGING) << "MemPool - tx " << sTx.sTransactionHash << " loaded from cache";
-            } else if (isTranscationReadyToGo(sTx.sTransaction, sCheckInfo)) {
-                sReadyTxHashes.insert(sTx.sTransactionHash);
-                mValidatedTransactions.insert(sTx.sTransactionHash);
-                mLogger(DEBUGGING) << "MemPool - tx " << sTx.sTransactionHash << " added to cache";
+
+        if (!bIsLMDB) {
+            for (const auto &sTx : mTransactions) {
+                FTransactionCheckInfo sCheckInfo(sTx);
+                if (mValidatedTransactions.find(sTx.sTransactionHash) != mValidatedTransactions.end()) {
+                    sReadyTxHashes.insert(sTx.sTransactionHash);
+                    mLogger(DEBUGGING) << "MemPool - tx " << sTx.sTransactionHash << " loaded from cache";
+                } else if (isTransactionReadyToGo(sTx.sTransaction, sCheckInfo)) {
+                    sReadyTxHashes.insert(sTx.sTransactionHash);
+                    mValidatedTransactions.insert(sTx.sTransactionHash);
+                    mLogger(DEBUGGING) << "MemPool - tx " << sTx.sTransactionHash << " added to cache";
+                }
             }
+        } else {
+            mBlockchain.pDB->forAllTxPoolTransactions([&sReadyTxHashes](const Crypto::Hash &sTxHash,
+                                                                       const FTxPoolMeta &sMeta,
+                                                                       const CryptoNote::blobData *sBlobData)
+            {
+                Transaction sTx;
+                FTransactionDetails sTxD;
+                if (!parseAndValidateTransactionFromBlob(*sBlobData, sTx)) {
+                    // Some log
+                    return false;
+                }
+
+                sReadyTxHashes.insert(sTxHash);
+
+                return true;
+            }, true);
         }
+
 
         std::unordered_set<Crypto::Hash> sKnownSet(vKnownTxHashes.begin(), vKnownTxHashes.end());
         for (auto sIt = sReadyTxHashes.begin(), e = sReadyTxHashes.end(); sIt != e;) {
@@ -540,13 +677,16 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     bool TxMemoryPool::onBlockchainIncrement(uint64_t uNewBlockHeight, const Crypto::Hash &sTopBlockId)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
-        if (!mValidatedTransactions.empty()) {
-            mLogger(DEBUGGING) << "MemPool - Block height incremented, cleared " << mValidatedTransactions.size()
-                               << " cached transaction hashes. New height: " << uNewBlockHeight
-                               << " Top block: " << sTopBlockId;
-            mValidatedTransactions.clear();
+        if (!bIsLMDB) {
+            if (!mValidatedTransactions.empty()) {
+                mLogger(DEBUGGING) << "MemPool - Block height incremented, cleared " << mValidatedTransactions.size()
+                                   << " cached transaction hashes. New height: " << uNewBlockHeight
+                                   << " Top block: " << sTopBlockId;
+                mValidatedTransactions.clear();
+            }
         }
 
         return true;
@@ -555,13 +695,16 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     bool TxMemoryPool::onBlockchainDecrement(uint64_t uNewBlockHeight, const Crypto::Hash &sTopBlockId)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
-        if (!mValidatedTransactions.empty()) {
-            mLogger(DEBUGGING, YELLOW) << "MemPool - Block height decremented " << mValidatedTransactions.size()
-                                            << " cached transaction hashes. New height: " << uNewBlockHeight
-                                            << " Top block: " << sTopBlockId;
-            mValidatedTransactions.clear();
+        if (!bIsLMDB) {
+            if (!mValidatedTransactions.empty()) {
+                mLogger(DEBUGGING) << "MemPool - Block height incremented, cleared " << mValidatedTransactions.size()
+                                   << " cached transaction hashes. New height: " << uNewBlockHeight
+                                   << " Top block: " << sTopBlockId;
+                mValidatedTransactions.clear();
+            }
         }
 
         return true;
@@ -571,8 +714,16 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
-        if (mTransactions.count(sTxHash)) {
-            return true;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+        if (!bIsLMDB) {
+            if (mTransactions.count(sTxHash)) {
+                return true;
+            }
+        } else {
+            if (mBlockchain.pDB->txPoolHasTransaction(sTxHash)) {
+                return true;
+            }
         }
 
         return false;
@@ -598,7 +749,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
         return std::unique_lock<std::recursive_mutex>(mTransactionsLock);
     }
 
-    bool TxMemoryPool::isTranscationReadyToGo(const Transaction &sTransaction,
+    bool TxMemoryPool::isTransactionReadyToGo(const Transaction &sTransaction,
                                               FTransactionCheckInfo &sTxCheckInfo) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
@@ -619,35 +770,93 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     std::string TxMemoryPool::printTransactionPool(bool bShortFormat) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
         std::stringstream ss;
 
-        for (const auto &sTxD : mFeeIndex) {
-            ss << "id: " << sTxD.sTransactionHash << std::endl;
+        // TODO lmdbization
+        if (!bIsLMDB) {
+            for (const auto &sTxD : mFeeIndex) {
+                ss << "id: " << sTxD.sTransactionHash << std::endl;
 
-            if (!bShortFormat) {
-                ss << storeToJson(sTxD.sTransaction) << std::endl;
+                if (!bShortFormat) {
+                    ss << storeToJson(sTxD.sTransaction) << std::endl;
+                }
+
+                ss << "blobSize: " << sTxD.uBlobSize << std::endl
+                   << "fee: " << mCurrency.formatAmount(sTxD.uFee) << std::endl
+                   << "keptByBlock: " << (sTxD.bKeepedByBlock ? 'T' : 'F') << std::endl
+                   << "max_used_block_height: " << sTxD.maxUsedBlock.height << std::endl
+                   << "max_used_block_id: " << sTxD.maxUsedBlock.id << std::endl
+                   << "last_failed_height: " << sTxD.lastFailedBlock.height << std::endl
+                   << "last_failed_id: " << sTxD.lastFailedBlock.id << std::endl
+                   << "amount_out: " << get_outs_money_amount(sTxD.sTransaction) << std::endl
+                   << "fee_atomic_units: " << sTxD.uFee << std::endl
+                   << "received_timestamp: " << sTxD.sReceiveTime << std::endl
+                   << "received: " << std::ctime(&sTxD.sReceiveTime);
+
+                auto ttlIt = mTimeToLifeIndex.find(sTxD.sTransactionHash);
+                if (ttlIt != mTimeToLifeIndex.end()) {
+                    ss << "TTL: " << std::ctime(reinterpret_cast<const time_t*>(&ttlIt->second));
+                }
+
+                ss << std::endl;
             }
+        }
+        else if (bIsLMDB) {
+            std::list<CryptoNote::TxMemoryPool::FTransactionDetails> lTxD;
+            mBlockchain.pDB->forAllTxPoolTransactions([&lTxD](const Crypto::Hash &sTxHash,
+                                                              const FTxPoolMeta &sMeta,
+                                                              const CryptoNote::blobData *sBlobData) {
+                Transaction sTransaction;
+                FTransactionDetails sTxD;
+                if (!parseAndValidateTransactionFromBlob(*sBlobData, sTransaction)) {
+                    return false;
+                }
 
-            ss << "blobSize: " << sTxD.uBlobSize << std::endl
-               << "fee: " << mCurrency.formatAmount(sTxD.uFee) << std::endl
-               << "keptByBlock: " << (sTxD.bKeepedByBlock ? 'T' : 'F') << std::endl
-               << "max_used_block_height: " << sTxD.maxUsedBlock.height << std::endl
-               << "max_used_block_id: " << sTxD.maxUsedBlock.id << std::endl
-               << "last_failed_height: " << sTxD.lastFailedBlock.height << std::endl
-               << "last_failed_id: " << sTxD.lastFailedBlock.id << std::endl
-               << "amount_out: " << get_outs_money_amount(sTxD.sTransaction) << std::endl
-               << "fee_atomic_units: " << sTxD.uFee << std::endl
-               << "received_timestamp: " << sTxD.sReceiveTime << std::endl
-               << "received: " << std::ctime(&sTxD.sReceiveTime);
+                sTxD.sTransactionHash = sTxHash;
+                sTxD.sTransaction = sTransaction;
+                sTxD.uBlobSize = sMeta.uBlobSize;
+                sTxD.uFee = sMeta.uFee;
+                sTxD.bKeepedByBlock = sMeta.uKeptByBlock;
+                sTxD.sReceiveTime = sMeta.uReceiveTime;
+                sTxD.maxUsedBlock.id = sMeta.uMaxUsedBlockID;
+                sTxD.maxUsedBlock.height = sMeta.uMaxUsedBlockHeight;
+                sTxD.lastFailedBlock.id = sMeta.uLastFailedID;
+                sTxD.lastFailedBlock.height = sMeta.uLastFailedHeight;
 
-            auto ttlIt = mTimeToLifeIndex.find(sTxD.sTransactionHash);
-            if (ttlIt != mTimeToLifeIndex.end()) {
-                ss << "TTL: " << std::ctime(reinterpret_cast<const time_t*>(&ttlIt->second));
+                lTxD.push_back(sTxD);
+
+                return true;
+            }, true);
+
+            for (const auto &sTxD : lTxD) {
+                ss << "id: " << sTxD.sTransactionHash << std::endl;
+
+                if (!bShortFormat) {
+                    ss << storeToJson(sTxD.sTransaction) << std::endl;
+                }
+
+                ss << "blobSize: " << sTxD.uBlobSize << std::endl
+                   << "fee: " << mCurrency.formatAmount(sTxD.uFee) << std::endl
+                   << "keptByBlock: " << (sTxD.bKeepedByBlock ? 'T' : 'F') << std::endl
+                   << "max_used_block_height: " << sTxD.maxUsedBlock.height << std::endl
+                   << "max_used_block_id: " << sTxD.maxUsedBlock.id << std::endl
+                   << "last_failed_height: " << sTxD.lastFailedBlock.height << std::endl
+                   << "last_failed_id: " << sTxD.lastFailedBlock.id << std::endl
+                   << "amount_out: " << get_outs_money_amount(sTxD.sTransaction) << std::endl
+                   << "fee_atomic_units: " << sTxD.uFee << std::endl
+                   << "received_timestamp: " << sTxD.sReceiveTime << std::endl
+                   << "received: " << std::ctime(&sTxD.sReceiveTime);
+
+                auto ttlIt = mTimeToLifeIndex.find(sTxD.sTransactionHash);
+                if (ttlIt != mTimeToLifeIndex.end()) {
+                    ss << "TTL: " << std::ctime(reinterpret_cast<const time_t*>(&ttlIt->second));
+                }
+
+                ss << std::endl;
             }
-
-            ss << std::endl;
         }
 
         return ss.str();
@@ -661,6 +870,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                          uint64_t &uFee)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
         uTotalSize = 0;
@@ -671,64 +881,110 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
 
         BlockTemplate sBT;
 
-        for (auto sIt = mFeeIndex.rbegin(); sIt != mFeeIndex.rend() && sIt->uFee == 0; ++sIt) {
-            const auto &sTxD = *sIt;
+        std::list<Transaction> lTxs;
 
-            if (mTimeToLifeIndex.count(sTxD.sTransactionHash)) {
-                continue;
+        if (!bIsLMDB) {
+            for (auto sIt = mFeeIndex.rbegin(); sIt != mFeeIndex.rend() && sIt->uFee == 0; ++sIt) {
+                const auto &sTxD = *sIt;
+
+                if (mTimeToLifeIndex.count(sTxD.sTransactionHash)) {
+                    continue;
+                }
+
+                if (mCurrency.fusionTxMaxSize() < uTotalSize + sTxD.uBlobSize) {
+                    continue;
+                }
+
+                FTransactionCheckInfo sCheckInfo(sTxD);
+                if (isTransactionReadyToGo(sTxD.sTransaction, sCheckInfo) &&
+                    sBT.addTransaction(sTxD.sTransactionHash, sTxD.sTransaction)) {
+                    uTotalSize += sTxD.uBlobSize;
+                    mLogger(DEBUGGING) << "Fusion transaction " << sTxD.sTransactionHash << " included to block template";
+                }
             }
 
-            if (mCurrency.fusionTxMaxSize() < uTotalSize + sTxD.uBlobSize) {
-                continue;
-            }
+            for (auto i = mFeeIndex.begin(); i != mFeeIndex.end(); ++i) {
+                const auto &sTxD = *i;
 
-            FTransactionCheckInfo sCheckInfo(sTxD);
-            if (isTranscationReadyToGo(sTxD.sTransaction, sCheckInfo) &&
-                sBT.addTransaction(sTxD.sTransactionHash, sTxD.sTransaction)) {
-                uTotalSize += sTxD.uBlobSize;
-                mLogger(DEBUGGING) << "Fusion transaction " << sTxD.sTransactionHash << " included to block template";
-            }
+                if (mTimeToLifeIndex.count(sTxD.sTransactionHash)) {
+                    continue;
+                }
 
-            FTxPoolMeta sMeta;
-            if (!mBlockchain.pDB->getTxPoolTransactionMeta(sTxD.sTransactionHash, sMeta)) {
-                mLogger(ERROR, BRIGHT_RED) << "failed to find tx meta";
-                continue;
+                uint64_t uBlockSizeLimit = (sTxD.uFee == 0) ? uMedianSize : uMaxTotalSize;
+                if (uBlockSizeLimit < uTotalSize + sTxD.uBlobSize) {
+                    continue;
+                }
+
+                FTransactionCheckInfo sCheckInfo(sTxD);
+                bool bReady = false;
+                if (mValidatedTransactions.find(sTxD.sTransactionHash) != mValidatedTransactions.end()) {
+                    bReady = true;
+                    mLogger(DEBUGGING) << "Fill block template - tx added from cache: " << sTxD.sTransactionHash;
+                } else if(isTransactionReadyToGo(sTxD.sTransaction, sCheckInfo)) {
+                    bReady = true;
+                    mValidatedTransactions.insert(sTxD.sTransactionHash);
+                    mLogger(DEBUGGING) << "Fill block template - tx added to cache: " << sTxD.sTransactionHash;
+                }
+
+                mFeeIndex.modify(i, [&sCheckInfo](FTransactionCheckInfo &sItem) {
+                    sItem = sCheckInfo;
+                });
+
+                if (bReady && sBT.addTransaction(sTxD.sTransactionHash, sTxD.sTransaction)) {
+                    uTotalSize += sTxD.uBlobSize;
+                    uFee = sTxD.uFee;
+                    mLogger(DEBUGGING) << "Transaction " << sTxD.sTransactionHash << " included to block template";
+                } else {
+                    mLogger(DEBUGGING) << "Transaction " << sTxD.sTransactionHash << " is failed to include to block template";
+                }
             }
         }
+        else {
+            std::list<CryptoNote::TxMemoryPool::FTransactionDetails> lTxD;
+            mBlockchain.pDB->forAllTxPoolTransactions([&lTxD](const Crypto::Hash &sTxhash,
+                                                              const FTxPoolMeta &sMeta,
+                                                              const CryptoNote::blobData *sBlobData) {
+                Transaction sTransaction;
+                FTransactionDetails sTxD;
+                if (!parseAndValidateTransactionFromBlob(*sBlobData, sTransaction)) {
+                    return false;
+                }
 
-        for (auto i = mFeeIndex.begin(); i != mFeeIndex.end(); ++i) {
-            const auto &sTxD = *i;
+                sTxD.sTransactionHash = sTxhash;
+                sTxD.sTransaction = sTransaction;
+                sTxD.uBlobSize = sMeta.uBlobSize;
+                sTxD.uFee = sMeta.uFee;
+                sTxD.bKeepedByBlock = sMeta.uKeptByBlock;
+                sTxD.sReceiveTime = sMeta.uReceiveTime;
+                sTxD.maxUsedBlock.id = sMeta.uMaxUsedBlockID;
+                sTxD.maxUsedBlock.height = sMeta.uMaxUsedBlockHeight;
+                sTxD.lastFailedBlock.id = sMeta.uLastFailedID;
+                sTxD.lastFailedBlock.height = sMeta.uLastFailedHeight;
 
-            if (mTimeToLifeIndex.count(sTxD.sTransactionHash)) {
-                continue;
-            }
+                lTxD.push_back(sTxD);
 
-            uint64_t uBlockSizeLimit = (sTxD.uFee == 0) ? uMedianSize : uMaxTotalSize;
-            if (uBlockSizeLimit < uTotalSize + sTxD.uBlobSize) {
-                continue;
-            }
+                return true;
+            }, true);
 
-            FTransactionCheckInfo sCheckInfo(sTxD);
-            bool bReady = false;
-            if (mValidatedTransactions.find(sTxD.sTransactionHash) != mValidatedTransactions.end()) {
-                bReady = true;
-                mLogger(DEBUGGING) << "Fill block template - tx added from cache: " << sTxD.sTransactionHash;
-            } else if(isTranscationReadyToGo(sTxD.sTransaction, sCheckInfo)) {
-                bReady = true;
-                mValidatedTransactions.insert(sTxD.sTransactionHash);
-                mLogger(DEBUGGING) << "Fill block template - tx added to cache: " << sTxD.sTransactionHash;
-            }
+            for (const auto &sTxD : lTxD) {
+                uint64_t uBlockSizeLimit = (sTxD.uFee == 0) ? uMedianSize : uMaxTotalSize;
+                if (uBlockSizeLimit < uTotalSize + sTxD.uBlobSize) {
+                    continue;
+                }
 
-            mFeeIndex.modify(i, [&sCheckInfo](FTransactionCheckInfo &sItem) {
-                sItem = sCheckInfo;
-            });
+                FTransactionCheckInfo sCheckInfo(sTxD);
+                bool bReady = false;
+                if (isTransactionReadyToGo(sTxD.sTransaction, sCheckInfo)) {
+                    bReady = true;
+                }
 
-            if (bReady && sBT.addTransaction(sTxD.sTransactionHash, sTxD.sTransaction)) {
-                uTotalSize += sTxD.uBlobSize;
-                uFee = sTxD.uFee;
-                mLogger(DEBUGGING) << "Transaction " << sTxD.sTransactionHash << " included to block template";
-            } else {
-                mLogger(DEBUGGING) << "Transaction " << sTxD.sTransactionHash << " is failed to include to block template";
+                if (bReady && sBT.addTransaction(sTxD.sTransactionHash, sTxD.sTransaction)) {
+                    uTotalSize += sTxD.uBlobSize;
+                    uFee = sTxD.uFee;
+                    mLogger(DEBUGGING) << "Transaction " << sTxD.sTransactionHash << " included to block template";
+                } else {
+                    mLogger(DEBUGGING) << "Transaction " << sTxD.sTransactionHash << " is failed to include to block template";
+                }
             }
         }
 
@@ -740,6 +996,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     bool TxMemoryPool::init(const std::string &config_folder)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
         mConfigFolder = config_folder;
@@ -750,20 +1007,26 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             return true;
         }
 
-        if (!loadFromBinaryFile(*this, cStateFilePath)) {
-            mLogger(ERROR) << "Failed to load memory pool from file " << cStateFilePath;
+        if (!bIsLMDB) {
+            if (!loadFromBinaryFile(*this, cStateFilePath)) {
+                mLogger(ERROR) << "Failed to load memory pool from file " << cStateFilePath;
 
-            mTransactions.clear();
-            mSpentKeyImages.clear();
-            mSpentOutputs.clear();
-            mPaymentIndex.clear();
-            mTimestampIndex.clear();
-            mTimeToLifeIndex.clear();
-        } else {
-            buildIndices();
+                mTransactions.clear();
+                mSpentKeyImages.clear();
+                mSpentOutputs.clear();
+                mPaymentIndex.clear();
+                mTimestampIndex.clear();
+                mTimeToLifeIndex.clear();
+            } else {
+                buildIndices();
+            }
+
+            removeExpiredTransactions();
+        } else if (bIsLMDB) {
+            if (mBlockchain.pDB->pOpen) {
+                removeExpiredTransactions();
+            }
         }
-
-        removeExpiredTransactions();
 
         return true;
     }
@@ -771,6 +1034,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     bool TxMemoryPool::deinit()
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
         if (!Tools::create_directories_if_necessary(mConfigFolder)) {
             mLogger(INFO) << "Failed to create data directory: " << mConfigFolder;
@@ -840,10 +1104,12 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     bool TxMemoryPool::removeExpiredTransactions()
     {
         mLogger(TRACE, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+        std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
+
+        uint64_t uNow = mTimeProvider.now();
         bool bSomethingRemoved = false;
-        {
-            std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
-            uint64_t uNow = mTimeProvider.now();
+        if (!bIsLMDB) {
             for (auto sIt = mRecentlyDeletedTransactions.begin(); sIt != mRecentlyDeletedTransactions.end();) {
                 uint64_t uElapsedTimeSinceDeletion = uNow - sIt->second;
                 if (uElapsedTimeSinceDeletion > mCurrency.numberOfPeriodsToForgetTxDeletedFromPool() *
@@ -857,17 +1123,17 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             for (auto sIt = mTransactions.begin(); sIt != mTransactions.end();) {
                 uint64_t uTxAge = uNow - sIt->sReceiveTime;
                 bool bRemove = uTxAge > (sIt->bKeepedByBlock ? mCurrency.mempoolTxFromAltBlockLiveTime() :
-                                                               mCurrency.mempoolTxLiveTime());
+                                         mCurrency.mempoolTxLiveTime());
                 auto sTtlIt = mTimeToLifeIndex.find(sIt->sTransactionHash);
                 bool bIsTtlExpired = (sTtlIt != mTimeToLifeIndex.end() && sTtlIt->second <= uNow);
 
                 if (bRemove || bIsTtlExpired) {
                     if (bIsTtlExpired) {
                         mLogger(TRACE) << "Tx " << sIt->sTransactionHash
-                        << " removed from tx pool due to expired TTL, TTL : " << sTtlIt->second;
+                                       << " removed from tx pool due to expired TTL, TTL : " << sTtlIt->second;
                     } else {
                         mLogger(TRACE) << "Tx " << sIt->sTransactionHash
-                        << " removed from tx pool due to outdated, age: " << uTxAge;
+                                       << " removed from tx pool due to outdated, age: " << uTxAge;
                     }
 
                     mRecentlyDeletedTransactions.emplace(sIt->sTransactionHash, uNow);
@@ -875,6 +1141,63 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                     bSomethingRemoved = true;
                 } else {
                     ++sIt;
+                }
+            }
+        }
+        else {
+            std::list<CryptoNote::TxMemoryPool::FTransactionDetails> lTxD;
+            mBlockchain.pDB->blockTxnStart(true);
+            mBlockchain.pDB->forAllTxPoolTransactions([&lTxD](const Crypto::Hash &sTxhash,
+                                                              const FTxPoolMeta &sMeta,
+                                                              const CryptoNote::blobData *sBlobData) {
+                Transaction sTransaction;
+                FTransactionDetails sTxD;
+                if (!parseAndValidateTransactionFromBlob(*sBlobData, sTransaction)) {
+                    return false;
+                }
+
+                sTxD.sTransactionHash = sTxhash;
+                sTxD.sTransaction = sTransaction;
+                sTxD.uBlobSize = sMeta.uBlobSize;
+                sTxD.uFee = sMeta.uFee;
+                sTxD.bKeepedByBlock = sMeta.uKeptByBlock;
+                sTxD.sReceiveTime = sMeta.uReceiveTime;
+                sTxD.maxUsedBlock.id = sMeta.uMaxUsedBlockID;
+                sTxD.maxUsedBlock.height = sMeta.uMaxUsedBlockHeight;
+                sTxD.lastFailedBlock.id = sMeta.uLastFailedID;
+                sTxD.lastFailedBlock.height = sMeta.uLastFailedHeight;
+
+                lTxD.push_back(sTxD);
+
+                return true;
+            }, true);
+
+            mBlockchain.pDB->blockTxnStop();
+            for (const auto &sTxD : lTxD) {
+                uint64_t uTxAge = uNow - sTxD.sReceiveTime;
+                bool bRemove = uTxAge > (sTxD.bKeepedByBlock ? mCurrency.mempoolTxFromAltBlockLiveTime() :
+                                         mCurrency.mempoolTxLiveTime());
+
+                bool bIsTtlExpired = false;
+
+                std::vector<TransactionExtraField > vTxExtraFields;
+                parseTransactionExtra(sTxD.sTransaction.extra, vTxExtraFields);
+                TransactionExtraTTL sTtl;
+                if (findTransactionExtraFieldByType(vTxExtraFields, sTtl)) {
+                    bIsTtlExpired = sTtl.ttl <= uNow;
+                }
+
+                if (bRemove || bIsTtlExpired) {
+                    if (bIsTtlExpired) {
+                        mLogger(TRACE) << "Tx " << sTxD.sTransactionHash
+                                       << " removed from tx pool due to expired TTL, TTL : " << sTtl.ttl;
+                    } else {
+                        mLogger(TRACE) << "Tx " << sTxD.sTransactionHash
+                                       << " removed from tx pool due to outdated, age: " << uTxAge;
+                    }
+
+                    mBlockchain.pDB->removeTxPoolTransaction(sTxD.sTransactionHash);
+                    bSomethingRemoved = true;
                 }
             }
         }
@@ -959,6 +1282,9 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                             bool bKeptByBlock)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+        // TODO: lmdbization
 
         for (const auto &sIn : sTransaction.inputs) {
             if (sIn.type() == typeid(KeyInput)) {
@@ -989,20 +1315,39 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     bool TxMemoryPool::haveSpentInputs(const Transaction &tx) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
-        for (const auto &sIn : tx.inputs) {
-            if (sIn.type() == typeid(KeyInput)) {
-                const auto& sKeyIn = boost::get<KeyInput>(sIn);
-                if (mSpentKeyImages.count(sKeyIn.keyImage)) {
-                    return true;
-                }
-            } else if (sIn.type() == typeid(MultisignatureInput)) {
-                const auto& sMSig = boost::get<MultisignatureInput>(sIn);
-                if (mSpentOutputs.count(mGlobalOutputT(sMSig.amount, sMSig.outputIndex))) {
-                    return true;
+        // TODO: lmdbization
+
+        if (!bIsLMDB) {
+            for (const auto &sIn : tx.inputs) {
+                if (sIn.type() == typeid(KeyInput)) {
+                    const auto& sKeyIn = boost::get<KeyInput>(sIn);
+                    if (mSpentKeyImages.count(sKeyIn.keyImage)) {
+                        return true;
+                    }
+                } else if (sIn.type() == typeid(MultisignatureInput)) {
+                    const auto& sMSig = boost::get<MultisignatureInput>(sIn);
+                    if (mSpentOutputs.count(mGlobalOutputT(sMSig.amount, sMSig.outputIndex))) {
+                        return true;
+                    }
                 }
             }
         }
+        else if (bIsLMDB) {
+            for (const auto &sIn : tx.inputs) {
+                if (sIn.type() == typeid(KeyInput)) {
+                    const auto& sKeyIn = boost::get<KeyInput>(sIn);
+                    if (mBlockchain.pDB->hasKeyImage(sKeyIn.keyImage)) {
+                        return true;
+                    }
+                } else if(sIn.type() == typeid(MultisignatureInput)) {
+                    const auto& sMSig = boost::get<MultisignatureInput>(sIn);
+                }
+            }
+        }
+
+
 
         return false;
     }
@@ -1047,7 +1392,15 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
-        vTransactionHashes = mPaymentIndex.find(sPaymentId);
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+        // TODO: lmdbization
+
+        if (!bIsLMDB) {
+            vTransactionHashes = mPaymentIndex.find(sPaymentId);
+        } else if (bIsLMDB) {
+            vTransactionHashes = mBlockchain.pDB->getPaymentIndices(sPaymentId);
+        }
 
         return true;
     }
@@ -1061,10 +1414,24 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
-        return mTimestampIndex.find(uTimestampBegin,
-                                    uTimestampEnd,
-                                    uTransactionsLimit,
-                                    vHashes,
-                                    uTransactionsNumberWithinTimestamps);
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+        // TODO: lmdbization
+
+        if (!bIsLMDB) {
+            return mTimestampIndex.find(uTimestampBegin,
+                                        uTimestampEnd,
+                                        uTransactionsLimit,
+                                        vHashes,
+                                        uTransactionsNumberWithinTimestamps);
+        } else if (bIsLMDB) {
+            return mBlockchain.pDB->getTimestampIndicesInRange(uTimestampBegin,
+                                                               uTimestampEnd,
+                                                               uTransactionsLimit,
+                                                               vHashes,
+                                                               uTransactionsNumberWithinTimestamps);
+        }
+
+
     }
 } // namespace CryptoNote

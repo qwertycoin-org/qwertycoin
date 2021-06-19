@@ -243,7 +243,7 @@ namespace CryptoNote {
                                           const std::vector<uint64_t> &vAmountOutputIndices) = 0;
 
         /**
-         *@brief Store a spent key
+         * @brief Store a spent key
          *
          * The subclass implementing this will store the spent key image.
          *
@@ -799,8 +799,8 @@ namespace CryptoNote {
          * The subclass should return by reference the popped block and
          * its associated transactions
          *
-         * @param blk return-by-reference the block which was popped
-         * @param txs return-by-reference the transactions from the popped block
+         * @param sBlock return-by-reference the block which was popped
+         * @param vTransactions return-by-reference the transactions from the popped block
          */
         virtual void popBlock(CryptoNote::Block &sBlock, std::vector<CryptoNote::Transaction> &vTransactions);
 
@@ -838,7 +838,7 @@ namespace CryptoNote {
          * @param sHash The hash to look for
          * @param sTransaction
          *
-         * @return True iff the transaction was found
+         * @return True if the transaction was found
          */
         virtual bool getTransaction(const Crypto::Hash &sHash,
                                     CryptoNote::Transaction &sTransaction) const;
@@ -854,7 +854,7 @@ namespace CryptoNote {
          * @param sHash The hash to look for
          * @param sTransactionBlob
          *
-         * @return True iff the transaction was found
+         * @return True if the transaction was found
          */
         virtual bool getTransactionBlob(const Crypto::Hash &sHash,
                                         CryptoNote::blobData &sTransactionBlob) const = 0;
@@ -1043,7 +1043,7 @@ namespace CryptoNote {
         /**
          * @brief Add a TxPool transaction
          *
-         * @param Details the details of the transaction to add
+         * @param sDetails the details of the transaction to add
          */
         virtual void addTxPoolTransaction(const CryptoNote::Transaction &sTransaction,
                                           const FTxPoolMeta &sDetails) = 0;
@@ -1136,6 +1136,90 @@ namespace CryptoNote {
          * @return false if the function returns false for any key image, otherwise true
          */
         virtual bool forAllKeyImages(std::function<bool(const Crypto::KeyImage &)>) const = 0;
+
+        /**
+         * @brief Adds PaymentID to DB
+         *
+         * @param sTransaction The transactions with the given PaymentID
+         *
+         * @return false if the function returns false for any PaymentID, otherwise true
+         */
+        virtual bool addPaymentIndex(const CryptoNote::Transaction &sTransaction) = 0;
+
+        /**
+         * @brief Gets PaymentIDs from DB
+         *
+         * @param sPaymentID The PaymentID
+         * @param vTxHashes The return of the found TxHashes for given sPaymentID
+         *
+         * @return false if the function returns false for any PaymentID, otherwise true
+         */
+        virtual bool getPaymentIndices(const Crypto::Hash &sPaymentID, std::vector<Crypto::Hash> &vTxHashes) = 0;
+
+        /**
+         * @brief Gets PaymentIDs from DB
+         *
+         * @param sPaymentID The PaymentID
+         * @return vTxHashes The return of the found TxHashes for given sPaymentID
+         *
+         */
+        virtual std::vector<Crypto::Hash> getPaymentIndices(const Crypto::Hash &sPaymentID) = 0;
+
+        /**
+         * @brief Removes the PaymentID from DB
+         *
+         * @param sPaymentID The PaymentID to remove
+         *
+         * @return false if the function returns false for any PaymentID, otherwise true
+         */
+        virtual bool removePaymentIndex(const Crypto::Hash &sPaymentID) = 0;
+
+        /**
+         * @brief Adds Timestamp to DB
+         *
+         * @param uTimestamp The Timestamp which needs to be added to DB
+         * @param sTxHash The TxHash which also needs to be added to DB
+         *
+         * @return false if the function returns false for any Timestamp, otherwise true
+         */
+        virtual bool addTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sTxHash) = 0;
+
+        /**
+         * @brief Gets Timestamp from DB
+         *
+         * @param uTimestamp The Timestamp
+         * @param sTxHash The TxHash which returns from DB
+         *
+         * @return false if the function returns false for any Timestamp, otherwise true
+         */
+        virtual bool getTimestampIndex(uint64_t uTimestamp, Crypto::Hash &sTxHash) = 0;
+
+        /**
+         * @brief Gets Timestamp from DB
+         *
+         * @param uTimestampBegin       The Timestamp to begin with
+         * @param uTimestampEnd         The Timestamp to end with
+         * @param uReturnHashesLimit    Max amount of returning hashes
+         * @param vTxHashes             The returning Hashes
+         * @param uHashesWithTimestamps The amount of returning hashes
+         *
+         * @return false if the function returns false for any Timestamp, otherwise true
+         */
+        virtual bool getTimestampIndicesInRange(uint64_t uTimestampBegin,
+                                                uint64_t uTimestampEnd,
+                                                uint64_t uReturnHashesLimit,
+                                                std::vector<Crypto::Hash> &vTxHashes,
+                                                uint64_t &uHashesWithTimestamps) = 0;
+
+        /**
+         * @brief Removes Timestamp from DB
+         *
+         * @param uTimestamp The Timestamp which needs to be removed from DB
+         * @param sTxHash The TxHash
+         *
+         * @return false if the function returns false for any Timestamp, otherwise true
+         */
+        virtual bool removeTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sHash) = 0;
 
         /**
          * @brief Is BlockchainDB in read-only mode?

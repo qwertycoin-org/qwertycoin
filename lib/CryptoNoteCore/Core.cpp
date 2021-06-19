@@ -285,7 +285,7 @@ bool core::init(const CoreConfig &config, const MinerConfig &minerConfig, bool l
 			boost::split(vOptions, mDBSyncMode, boost::is_any_of(" :"));
 
 			// Default to fast:async:1
-			uint64_t DEFAULT_FLAGS = DBF_FAST;
+			uint64_t DEFAULT_FLAGS = DBF_FASTEST;
 
 			if (vOptions.size() == 0) {
 				// Default to fast:async:1

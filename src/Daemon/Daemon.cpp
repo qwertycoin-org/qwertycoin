@@ -376,7 +376,9 @@ int main(int argc, char *argv[])
                 << CryptoNote::CRYPTONOTE_NAME << "d --" << arg_print_genesis_tx.name;
             return 1;
         }
-        std::unique_ptr<BlockchainDB> sFakeDB(newDB(Tools::getDefaultDBType(), logManager));
+
+        std::string cDBType = command_line::get_arg(vm, command_line::arg_db_type);
+        std::unique_ptr<BlockchainDB> sFakeDB(newDB(cDBType, logManager));
         CryptoNote::Currency currency = currencyBuilder.currency();
         CryptoNote::core ccore(
             sFakeDB,

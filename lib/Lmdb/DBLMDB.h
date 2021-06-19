@@ -51,6 +51,9 @@ namespace CryptoNote {
         MDB_cursor *sTxcTransactionPoolMeta;
         MDB_cursor *sTxcTransactionPoolBlob;
 
+        MDB_cursor *sTxcPaymentIndex;
+        MDB_cursor *sTxcTimestampIndex;
+
         MDB_cursor *sTxcProperties;
     } FMdbTxnCursors;
 
@@ -74,6 +77,9 @@ namespace CryptoNote {
         bool bRfTransactionPoolMeta;
         bool bRfTransactionPoolBlob;
 
+        bool bRfPaymentIndex;
+        bool bRfTimestampIndex;
+
         bool bRfProperties;
     } FMdbReadFlags;
 
@@ -93,6 +99,9 @@ namespace CryptoNote {
 
 #define sCurTransactionPoolMeta sCursor->sTxcTransactionPoolMeta
 #define sCurTransactionPoolBlob sCursor->sTxcTransactionPoolBlob
+
+#define sCurPaymentIndex sCursor->sTxcPaymentIndex
+#define sCurTimestampIndex sCursor->sTxcTimestampIndex
 
 #define sCurProperties sCursor->sTxcProperties
 
@@ -289,6 +298,25 @@ namespace CryptoNote {
 
         virtual bool forAllKeyImages(std::function<bool(const Crypto::KeyImage &)>) const;
 
+        virtual bool addPaymentIndex(const CryptoNote::Transaction &sTransaction);
+
+        virtual bool getPaymentIndices(const Crypto::Hash &sPaymentID, std::vector<Crypto::Hash> &vTxHashes);
+        virtual std::vector<Crypto::Hash> getPaymentIndices(const Crypto::Hash &sPaymentID);
+
+        virtual bool removePaymentIndex(const Crypto::Hash &sPaymentID);
+
+        virtual bool addTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sTxHash);
+
+        virtual bool getTimestampIndex(uint64_t uTimestamp, Crypto::Hash &sTxHash);
+
+        virtual bool getTimestampIndicesInRange(uint64_t uTimestampBegin,
+                                                uint64_t uTimestampEnd,
+                                                uint64_t uReturnHashesLimit,
+                                                std::vector<Crypto::Hash> &vTxHashes,
+                                                uint64_t &uHashesWithTimestamps);
+
+        virtual bool removeTimestampIndex(uint64_t uTimestamp, const Crypto::Hash &sHash);
+
         virtual uint64_t addBlock(const CryptoNote::Block &block, const size_t &uBlockSize,
                                   const CryptoNote::difficulty_type &uCumulativeDifficulty,
                                   const uint64_t &uCoinsGenerated,
@@ -337,6 +365,8 @@ namespace CryptoNote {
         virtual void removeTransactionOutputs(const uint64_t uTxId,
                                               const CryptoNote::Transaction &sTransaction);
 
+        void removeOutput(const uint64_t uAmount, const uint64_t &uOutIndex);
+
         virtual void addSpentKey(const Crypto::KeyImage &sSpentKeyImage);
 
         virtual void removeSpentKey(const Crypto::KeyImage &sSpentKeyImage);
@@ -371,6 +401,9 @@ namespace CryptoNote {
 
         MDB_dbi mTransactionPoolMeta;
         MDB_dbi mTransactionPoolBlob;
+
+        MDB_dbi mPaymentIndex;
+        MDB_dbi mTimestampIndex;
 
         MDB_dbi mProperties;
 
