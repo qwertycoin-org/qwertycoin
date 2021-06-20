@@ -1692,10 +1692,12 @@ namespace CryptoNote {
         CURSOR(PaymentIndex)
 
         int iRes;
-        Crypto::Hash sPaymentID;
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". After iRes";
+        Crypto::Hash sPaymentID{};
+        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". get TxHash";
         Crypto::Hash sTxHash = getObjectHash(sTransaction);
         if (!getPaymentIdFromTxExtra(sTransaction.extra, sPaymentID)) {
-            // Some log
+            // mLogger(ERROR, BRIGHT_RED) << "Could not parse Payment ID from Tx Extra.";
             return false;
         }
 

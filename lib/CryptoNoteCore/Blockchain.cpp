@@ -3789,7 +3789,14 @@ bool Blockchain::pushBlock(BlockEntry &block)
 
     m_blockIndex.push(blockHash);
 
-    m_timestampIndex.add(block.bl.timestamp, blockHash);
+    if (!bIsLMDB) {
+        m_timestampIndex.add(block.bl.timestamp, blockHash);
+    } else if (bIsLMDB) {
+        // TODO: add TS Index specific for blocks
+        pDB->blockTxnStart(false);
+        pDB->addTimestampIndex(block.bl.timestamp, blockHash);
+        pDB->blockTxnStop();
+    }
     m_generatedTransactionsIndex.add(block.bl);
 
 	logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". HEIGHT_COND: " << HEIGHT_COND -1;
@@ -3923,9 +3930,18 @@ bool Blockchain::pushTransaction(
         }
     }
 
-    m_paymentIdIndex.add(transaction.tx);
-
     DB_TX_STOP
+
+    if (!bIsLMDB) {
+        m_paymentIdIndex.add(transaction.tx);
+    } else if (bIsLMDB) {
+        Transaction &sTx = transaction.tx;
+        pDB->blockTxnStart(false);
+        pDB->addPaymentIndex(sTx);
+        pDB->blockTxnStop();
+    }
+
+
 
     return true;
 }
@@ -4160,6 +4176,7 @@ void Blockchain::rollbackBlockchainTo(uint64_t height)
     bool bIsLMDB = Tools::getDefaultDBType("lmdb");
     try {
         while ((height +1) < HEIGHT_COND) {
+            logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". Removing: " << HEIGHT_COND;
             removeLastBlock();
         }
     } catch (const std::exception &e) {
@@ -4172,7 +4189,7 @@ void Blockchain::rollbackBlockchainTo(uint64_t height)
     // }
 
     logger(INFO, BRIGHT_CYAN) << "Blockchain::" << __func__
-        << "Rollback to height " << height << " was successfull.";
+        << ". Rollback to height " << height << " was successfull.";
 }
 
 void Blockchain::removeLastBlock()
@@ -4190,8 +4207,12 @@ void Blockchain::removeLastBlock()
     }
 
     Crypto::Hash blockHash = getBlockIdByHeight((bIsLMDB ? (pDB->height()-1) : m_blocks.back().height));
-    m_timestampIndex.remove((bIsLMDB ? pDB->getTopBlockTimestamp() : m_blocks.back().bl.timestamp), blockHash);
-    m_generatedTransactionsIndex.remove((bIsLMDB ? pDB->getTopBlock() : m_blocks.back().bl));
+    if (!bIsLMDB) {
+        m_timestampIndex.remove((bIsLMDB ? pDB->getTopBlockTimestamp() : m_blocks.back().bl.timestamp), blockHash);
+        m_generatedTransactionsIndex.remove((bIsLMDB ? pDB->getTopBlock() : m_blocks.back().bl));
+    } else if (bIsLMDB) {
+        pDB->removeTimestampIndex((bIsLMDB ? pDB->getTopBlockTimestamp() : m_blocks.back().bl.timestamp), blockHash);
+    }
 
     if (!bIsLMDB) {
         m_blocks.pop_back();
@@ -4383,21 +4404,31 @@ bool Blockchain::loadBlockchainIndices()
 
     loadFromBinaryFile(loader, appendPath(m_config_folder, m_currency.blockchainIndicesFileName()));
 
+    DB_TX_START
+
     if (!loader.loaded()) {
         logger(WARNING, BRIGHT_YELLOW)
             << "No actual blockchain indices for BlockchainExplorer found, rebuilding...";
         std::chrono::steady_clock::time_point timePoint = std::chrono::steady_clock::now();
 
-        m_paymentIdIndex.clear();
-        m_timestampIndex.clear();
-        m_generatedTransactionsIndex.clear();
+        if (!bIsLMDB) {
+            m_paymentIdIndex.clear();
+            m_timestampIndex.clear();
+            m_generatedTransactionsIndex.clear();
+        }
 
         for (uint32_t b = 0; b < HEIGHT_COND; ++b) {
             if (b % 1000 == 0) {
                 logger(INFO, BRIGHT_WHITE) << "Height " << b << " of " << HEIGHT_COND;
             }
             const Block &block = (bIsLMDB ? pDB->getBlockFromHeight(b) : m_blocks[b].bl);
-            m_timestampIndex.add(block.timestamp, get_block_hash(block));
+            if (!bIsLMDB) {
+                m_timestampIndex.add(block.timestamp, get_block_hash(block));
+            } else if (bIsLMDB) {
+                pDB->blockTxnStart(false);
+                pDB->addTimestampIndex(block.timestamp, get_block_hash(block));
+                pDB->blockTxnStop();
+            }
             m_generatedTransactionsIndex.add(block);
             if (!bIsLMDB) {
                 for (uint16_t t = 0; t < block.transactionHashes.size(); ++t) {
@@ -4407,7 +4438,9 @@ bool Blockchain::loadBlockchainIndices()
             } else {
                 for (uint16_t t = 0; t < block.transactionHashes.size(); t++) {
                     const Transaction &sTx = pDB->getTransaction(block.transactionHashes[t]);
-                    m_paymentIdIndex.add(sTx);
+                    pDB->blockTxnStart(false);
+                    pDB->addPaymentIndex(sTx);
+                    pDB->blockTxnStop();
                 }
             }
 
@@ -4416,6 +4449,8 @@ bool Blockchain::loadBlockchainIndices()
         std::chrono::duration<double> duration = std::chrono::steady_clock::now() - timePoint;
         logger(INFO, BRIGHT_WHITE) << "Rebuilding blockchain indices took: " << duration.count();
     }
+
+    DB_TX_STOP
 
     return true;
 }
@@ -4440,13 +4475,23 @@ bool Blockchain::getBlockIdsByTimestamp(
     uint32_t &blocksNumberWithinTimestamps)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    return m_timestampIndex.find(
-        timestampBegin,
-        timestampEnd,
-        blocksNumberLimit,
-        hashes,
-        blocksNumberWithinTimestamps
-    );
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+    if (!bIsLMDB) {
+        return m_timestampIndex.find(
+                timestampBegin,
+                timestampEnd,
+                blocksNumberLimit,
+                hashes,
+                blocksNumberWithinTimestamps
+        );
+    } else if (bIsLMDB) {
+        return pDB->getTimestampIndicesInRange(timestampBegin,
+                                               timestampEnd,
+                                               blocksNumberLimit,
+                                               hashes,
+                                               reinterpret_cast<uint64_t &>(blocksNumberWithinTimestamps));
+    }
 }
 
 bool Blockchain::getTransactionIdsByPaymentId(
@@ -4454,7 +4499,12 @@ bool Blockchain::getTransactionIdsByPaymentId(
     std::vector<Crypto::Hash> &transactionHashes)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    return m_paymentIdIndex.find(paymentId, transactionHashes);
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+    if (!bIsLMDB) {
+        return m_paymentIdIndex.find(paymentId, transactionHashes);
+    } else if (bIsLMDB) {
+        return pDB->getPaymentIndices(paymentId, transactionHashes);
+    }
 }
 
 bool Blockchain::loadTransactions(const Block &block, std::vector<Transaction> &transactions)
