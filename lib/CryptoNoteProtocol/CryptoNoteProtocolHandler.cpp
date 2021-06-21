@@ -835,12 +835,12 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
                                      + static_cast<uint32_t>(arg.m_block_ids.size()) - 1;
 
     if (context.m_last_response_height > context.m_remote_blockchain_height) {
-    logger(Logging::ERROR)
-    << context
-    << "sent wrong NOTIFY_RESPONSE_CHAIN_ENTRY, with \r\nm_total_height="
-    << arg.total_height << "\r\nm_start_height=" << arg.start_height
-    << "\r\nm_block_ids.size()=" << arg.m_block_ids.size();
-    context.m_state = CryptoNoteConnectionContext::state_shutdown;
+        logger(Logging::ERROR)
+                << context
+                << "sent wrong NOTIFY_RESPONSE_CHAIN_ENTRY, with \r\nm_total_height="
+                << arg.total_height << "\r\nm_start_height=" << arg.start_height
+                << "\r\nm_block_ids.size()=" << arg.m_block_ids.size();
+        context.m_state = CryptoNoteConnectionContext::state_shutdown;
     }
 
     for (auto &bl_id : arg.m_block_ids) {
@@ -861,8 +861,8 @@ int CryptoNoteProtocolHandler::handleRequestTxPool(int command,
                                                    NOTIFY_REQUEST_TX_POOL::request &arg,
                                                    CryptoNoteConnectionContext &context)
 {
-    // logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
-    // logger(Logging::TRACE) << context << "NOTIFY_REQUEST_TX_POOL: txs.size() = " << arg.txs.size();
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
+    logger(Logging::TRACE) << context << "NOTIFY_REQUEST_TX_POOL: txs.size() = " << arg.txs.size();
 
     bool val_expected = false;
 

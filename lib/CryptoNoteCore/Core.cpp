@@ -1215,7 +1215,7 @@ bool core::handle_incoming_block(
 
     // m_blockchain.addNewBlock(b, bvc);
     if (bvc.m_verification_failed) {
-    	// logger(ERROR, BRIGHT_RED) << "Error: incoming block failed verification!";
+    	logger(ERROR, BRIGHT_RED) << "Error: incoming block " << get_block_hash(b) << " failed verification!";
     	return false;
     }
 

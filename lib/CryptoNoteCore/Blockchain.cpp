@@ -1035,6 +1035,8 @@ Crypto::Hash Blockchain::getTailId()
 	} else {
 		sHash = pDB->getTopBlockHash();
 	}
+
+    logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". TailID: " << sHash;
 	
     return sHash;
 }
@@ -3728,16 +3730,16 @@ bool Blockchain::pushBlock(
 												block.cumulative_difficulty,
 												block.already_generated_coins,
 												transactions);
-
-			logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". NewHeight: " << (uNewHeight - 1);
-			if (uNewHeight > pDB->height() - 1) {
+			logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". NewHeight: " << (uNewHeight)
+			                               << ", DB Height: " << pDB->height() - 1;
+			if (uNewHeight == pDB->height() - 1) {
 				auto block_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(
 						std::chrono::steady_clock::now() - blockProcessingStart).count();
 				logger(DEBUGGING) <<
 								  "+++++ LMDB BLOCK SUCCESSFULLY ADDED" << ENDL
 								  << "id:\t" << blockHash << ENDL
 								  << "PoW:\t" << proof_of_work << ENDL
-								  << "HEIGHT " << (uNewHeight - 1) << ", difficulty:\t" << currentDifficulty << ENDL
+								  << "HEIGHT " << uNewHeight << ", difficulty:\t" << currentDifficulty << ENDL
 								  << "block reward: " << m_currency.formatAmount(reward) << ", fee = "
 								  << m_currency.formatAmount(fee_summary)
 								  << ", timestamp = " << block.bl.timestamp
@@ -3814,7 +3816,7 @@ bool Blockchain::pushBlock(BlockEntry &block)
 
 	logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". HEIGHT_COND: " << HEIGHT_COND -1;
 
-    // assert(m_blockIndex.size() == (HEIGHT_COND + 1));
+    assert(m_blockIndex.size() == (HEIGHT_COND + 1));
 
     return true;
 }
