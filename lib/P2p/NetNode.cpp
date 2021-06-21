@@ -504,7 +504,8 @@ bool NodeServer::ban_host(const uint32_t address_ip, time_t seconds)
 {
     std::unique_lock<std::mutex> lock(mutex);
 
-    logger(WARNING, BRIGHT_YELLOW) << "Banning Host " << Common::ipAddressToString(address_ip);
+    logger(WARNING, BRIGHT_YELLOW) << "Banning Host " << Common::ipAddressToString(address_ip)
+                                        << ", for " << timeIntervalToString(seconds);
 
     return block_host(address_ip, seconds);
 }
@@ -625,6 +626,10 @@ bool NodeServer::init(const NetNodeConfig &config)
     if (!config.getTestnet()) {
         for (auto seed : CryptoNote::SEED_NODES) {
             append_net_address(m_seed_nodes, seed);
+        }
+
+        for (auto banNode : CryptoNote::BANNED_NODES) {
+            ban_host(stringToIpAddress(banNode));
         }
     } else {
         m_network_id.data[0] += 1;
