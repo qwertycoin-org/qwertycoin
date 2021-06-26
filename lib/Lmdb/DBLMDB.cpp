@@ -608,8 +608,6 @@ namespace CryptoNote {
             if (uSize < uIncreaseSize) {
                 mLogger(DEBUGGING, BRIGHT_CYAN) << "Threshold met (size-based)";
                 return true;
-            } else {
-                return false;
             }
         }
 
