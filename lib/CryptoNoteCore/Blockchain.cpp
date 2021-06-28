@@ -3202,11 +3202,8 @@ bool Blockchain::check_tx_input(
         return false;
     }
 
-    if (!(isInCheckpointZone(getCurrentBlockchainHeight()))) {
-        // return true;
-        logger(ERROR, BRIGHT_RED) << "internal error: tx signatures count=" << sig.size()
-                                  << " mismatch with outputs keys count for inputs=" << output_keys.size();
-        return false;
+    if (isInCheckpointZone(getCurrentBlockchainHeight())) {
+        return true;
     }
 
     bool check_tx_ring_signature = Crypto::check_ring_signature(
@@ -4213,7 +4210,9 @@ void Blockchain::removeLastBlock()
         m_timestampIndex.remove((bIsLMDB ? pDB->getTopBlockTimestamp() : m_blocks.back().bl.timestamp), blockHash);
         m_generatedTransactionsIndex.remove((bIsLMDB ? pDB->getTopBlock() : m_blocks.back().bl));
     } else if (bIsLMDB) {
+        pDB->blockTxnStart(false);
         pDB->removeTimestampIndex((bIsLMDB ? pDB->getTopBlockTimestamp() : m_blocks.back().bl.timestamp), blockHash);
+        pDB->blockTxnStop();
     }
 
     if (!bIsLMDB) {

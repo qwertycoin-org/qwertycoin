@@ -548,7 +548,7 @@ namespace CryptoNote {
         } catch (std::exception &e) {
             mLogger(ERROR, BRIGHT_RED) << "Error during resizing: " << e.what();
         }
-
+        pIsResizing = false;
     }
 
     bool BlockchainLMDB::needResize(uint64_t uIncreaseSize) const
@@ -1029,8 +1029,11 @@ namespace CryptoNote {
         }
 
         if (getResult == MDB_NOTFOUND) {
+            // throw (DB_ERROR(lmdbError("sHash" + Common::podToHex(sHash) + "not found in the DB.", getResult).c_str()));
+            /*
             mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
                                             << ". sHash: " << Common::podToHex(sHash) << " not found in the DB.";
+            */
             return false;
         } else if (getResult) {
             throw (DB_ERROR(lmdbError("DB error attempting to fetch tx from hash", getResult).c_str()));
