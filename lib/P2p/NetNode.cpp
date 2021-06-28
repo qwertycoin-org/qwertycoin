@@ -2039,7 +2039,7 @@ void NodeServer::writeHandler(P2pConnectionContext &ctx)
         // connection stopped
         logger(DEBUGGING) << ctx << "writeHandler() is interrupted";
     } catch (std::exception &e) {
-        logger(TRACE) << ctx << "error during write: " << e.what();
+        logger(ERROR, BRIGHT_RED) << ctx << "error during write: " << e.what();
         ctx.interrupt(); // stop connection on write error
     }
 
