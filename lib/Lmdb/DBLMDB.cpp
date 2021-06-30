@@ -503,6 +503,10 @@ namespace CryptoNote {
                 mdb_env_stat(mDbEnv, &sLMDBStat);
                 uint64_t uOldMapSize = sLMDBEnvInfo.me_mapsize;
                 uint64_t uNewMapSize = uOldMapSize + uAddSize;
+                mdb_size_t uSizeUsed = sLMDBStat.ms_psize * sLMDBEnvInfo.me_last_pgno;
+                uint64_t uMapSize = sLMDBEnvInfo.me_mapsize;
+
+                double dPercent = 100. * (double ) uSizeUsed / uMapSize;
 
                 if (uIncreaseSize > 0) {
                     mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uIncreaseSize > 0";
@@ -532,6 +536,10 @@ namespace CryptoNote {
                         throw (DB_ERROR(
                                 "attempting resize with write transaction in progress, this should not happen!"));
                     }
+                }
+
+                if (dPercent > 75.) {
+                    uNewMapSize += 1 << 30;
                 }
 
                 int iResult = mdb_env_set_mapsize(mDbEnv, uNewMapSize);
@@ -575,7 +583,7 @@ namespace CryptoNote {
         if (uIncreaseSize == 0) {
             uIncreaseSize = 8 * uMB;
         }
-
+/*
         if ((uActualPercent == 5.0 ||
              uActualPercent == 10.0 ||
              uActualPercent == 25.0 ||
@@ -595,7 +603,7 @@ namespace CryptoNote {
             }
 
         }
-
+*/
         if (uIncreaseSize > 0) {
             uint64_t uSize = (uMapSize - uSizeUsed);
 
@@ -606,13 +614,13 @@ namespace CryptoNote {
             mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uMapSize: " << uMapSize;
             mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uIncreaseSize: " << uIncreaseSize;
             if (uSize < uIncreaseSize) {
-                mLogger(DEBUGGING, BRIGHT_CYAN) << "Threshold met (size-based)";
+                mLogger(INFO, BRIGHT_CYAN) << "Threshold met (size-based): " << uSize / (1024 * 1024) << "MiB";
                 return true;
             }
         }
 
         if ((double) uSizeUsed / uMapSize > fResizePercent) {
-            mLogger(DEBUGGING, BRIGHT_CYAN) << "Threshold met (percent-based)";
+            mLogger(INFO, BRIGHT_CYAN) << "Threshold met (percent-based): " << (100. * (double) uSizeUsed / uMapSize) << "%";
             return true;
         }
 
@@ -771,14 +779,6 @@ namespace CryptoNote {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << "1";
 
         checkOpen();
-        FMdbTxnSafe::preventNewTxns();
-        const uint64_t uMinIncSize = 32 * (1 << 20);
-        if (needResize(uMinIncSize)) {
-            mLogger(INFO, BRIGHT_CYAN) << "LMDB memory map needs to be resized, doing that now.";
-            doResize(uMinIncSize);
-        } else {
-            FMdbTxnSafe::allowNewTxns();
-        }
 
         {
             FMdbTxnCursors *sCursor = &mWriteCursors;

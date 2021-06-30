@@ -3520,7 +3520,7 @@ bool Blockchain::pushBlock(
 		logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". !bIsLMDB";
 		if (m_blockIndex.hasBlock(blockHash)) {
 			logger(ERROR, BRIGHT_RED) << "Block " << blockHash << " already exists in blockchain.";
-			bvc.m_verification_failed = true;
+			bvc.m_already_exists = true;
 			return false;
 		}
     }
@@ -3528,7 +3528,7 @@ bool Blockchain::pushBlock(
     	if (pDB->blockExists(blockHash)) {
 			logger(TRACE, BRIGHT_RED) << "Block " << blockHash << " already exists in database.";
 
-			bvc.m_verification_failed = true;
+			bvc.m_already_exists = true;
 			DB_TX_STOP
 
 			return false;
