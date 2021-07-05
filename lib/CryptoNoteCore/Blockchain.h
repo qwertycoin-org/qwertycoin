@@ -261,7 +261,24 @@ public:
     void getTransactionsBlobs(const T &sTxIds, D &sTransactions, S &sMissedTxs);
 
     template<class T, class D, class S>
-    void getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissedTxs);
+    void getDBTransactions(const T &txs_ids, D &txs, S &missed_txs)
+    {
+        std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+        for (const auto &sTxHash : txs_ids) {
+            try {
+                CryptoNote::blobData sTx;
+                if (pDB->getTransactionBlob(sTxHash, sTx)) {
+                    if (!parseAndValidateTransactionFromBlob(sTx, txs.back())) {
+                        return;
+                    }
+                } else {
+                    missed_txs.push_back(sTxHash);
+                }
+            } catch (std::exception &e) {
+                return;
+            }
+        }
+    }
 
     template<class T, class D, class S>
     void getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool = false);

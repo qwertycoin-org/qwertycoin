@@ -2423,11 +2423,7 @@ bool Blockchain::handleGetObjects(
 
     // get another transactions, if need
     std::list<Transaction> txs;
-    if (!bIsLMDB) {
-        getTransactions(arg.txs, txs, rsp.missed_ids);
-    } else {
-        getDBTransactions(arg.txs, txs, rsp.missed_ids);
-    }
+    getTransactions(arg.txs, txs, rsp.missed_ids);
     // pack aside transactions
     for (const auto &tx : txs) {
         if (!bIsLMDB) {
@@ -2662,38 +2658,19 @@ void Blockchain::getTransactionsBlobs(const T &sTxIds, D &sTransactions, S &sMis
     return;
 }
 
-template<class T, class D, class S>
-void Blockchain::getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissedTxs)
-{
-    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    for (const auto &sTxHash : sTxIds) {
-        try {
-            CryptoNote::blobData sTx;
-            if (pDB->getTransactionBlob(sTxHash, sTx)) {
-                if (!parseAndValidateTransactionFromBlob(sTx, sTransactions.back())) {
-                    logger(ERROR, BRIGHT_RED) << "Invalid transaction: " << sTxHash;
-
-                    return;
-                }
-            } else {
-                sMissedTxs.push_back(sTxHash);
-            }
-        } catch (std::exception &e) {
-            logger(ERROR, BRIGHT_RED) << "Exception at getTransactions: " << e.what();
-
-            return;
-        }
-    }
-
-    return;
-}
-
     template<class T, class D, class S>
     void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool)
     {
+        bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         if (checkTxPool) {
             std::lock_guard<decltype(m_tx_pool)> txLock(m_tx_pool);
-            getBlockchainTransactions(txs_ids, txs, missed_txs);
+            
+            if (!bIsLMDB) {
+                getBlockchainTransactions(txs_ids, txs, missed_txs);
+            } else {
+                getDBTransactions(txs_ids, txs, missed_txs);
+            }
+
             auto poolTxIds = std::move(missed_txs);
             missed_txs.clear();
             std::vector<Crypto::Hash> vTxsHashes;
@@ -2712,8 +2689,16 @@ void Blockchain::getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissed
             }
 
             m_tx_pool.getTransactions(vTxsHashes, vTxs, vMTxsHashes);
+
+            for (const auto &sTx : vTxs) {
+                txs.push_back(sTx);
+            }
         } else {
-            getBlockchainTransactions(txs_ids, txs, missed_txs);
+            if (!bIsLMDB) {
+                getBlockchainTransactions(txs_ids, txs, missed_txs);
+            } else {
+                getDBTransactions(txs_ids, txs, missed_txs);
+            }
         }
     }
 
@@ -3365,11 +3350,7 @@ bool Blockchain::getBlockCumulativeSize(const Block &block, size_t &cumulativeSi
     std::vector<Crypto::Hash> missedTxs;
     bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
-    if (bIsLMDB) {
-        getDBTransactions(block.transactionHashes, blockTxs, missedTxs);
-    } else {
-        getTransactions(block.transactionHashes, blockTxs, missedTxs, true);
-    }
+    getTransactions(block.transactionHashes, blockTxs, missedTxs, true);
 
     cumulativeSize = getObjectBinarySize(block.baseTransaction);
     for (const Transaction &tx : blockTxs) {
@@ -4450,7 +4431,7 @@ bool Blockchain::loadBlockchainIndices()
                     m_paymentIdIndex.add(transaction.tx);
                 }
             } else {
-                for (uint16_t t = 0; t < block.transactionHashes.size(); t++) {
+                for (uint16_t t = 0; t < block.transactionHashes.size(); ++t) {
                     const Transaction &sTx = pDB->getTransaction(block.transactionHashes[t]);
                     pDB->blockTxnStart(false);
                     pDB->addPaymentIndex(sTx);
