@@ -655,19 +655,19 @@ void TransfersConsumer::processOutputs(
     bool &contains,
     bool &updated)
 {
-    TransactionInformation subscribtionTxInfo;
+    TransactionInformation subscriptionTxInfo;
     contains = sub.getContainer().getTransactionInformation(tx.getTransactionHash(),
-                                                            subscribtionTxInfo);
+                                                            subscriptionTxInfo);
     updated = false;
 
     if (contains) {
-        if (subscribtionTxInfo.blockHeight == WALLET_UNCONFIRMED_TRANSACTION_HEIGHT
+        if (subscriptionTxInfo.blockHeight == WALLET_UNCONFIRMED_TRANSACTION_HEIGHT
             && blockInfo.height != WALLET_UNCONFIRMED_TRANSACTION_HEIGHT) {
             // pool->blockchain
             sub.markTransactionConfirmed(blockInfo, tx.getTransactionHash(), globalIdxs);
             updated = true;
         } else {
-            assert(subscribtionTxInfo.blockHeight == blockInfo.height);
+            assert(subscriptionTxInfo.blockHeight == blockInfo.height);
         }
     } else {
         updated = sub.addTransaction(blockInfo, tx, transfers);
