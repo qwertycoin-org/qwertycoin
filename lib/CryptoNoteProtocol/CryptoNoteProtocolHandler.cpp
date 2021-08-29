@@ -600,7 +600,7 @@ int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext &conte
             logger(Logging::DEBUGGING)
                 << context
                 << "Block verification failed, dropping connection";
-            context.m_state = CryptoNoteConnectionContext::state_shutdown;
+            m_p2p->drop_connection(context, true);
             return 1;
         } else if (bvc.m_marked_as_orphaned) {
             logger(Logging::INFO)
