@@ -196,6 +196,8 @@ const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
 
 // P2P Network Configuration Section - This defines our current P2P network version
 // and the minimum version for communication between nodes
+const uint8_t  P2P_VERSION_1                                 = 1;
+const uint8_t  P2P_VERSION_2                                 = 2;
 const uint8_t  P2P_CURRENT_VERSION                           = 6;
 const uint8_t  P2P_MINIMUM_VERSION                           = 6;
 
@@ -204,11 +206,13 @@ const uint8_t  P2P_MINIMUM_VERSION                           = 6;
 const uint8_t  P2P_UPGRADE_WINDOW                            = 1;
 
 const size_t   P2P_CONNECTION_MAX_WRITE_BUFFER_SIZE          = 64 * 1024 * 1024; // 64 MB
-const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 8;
+const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 12;
+const size_t   P2P_DEFAULT_ANCHOR_CONNECTIONS_COUNT          = 2;
 const size_t   P2P_DEFAULT_WHITELIST_CONNECTIONS_PERCENT     = 70;
 const uint32_t P2P_DEFAULT_HANDSHAKE_INTERVAL                = 60;            // seconds
 const uint32_t P2P_DEFAULT_PACKET_MAX_SIZE                   = 50000000;      // 50000000 bytes maximum packet size
 const uint32_t P2P_DEFAULT_PEERS_IN_HANDSHAKE                = 250;
+const uint32_t P2P_MAX_PEERS_IN_HANDSHAKE                    = 256;
 const uint32_t P2P_DEFAULT_CONNECTION_TIMEOUT                = 5000;          // 5 seconds
 const uint32_t P2P_DEFAULT_PING_CONNECTION_TIMEOUT           = 2000;          // 2 seconds
 const uint64_t P2P_DEFAULT_INVOKE_TIMEOUT                    = 60 * 2 * 1000; // 2 minutes
@@ -233,15 +237,23 @@ const std::string GOVERNANCE_WALLET_ADDRESS                  = "QWC1W9dWEf955q71
 const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "d6c03cec7de78fe30895bf19edeb5c24529c3d2e40d00b300fa2336c6fdafe0d";
 
 const char *const SEED_NODES[] = {
-    "88.99.85.223:8196",//00
-    "node-01.qwertycoin.org:8196",
-    "node-02.qwertycoin.org:8196",
-    "node-03.qwertycoin.org:8196",
-    "node-04.qwertycoin.org:8196",
-    "node-05.qwertycoin.org:8196",//exp
-    "94.130.187.117:8196", //06
-    "116.203.51.103:8196",//07
-    "148.251.115.233:8196"
+    "78.47.85.215:8196"
+};
+
+const char *const BANNED_NODES[] = {
+    "8.140.169.173",
+    "146.255.65.161",
+    "92.94.131.156",
+    "178.184.195.55",
+    "103.68.63.19",
+    "146.255.68.132",
+    "85.50.4.138",
+    "39.42.65.212",
+    "92.90.243.170",
+    "152.208.59.249",
+    "31.167.51.51",
+    "176.191.96.108",
+    "47.75.184.180 "
 };
 
 } // namespace CryptoNote

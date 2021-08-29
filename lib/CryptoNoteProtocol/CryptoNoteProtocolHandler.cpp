@@ -456,6 +456,12 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
 {
     logger(Logging::TRACE) << context << "NOTIFY_RESPONSE_GET_OBJECTS";
 
+    if (arg.blocks.empty()) {
+        logger(Logging::ERROR) << context << "sent wrong NOTIFY_HAVE_OBJECTS: no blocks, dropping connection";
+        m_p2p->drop_connection(context, true);
+        return 1;
+    }
+
     if (context.m_last_response_height > arg.current_blockchain_height) {
         logger(Logging::ERROR)
             << context
@@ -793,7 +799,10 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
         }
     }
 
-    request_missing_objects(context, false);
+    if (!request_missing_objects(context, false)) {
+        logger(Logging::DEBUGGING) << context << "Failed to request missing objects, dropping connection";
+        m_p2p->drop_connection(context, true);
+    }
 
     return 1;
 }
@@ -840,7 +849,7 @@ void CryptoNoteProtocolHandler::relay_transactions(NOTIFY_NEW_TRANSACTIONS::requ
 void CryptoNoteProtocolHandler::requestMissingPoolTransactions(
     const CryptoNoteConnectionContext &context)
 {
-    if (context.version < 1) {
+    if (context.version < CryptoNote::P2P_VERSION_1) {
         return;
     }
 

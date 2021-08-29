@@ -1890,19 +1890,37 @@ namespace CryptoNote {
 	}
 
 	bool RpcServer::onGetPeerList(const COMMAND_RPC_GET_PEER_LIST::request &req,
-								  COMMAND_RPC_GET_PEER_LIST::response &res)
+									 	COMMAND_RPC_GET_PEER_LIST::response &res)
 	{
-		std::list<PeerlistEntry> pl_wite;
-		std::list<PeerlistEntry> pl_gray;
-		m_p2p.getPeerlistManager().get_peerlist_full(pl_gray, pl_wite);
+		if (m_restricted_rpc) {
+			res.status = "Method disabled";
+			return false;
+		}
+
+		std::list<AnchorPeerlistEntry> pl_anchor;
+		std::vector<PeerlistEntry> pl_wite;
+		std::vector<PeerlistEntry> pl_gray;
+		m_p2p.getPeerlistManager().get_peerlist_full(pl_anchor, pl_gray, pl_wite);
+
+		for (const auto &pe : pl_anchor) {
+			std::stringstream ss;
+			ss << pe.adr;
+			res.anchor_peers.push_back(ss.str());
+		}
+
 		for (const auto &pe : pl_wite) {
 			std::stringstream ss;
 			ss << pe.adr;
-			res.peers.push_back(ss.str());
+			res.white_peers.push_back(ss.str());
+		}
+
+		for (const auto &pe : pl_gray) {
+			std::stringstream ss;
+			ss << pe.adr;
+			res.gray_peers.push_back(ss.str());
 		}
 
 		res.status = CORE_RPC_STATUS_OK;
-
 		return true;
 	}
 
