@@ -573,7 +573,8 @@ bool NodeServer::init(const NetNodeConfig &config)
             append_net_address(m_seed_nodes, seed);
         }
         for (auto banNode : CryptoNote::BANNED_NODES) {
-            ban_host(stringToIpAddress(banNode));
+            if(banNode !="")
+                ban_host(stringToIpAddress(banNode));
         }
     } else {
         m_network_id.data[0] += 1;
