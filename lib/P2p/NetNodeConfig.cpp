@@ -107,9 +107,10 @@ bool NetNodeConfig::init(const boost::program_options::variables_map &vm)
         configFolder = command_line::get_arg(vm, command_line::arg_data_dir);
     }
 
-  if (vm.count(arg_p2p_exclusive_version.name) != 0 && (!vm[arg_p2p_exclusive_version.name].defaulted() || exclusiveVersion.empty())) {
-    exclusiveVersion = command_line::get_arg(vm, arg_p2p_exclusive_version);
-  }
+    if (vm.count(arg_p2p_exclusive_version.name) != 0 && (!vm[arg_p2p_exclusive_version.name].defaulted()
+        || exclusiveVersion.empty())) {
+        exclusiveVersion = command_line::get_arg(vm, arg_p2p_exclusive_version);
+    }
 
     p2pStateFilename = CryptoNote::parameters::P2P_NET_DATA_FILENAME;
 
