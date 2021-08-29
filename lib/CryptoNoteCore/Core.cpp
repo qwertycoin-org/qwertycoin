@@ -412,7 +412,7 @@ bool core::check_tx_fee(
     const uint64_t fee = inputs_amount - outputs_amount;
     bool isFusionTransaction = fee == 0 && m_currency.isFusionTransaction(tx, blobSize, height);
 
-    if (!isFusionTransaction) {
+    if (!isFusionTransaction && !m_checkpoints.is_in_checkpoint_zone(height)) {
         std::vector<TransactionExtraField> txExtraFields;
         parseTransactionExtra(tx.extra, txExtraFields);
         TransactionExtraTTL ttl;

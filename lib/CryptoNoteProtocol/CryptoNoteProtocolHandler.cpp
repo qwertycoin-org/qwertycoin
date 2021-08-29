@@ -203,17 +203,32 @@ bool CryptoNoteProtocolHandler::process_payload_sync_data(
         int64_t diff = static_cast<int64_t>(hshd.current_height)
                        - static_cast<int64_t>(get_current_blockchain_height());
 
+        // Drop and eventually ban if peer is on fork too deep behind us 
+        if (diff < 0 && std::abs(diff) > CryptoNote::parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
+            && m_core.isInCheckpointZone(hshd.current_height)
+        ) {
+            logger(Logging::DEBUGGING)
+                << context
+                << "Sync data returned a new top block candidate: " << get_current_blockchain_height()
+                << " -> " << hshd.current_height - 1
+                << ". Your node is " << std::abs(diff)
+                << " blocks (" << std::abs(diff) / (24 * 60 * 60 / m_currency.difficultyTarget())
+                << " days) "
+                << "ahead. The block candidate is too deep behind and in checkpoint zone, dropping connection";
+            m_p2p->drop_connection(context, true);
+        }
+
         logger(
             diff >= 0 ? (is_initial ? Logging::INFO : Logging::DEBUGGING)
                       : Logging::TRACE, Logging::BRIGHT_YELLOW
         )   << context
-            << "Sync data returned unknown top block: " << get_current_blockchain_height()
-            << " -> " << hshd.current_height << " [" << std::abs(diff)
-            << " blocks ("
+            << "Sync data returned a new top block candidate: " << get_current_blockchain_height()
+            << " -> " << hshd.current_height - 1
+            << " [Your node is " << std::abs(diff) << " blocks ("
             << std::abs(diff) / (24 * 60 * 60 / m_currency.difficultyTarget())
             << " days) "
             << (diff >= 0 ? std::string("behind") : std::string("ahead")) << "] " << std::endl
-            << "SYNCHRONIZATION started";
+            << "Synchronization started";
 
         logger(Logging::DEBUGGING)
             << "Remote top block height: " << hshd.current_height
