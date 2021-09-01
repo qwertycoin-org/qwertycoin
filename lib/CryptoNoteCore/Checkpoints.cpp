@@ -25,6 +25,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <mutex>
 #include <thread>
 #include <sstream>
 #include <stdio.h>
@@ -45,7 +46,6 @@ namespace CryptoNote {
 Checkpoints::Checkpoints(Logging::ILogger &log)
     : logger(log, "checkpoints")
 {
-    m_mutex = new std::mutex();
 }
 
 bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str)
@@ -173,12 +173,12 @@ std::vector<uint32_t> Checkpoints::getCheckpointHeights() const
 #ifndef __ANDROID__
 bool Checkpoints::load_checkpoints_from_dns()
 {
-    std::lock_guard<std::mutex> lock(*m_mutex);
     std::mutex m;
     std::condition_variable cv;
     std::string domain(CryptoNote::DNS_CHECKPOINTS_HOST);
     std::vector<std::string>records;
     bool res = true;
+    auto start = std::chrono::steady_clock::now();
 
     logger(Logging::INFO) << "Fetching DNS checkpoint records from " << domain;
 
@@ -191,7 +191,7 @@ bool Checkpoints::load_checkpoints_from_dns()
 
         t.detach(); {
             std::unique_lock<std::mutex> l(m);
-            if (cv.wait_for(l, std::chrono::milliseconds(1000)) == std::cv_status::timeout) {
+            if (cv.wait_for(l, std::chrono::milliseconds(400)) == std::cv_status::timeout) {
                 logger(Logging::INFO) << "Timeout lookup DNS checkpoint records from " << domain;
                 return false;
             }
@@ -206,6 +206,12 @@ bool Checkpoints::load_checkpoints_from_dns()
         logger(Logging::INFO) << e.what();
         return false;
     }
+
+    auto dur = std::chrono::steady_clock::now() - start;
+    logger(Logging::DEBUGGING)
+        << "DNS query time: "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(dur).count()
+        << " ms";
 
     for (const auto &record : records) {
         uint32_t height;
