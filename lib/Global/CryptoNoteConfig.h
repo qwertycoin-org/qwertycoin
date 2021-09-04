@@ -183,7 +183,7 @@ const uint8_t  BLOCK_MAJOR_VERSION_6                         =  6;
 const uint8_t  BLOCK_MINOR_VERSION_0                         =  0;
 const uint8_t  BLOCK_MINOR_VERSION_1                         =  1;
 
-const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  10000; // by default, blocks ids count in synchronizing
+const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  1000; // by default, blocks ids count in synchronizing
 const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  128; // by default, blocks count in blocks downloading
 const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         =  1000;
 
@@ -203,8 +203,8 @@ const uint8_t  P2P_MINIMUM_VERSION                           = 6;
 // warning messages that we need to upgrade our software.
 const uint8_t  P2P_UPGRADE_WINDOW                            = 1;
 
-const size_t   P2P_CONNECTION_MAX_WRITE_BUFFER_SIZE          = 64 * 1024 * 1024; // 64 MB
-const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 8;
+const size_t   P2P_CONNECTION_MAX_WRITE_BUFFER_SIZE          = 128 * 1024 * 1024; // 128 MB
+const uint32_t P2P_DEFAULT_CONNECTIONS_COUNT                 = 12;
 const size_t   P2P_DEFAULT_WHITELIST_CONNECTIONS_PERCENT     = 70;
 const uint32_t P2P_DEFAULT_HANDSHAKE_INTERVAL                = 60;            // seconds
 const uint32_t P2P_DEFAULT_PACKET_MAX_SIZE                   = 50000000;      // 50000000 bytes maximum packet size
@@ -233,15 +233,16 @@ const std::string GOVERNANCE_WALLET_ADDRESS                  = "QWC1W9dWEf955q71
 const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "d6c03cec7de78fe30895bf19edeb5c24529c3d2e40d00b300fa2336c6fdafe0d";
 
 const char *const SEED_NODES[] = {
-    "88.99.85.223:8196",//00
-    "node-01.qwertycoin.org:8196",
-    "node-02.qwertycoin.org:8196",
-    "node-03.qwertycoin.org:8196",
-    "node-04.qwertycoin.org:8196",
-    "node-05.qwertycoin.org:8196",//exp
-    "94.130.187.117:8196", //06
-    "116.203.51.103:8196",//07
-    "148.251.115.233:8196"
+    "148.251.115.233:8196",         //E
+    "148.251.115.235:8196",         //E
+    "148.251.115.236:8196",         //E
+    "148.251.115.237:8196",         //E
+    "node-01.qwertycoin.org:8196",  //A
+    "node-02.qwertycoin.org:8196",  //A
+    "node-03.qwertycoin.org:8196",  //A
+    "node-04.qwertycoin.org:8196",  //A
+    "116.203.84.161:8196",          //A
+    "95.216.221.239:8196"           //A
 };
 
 } // namespace CryptoNote
