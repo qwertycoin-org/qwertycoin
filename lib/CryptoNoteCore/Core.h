@@ -293,6 +293,7 @@ public:
         std::vector<Crypto::Hash> &deletedTxsIds) override;
 
     void rollbackBlockchain(uint32_t height) override;
+    virtual bool saveBlockchain() override;
 
     uint64_t getNextBlockDifficulty(uint64_t nextBlockTime);
     uint64_t getTotalGeneratedAmount();
