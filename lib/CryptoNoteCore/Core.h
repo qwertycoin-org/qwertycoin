@@ -239,6 +239,7 @@ public:
 																	  std::vector<uint32_t>>> &txs) override;
     bool getBlockByHash(const Crypto::Hash &h, Block &blk) override;
     bool getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeight) override;
+    virtual bool getTransactionHeight(const Crypto::Hash &txId, uint32_t &blockHeight) override;
 
     bool get_alternative_blocks(std::list<Block> &blocks);
     size_t get_alternative_blocks_count();

@@ -173,6 +173,11 @@ bool core::getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash
 	return m_blockchain.getTransactionsWithOutputGlobalIndexes(txsIds, missedTxs, txs);
 }
 
+bool core::getTransactionHeight(const Crypto::Hash &txId, uint32_t &blockHeight)
+{
+    return m_blockchain.getTransactionHeight(txId, blockHeight);
+}
+
 bool core::get_alternative_blocks(std::list<Block> &blocks)
 {
     return m_blockchain.getAlternativeBlocks(blocks);
