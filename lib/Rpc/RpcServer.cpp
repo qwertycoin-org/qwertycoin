@@ -1903,11 +1903,6 @@ namespace CryptoNote {
 	bool RpcServer::onGetPeerList(const COMMAND_RPC_GET_PEER_LIST::request &req,
 									 	COMMAND_RPC_GET_PEER_LIST::response &res)
 	{
-		if (m_restricted_rpc) {
-			res.status = "Method disabled";
-			return false;
-		}
-
 		std::list<AnchorPeerlistEntry> pl_anchor;
 		std::vector<PeerlistEntry> pl_wite;
 		std::vector<PeerlistEntry> pl_gray;
