@@ -80,6 +80,7 @@ public:
     PeerlistManager();
 
     bool init(bool allow_local_ip);
+    size_t get_anchor_peers_count() const { return m_peers_anchor.size(); }
     size_t get_white_peers_count() const { return m_peers_white.size(); }
     size_t get_gray_peers_count() const { return m_peers_gray.size(); }
     bool merge_peerlist(const std::vector<PeerlistEntry> &outer_bs);

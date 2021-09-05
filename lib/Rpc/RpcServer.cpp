@@ -1287,11 +1287,11 @@ namespace CryptoNote {
 	bool RpcServer::onGetIndex(const COMMAND_HTTP::request &req, COMMAND_HTTP::response &res)
 	{
 		const std::string index_start =
-				R"(<html><head><meta http-equiv='refresh' content='60'/></head><body><p>)"
-				"<h1>Qwertycoin Masternode</h1>"
-				R"( version
-    )";
-		const std::string index_finish = " </p></body></html>";
+			R"(
+				<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1, shrink-to-fit=no'>
+				<meta http-equiv='refresh' content='60'/><title data-i18n='website-title'>Masternode | Qwertycoin is a secure worldwide digital currency.</title><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Open+Sans&display=swap' rel='stylesheet'><link rel='stylesheet' href='https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css'></head><body style='color: white;background-color:black;'><img src='https://qwertycoin.org/img/logo.png' alt='Qwertycoin'><br/><hr/><h1>Masternode</h1><br/>Version 
+    		)";
+		const std::string index_finish = "</body></html>";
 		const std::time_t uptime = std::time(nullptr) - m_core.getStartTime();
 		const std::string uptime_str = std::to_string((unsigned int) floor(uptime / 60.0 / 60.0 / 24.0))
 									   + "d " +
@@ -1304,28 +1304,39 @@ namespace CryptoNote {
 		size_t outConn = m_p2p.get_outgoing_connections_count();
 		size_t incConn = m_p2p.get_connections_count() - outConn;
 		Crypto::Hash last_block_hash = m_core.getBlockIdByHeight(top_block_index);
+		size_t anchor_peerlist_size = m_p2p.getPeerlistManager().get_anchor_peers_count();
 		size_t white_peerlist_size = m_p2p.getPeerlistManager().get_white_peers_count();
 		size_t grey_peerlist_size = m_p2p.getPeerlistManager().get_gray_peers_count();
 		size_t alt_blocks_count = m_core.get_alternative_blocks_count();
 		size_t total_tx_count = m_core.get_blockchain_total_transactions() - top_block_index + 1;
-
 		size_t tx_pool_count = m_core.get_pool_transactions_count();
 
-		const std::string body = index_start + PROJECT_VERSION_LONG + " powered by "
-								 + (m_core.currency().isTestnet() ? "testnet" : "mainnet") + "<ul>" + "<li>"
-								 + "Synchronization status: " + std::to_string(top_block_index) + "/"
-								 + std::to_string(top_known_block_index) + "<li>"
-								 + "Last block hash: " + Common::podToHex(last_block_hash) + "</li>" + "<li>"
-								 + "Difficulty: " + std::to_string(m_core.getNextBlockDifficulty(0)) + "</li>" + "<li>"
-								 + "Alt. blocks: " + std::to_string(alt_blocks_count) + "</li>" + "<li>"
-								 + "Total transactions in network: " + std::to_string(total_tx_count) + "</li>" + "<li>"
-								 + "Transactions in pool: " + std::to_string(tx_pool_count) + "</li>" + "<li>"
-								 + "Connections:" + "<ul>" + "<li>" + "RPC: " + std::to_string(get_connections_count())
-								 + "</li>" + "<li>" + "OUT: " + std::to_string(outConn) + "</li>" + "<li>"
-								 + "INC: " + std::to_string(incConn) + "</li>" + "</ul>" + "</li>" + "<li>"
-								 + "Peers: " + std::to_string(white_peerlist_size) + " white, "
-								 + std::to_string(grey_peerlist_size) + " grey" + "</li>" + "<li>"
-								 + "Uptime: " + uptime_str + "</li>" + "</ul>" + index_finish;
+		const std::string body = index_start +
+			PROJECT_VERSION_LONG + (m_core.currency().isTestnet() ? " testnet" : " mainnet") + 
+			"<ul>" + 
+			"<li>Synchronization status: " + std::to_string(top_block_index) + "/" + std::to_string(top_known_block_index) + 
+			"<li>Last Blockhash: " + Common::podToHex(last_block_hash) + "</li>" + 
+			"<li>Difficulty: " + std::to_string(m_core.getNextBlockDifficulty(0)) + "</li>" + 
+			"<li>Alt. Blocks: " + std::to_string(alt_blocks_count) + "</li>" + 
+			"<li>Total transactions in network: " + std::to_string(total_tx_count) + "</li>" + 
+			"<li>Transactions unconfirmed: " + std::to_string(tx_pool_count) + "</li>" + 
+			"<li>Connections: " + 
+			"<ul>" + 
+				"<li>RPC: \t" + std::to_string(get_connections_count()) + "</li>" + 
+				"<li>Outgoing: \t" + std::to_string(outConn) + "</li>" + 
+				"<li>Incoming: \t" + std::to_string(incConn) + "</li>" + 
+			"</ul></li>" + 
+			"<li>Peers: " + 
+			"<ul>" + 
+				"<li>Anchor: \t" + std::to_string(anchor_peerlist_size) + 
+				"<li>White: \t" + std::to_string(white_peerlist_size) + 
+				"<li>Grey: \t" + std::to_string(grey_peerlist_size) + 
+			"</ul></li>" + 
+			"<li>Contact: " + m_contact_info + "</li>" + 
+			"<li>Fee address: " + m_fee_address + "</li>" + 
+			"<li>Uptime: " + uptime_str + "</li>" + 
+			"</ul>" + 
+			index_finish;
 
 		res = body;
 
