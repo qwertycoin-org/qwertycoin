@@ -245,6 +245,7 @@ public:
 
     void set_cryptonote_protocol(i_cryptonote_protocol *pprotocol);
     void set_checkpoints(Checkpoints &&chk_pts);
+    virtual bool isInCheckpointZone(uint32_t height) const override;
 
     std::vector<Transaction> getPoolTransactions() override;
     size_t get_pool_transactions_count();
@@ -292,6 +293,7 @@ public:
         std::vector<Crypto::Hash> &deletedTxsIds) override;
 
     void rollbackBlockchain(uint32_t height) override;
+    virtual bool saveBlockchain() override;
 
     uint64_t getNextBlockDifficulty(uint64_t nextBlockTime);
     uint64_t getTotalGeneratedAmount();
@@ -356,6 +358,7 @@ private:
     size_t median(std::vector<size_t> &v);
 
     const Currency &m_currency;
+    Checkpoints m_checkpoints;
     Logging::LoggerRef logger;
     CryptoNote::RealTimeProvider m_timeProvider;
     tx_memory_pool m_mempool;

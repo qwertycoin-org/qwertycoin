@@ -91,6 +91,7 @@ private:
     bool unban(const std::vector<std::string> &args);
     bool status(const std::vector<std::string> &args);
     bool generate_blocks(const std::vector<std::string> &args);
+    bool save(const std::vector<std::string> &args);
 
 private:
     Common::ConsoleHandler m_consoleHandler;

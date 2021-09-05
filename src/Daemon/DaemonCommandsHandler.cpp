@@ -33,6 +33,10 @@
 #include <version.h>
 #include "DaemonCommandsHandler.h"
 
+#if defined(WIN32)
+#undef ERROR
+#endif
+
 namespace {
 
 template <typename T>
@@ -180,7 +184,7 @@ DaemonCommandsHandler::DaemonCommandsHandler(
     m_consoleHandler.setHandler(
         "ban",
         boost::bind(&DaemonCommandsHandler::ban, this, _1),
-        "Ban a given <IP> for a given amount of <seconds>, ban <IP> [<seconds>]"
+        "Ban a given <IP> for [<seconds>] or permanently if no duration provided, ban <IP> [<seconds>]"
     );
 
     m_consoleHandler.setHandler(
@@ -193,6 +197,12 @@ DaemonCommandsHandler::DaemonCommandsHandler(
         "status",
         boost::bind(&DaemonCommandsHandler::status, this, _1),
         "Show daemon status"
+    );
+
+    m_consoleHandler.setHandler(
+        "save",
+        boost::bind(&DaemonCommandsHandler::save, this, boost::arg<1>()),
+        "Store blockchain"
     );
 }
 
@@ -282,7 +292,7 @@ bool DaemonCommandsHandler::status(const std::vector<std::string> &args)
         << " (" << ColouredMsg(std::to_string(get_sync_percentage(height, last_known_block_index)).substr(0, 5) + "%", Common::Console::Color::BrightWhite) << ") "
         << "on " << ColouredMsg((m_core.currency().isTestnet() ? "testnet" : "mainnet"), Common::Console::Color::BrightWhite) << ", "
         << "block v. " << ColouredMsg(std::to_string((int)majorVersion), Common::Console::Color::BrightWhite) << ",\n"
-        << "last block hash: " << ColouredMsg(Common::podToHex(last_block_hash), Common::Console::Color::BrightWhite) << ",\n"
+        << "last block hash: " << ColouredMsg(Common::podToHex(last_block_hash), Common::Console::Color::BrightWhite) << "\n"
         << "next difficulty: " << ColouredMsg(std::to_string(difficulty), Common::Console::Color::BrightWhite) << ", "
         << "network hashrate: " << ColouredMsg(get_mining_speed(hashrate), Common::Console::Color::BrightWhite) << ", "
         << "alt. blocks: " << ColouredMsg(std::to_string(alt_blocks_count), Common::Console::Color::BrightWhite) << ", \n"
@@ -915,20 +925,23 @@ bool DaemonCommandsHandler::ban(const std::vector<std::string> &args)
 
     std::string addr = args[0];
     uint32_t ip;
-    time_t seconds;
-    if (args.size() > 1) {
-        try {
+    time_t seconds = std::numeric_limits<time_t>::max();
+    try {
+        if (args.size() > 1) {
             seconds = std::stoi(args[1]);
-        } catch (const std::exception &e) {
-            return false;
+            if (seconds == 0) {
+                logger(Logging::ERROR) << "Invalid ban duration. Should be greater than zero.";
+                return false;
+            }
         }
-        if (seconds == 0) {
+        ip = Common::stringToIpAddress(addr);
+        if (!ip) {
+            logger(Logging::ERROR) << "Invalid IP address: " << addr;
             return false;
         }
     }
-    try {
-        ip = Common::stringToIpAddress(addr);
-    } catch (const std::exception &e) {
+    catch (const std::exception &e) {
+        logger(Logging::ERROR) << "Failed to parse ban parameters: " << e.what();
         return false;
     }
     return m_srv.ban_host(ip, seconds);
@@ -941,11 +954,15 @@ bool DaemonCommandsHandler::unban(const std::vector<std::string> &args)
     }
 
     std::string addr = args[0];
-    uint32_t ip;
-    try {
-        ip = Common::stringToIpAddress(addr);
-    } catch (const std::exception &e) {
+    uint32_t ip = Common::stringToIpAddress(addr);
+    if (!ip) {
+        logger(Logging::ERROR) << "Invalid IP address: " << addr;
         return false;
     }
     return m_srv.unban_host(ip);
+}
+
+bool DaemonCommandsHandler::save(const std::vector<std::string> &args)
+{
+    return m_core.saveBlockchain();
 }

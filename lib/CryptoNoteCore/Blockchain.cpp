@@ -2935,6 +2935,10 @@ bool Blockchain::pushBlock(
         std::chrono::steady_clock::now() - blockProcessingStart
     ).count();
 
+    if (block.height % 1000 == 0) {
+        logger(INFO) << "Blockchain loaded to height: " << block.height;
+    }
+
     logger(DEBUGGING)
         << "+++++ BLOCK SUCCESSFULLY ADDED" << ENDL
         << "id:\t" << blockHash << ENDL
