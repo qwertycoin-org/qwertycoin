@@ -104,7 +104,7 @@ namespace CryptoNote {
             sHash = block.transactionHashes[iTxI];
             const Crypto::Hash sTxHash = sHash;
             addTransaction(sBlockHash, transaction, &sTxHash);
-            iTxI++;
+            ++iTxI;
         }
 
         addBlock(block, uBlockSize, uCumulativeDifficulty, uCoinsGenerated, sBlockHash);

@@ -485,9 +485,9 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
     context.m_remote_blockchain_height = arg.current_blockchain_height;
 
     m_core.getBlockchainStorage().prepareHandleIncomingBlocks(arg.blocks);
-    size_t count = 0;
+    // size_t count = 0;
     for (const block_complete_entry& block_entry : arg.blocks) {
-        ++count;
+        // ++count;
         Block b;
         if (!fromBinaryArray(b, asBinaryArray(block_entry.block))) {
             logger(Logging::ERROR)
@@ -501,7 +501,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
 
         // to avoid concurrency in core between connections,
         // suspend connections which delivered block later then first one
-
+        /*
         if (count == 2) {
             if (m_core.have_block(get_block_hash(b))) {
                 context.m_state = CryptoNoteConnectionContext::state_idle;
@@ -511,7 +511,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
                 return 1;
             }
         }
-
+        */
 
         auto blockHash = get_block_hash(b);
         std::unordered_set<Crypto::Hash>::iterator req_it = context.m_requested_objects.find(blockHash);
