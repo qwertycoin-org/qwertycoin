@@ -174,7 +174,7 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest &request,
     }
 
     response.addHeader("Content-Type", "application/json");
-	response.setBody(jsonResponse.getBody());
+    response.setBody(jsonResponse.getBody());
 }
 
 bool wallet_rpc_server::on_getbalance(

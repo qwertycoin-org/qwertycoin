@@ -10,11 +10,6 @@ environment:
         BOOST_ROOT: "C:/Libraries/boost_1_70_0"
         BOOST_LIBRARYDIR: "C:/Libraries/boost_1_70_0/lib64-msvc-14.1"
     matrix:
-        - Purpose: "WindowsDebugBuild"
-          QWC_GENERATOR_NAME: "Visual Studio 16 2019"
-          QWC_BUILD_TYPE: "Debug"
-          QWC_TOOLCHAIN_FILE_NAME: "cmake/polly/vs-16-2019-win64.cmake"
-          QWC_TESTS_REGEXP: "NONE"
         - Purpose: "WindowsReleaseBuild"
           QWC_GENERATOR_NAME: "Visual Studio 16 2019"
           QWC_BUILD_TYPE: "Release"
