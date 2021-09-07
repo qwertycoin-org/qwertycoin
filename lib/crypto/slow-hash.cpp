@@ -17,6 +17,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <new>
+#include <exception>
 
 #include "hash.h"
 
