@@ -208,7 +208,7 @@ const uint8_t  P2P_VERSION_1                                 = 1;
 const uint8_t  P2P_VERSION_2                                 = 2;
 const uint8_t  P2P_CURRENT_VERSION                           = APP_VER_MAJOR;
 const uint8_t  P2P_MINIMUM_VERSION                           = 6;
-const char     P2P_MINIMUM_STRING_VERSION[]                  = "6.0.5";
+const char     P2P_MINIMUM_STRING_VERSION[]                  = "6.1.0";
 
 // This defines the number of versions ahead we must see peers before we start displaying
 // warning messages that we need to upgrade our software.
