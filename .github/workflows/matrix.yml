@@ -31,12 +31,12 @@ jobs:
             package_name: 'gcc-8 g++-8'
             cc: gcc-8
             cxx: g++-8
-            label: linux
+            label: linux-gcc-8
             deployable: true
           - build_name: 'Ubuntu GCC 11'
             package_name: 'gcc-11 g++-11'
             cc: gcc-11
-            label: linux
+            label: linux-gcc-11
             deployable: true
     env:
         CCACHE_DIR: $GITHUB_WORKSPACE/.ccache
