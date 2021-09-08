@@ -787,8 +787,8 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
     context.version = rsp.node_data.version;
     context.node_version = rsp.node_data.node_version;
 
-    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
-    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
+    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
+    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
 
     if (rsp.node_data.network_id != m_network_id) {
         logger(Logging::DEBUGGING)
@@ -1520,6 +1520,10 @@ int NodeServer::handle_handshake(int command,
 {
     logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     context.version = arg.node_data.version;
+    context.node_version = arg.node_data.node_version;
+
+    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(context.version);
+    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << context.node_version.c_str();
 
 	if (!is_remote_host_allowed(context.m_remote_ip)) {
         logger(Logging::DEBUGGING)
