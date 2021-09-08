@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         # Add more compilers here if you need them
-        build_name: ['Ubuntu GCC 7', 'Ubuntu GCC 8', 'Ubuntu GCC 9', 'Ubuntu Clang']
+        build_name: ['Ubuntu GCC 7', 'Ubuntu GCC 8', 'Ubuntu GCC 9', 'Ubuntu GCC 11', 'Ubuntu Clang']
         include:
           - build_name: 'Ubuntu GCC 7'
             package_name: 'gcc-7 g++-7'
@@ -31,7 +31,7 @@ jobs:
             package_name: 'gcc-8 g++-8'
             cc: gcc-8
             cxx: g++-8
-            label: linux
+            label: linux-gcc-8
             deployable: true
           - build_name: 'Ubuntu GCC 9'
             package_name: 'gcc-9 g++-9'
@@ -39,6 +39,12 @@ jobs:
             cc: gcc-9
             cxx: g++-9
             deployable: true
+          - build_name: 'Ubuntu GCC 11'
+              package_name: 'gcc-11 g++-11'
+              label: linux-gcc-11
+              cc: gcc-11
+              cxx: g++-11
+              deployable: true
           - build_name: 'Ubuntu Clang'
             package_name: 'clang'
             cc: clang

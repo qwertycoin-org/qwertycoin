@@ -1173,6 +1173,25 @@ bool Blockchain::getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeig
     return false;
 }
 
+bool Blockchain::getTransactionHeight(const Crypto::Hash &txId, uint32_t &blockHeight)
+{
+    std::lock_guard<decltype(m_blockchain_lock)> lock(m_blockchain_lock);
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+    if (bIsLMDB) {
+        blockHeight = pDB->getTransactionBlockHeight(txId);
+        return true;
+    } else {
+        auto it = m_transactionMap.find(txId);
+        if (it != m_transactionMap.end()) {
+            blockHeight = it->second.block;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t nextBlockTime)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
