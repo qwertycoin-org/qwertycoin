@@ -18,16 +18,15 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <cstdlib>
+#include <condition_variable>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
+#include <thread>
 #include <vector>
+
 #include <Common/DnsTools.h>
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/Checkpoints.h>
@@ -169,14 +168,45 @@ std::vector<uint32_t> Checkpoints::getCheckpointHeights() const
 #ifndef __ANDROID__
 bool Checkpoints::load_checkpoints_from_dns()
 {
+    std::mutex m;
+    std::condition_variable cv;
     std::string domain(CryptoNote::DNS_CHECKPOINTS_HOST);
     std::vector<std::string>records;
+    bool res = true;
+    auto start = std::chrono::steady_clock::now();
 
     logger(Logging::DEBUGGING) << "Fetching DNS checkpoint records from " << domain;
 
-    if (!Common::fetch_dns_txt(domain, records)) {
-        logger(Logging::INFO) << "Failed to lookup DNS checkpoint records from " << domain;
+    try {
+        std::thread t([&cv, &domain, &res, &records]()
+        {
+            res = Common::fetch_dns_txt(domain, records);
+            cv.notify_one();
+        });
+
+        t.detach();
+        {
+            std::unique_lock<std::mutex> l(m);
+            if (cv.wait_for(l, std::chrono::milliseconds(400)) == std::cv_status::timeout) {
+                logger(Logging::DEBUGGING) << "Timeout lookup DNS checkpoint records from " << domain;
+                return false;
+            }
+        }
+
+        if (!res) {
+            logger(Logging::DEBUGGING) << "Failed to lookup DNS checkpoint records from " + domain;
+            return false;
+        }
+    } catch (std::runtime_error &e) {
+        logger(Logging::DEBUGGING) << e.what();
+        return false;
     }
+
+    auto dur = std::chrono::steady_clock::now() - start;
+    logger(Logging::DEBUGGING)
+            << "DNS query time: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(dur).count()
+            << " ms";
 
     for (const auto &record : records) {
         uint32_t height;
@@ -193,18 +223,18 @@ bool Checkpoints::load_checkpoints_from_dns()
         }
 
         if ((ss.fail() || ss.get(c)) || !Common::podFromHex(hash_str, hash)) {
-            logger(Logging::INFO) << "Failed to parse DNS checkpoint record: " << record;
+            logger(Logging::DEBUGGING) << "Failed to parse DNS checkpoint record: " << record;
             continue;
         }
 
         if (!(0 == m_points.count(height))) {
             logger(DEBUGGING)
-                << "Checkpoint already exists for height: "
-                << height
-                << ". Ignoring DNS checkpoint.";
+                    << "Checkpoint already exists for height: "
+                    << height
+                    << ". Ignoring DNS checkpoint.";
         } else {
             add_checkpoint(height, hash_str);
-            logger(TRACE) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
+            logger(DEBUGGING) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
         }
     }
 
