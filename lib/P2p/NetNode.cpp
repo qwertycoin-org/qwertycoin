@@ -137,7 +137,6 @@ bool parse_peer_from_string(NetworkAddress &pe, const std::string &node_addr)
 namespace CryptoNote {
 
 namespace {
-
 std::string print_peerlist_to_string(const std::vector<PeerlistEntry> &pl)
 {
     time_t now_time = 0;
