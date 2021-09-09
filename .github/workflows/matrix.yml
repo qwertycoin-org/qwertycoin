@@ -40,11 +40,11 @@ jobs:
             cxx: g++-9
             deployable: true
           - build_name: 'Ubuntu GCC 11'
-              package_name: 'gcc-11 g++-11'
-              label: linux-gcc-11
-              cc: gcc-11
-              cxx: g++-11
-              deployable: true
+            package_name: 'gcc-11 g++-11'
+            label: linux-gcc-11
+            cc: gcc-11
+            cxx: g++-11
+            deployable: true
           - build_name: 'Ubuntu Clang'
           - build_name: 'Ubuntu GCC 11'
             package_name: 'gcc-11 g++-11'
