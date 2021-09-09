@@ -1311,6 +1311,23 @@ namespace CryptoNote {
 		size_t total_tx_count = m_core.get_blockchain_total_transactions() - top_block_index + 1;
 		size_t tx_pool_count = m_core.get_pool_transactions_count();
 
+		boost::filesystem::path configFolderPath(m_core.getConfigFolder());
+
+		size_t hwInfoCpuCoreCount = Tools::CPU::quantities().physical;
+		size_t hwInfoCpuThreadCount = Tools::CPU::quantities().logical;
+		std::string hwInfoCpuArchitecture = Tools::CPU::architecture();
+
+		size_t hwInfoRamTotal = Tools::Memory::MemInfo::sysMem();
+		size_t hwInfoRamAvailable = Tools::Memory::MemInfo::freeSysMem();
+		size_t hwInfoRamUsageVirt = Tools::Memory::MemInfo::usedVirtMem();
+		size_t hwInfoRamUsagePhys = Tools::Memory::MemInfo::usedPhysMem();
+
+		// Space
+		std::string hwInfoFreeSpace = std::to_string(Tools::Storage::SpaceInfo::freeSpace(configFolderPath) / (1 << 20));
+		std::string hwInfoAvailableSpace = std::to_string(Tools::Storage::SpaceInfo::availableSpace(configFolderPath) / (1 << 20));
+		std::string hwInfoCapacitySpace = std::to_string(Tools::Storage::SpaceInfo::capacitySpace(configFolderPath) / (1 << 20));
+
+
 		const std::string body = index_start +
 			PROJECT_VERSION_LONG + (m_core.currency().isTestnet() ? " testnet" : " mainnet") + 
 			"<ul>" + 
@@ -1328,9 +1345,31 @@ namespace CryptoNote {
 			"</ul></li>" + 
 			"<li>Peers: " + 
 			"<ul>" + 
-				"<li>Anchor: \t" + std::to_string(anchor_peerlist_size) + 
-				"<li>White: \t" + std::to_string(white_peerlist_size) + 
-				"<li>Grey: \t" + std::to_string(grey_peerlist_size) + 
+				"<li>Anchor: \t" + std::to_string(anchor_peerlist_size) + "</li>" +
+				"<li>White: \t" + std::to_string(white_peerlist_size) + "</li>" +
+				"<li>Grey: \t" + std::to_string(grey_peerlist_size) + "</li>" +
+			"</ul></li>" + 
+			"<li>Hardware: " + 
+			"<ul>" + 
+				"<li>CPU: \t" + 
+				"<ul>" + 
+					"<li>Architecture: \t" + hwInfoCpuArchitecture + "</li>" +
+					"<li>Cores: \t" + std::to_string(hwInfoCpuThreadCount) + "</li>" +
+					"<li>Threads: \t" + hwInfoCpuArchitecture + "</li>" +
+				"</ul>" +
+				"<li>RAM: \t" +
+				"<ul>" +
+					"<li>Total: "+ std::to_string(hwInfoCpuCoreCount) + "</li>" +
+					"<li>Available: "+ std::to_string(hwInfoRamAvailable) + "</li>" +
+					"<li>Usage Virtual: "+ std::to_string(hwInfoRamUsageVirt) + "</li>" +
+					"<li>Usage Physical: "+ std::to_string(hwInfoRamUsagePhys) + "</li>" +
+				"</ul></li>" +
+				"<li>Disk: " +
+				"<ul>" +
+					"<li>Space: " + hwInfoFreeSpace + "</li>" +
+					"<li>Used Space: " + hwInfoCapacitySpace + "</li>" +
+					"<li>Free Space: " + hwInfoAvailableSpace + "</li>" +
+				"</ul></li>" +
 			"</ul></li>" + 
 			"<li>Contact: " + m_contact_info + "</li>" + 
 			"<li>Fee address: " + m_fee_address + "</li>" + 
