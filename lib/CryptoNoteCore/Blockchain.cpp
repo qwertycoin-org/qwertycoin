@@ -1551,8 +1551,6 @@ bool Blockchain::switch_to_alternative_blockchain(
         return false;
     }
 
-
-
     // Poisson check, courtesy of ryo-project
     // https://github.com/ryo-currency/ryo-writeups/blob/master/poisson-writeup.md
     // For longer reorgs, check if the timestamps are probable, if they aren't the diff alg has fail
