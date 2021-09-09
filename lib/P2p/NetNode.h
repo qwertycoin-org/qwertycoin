@@ -23,8 +23,10 @@
 
 #include <functional>
 #include <unordered_map>
+
 #include <boost/functional/hash.hpp>
 #include <boost/uuid/uuid.hpp>
+
 #include <Common/CommandLine.h>
 #include <CryptoNoteCore/OnceInInterval.h>
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
@@ -151,7 +153,6 @@ public:
     typedef ConnectionContainer::iterator ConnectionIterator;
 
 public:
-
     NodeServer(System::Dispatcher &dispatcher,
                CryptoNote::CryptoNoteProtocolHandler &payload_handler,
                Logging::ILogger &log);
@@ -263,7 +264,6 @@ private:
                                                     uint64_t last_seen_stamp = 0,
                                                     PeerType peer_type = white,
                                                     uint64_t first_seen_stamp = 0);
-
     bool is_peer_used(const PeerlistEntry &peer);
     bool is_peer_used(const AnchorPeerlistEntry &peer);
     bool is_addr_connected(const NetworkAddress &peer);

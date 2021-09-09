@@ -986,6 +986,7 @@ bool DaemonCommandsHandler::ban(const std::vector<std::string> &args)
         logger(Logging::ERROR) << "Failed to parse ban parameters: " << e.what();
         return false;
     }
+
     return m_srv.ban_host(ip, seconds);
 }
 
@@ -1001,6 +1002,7 @@ bool DaemonCommandsHandler::unban(const std::vector<std::string> &args)
         logger(Logging::ERROR) << "Invalid IP address: " << addr;
         return false;
     }
+
     return m_srv.unban_host(ip);
 }
 

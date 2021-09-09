@@ -42,14 +42,17 @@
 
 #include <crypto/crypto.h>
 #include <crypto/random2.h>
+
 #include <P2p/ConnectionContext.h>
 #include <P2p/LevinProtocol.h>
 #include <P2p/NetNode.h>
 #include <P2p/NetNodeConfig.h>
 #include <P2p/P2pProtocolDefinitions.h>
+
 #include <Serialization/BinaryInputStreamSerializer.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/SerializationOverloads.h>
+
 #include <System/Context.h>
 #include <System/ContextGroupTimeout.h>
 #include <System/EventLock.h>
@@ -58,6 +61,7 @@
 #include <System/Ipv4Resolver.h>
 #include <System/TcpListener.h>
 #include <System/TcpConnector.h>
+
 #include <version.h>
 
 using namespace Common;
@@ -458,7 +462,8 @@ bool NodeServer::add_host_fail(const uint32_t address_ip)
         }
         return false;
     }
-    return true;
+
+	return true;
 }
 
 bool NodeServer::is_remote_host_allowed(const uint32_t address_ip)
@@ -575,6 +580,12 @@ bool NodeServer::init(const NetNodeConfig &config)
     if (!config.getTestnet()) {
         for (auto seed : CryptoNote::SEED_NODES) {
             append_net_address(m_seed_nodes, seed);
+        }
+
+        for (auto banNode : CryptoNote::BANNED_NODES) {
+            if(banNode !="") {
+                ban_host(stringToIpAddress(banNode));
+            }
         }
     } else {
         m_network_id.data[0] += 1;
@@ -888,9 +899,9 @@ bool NodeServer::is_peer_used(const AnchorPeerlistEntry &peer)
     for (const auto& kv : m_connections) {
         const auto& cntxt = kv.second;
         if(cntxt.peerId == peer.id
-          || (!cntxt.m_is_income
-            && peer.adr.ip == cntxt.m_remote_ip
-            && peer.adr.port == cntxt.m_remote_port)) {
+           || (!cntxt.m_is_income
+               && peer.adr.ip == cntxt.m_remote_ip
+               && peer.adr.port == cntxt.m_remote_port)) {
             return true;
         }
     }
@@ -1100,11 +1111,11 @@ bool NodeServer::make_new_connection_from_anchor_peerlist(const std::vector<Anch
 {
     for (const auto &pe : anchor_peerlist) {
         logger(ERROR) << "Considering connecting (out) to peer: "
-                          << pe.id
-                          << " "
-                          << Common::ipAddressToString(pe.adr.ip)
-                          << ":"
-                          << boost::lexical_cast<std::string>(pe.adr.port);
+                      << pe.id
+                      << " "
+                      << Common::ipAddressToString(pe.adr.ip)
+                      << ":"
+                      << boost::lexical_cast<std::string>(pe.adr.port);
 
         if (is_peer_used(pe)) {
             logger(ERROR) << "Peer is used";
@@ -1120,10 +1131,10 @@ bool NodeServer::make_new_connection_from_anchor_peerlist(const std::vector<Anch
         }
 
         logger(ERROR) << "Selected peer: " << pe.id << " "
-        << Common::ipAddressToString(pe.adr.ip)
-        << ":" << boost::lexical_cast<std::string>(pe.adr.port)
-        << "[peer_type=" << anchor
-        << "] first_seen: " << Common::timeIntervalToString(time(NULL) - pe.first_seen);
+                      << Common::ipAddressToString(pe.adr.ip)
+                      << ":" << boost::lexical_cast<std::string>(pe.adr.port)
+                      << "[peer_type=" << anchor
+                      << "] first_seen: " << Common::timeIntervalToString(time(NULL) - pe.first_seen);
 
         if (!try_to_connect_and_handshake_with_new_peer(pe.adr, false, 0, anchor, pe.first_seen)) {
             logger(ERROR) << "Handshake failed";
@@ -1175,8 +1186,7 @@ bool NodeServer::connections_maker()
         (m_config.m_net_config.connections_count * P2P_DEFAULT_WHITELIST_CONNECTIONS_PERCENT) / 100;
 
     size_t conn_count = get_outgoing_connections_count();
-    if (conn_count < m_config.m_net_config.connections_count)
-    {
+    if (conn_count < m_config.m_net_config.connections_count) {
         if (conn_count < expected_white_connections)
         {
             //start from anchor list
@@ -1212,7 +1222,6 @@ bool NodeServer::connections_maker()
 
 bool NodeServer::make_expected_connections_count(PeerType peer_type, size_t expected_connections)
 {
-
     std::vector<AnchorPeerlistEntry> apl;
 
     if (peer_type == anchor) {
@@ -1302,7 +1311,6 @@ bool NodeServer::handle_remote_peerlist(const std::vector<PeerlistEntry> &peerli
         logger(WARNING) << "peer sent " << peerlist.size() << " peers, considered spamming";
         return false;
     }
-
     int64_t delta = 0;
     std::vector<PeerlistEntry> peerlist_ = peerlist;
     if(!fix_time_delta(peerlist_, local_time, delta)) {
@@ -1547,7 +1555,6 @@ int NodeServer::handle_timed_sync(int command,
 
     // fill response
     rsp.local_time = time(nullptr);
-
     std::vector<PeerlistEntry> local_peerlist;
     m_peerlist.get_peerlist_head(local_peerlist);
     //only include out peers we did not already send
@@ -1701,12 +1708,12 @@ bool NodeServer::log_peerlist()
     m_peerlist.get_peerlist_full(pl_anchor, pl_gray, pl_wite);
 
     logger(INFO)
-        << ENDL << "Peerlist anchor:"
-        << ENDL << print_peerlist_to_string(pl_anchor)
-        << ENDL << "Peerlist white:"
-        << ENDL << print_peerlist_to_string(pl_wite)
-        << ENDL << "Peerlist gray:"
-        << ENDL << print_peerlist_to_string(pl_gray) ;
+            << ENDL << "Peerlist anchor:"
+            << ENDL << print_peerlist_to_string(pl_anchor)
+            << ENDL << "Peerlist white:"
+            << ENDL << print_peerlist_to_string(pl_wite)
+            << ENDL << "Peerlist gray:"
+            << ENDL << print_peerlist_to_string(pl_gray) ;
 
     return true;
 }
@@ -1783,7 +1790,8 @@ bool NodeServer::connect_to_peerlist(const std::vector<NetworkAddress> &peers)
     return true;
 }
 
-bool NodeServer::gray_peerlist_housekeeping() {
+bool NodeServer::gray_peerlist_housekeeping()
+{
     PeerlistEntry pe = boost::value_initialized<PeerlistEntry>();
 
     size_t gray_peers_count = m_peerlist.get_gray_peers_count();

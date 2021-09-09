@@ -2286,11 +2286,10 @@ bool core::handleIncomingTransaction(
     }
 
     // is in checkpoint zone
-    if (!m_blockchain.isInCheckpointZone(get_current_blockchain_height()))
-    {
+    if (!m_blockchain.isInCheckpointZone(get_current_blockchain_height())) {
         if (blobSize > m_currency.maxTransactionSizeLimit()
-            && getCurrentBlockMajorVersion() >= BLOCK_MAJOR_VERSION_4)
-        {
+            && getCurrentBlockMajorVersion()
+            >= BLOCK_MAJOR_VERSION_4) {
             logger(INFO)
                 << "Transaction verification failed: too big size "
                 << blobSize
@@ -2396,7 +2395,8 @@ bool core::is_key_image_spent(const Crypto::KeyImage &key_im)
     return m_blockchain.have_tx_keyimg_as_spent(key_im);
 }
 
-bool core::isInCheckpointZone(uint32_t height) const {
+bool core::isInCheckpointZone(uint32_t height) const
+{
     return m_checkpoints.is_in_checkpoint_zone(height);
 }
 

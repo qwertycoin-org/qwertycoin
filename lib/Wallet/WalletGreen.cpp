@@ -1783,7 +1783,7 @@ void WalletGreen::validateSourceAddresses(const std::vector<std::string> &source
     });
 
     if (badAddr != sourceAddresses.end()) {
-        m_logger(ERROR, BRIGHT_RED) << "Source address does't belong to the container: " << *badAddr;
+        m_logger(ERROR, BRIGHT_RED) << "Source address doesn't belong to the container: " << *badAddr;
         throw std::system_error(
             make_error_code(error::BAD_ADDRESS),
             "Source address must belong to current container: " + *badAddr

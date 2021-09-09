@@ -3741,6 +3741,11 @@ bool Blockchain::pushBlock(
 			if (uNewHeight == pDB->height() - 1) {
 				auto block_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(
 						std::chrono::steady_clock::now() - blockProcessingStart).count();
+
+                if (uNewHeight % 1000 == 0) {
+                    logger(INFO) << "Blockchain loaded to height: " << uNewHeight;
+                }
+
 				logger(DEBUGGING) <<
 								  "+++++ LMDB BLOCK SUCCESSFULLY ADDED" << ENDL
 								  << "id:\t" << blockHash << ENDL
@@ -3763,9 +3768,15 @@ bool Blockchain::pushBlock(
 	}
 
 	if (!bIsLMDB) {
+        pushBlock(block);
+
 		auto block_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now() - blockProcessingStart
 		).count();
+
+        if (block.height % 1000 == 0) {
+            logger(INFO) << "Blockchain loaded to height: " << block.height;
+        }
 
 		logger(DEBUGGING)
 				<< "+++++ BLOCK SUCCESSFULLY ADDED" << ENDL

@@ -248,7 +248,7 @@ set(QwertycoinFramework_Crypto_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/crypto/slow-hash.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/slow-hash.inl"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/tree-hash.c"
-)
+        crypto/random2.h)
 
 add_library(QwertycoinFramework_Crypto STATIC ${QwertycoinFramework_Crypto_SOURCES})
 add_library(QwertycoinFramework::Crypto ALIAS QwertycoinFramework_Crypto)

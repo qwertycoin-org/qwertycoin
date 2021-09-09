@@ -611,15 +611,15 @@ namespace CryptoNote {
 		{
 			void serialize(ISerializer &s)
 			{
-				KV_MEMBER(anchor_peers)
-				KV_MEMBER(white_peers)
-				KV_MEMBER(gray_peers)
+                KV_MEMBER(anchor_peers)
+                KV_MEMBER(white_peers)
+                KV_MEMBER(gray_peers)
 				KV_MEMBER(status)
 			}
 
-			std::vector<std::string> anchor_peers;
-			std::vector<std::string> white_peers;
-			std::vector<std::string> gray_peers;
+            std::vector<std::string> anchor_peers;
+            std::vector<std::string> white_peers;
+            std::vector<std::string> gray_peers;
 			std::string status;
 		};
 	};
