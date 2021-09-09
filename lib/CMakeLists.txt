@@ -240,6 +240,7 @@ set(QwertycoinFramework_Crypto_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/crypto/oaes_lib.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/random.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/random.h"
+    "${CMAKE_CURRENT_LIST_DIR}/crypto/random2.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/skein.c"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/skein.h"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/skein_port.h"
@@ -247,7 +248,7 @@ set(QwertycoinFramework_Crypto_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/crypto/slow-hash.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/slow-hash.inl"
     "${CMAKE_CURRENT_LIST_DIR}/crypto/tree-hash.c"
-)
+        crypto/random2.h)
 
 add_library(QwertycoinFramework_Crypto STATIC ${QwertycoinFramework_Crypto_SOURCES})
 add_library(QwertycoinFramework::Crypto ALIAS QwertycoinFramework_Crypto)
@@ -524,7 +525,6 @@ target_link_libraries(QwertycoinFramework_NodeRpcProxy PRIVATE ${QwertycoinFrame
 
 set(QwertycoinFramework_P2p_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/P2p/ConnectionContext.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/IP2pNodeInternal.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/LevinProtocol.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNode.cpp"
@@ -532,16 +532,8 @@ set(QwertycoinFramework_P2p_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeCommon.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeConfig.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeConfig.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pConnectionProxy.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pConnectionProxy.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContext.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContext.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContextOwner.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pContextOwner.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pInterfaces.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNetworks.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNode.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNode.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNodeConfig.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNodeConfig.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pProtocolDefinitions.h"

@@ -206,17 +206,32 @@ bool CryptoNoteProtocolHandler::process_payload_sync_data(
         int64_t diff = static_cast<int64_t>(hshd.current_height)
                        - static_cast<int64_t>(get_current_blockchain_height());
 
+        // Drop and eventually ban if peer is on fork too deep behind us
+        if (diff < 0 && std::abs(diff) > CryptoNote::parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
+            && m_core.isInCheckpointZone(hshd.current_height)
+                ) {
+            logger(Logging::DEBUGGING)
+                    << context
+                    << "Sync data returned a new top block candidate: " << get_current_blockchain_height()
+                    << " -> " << hshd.current_height - 1
+                    << ". Your node is " << std::abs(diff)
+                    << " blocks (" << std::abs(diff) / (24 * 60 * 60 / m_currency.difficultyTarget())
+                    << " days) "
+                    << "ahead. The block candidate is too deep behind and in checkpoint zone, dropping connection";
+            m_p2p->drop_connection(context, true);
+        }
+
         logger(
             diff >= 0 ? Logging::DEBUGGING
                       : Logging::TRACE, Logging::BRIGHT_YELLOW
         )   << context
-            << "Sync data returned unknown top block: " << get_current_blockchain_height()
-            << " -> " << hshd.current_height << " [" << std::abs(diff)
-            << " blocks ("
+            << "Sync data returned a new top block candidate: " << get_current_blockchain_height()
+            << " -> " << hshd.current_height - 1
+            << " [Your node is " << std::abs(diff) << " blocks ("
             << std::abs(diff) / (24 * 60 * 60 / m_currency.difficultyTarget())
             << " days) "
             << (diff >= 0 ? std::string("behind") : std::string("ahead")) << "] " << std::endl
-            << "SYNCHRONIZATION started";
+            << "Synchronization started";
 
         logger(Logging::DEBUGGING)
             << "Remote top block height: " << hshd.current_height
@@ -468,6 +483,12 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
     logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE) << context << "NOTIFY_RESPONSE_GET_OBJECTS";
 
+    if (arg.blocks.empty()) {
+        logger(Logging::ERROR) << context << "sent wrong NOTIFY_HAVE_OBJECTS: no blocks, dropping connection";
+        m_p2p->drop_connection(context, true);
+        return 1;
+    }
+
     if (context.m_last_response_height > arg.current_blockchain_height) {
         logger(Logging::ERROR)
             << context
@@ -611,7 +632,7 @@ int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext &conte
             logger(Logging::DEBUGGING)
                 << context
                 << "Block verification failed, dropping connection";
-            context.m_state = CryptoNoteConnectionContext::state_shutdown;
+            m_p2p->drop_connection(context, true);
             return 1;
         } else if (bvc.m_marked_as_orphaned) {
             logger(Logging::INFO)
@@ -756,7 +777,7 @@ bool CryptoNoteProtocolHandler::on_connection_synchronized()
         logger(Logging::INFO)
         << ENDL ;
         logger(INFO, BRIGHT_MAGENTA) << "===[ " + std::string(CryptoNote::CRYPTONOTE_NAME) + " Tip! ]=============================" << ENDL ;
-        logger(INFO, WHITE) << " Always exit " + WalletConfig::daemonName + " and " + WalletConfig::walletName + " with the \"exit\" command to preserve your chain and wallet data." << ENDL ;
+        logger(INFO, WHITE) << " Always exit " + WalletConfig::daemonName + " and " + WalletConfig::walletName + " with \"exit\" command or if you use \"save\" to preserve your chain and wallet data." << ENDL ;
         logger(INFO, WHITE) << " Use the \"help\" command to see a list of available commands." << ENDL ;
         logger(INFO, WHITE) << " Use the \"backup\" command in " + WalletConfig::walletName + " to display your keys/seed for restoring a corrupted wallet." << ENDL ;
         logger(INFO, WHITE) << " If you need more assistance, you can contact us for support at " + WalletConfig::contactLink << ENDL;
@@ -828,7 +849,10 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
         }
     }
 
-    request_missing_objects(context, false);
+    if (!request_missing_objects(context, false)) {
+        logger(Logging::DEBUGGING) << context << "Failed to request missing objects, dropping connection";
+        m_p2p->drop_connection(context, true);
+    }
 
     return 1;
 }
@@ -878,7 +902,7 @@ void CryptoNoteProtocolHandler::relay_transactions(NOTIFY_NEW_TRANSACTIONS::requ
 void CryptoNoteProtocolHandler::requestMissingPoolTransactions(
     const CryptoNoteConnectionContext &context)
 {
-    if (context.version < 1) {
+    if (context.version < CryptoNote::P2P_VERSION_1) {
         return;
     }
 

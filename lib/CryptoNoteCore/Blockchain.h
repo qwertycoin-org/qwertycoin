@@ -286,6 +286,9 @@ public:
     void rollbackBlockchainTo(uint64_t height);
     bool have_tx_keyimg_as_spent(const Crypto::KeyImage &key_im);
 
+    void rebuildCache();
+    bool storeCache();
+
     void safeSyncMode(const bool bOnOFf);
 
     BlockchainDB *pDB;
@@ -412,8 +415,6 @@ private:
 
     Logging::LoggerRef logger;
 
-    void rebuildCache();
-    bool storeCache();
     bool storeBlockchain();
     bool switch_to_alternative_blockchain(
         std::list<blocks_ext_by_hash::iterator> &alt_chain,

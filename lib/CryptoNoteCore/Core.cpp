@@ -95,7 +95,8 @@ core::core(
       m_mempool(currency, m_blockchain, *this, m_timeProvider, logger, blockchainIndexesEnabled),
       m_blockchain(sDB, currency, m_mempool, logger, blockchainIndexesEnabled),
       m_miner(new miner(currency, *this, logger)),
-      m_starter_message_showed(false)
+      m_starter_message_showed(false),
+      m_checkpoints(logger)
 {
     set_cryptonote_protocol(pprotocol);
     m_blockchain.addObserver(this);
@@ -2281,7 +2282,9 @@ bool core::handleIncomingTransaction(
 
     // is in checkpoint zone
     if (!m_blockchain.isInCheckpointZone(get_current_blockchain_height())) {
-        if (blobSize > m_currency.maxTransactionSizeLimit() && getCurrentBlockMajorVersion() >= BLOCK_MAJOR_VERSION_4) {
+        if (blobSize > m_currency.maxTransactionSizeLimit()
+            && getCurrentBlockMajorVersion()
+            >= BLOCK_MAJOR_VERSION_4) {
             logger(INFO)
                 << "Transaction verification failed: too big size "
                 << blobSize
@@ -2364,7 +2367,7 @@ std::unique_ptr<IBlock> core::getBlock(const Crypto::Hash &blockId)
         return std::unique_ptr<BlockWithTransactions>(nullptr);
     }
 
-    return std::move(blockPtr);
+    return blockPtr;
 }
 
 bool core::f_getMixin(const Transaction &transaction, uint64_t &mixin)
@@ -2387,6 +2390,11 @@ bool core::is_key_image_spent(const Crypto::KeyImage &key_im)
     return m_blockchain.have_tx_keyimg_as_spent(key_im);
 }
 
+bool core::isInCheckpointZone(uint32_t height) const
+{
+    return m_checkpoints.is_in_checkpoint_zone(height);
+}
+
 bool core::addMessageQueue(MessageQueue<BlockchainMessage> &messageQueue)
 {
     return m_blockchain.addMessageQueue(messageQueue);
@@ -2401,6 +2409,11 @@ void core::rollbackBlockchain(uint32_t height)
 {
     logger(INFO, BRIGHT_YELLOW) << "Rewinding blockchain to height: " << height;
     m_blockchain.rollbackBlockchainTo(height);
+}
+
+bool core::saveBlockchain()
+{
+    return m_blockchain.storeCache();
 }
 
 } // namespace CryptoNote

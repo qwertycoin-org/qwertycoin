@@ -223,6 +223,8 @@ public:
     virtual bool removeMessageQueue(MessageQueue<BlockchainMessage> &messageQueue) = 0;
 
     virtual void rollbackBlockchain(const uint32_t height) = 0;
+    virtual bool saveBlockchain() = 0;
+    virtual bool isInCheckpointZone(uint32_t) const = 0;
     virtual Blockchain &getBlockchainStorage() = 0;
 };
 
