@@ -1138,7 +1138,7 @@ difficulty_type Currency::getClifDifficulty(uint32_t height,
         int round_counter = 1;
 
         new_diff = new_diff / 2;
-        logger (INFO) << "CLIF decreased difficulty " << round_counter <<
+        logger (INFO) << "[CLIF] decreased difficulty " << round_counter <<
             " times, intermediate difficulty is " << new_diff;
         difficulty_type mean_diff = lazy_stat_cb(IMinerHandler::stat_period::hour, last_timestamp);
         logger (INFO) << "Last hour average difficulty is " << mean_diff;

@@ -2116,10 +2116,10 @@ namespace CryptoNote {
         MDBValSet(sValHeight, uHeight);
         auto getResult = mdb_cursor_get(sCurBlockInfo, (MDB_val *) &cZeroKVal, &sValHeight, MDB_GET_BOTH);
         if (getResult == MDB_NOTFOUND) {
-            throw (BLOCK_DNE(std::string("Attempt to get cumulative difficulty from height ").append(
-                    boost::lexical_cast<std::string>(uHeight)).append(" failed -- block size not in db").c_str()));
+            throw (BLOCK_DNE(std::string("Attempt to get block timestamp from height ").append(
+                    boost::lexical_cast<std::string>(uHeight)).append(" failed -- block height not in db").c_str()));
         } else if (getResult) {
-            throw (DB_ERROR("Error attempting to retrieve a cumulative difficulty from the db"));
+            throw (DB_ERROR("Error attempting to retrieve a block timestamp from the db"));
         }
 
         FBlockInfo *sBI = (FBlockInfo *) sValHeight.mv_data;
@@ -2181,7 +2181,7 @@ namespace CryptoNote {
         auto getResult = mdb_cursor_get(sCurBlockInfo, (MDB_val *) &cZeroKVal, &sValHeight, MDB_GET_BOTH);
         if (getResult == MDB_NOTFOUND) {
             throw (BLOCK_DNE(std::string("Attempt to get cumulative difficulty from height ").append(
-                    boost::lexical_cast<std::string>(uHeight)).append(" failed -- block size not in db").c_str()));
+                    boost::lexical_cast<std::string>(uHeight)).append(" failed -- block height not in db").c_str()));
         } else if (getResult) {
             throw (DB_ERROR("Error attempting to retrieve a cumulative difficulty from the db"));
         }
@@ -2189,7 +2189,7 @@ namespace CryptoNote {
         FBlockInfo *sBI = (FBlockInfo *) sValHeight.mv_data;
         uint64_t uRet = sBI->uBIDifficulty;
 
-        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uRet: " << uRet;
+        // mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". uRet: " << uRet;
 
         return uRet;
     }
