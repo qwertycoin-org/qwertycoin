@@ -1216,6 +1216,7 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t nextBlockTime)
     }
     CryptoNote::Currency::lazy_stat_callback_type cb([&](IMinerHandler::stat_period p, uint64_t next_time)
     {
+        logger(INFO, BRIGHT_CYAN) << "Blockchain::" << __func__;
         uint32_t min_height = CryptoNote::parameters::UPGRADE_HEIGHT_V6 +
                 CryptoNote::parameters::EXPECTED_NUMBER_OF_BLOCKS_PER_DAY / 24;
         uint64_t time_window = 0;
@@ -1241,16 +1242,20 @@ difficulty_type Blockchain::getDifficultyForNextBlock(uint64_t nextBlockTime)
         }
         assert(next_time > time_window);
         uint64_t stop_time = next_time - time_window;
-        if ((bIsLMDB ? pDB->getBlockTimestamp(min_height) : m_blocks[min_height].bl.timestamp) >= stop_time)
+        if ((bIsLMDB ? pDB->getBlockTimestamp(min_height) : m_blocks[min_height].bl.timestamp) >= stop_time) {
             return difficulty_type(0);
-        uint32_t height = (bIsLMDB ? pDB->height() : m_blocks.back().height);
+        }
+
+        uint32_t height = (bIsLMDB ? pDB->height()-1 : m_blocks.back().height);
         std::vector<difficulty_type> diffs;
         while (height > min_height && (bIsLMDB ? pDB->getBlockTimestamp(height - 1) : m_blocks[height - 1].bl.timestamp) >= stop_time)
         {
-            diffs.push_back((bIsLMDB ? pDB->getBlockCumulativeDifficulty(height) : m_blocks[height].cumulative_difficulty) -
-                            (bIsLMDB ? pDB->getBlockCumulativeDifficulty(height - 1) : m_blocks[height - 1].cumulative_difficulty));
+            difficulty_type addableDiff = (bIsLMDB ? pDB->getBlockCumulativeDifficulty(height) : m_blocks[height].cumulative_difficulty) -
+                                          (bIsLMDB ? pDB->getBlockCumulativeDifficulty(height - 1) : m_blocks[height - 1].cumulative_difficulty);
+            diffs.push_back(addableDiff);
             height--;
         }
+
         return static_cast<difficulty_type>(Common::meanValue(diffs));
     });
     return m_currency.nextDifficulty(
@@ -2692,34 +2697,34 @@ void Blockchain::getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissed
     return;
 }
 
-    template<class T, class D, class S>
-    void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool)
-    {
-        if (checkTxPool) {
-            std::lock_guard<decltype(m_tx_pool)> txLock(m_tx_pool);
-            getBlockchainTransactions(txs_ids, txs, missed_txs);
-            auto poolTxIds = std::move(missed_txs);
-            missed_txs.clear();
-            std::vector<Crypto::Hash> vTxsHashes;
-            std::vector<CryptoNote::Transaction> vTxs;
-            std::vector<Crypto::Hash> vMTxsHashes;
-            for (const auto &sHash : poolTxIds) {
-                vTxsHashes.push_back(std::move(sHash));
-            }
-
-            for (const auto &sTx : txs) {
-                vTxs.push_back(sTx);
-            }
-
-            for (const auto &sHash : missed_txs) {
-                vMTxsHashes.push_back(std::move(sHash));
-            }
-
-            m_tx_pool.getTransactions(vTxsHashes, vTxs, vMTxsHashes);
-        } else {
-            getBlockchainTransactions(txs_ids, txs, missed_txs);
+template<class T, class D, class S>
+void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool)
+{
+    if (checkTxPool) {
+        std::lock_guard<decltype(m_tx_pool)> txLock(m_tx_pool);
+        getBlockchainTransactions(txs_ids, txs, missed_txs);
+        auto poolTxIds = std::move(missed_txs);
+        missed_txs.clear();
+        std::vector<Crypto::Hash> vTxsHashes;
+        std::vector<CryptoNote::Transaction> vTxs;
+        std::vector<Crypto::Hash> vMTxsHashes;
+        for (const auto &sHash : poolTxIds) {
+            vTxsHashes.push_back(std::move(sHash));
         }
+
+        for (const auto &sTx : txs) {
+            vTxs.push_back(sTx);
+        }
+
+        for (const auto &sHash : missed_txs) {
+            vMTxsHashes.push_back(std::move(sHash));
+        }
+
+        m_tx_pool.getTransactions(vTxsHashes, vTxs, vMTxsHashes);
+    } else {
+        getBlockchainTransactions(txs_ids, txs, missed_txs);
     }
+}
 
 Crypto::PublicKey Blockchain::getOutputKey(uint64_t uAmount, uint64_t uGlobIndex) const
 {
