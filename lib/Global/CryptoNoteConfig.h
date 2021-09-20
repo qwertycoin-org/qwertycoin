@@ -257,22 +257,6 @@ const char *const SEED_NODES[] = {
 const char *const BANNED_NODES[] = {
     ""
 };
-
-const char *const BANNED_NODES[] = {
-     "8.140.169.173",
-     "146.255.65.161",
-     "92.94.131.156",
-     "178.184.195.55",
-     "103.68.63.19",
-     "146.255.68.132",
-     "85.50.4.138",
-     "39.42.65.212",
-     "92.90.243.170",
-     "152.208.59.249",
-     "31.167.51.51",
-     "176.191.96.108"
-};
-
 } // namespace CryptoNote
 
 #define ALLOW_DEBUG_COMMANDS

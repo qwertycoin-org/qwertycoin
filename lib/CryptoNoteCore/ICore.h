@@ -227,8 +227,6 @@ public:
     virtual bool saveBlockchain() = 0;
     virtual bool isInCheckpointZone(uint32_t) const = 0;
     virtual Blockchain &getBlockchainStorage() = 0;
-    virtual bool saveBlockchain() = 0;
-    virtual bool isInCheckpointZone(uint32_t height) const = 0;
 };
 
 } // namespace CryptoNote
