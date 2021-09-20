@@ -208,10 +208,6 @@ bool Checkpoints::load_checkpoints_from_dns()
         logger(Logging::DEBUGGING) << e.what();
         return false;
     }
-    catch (std::runtime_error& e) {
-        logger(Logging::DEBUGGING) << e.what();
-        return false;
-    }
 
     auto dur = std::chrono::steady_clock::now() - start;
     logger(Logging::DEBUGGING)
