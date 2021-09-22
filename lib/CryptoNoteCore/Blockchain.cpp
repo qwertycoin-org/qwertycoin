@@ -1957,10 +1957,9 @@ bool Blockchain::validate_miner_transaction(
     uint32_t previousBlockHeight = 0;
     uint64_t blockTarget = CryptoNote::parameters::DIFFICULTY_TARGET;
 
-    if (getCurrentBlockchainHeight() > 1) {
+    if (height >= CryptoNote::parameters::UPGRADE_HEIGHT_V6) {
+        getBlockHeight(b.previousBlockHash, previousBlockHeight);
         blockTarget = b.timestamp - getBlockTimestamp(previousBlockHeight);
-    } else {
-        blockTarget = b.timestamp;
     }
 
     if (m_currency.isGovernanceEnabled(height)) {

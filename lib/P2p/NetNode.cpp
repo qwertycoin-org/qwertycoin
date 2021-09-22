@@ -742,8 +742,8 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
     context.version = rsp.node_data.version;
     context.node_version = rsp.node_data.node_version;
 
-    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
-    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
+    logger(Logging::DEBUGGING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
+    logger(Logging::DEBUGGING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
 
     if (rsp.node_data.network_id != m_network_id) {
         logger(Logging::DEBUGGING)
