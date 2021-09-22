@@ -2716,6 +2716,19 @@ void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool c
         }
 
         m_tx_pool.getTransactions(vTxsHashes, vTxs, vMTxsHashes);
+
+        txs.clear();
+
+        for (const auto &sTx : vTxs) {
+            txs.push_back(std::move(sTx));
+        }
+
+        missed_txs.clear();
+
+        for (const auto &sMissTx :  vMTxsHashes) {
+            missed_txs.push_back(std::move(sMissTx));
+        }
+
     } else {
         getBlockchainTransactions(txs_ids, txs, missed_txs);
     }
@@ -3494,7 +3507,7 @@ const Blockchain::TransactionEntry &Blockchain::transactionByIndex(TransactionIn
 
 bool Blockchain::pushBlock(const Block &blockData, block_verification_context &bvc)
 {
-	logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << "0";
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << "0";
     std::vector<Transaction> transactions;
     if (!loadTransactions(blockData, transactions)) {
         bvc.m_verification_failed = true;
@@ -3515,8 +3528,8 @@ bool Blockchain::pushBlock(
     block_verification_context &bvc)
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-	logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << "1";
-	bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << "1";
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
     DB_TX_START
 
@@ -3524,21 +3537,21 @@ bool Blockchain::pushBlock(
     Crypto::Hash blockHash = get_block_hash(blockData);
 
     if (!bIsLMDB) {
-		logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". !bIsLMDB";
-		if (m_blockIndex.hasBlock(blockHash)) {
-			logger(ERROR, BRIGHT_RED) << "Block " << blockHash << " already exists in blockchain.";
-			bvc.m_verification_failed = true;
-			return false;
-		}
+        logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__ << ". !bIsLMDB";
+	if (m_blockIndex.hasBlock(blockHash)) {
+	    logger(ERROR, BRIGHT_RED) << "Block " << blockHash << " already exists in blockchain.";
+	    bvc.m_verification_failed = true;
+	    return false;
+	}
     }
     else if (bIsLMDB) {
     	if (pDB->blockExists(blockHash)) {
-			logger(TRACE, BRIGHT_RED) << "Block " << blockHash << " already exists in database.";
+	    logger(TRACE, BRIGHT_RED) << "Block " << blockHash << " already exists in database.";
 
-			bvc.m_verification_failed = true;
-			DB_TX_STOP
+            bvc.m_verification_failed = true;
+	    DB_TX_STOP
 
-			return false;
+	    return false;
     	}
     }
 
@@ -3643,22 +3656,23 @@ bool Blockchain::pushBlock(
         return false;
     }
 
-	Crypto::Hash minerTransactionHash = getObjectHash(blockData.baseTransaction);
+    Crypto::Hash minerTransactionHash = getObjectHash(blockData.baseTransaction);
 
-	BlockEntry block;
-	block.bl = blockData;
-	TransactionEntry entry;
-	block.transactions.push_back(entry);
-	block.transactions[0].tx = block.bl.baseTransaction;
-	TransactionIndex transactionIndex = {
-			static_cast<uint32_t>(HEIGHT_COND - 1),
-			static_cast<uint16_t>(0)
-	};
-	pushTransaction(block, minerTransactionHash, transactionIndex);
+    BlockEntry block;
+    block.bl = blockData;
+    TransactionEntry entry;
+    block.transactions.push_back(entry);
+    block.transactions[0].tx = block.bl.baseTransaction;
+    TransactionIndex transactionIndex = {
+        static_cast<uint32_t>(HEIGHT_COND),
+	static_cast<uint16_t>(0)
+    };
+    pushTransaction(block, minerTransactionHash, transactionIndex);
 
     size_t coinbase_blob_size = getObjectBinarySize(blockData.baseTransaction);
     size_t cumulative_block_size = coinbase_blob_size;
     uint64_t fee_summary = 0;
+
     for (size_t i = 0; i < transactions.size(); ++i) {
         const Crypto::Hash &tx_id = blockData.transactionHashes[i];
         block.transactions.resize(block.transactions.size() + 1);

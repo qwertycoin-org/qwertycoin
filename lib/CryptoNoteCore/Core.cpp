@@ -1196,16 +1196,17 @@ bool core::handle_incoming_block(
     std::vector<Transaction> vTransactions;
     try {
     	BlockFullInfo sBlockFullInfo;
-		std::list<Transaction> sTransactions;
-		std::list<Crypto::Hash> sMissedTransactionHashes;
+        std::list<Transaction> sTransactions;
+	std::list<Crypto::Hash> sMissedTransactionHashes;
     	sBlockFullInfo.block_id = get_block_hash(b);
 
     	block_complete_entry &sCompleteEntry = sBlockEntry;
     	m_blockchain.getTransactions(b.transactionHashes, sTransactions, sMissedTransactionHashes, true);
     	sCompleteEntry.block = asString(toBinaryArray(b));
+
     	for (auto &transaction : sTransactions) {
-    		vTransactions.push_back(transaction);
-    		sCompleteEntry.txs.push_back(asString(toBinaryArray(transaction)));
+    	    vTransactions.push_back(transaction);
+    	    sCompleteEntry.txs.push_back(asString(toBinaryArray(transaction)));
     	}
     } catch (const std::exception &e) {
     	logger(ERROR, BRIGHT_RED) << "Something went wrong when handling incoming blocks!";
