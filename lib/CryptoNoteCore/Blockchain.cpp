@@ -2904,7 +2904,14 @@ bool Blockchain::haveBlock(const Crypto::Hash &id)
 size_t Blockchain::getTotalTransactions()
 {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
-    return m_transactionMap.size();
+    bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+
+    if (!bIsLMDB) {
+        return m_transactionMap.size();
+    } else {
+        return pDB->getTransactionCount();
+    }
+
 }
 
 bool Blockchain::getTransactionOutputGlobalIndexes(
