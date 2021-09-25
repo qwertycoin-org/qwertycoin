@@ -75,6 +75,10 @@ public:
   virtual bool getBlockByHash(const Crypto::Hash &h, CryptoNote::Block &blk) override;
   virtual bool getBlockHeight(const Crypto::Hash& blockId, uint32_t& blockHeight) override;
   virtual void getTransactions(const std::vector<Crypto::Hash>& txs_ids, std::list<CryptoNote::Transaction>& txs, std::list<Crypto::Hash>& missed_txs, bool checkTxPool = false) override;
+  virtual bool getTransactionsWithOutputGlobalIndexes(const std::vector<Crypto::Hash> &txsIds,
+                                                        std::list<Crypto::Hash> &missedTxs,
+                                                        std::vector<std::pair<CryptoNote::Transaction,
+                                                                std::vector<uint32_t>>> &txs) override;
   virtual bool getBackwardBlocksSizes(uint32_t fromHeight, std::vector<size_t>& sizes, size_t count) override;
   virtual bool getBlockSize(const Crypto::Hash& hash, size_t& size) override;
   virtual bool getAlreadyGeneratedCoins(const Crypto::Hash& hash, uint64_t& generatedCoins) override;

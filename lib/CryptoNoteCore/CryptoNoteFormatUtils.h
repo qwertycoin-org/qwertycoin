@@ -20,10 +20,16 @@
 #pragma once
 
 #include <boost/utility/value_init.hpp>
-#include "CryptoNoteCore/CryptoNoteBasic.h"
-#include "CryptoNoteCore/CryptoNoteSerialization.h"
-#include "Serialization/BinaryOutputStreamSerializer.h"
-#include "Serialization/BinaryInputStreamSerializer.h"
+
+#include <Common/StringTools.h>
+
+#include <CryptoNoteCore/CryptoNoteBasic.h>
+#include <CryptoNoteCore/CryptoNoteSerialization.h>
+
+#include <Lmdb/LMDBBlob.h>
+
+#include <Serialization/BinaryOutputStreamSerializer.h>
+#include <Serialization/BinaryInputStreamSerializer.h>
 
 namespace Logging {
 
@@ -164,6 +170,82 @@ uint32_t get_block_height(const Block &b);
 std::vector<uint32_t> relative_output_offsets_to_absolute(const std::vector<uint32_t> &off);
 std::vector<uint32_t> absolute_output_offsets_to_relative(const std::vector<uint32_t> &off);
 
+void getBlobHash(const blobData &sBlob, Crypto::Hash &sHash);
+Crypto::Hash getBlobHash(const blobData &sBlob);
+
+    template<class T>
+    bool serializeObjectFromBlob(T &sObj, const CryptoNote::blobData &sBlob) {
+        /*
+        std::stringstream ss;
+        ss << sBlob;
+        FBinaryArchive<false> sBinAr(ss);
+
+        return Serial::serialize(sBinAr, sObj);
+         */
+        BinaryArray sBinArr(sBlob.begin(), sBlob.end());
+        bool r = fromBinaryArray(sObj, sBinArr);
+        // std::cout << "CNUtils::" << __func__ << ". sBlob size: " << sBlob.size() << std::endl;
+        // std::cout << "CNUtils::" << __func__ << ". sBlob: " << sBlob << std::endl;
+        // std::cout << "CNUtils::" << __func__ << ". sBinArr size: " << sBinArr.size() << std::endl;
+        // std::cout << "CNUtils::" << __func__ << ". sBinArr: " << Common::asString(sBinArr) << std::endl;
+
+        return r;
+    }
+
+    template<class T>
+    bool serializeObjectToBlob(const T &sObj, CryptoNote::blobData &sBlob) {
+        /*
+        std::stringstream ss;
+        FBinaryArchive<true> sBinAr(ss);
+        bool bRet = Serial::serialize(sBinAr, const_cast<T &>(sObj));
+        sBlob = ss.str();
+        return bRet;
+         */
+        BinaryArray sBinAr;
+        bool r = toBinaryArray(sObj, sBinAr);
+        // std::string sTemp(sBinAr.begin(), sBinAr.end());
+        std::string sTemp = Common::asString(sBinAr);
+        // std::cout << "CNUtils::" << __func__ << ". sBlob size: " << sTemp.size() << std::endl;
+        // std::cout << "CNUtils::" << __func__ << ". sBlob: " << sTemp << std::endl;
+        // std::cout << "CNUtils::" << __func__ << ". sBinArr size: " << sBinAr.size() << std::endl;
+        // std::cout << "CNUtils::" << __func__ << ". sBinArr: " << Common::asString(sBinAr) << std::endl;
+
+        sBlob = sTemp;
+
+        return r;
+    }
+
+    template<class T>
+    CryptoNote::blobData serializeObjectToBlob(T &sObj) {
+        CryptoNote::blobData sBlob;
+        serializeObjectToBlob(sObj, sBlob);
+
+        return sBlob;
+    }
+
+    template<class T>
+    bool getBlobObjectHash(const T &sObj, Crypto::Hash &sHash)
+    {
+        getBlobHash(serializeObjectToBlob(sObj), sHash);
+        return true;
+    }
+
+    template<class T>
+    uint64_t getObjectBlobsize(const T &sObj)
+    {
+        blobData sBlob = serializeObjectToBlob(sObj);
+        return sBlob.size();
+    }
+
+    template<class T>
+    bool getBlobObjectHash(const T &sObj, Crypto::Hash &sHash, uint64_t &uBlobsize)
+    {
+        blobData sBlob = serializeObjectToBlob(sObj);
+        uBlobsize = sBlob.size();
+        getBlobHash(sBlob, sHash);
+        return true;
+    }
+
 
 // 62387455827 -> 455827 + 7000000 + 80000000 + 300000000 + 2000000000 + 60000000000,
 // where 455827 <= dust_threshold
@@ -208,5 +290,20 @@ void get_tx_tree_hash(const std::vector<Crypto::Hash> &tx_hashes, Crypto::Hash &
 Crypto::Hash get_tx_tree_hash(const std::vector<Crypto::Hash> &tx_hashes);
 Crypto::Hash get_tx_tree_hash(const Block &b);
 bool is_valid_decomposed_amount(uint64_t amount);
+
+bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+										 CryptoNote::Transaction &sTransaction,
+										 Crypto::Hash &sTransactionHash,
+										 Crypto::Hash &sTransactionPrefixHash);
+bool parseAndValidateTransactionFromBlob(const CryptoNote::blobData &sTransactionBlob,
+										 CryptoNote::Transaction &sTransaction);
+bool parseAndValidateBlockFromBlob(const CryptoNote::blobData &sBlockBlob,
+								   CryptoNote::Block &sBlock);
+CryptoNote::blobData blockToBlob(const CryptoNote::Block &sBlock);
+bool blockToBlob(const CryptoNote::Block &sBlock,
+				 CryptoNote::blobData &sBlockBlob);
+CryptoNote::blobData transactionToBlob(const CryptoNote::Transaction &sTransaction);
+bool transactionToBlob(const CryptoNote::Transaction &sTransaction,
+					   CryptoNote::blobData &sTransactionBlob);
 
 } // namespace CryptoNote

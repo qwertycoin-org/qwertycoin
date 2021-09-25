@@ -37,17 +37,22 @@
 
 #include <Common/StdInputStream.h>
 #include <Common/StdOutputStream.h>
+#include <Common/StringUtils.h>
 #include <Common/Util.h>
+
 #include <crypto/crypto.h>
 #include <crypto/random2.h>
+
 #include <P2p/ConnectionContext.h>
 #include <P2p/LevinProtocol.h>
 #include <P2p/NetNode.h>
 #include <P2p/NetNodeConfig.h>
 #include <P2p/P2pProtocolDefinitions.h>
+
 #include <Serialization/BinaryInputStreamSerializer.h>
 #include <Serialization/BinaryOutputStreamSerializer.h>
 #include <Serialization/SerializationOverloads.h>
+
 #include <System/Context.h>
 #include <System/ContextGroupTimeout.h>
 #include <System/EventLock.h>
@@ -56,9 +61,11 @@
 #include <System/Ipv4Resolver.h>
 #include <System/TcpListener.h>
 #include <System/TcpConnector.h>
+
 #include <version.h>
 
 using namespace Common;
+using namespace StringUtils;
 using namespace Logging;
 using namespace CryptoNote;
 
@@ -130,7 +137,6 @@ bool parse_peer_from_string(NetworkAddress &pe, const std::string &node_addr)
 namespace CryptoNote {
 
 namespace {
-
 std::string print_peerlist_to_string(const std::vector<PeerlistEntry> &pl)
 {
     time_t now_time = 0;
@@ -303,6 +309,7 @@ int NodeServer::handleCommand(const LevinProtocol::Command &cmd,
                               P2pConnectionContext &ctx,
                               bool &handled)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     int ret = 0;
     handled = true;
 
@@ -454,7 +461,8 @@ bool NodeServer::add_host_fail(const uint32_t address_ip)
         }
         return false;
     }
-    return true;
+
+	return true;
 }
 
 bool NodeServer::is_remote_host_allowed(const uint32_t address_ip)
@@ -490,7 +498,7 @@ bool NodeServer::ban_host(const uint32_t address_ip, time_t seconds)
     std::unique_lock<std::mutex> lock(mutex);
 
     logger(WARNING, BRIGHT_YELLOW) << "Banning Host " << Common::ipAddressToString(address_ip)
-                                   << ", for " << timeIntervalToString(seconds);
+                                        << ", for " << timeIntervalToString(seconds);
 
     return block_host(address_ip, seconds);
 }
@@ -572,9 +580,11 @@ bool NodeServer::init(const NetNodeConfig &config)
         for (auto seed : CryptoNote::SEED_NODES) {
             append_net_address(m_seed_nodes, seed);
         }
+
         for (auto banNode : CryptoNote::BANNED_NODES) {
-            if(banNode !="")
+            if(banNode !="") {
                 ban_host(stringToIpAddress(banNode));
+            }
         }
     } else {
         m_network_id.data[0] += 1;
@@ -639,6 +649,7 @@ CryptoNote::CryptoNoteProtocolHandler& NodeServer::get_payload_object()
 
 bool NodeServer::run()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     logger(INFO) << "Starting node_server";
 
     m_workingContextGroup.spawn(std::bind(&NodeServer::acceptLoop, this));
@@ -665,11 +676,13 @@ uint64_t NodeServer::get_connections_count()
 
 bool NodeServer::deinit()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     return store_config();
 }
 
 bool NodeServer::store_config()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     try {
         if (!Tools::create_directories_if_necessary(m_config_folder)) {
             logger(INFO) << "Failed to create data directory: " << m_config_folder;
@@ -713,6 +726,7 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
                            P2pConnectionContext &context,
                            bool just_take_peerlist)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     COMMAND_HANDSHAKE::request arg;
     COMMAND_HANDSHAKE::response rsp;
     get_local_node_data(arg.node_data);
@@ -726,6 +740,10 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
     }
 
     context.version = rsp.node_data.version;
+    context.node_version = rsp.node_data.node_version;
+
+    logger(Logging::DEBUGGING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
+    logger(Logging::DEBUGGING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
 
     if (rsp.node_data.network_id != m_network_id) {
         logger(Logging::DEBUGGING)
@@ -745,8 +763,8 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
         }
     }
 
-    if (rsp.node_data.version < CryptoNote::P2P_MINIMUM_VERSION)
-    {
+    //if (compareVersionsLess(rsp.node_data.node_version, CryptoNote::P2P_MINIMUM_STRING_VERSION)) {
+    if (rsp.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
         logger(Logging::DEBUGGING,BRIGHT_RED)
             << context
             << "COMMAND_HANDSHAKE Failed, peer is wrong version! ("
@@ -880,9 +898,9 @@ bool NodeServer::is_peer_used(const AnchorPeerlistEntry &peer)
     for (const auto& kv : m_connections) {
         const auto& cntxt = kv.second;
         if(cntxt.peerId == peer.id
-          || (!cntxt.m_is_income
-            && peer.adr.ip == cntxt.m_remote_ip
-            && peer.adr.port == cntxt.m_remote_port)) {
+           || (!cntxt.m_is_income
+               && peer.adr.ip == cntxt.m_remote_ip
+               && peer.adr.port == cntxt.m_remote_port)) {
             return true;
         }
     }
@@ -891,6 +909,7 @@ bool NodeServer::is_peer_used(const AnchorPeerlistEntry &peer)
 
 bool NodeServer::is_addr_connected(const NetworkAddress &peer)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     for (const auto &conn : m_connections) {
         if (!conn.second.m_is_income
             && peer.ip == conn.second.m_remote_ip
@@ -907,6 +926,7 @@ bool NodeServer::try_to_connect_and_handshake_with_new_peer(const NetworkAddress
                                                             PeerType peer_type,
                                                             uint64_t first_seen_stamp)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     logger(DEBUGGING)
         << "Connecting to "
         << na
@@ -976,6 +996,9 @@ bool NodeServer::try_to_connect_and_handshake_with_new_peer(const NetworkAddress
         if (just_take_peerlist) {
             logger(Logging::DEBUGGING, Logging::BRIGHT_GREEN)
                 << ctx
+                << "FETCH PEERLIST...";
+            logger(Logging::DEBUGGING, Logging::BRIGHT_GREEN)
+                << ctx
                 << "CONNECTION HANDSHAKED OK AND CLOSED.";
             return true;
         }
@@ -1020,6 +1043,7 @@ bool NodeServer::try_to_connect_and_handshake_with_new_peer(const NetworkAddress
 
 bool NodeServer::make_new_connection_from_peerlist(bool use_white_list)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     size_t local_peers_count = use_white_list ? m_peerlist.get_white_peers_count()
                                               : m_peerlist.get_gray_peers_count();
     if(!local_peers_count) {
@@ -1086,11 +1110,11 @@ bool NodeServer::make_new_connection_from_anchor_peerlist(const std::vector<Anch
 {
     for (const auto &pe : anchor_peerlist) {
         logger(ERROR) << "Considering connecting (out) to peer: "
-                          << pe.id
-                          << " "
-                          << Common::ipAddressToString(pe.adr.ip)
-                          << ":"
-                          << boost::lexical_cast<std::string>(pe.adr.port);
+                      << pe.id
+                      << " "
+                      << Common::ipAddressToString(pe.adr.ip)
+                      << ":"
+                      << boost::lexical_cast<std::string>(pe.adr.port);
 
         if (is_peer_used(pe)) {
             logger(ERROR) << "Peer is used";
@@ -1106,10 +1130,10 @@ bool NodeServer::make_new_connection_from_anchor_peerlist(const std::vector<Anch
         }
 
         logger(ERROR) << "Selected peer: " << pe.id << " "
-        << Common::ipAddressToString(pe.adr.ip)
-        << ":" << boost::lexical_cast<std::string>(pe.adr.port)
-        << "[peer_type=" << anchor
-        << "] first_seen: " << Common::timeIntervalToString(time(NULL) - pe.first_seen);
+                      << Common::ipAddressToString(pe.adr.ip)
+                      << ":" << boost::lexical_cast<std::string>(pe.adr.port)
+                      << "[peer_type=" << anchor
+                      << "] first_seen: " << Common::timeIntervalToString(time(NULL) - pe.first_seen);
 
         if (!try_to_connect_and_handshake_with_new_peer(pe.adr, false, 0, anchor, pe.first_seen)) {
             logger(ERROR) << "Handshake failed";
@@ -1124,6 +1148,7 @@ bool NodeServer::make_new_connection_from_anchor_peerlist(const std::vector<Anch
 
 bool NodeServer::connections_maker()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if (!connect_to_peerlist(m_exclusive_peers)) {
         return false;
     }
@@ -1160,8 +1185,7 @@ bool NodeServer::connections_maker()
         (m_config.m_net_config.connections_count * P2P_DEFAULT_WHITELIST_CONNECTIONS_PERCENT) / 100;
 
     size_t conn_count = get_outgoing_connections_count();
-    if (conn_count < m_config.m_net_config.connections_count)
-    {
+    if (conn_count < m_config.m_net_config.connections_count) {
         if (conn_count < expected_white_connections)
         {
             //start from anchor list
@@ -1197,7 +1221,6 @@ bool NodeServer::connections_maker()
 
 bool NodeServer::make_expected_connections_count(PeerType peer_type, size_t expected_connections)
 {
-
     std::vector<AnchorPeerlistEntry> apl;
 
     if (peer_type == anchor) {
@@ -1242,6 +1265,7 @@ size_t NodeServer::get_outgoing_connections_count()
 
 bool NodeServer::idle_worker()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     try {
         m_connections_maker_interval.call(std::bind(&NodeServer::connections_maker, this));
         m_peerlist_store_interval.call(std::bind(&NodeServer::store_config, this));
@@ -1281,11 +1305,11 @@ bool NodeServer::handle_remote_peerlist(const std::vector<PeerlistEntry> &peerli
                                         time_t local_time,
                                         const CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if (peerlist.size() > P2P_MAX_PEERS_IN_HANDSHAKE) {
         logger(WARNING) << "peer sent " << peerlist.size() << " peers, considered spamming";
         return false;
     }
-
     int64_t delta = 0;
     std::vector<PeerlistEntry> peerlist_ = peerlist;
     if(!fix_time_delta(peerlist_, local_time, delta)) {
@@ -1296,16 +1320,17 @@ bool NodeServer::handle_remote_peerlist(const std::vector<PeerlistEntry> &peerli
         << context
         << "REMOTE PEERLIST: TIME_DELTA: " << delta
         << ", remote peerlist size=" << peerlist_.size();
-
+/*
     logger(Logging::TRACE)
         << context
         << "REMOTE PEERLIST: " <<  print_peerlist_to_string(peerlist_);
-
+*/
     return m_peerlist.merge_peerlist(peerlist_);
 }
 
 bool NodeServer::get_local_node_data(basic_node_data &node_data)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     node_data.version = CryptoNote::P2P_CURRENT_VERSION;
     time_t local_time;
     time(&local_time);
@@ -1316,7 +1341,7 @@ bool NodeServer::get_local_node_data(basic_node_data &node_data)
     } else {
         node_data.my_port = 0;
     }
-    node_data.node_version = m_node_version;
+    node_data.node_version = CryptoNote::CRYPTONOTE_VERSION;
     node_data.network_id = m_network_id;
     return true;
 }
@@ -1375,6 +1400,7 @@ int NodeServer::handle_get_stat_info(int command,
                                      COMMAND_REQUEST_STAT_INFO::response &rsp,
                                      P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if(!check_trust(arg.tr)) {
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
@@ -1395,6 +1421,7 @@ int NodeServer::handle_get_network_state(int command,
                                          COMMAND_REQUEST_NETWORK_STATE::response &rsp,
                                          P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if(!check_trust(arg.tr)) {
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
         return 1;
@@ -1422,6 +1449,7 @@ int NodeServer::handle_get_peer_id(int command,
                                    COMMAND_REQUEST_PEER_ID::response &rsp,
                                    P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     rsp.my_id = m_config.m_peer_id;
     return 1;
 }
@@ -1517,6 +1545,7 @@ int NodeServer::handle_timed_sync(int command,
                                   COMMAND_TIMED_SYNC::response &rsp,
                                   P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     if(!m_payload_handler.process_payload_sync_data(arg.payload_data, context, false)) {
         logger(Logging::ERROR) << context << "Failed to process_payload_sync_data(), dropping connection";
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
@@ -1525,7 +1554,6 @@ int NodeServer::handle_timed_sync(int command,
 
     // fill response
     rsp.local_time = time(nullptr);
-
     std::vector<PeerlistEntry> local_peerlist;
     m_peerlist.get_peerlist_head(local_peerlist);
     //only include out peers we did not already send
@@ -1549,7 +1577,12 @@ int NodeServer::handle_handshake(int command,
                                  COMMAND_HANDSHAKE::response &rsp,
                                  P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     context.version = arg.node_data.version;
+    context.node_version = arg.node_data.node_version;
+
+    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(context.version);
+    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << context.node_version.c_str();
 
 	if (!is_remote_host_allowed(context.m_remote_ip)) {
         logger(Logging::DEBUGGING)
@@ -1570,8 +1603,8 @@ int NodeServer::handle_handshake(int command,
         return 1;
     }
 
-    if (arg.node_data.version < CryptoNote::P2P_MINIMUM_VERSION)
-    {
+    // if (compareVersionsLess(arg.node_data.node_version, CryptoNote::P2P_MINIMUM_STRING_VERSION)) {
+    if (arg.node_data.version < CryptoNote::P2P_MINIMUM_VERSION) {
         logger(Logging::DEBUGGING)
             << context
             << "UNSUPPORTED NETWORK AGENT VERSION CONNECTED! version="
@@ -1657,6 +1690,7 @@ int NodeServer::handle_ping(int command,
                             COMMAND_PING::response &rsp,
                             P2pConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     logger(Logging::TRACE) << context << "COMMAND_PING";
 
     rsp.status = PING_OK_RESPONSE_STATUS_TEXT;
@@ -1673,12 +1707,12 @@ bool NodeServer::log_peerlist()
     m_peerlist.get_peerlist_full(pl_anchor, pl_gray, pl_wite);
 
     logger(INFO)
-        << ENDL << "Peerlist anchor:"
-        << ENDL << print_peerlist_to_string(pl_anchor)
-        << ENDL << "Peerlist white:"
-        << ENDL << print_peerlist_to_string(pl_wite)
-        << ENDL << "Peerlist gray:"
-        << ENDL << print_peerlist_to_string(pl_gray) ;
+            << ENDL << "Peerlist anchor:"
+            << ENDL << print_peerlist_to_string(pl_anchor)
+            << ENDL << "Peerlist white:"
+            << ENDL << print_peerlist_to_string(pl_wite)
+            << ENDL << "Peerlist gray:"
+            << ENDL << print_peerlist_to_string(pl_gray) ;
 
     return true;
 }
@@ -1745,6 +1779,7 @@ bool NodeServer::is_priority_node(const NetworkAddress &na)
 
 bool NodeServer::connect_to_peerlist(const std::vector<NetworkAddress> &peers)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     for(const auto &na: peers) {
         if (!is_addr_connected(na)) {
             try_to_connect_and_handshake_with_new_peer(na);
@@ -1754,7 +1789,8 @@ bool NodeServer::connect_to_peerlist(const std::vector<NetworkAddress> &peers)
     return true;
 }
 
-bool NodeServer::gray_peerlist_housekeeping() {
+bool NodeServer::gray_peerlist_housekeeping()
+{
     PeerlistEntry pe = boost::value_initialized<PeerlistEntry>();
 
     size_t gray_peers_count = m_peerlist.get_gray_peers_count();
@@ -1812,6 +1848,7 @@ bool NodeServer::parse_peers_and_add_to_container(
 
 void NodeServer::acceptLoop()
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     while(!m_stop) {
         try {
             P2pConnectionContext ctx(m_dispatcher, logger.getLogger(), m_listener.accept());
@@ -1904,6 +1941,7 @@ void NodeServer::timedSyncLoop()
 void NodeServer::connectionHandler(const boost::uuids::uuid &connectionId,
                                    P2pConnectionContext &ctx)
 {
+    logger(TRACE, BRIGHT_CYAN) << "NetNode::" << __func__;
     // This inner context is necessary in order to stop connection handler at any moment
     System::Context<> context(m_dispatcher, [this, &connectionId, &ctx] {
         System::Context<> writeContext(
@@ -2012,7 +2050,7 @@ void NodeServer::writeHandler(P2pConnectionContext &ctx)
         // connection stopped
         logger(DEBUGGING) << ctx << "writeHandler() is interrupted";
     } catch (std::exception &e) {
-        logger(TRACE) << ctx << "error during write: " << e.what();
+        logger(ERROR, BRIGHT_RED) << ctx << "error during write: " << e.what();
         ctx.interrupt(); // stop connection on write error
     }
 

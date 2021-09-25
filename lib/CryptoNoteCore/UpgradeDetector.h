@@ -21,14 +21,22 @@
 #include <algorithm>
 #include <cstdint>
 #include <ctime>
+
 #include <Common/StringTools.h>
+#include <Common/Util.h>
+
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/Currency.h>
+
 #include <Global/CryptoNoteConfig.h>
+
+#include <Lmdb/BlockchainDB.h>
+
 #include <Logging/LoggerRef.h>
 
 namespace CryptoNote {
+#define HEIGHT (bIsLMDB ? mDB.height() : m_blockchain.size())
 
 class UpgradeDetectorBase
 {
@@ -51,9 +59,11 @@ public:
     BasicUpgradeDetector(
         const Currency &currency,
         BC &blockchain,
+        BlockchainDB &sDB,
         uint8_t targetVersion,
         Logging::ILogger &log)
-        : m_currency(currency),
+        : mDB(sDB),
+          m_currency(currency),
           m_blockchain(blockchain),
           m_targetVersion(targetVersion),
           m_votingCompleteHeight(UNDEF_HEIGHT),
@@ -153,24 +163,43 @@ public:
 
     void blockPushed()
     {
-        assert(!m_blockchain.empty());
+		bool bIsLMDB = Tools::getDefaultDBType("lmdb");
+		if (bIsLMDB) {
+			logger(Logging::TRACE, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__ << ". mDB.height(): " << mDB.height();
+		} else {
+			logger(Logging::TRACE, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+															 << ". !m_blockchain.empty(): "
+															 << !m_blockchain.empty();
+		}
 
         if (m_currency.upgradeHeight(m_targetVersion) != UNDEF_HEIGHT) {
-            if (m_blockchain.size() <= m_currency.upgradeHeight(m_targetVersion) + 1) {
-                assert(m_blockchain.back().bl.majorVersion <= m_targetVersion - 1);
+            if (HEIGHT <= m_currency.upgradeHeight(m_targetVersion) + 1) {
+                /*
+                logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+                                                                 << ". " << (bIsLMDB ? mDB.getTopBlock().majorVersion
+                                                                                     : m_blockchain.back().bl.majorVersion);
+                                                                                     */
             } else {
-                assert(m_blockchain.back().bl.majorVersion >= m_targetVersion);
+                /*
+                logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+                                                                 << (bIsLMDB ? mDB.getTopBlock().majorVersion
+                                                                             : m_blockchain.back().bl.majorVersion);
+                                                                             */
             }
-        } else if (m_votingCompleteHeight != UNDEF_HEIGHT) {
-            assert(m_blockchain.size() > m_votingCompleteHeight);
+        }
+		else if (m_votingCompleteHeight != UNDEF_HEIGHT) {
+            logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+            << "else if (m_votingCompleteHeight != UNDEF_HEIGHT)";
+            assert(HEIGHT > m_votingCompleteHeight);
 
-            if (m_blockchain.size() <= upgradeHeight()) {
-                assert(m_blockchain.back().bl.majorVersion == m_targetVersion - 1);
+            if (HEIGHT <= upgradeHeight()) {
+                assert((bIsLMDB ? mDB.getTopBlock().majorVersion : m_blockchain.back().bl.majorVersion) ==
+                       m_targetVersion - 1);
 
-                if (m_blockchain.size() % (60 * 60 / m_currency.difficultyTarget()) == 0) {
+                if (HEIGHT % (60 * 60 / m_currency.difficultyTarget()) == 0) {
                     auto interval =
                         m_currency.difficultyTarget()
-                        * (upgradeHeight() - m_blockchain.size() + 2);
+                        * (upgradeHeight() - HEIGHT + 2);
                     time_t upgradeTimestamp = time(nullptr) + static_cast<time_t>(interval);
                     struct tm *upgradeTime = localtime(&upgradeTimestamp);
                     char upgradeTimeStr[40];
@@ -184,12 +213,13 @@ public:
                         << " (in "
                         << Common::timeIntervalToString(interval)
                         << ")! Current last block index "
-                        << (m_blockchain.size() - 1)
+                        << (HEIGHT - 1)
                         << ", hash "
-                        << get_block_hash(m_blockchain.back().bl);
+                        << (bIsLMDB ? mDB.getTopBlockHash() : get_block_hash((m_blockchain.back().bl)));
                 }
-            } else if (m_blockchain.size() == upgradeHeight() + 1) {
-                assert(m_blockchain.back().bl.majorVersion == m_targetVersion - 1);
+            } else if (HEIGHT == upgradeHeight() + 1) {
+                assert((bIsLMDB ? mDB.getTopBlock().majorVersion : m_blockchain.back().bl.majorVersion) ==
+                       m_targetVersion - 1);
 
                 logger(Logging::INFO, Logging::BRIGHT_GREEN)
                     << "###### UPGRADE has happened! Starting from block index "
@@ -198,10 +228,13 @@ public:
                     << static_cast<int>(m_targetVersion)
                     << " will be rejected!";
             } else {
-                assert(m_blockchain.back().bl.majorVersion == m_targetVersion);
+                assert((bIsLMDB ? mDB.getTopBlock().majorVersion : m_blockchain.back().bl.majorVersion) == m_targetVersion);
             }
-        } else {
-            uint32_t lastBlockHeight = m_blockchain.size() - 1;
+        }
+		else {
+            logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "UpgradeDetector::" << __func__
+            << "else {";
+            uint32_t lastBlockHeight = HEIGHT - 1;
             if (isVotingComplete(lastBlockHeight)) {
                 m_votingCompleteHeight = lastBlockHeight;
                 logger(Logging::INFO, Logging::BRIGHT_GREEN)
@@ -282,6 +315,7 @@ private:
 private:
     Logging::LoggerRef logger;
     const Currency &m_currency;
+    BlockchainDB &mDB;
     BC &m_blockchain;
     uint8_t m_targetVersion;
     uint32_t m_votingCompleteHeight;

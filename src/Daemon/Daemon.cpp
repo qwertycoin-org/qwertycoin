@@ -19,27 +19,43 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <thread>
+
+#include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
+
 #include <Common/SignalHandler.h>
 #include <Common/StringTools.h>
 #include <Common/PathTools.h>
+
 #include <crypto/hash.h>
+
 #include <Breakpad/Breakpad.h>
+
 #include <CryptoNoteCore/CryptoNoteTools.h>
 #include <CryptoNoteCore/Core.h>
 #include <CryptoNoteCore/CoreConfig.h>
 #include <CryptoNoteCore/Currency.h>
 #include <CryptoNoteCore/MinerConfig.h>
+
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
 #include <CryptoNoteProtocol/ICryptoNoteProtocolQuery.h>
+
 #include <Global/Checkpoints.h>
+
+#include <Lmdb/BlockchainDB.h>
+
 #include <Logging/LoggerManager.h>
+
 #include <P2p/NetNode.h>
 #include <P2p/NetNodeConfig.h>
+
 #include <Rpc/RpcServer.h>
 #include <Rpc/RpcServerConfig.h>
+
 #include <version.h>
+
 #include "DaemonCommandsHandler.h"
 
 #if defined(WIN32)
@@ -155,6 +171,11 @@ const command_line::arg_descriptor<std::string> arg_rollback = {
     "Rollback blockchain to <height>"
 };
 
+const command_line::arg_descriptor<std::string> arg_benchmark = {
+    "benchmark",
+    "Benchmarking sync efficiency for <X> minutes"
+};
+
 } // namespace
 
 bool command_line_preprocessor(const boost::program_options::variables_map &vm, LoggerRef &logger);
@@ -218,6 +239,8 @@ int main(int argc, char *argv[])
     LoggerManager logManager;
     LoggerRef logger(logManager, "daemon");
 
+    boost::asio::io_service sIo;
+
     try {
         po::options_description desc_cmd_only("Command line options");
         po::options_description desc_cmd_sett("Command line options and settings options");
@@ -228,6 +251,8 @@ int main(int argc, char *argv[])
         // tools::get_default_data_dir() can't be called during static initialization
         command_line::add_arg(desc_cmd_only, command_line::arg_data_dir, Tools::getDefaultDataDirectory());
         command_line::add_arg(desc_cmd_only, arg_config_file);
+        command_line::add_arg(desc_cmd_only, command_line::arg_db_type);
+        command_line::add_arg(desc_cmd_only, command_line::arg_db_sync_mode);
 
         command_line::add_arg(desc_cmd_sett, arg_log_file);
         command_line::add_arg(desc_cmd_sett, arg_log_level);
@@ -244,6 +269,7 @@ int main(int argc, char *argv[])
         command_line::add_arg(desc_cmd_sett, arg_disable_checkpoints);
         command_line::add_arg(desc_cmd_sett, arg_rollback);
         command_line::add_arg(desc_cmd_sett, arg_set_contact);
+        command_line::add_arg(desc_cmd_sett, arg_benchmark);
 
         RpcServerConfig::initOptions(desc_cmd_sett);
         CoreConfig::initOptions(desc_cmd_sett);
@@ -265,6 +291,8 @@ int main(int argc, char *argv[])
 
             std::string data_dir = command_line::get_arg(vm, command_line::arg_data_dir);
             std::string config = command_line::get_arg(vm, arg_config_file);
+            std::string cDBType = command_line::get_arg(vm, command_line::arg_db_type);
+            std::string cDBSyncMode = command_line::get_arg(vm, command_line::arg_db_sync_mode);
 
             boost::filesystem::path data_dir_path(data_dir);
             boost::filesystem::path config_path(config);
@@ -348,8 +376,12 @@ int main(int argc, char *argv[])
                 << CryptoNote::CRYPTONOTE_NAME << "d --" << arg_print_genesis_tx.name;
             return 1;
         }
+
+        std::string cDBType = command_line::get_arg(vm, command_line::arg_db_type);
+        std::unique_ptr<BlockchainDB> sFakeDB(newDB(cDBType, logManager));
         CryptoNote::Currency currency = currencyBuilder.currency();
         CryptoNote::core ccore(
+            sFakeDB,
             currency,
             nullptr,
             logManager,
@@ -422,8 +454,24 @@ int main(int argc, char *argv[])
         logger(INFO) << "P2p server initialized OK";
 
         // initialize core here
+        bool bLoadExisting = false;
+        boost::filesystem::path folder(coreConfig.configFolder);
+        // TODO: Make this non-static
+        r = coreConfig.cDBType == "lmdb";
+        if (!r) {
+        	if (boost::filesystem::exists(folder / "blockindexes.bin")) {
+				bLoadExisting = true;
+        	}
+        } else if (r) {
+        	// TODO: Make this non-static
+			boost::filesystem::path cDBFolder = folder / "lmdb";
+			if (boost::filesystem::exists(cDBFolder / "data.mdb")) {
+				bLoadExisting = true;
+			}
+        }
+
         logger(INFO) << "Initializing core...";
-        if (!ccore.init(coreConfig, minerConfig, true)) {
+        if (!ccore.init(coreConfig, minerConfig, bLoadExisting)) {
             logger(ERROR, BRIGHT_RED) << "Failed to initialize core";
             return 1;
         }
@@ -470,6 +518,28 @@ int main(int argc, char *argv[])
         if (command_line::has_arg(vm, arg_set_contact)) {
             if (!contact_str.empty()) {
                 rpcServer.setContactInfo(contact_str);
+            }
+        }
+        if (command_line::has_arg(vm, arg_benchmark)) {
+            std::string benchmark_str = command_line::get_arg(vm, arg_benchmark);
+            if (!benchmark_str.empty()) {
+                uint64_t _minutes = 0;
+                if (!Common::fromString(benchmark_str, _minutes)) {
+                    std::cout << "wrong benchmark parameter" << ENDL;
+                    return 1;
+                }
+
+                std::thread sTh([&] {
+                    boost::asio::deadline_timer sT(sIo, boost::posix_time::minutes(_minutes));
+                    sT.async_wait([&dch](const boost::system::error_code& /*e*/){
+                        dch.stop_benchmark();
+                    });
+
+                    logger(INFO, BRIGHT_MAGENTA) << "Starting benchmark for " << _minutes << " minutes";
+
+                    sIo.run();
+                });
+                sTh.detach();
             }
         }
         logger(INFO) << "Core rpc server started ok";

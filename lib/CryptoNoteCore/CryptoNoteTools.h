@@ -18,7 +18,9 @@
 
 #pragma once
 
+#include <iostream>
 #include <limits>
+
 #include <Common/MemoryInputStream.h>
 #include <Common/StringTools.h>
 #include <Common/VectorOutputStream.h>
@@ -107,14 +109,13 @@ bool getObjectHash(const T &object, Crypto::Hash &hash)
         hash = NULL_HASH;
         return false;
     }
-
     hash = getBinaryArrayHash(ba);
 
     return true;
 }
 
 template<class T>
-bool getObjectHash(const T &object, Crypto::Hash &hash, size_t &size)
+bool getObjectHash(const T &object, Crypto::Hash &hash, uint64_t &size)
 {
     BinaryArray ba;
     if (!toBinaryArray(object, ba)) {

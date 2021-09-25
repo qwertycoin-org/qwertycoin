@@ -17,6 +17,7 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <vector>
+#include <Common/Util.h>
 
 #include "gtest/gtest.h"
 
@@ -91,7 +92,8 @@ namespace {
   TEST_F(UpgradeDetector_voting_init, handlesEmptyBlockchain) {
     CryptoNote::Currency currency = createCurrency();
     BlockVector blocks;
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+    std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+    UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), UpgradeDetector::UNDEF_HEIGHT);
   }
@@ -101,7 +103,8 @@ namespace {
     BlockVector blocks;
     createBlocks(blocks, currency.upgradeVotingWindow() - 1, BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+    std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+    UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), UpgradeDetector::UNDEF_HEIGHT);
   }
@@ -111,7 +114,8 @@ namespace {
     BlockVector blocks;
     createBlocks(blocks, currency.upgradeVotingWindow(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), currency.upgradeVotingWindow() - 1);
   }
@@ -122,7 +126,8 @@ namespace {
     createBlocks(blocks, currency.upgradeVotingWindow(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_0);
     createBlocks(blocks, currency.minNumberVotingBlocks() - 1, BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), UpgradeDetector::UNDEF_HEIGHT);
   }
@@ -133,7 +138,8 @@ namespace {
     createBlocks(blocks, currency.upgradeVotingWindow(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_0);
     createBlocks(blocks, currency.minNumberVotingBlocks(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), blocks.size() - 1);
   }
@@ -147,7 +153,8 @@ namespace {
     // Upgrade is here
     createBlocks(blocks, 1, BLOCK_MAJOR_VERSION_2, BLOCK_MINOR_VERSION_0);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), currency.upgradeVotingWindow() - 1);
     ASSERT_EQ(upgradeDetector.upgradeHeight(), upgradeHeight);
@@ -202,7 +209,8 @@ namespace {
     const uint64_t upgradeHeight = 17;
     CryptoNote::Currency currency = createCurrency(upgradeHeight);
     BlockVector blocks;
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.upgradeHeight(), upgradeHeight);
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), UpgradeDetector::UNDEF_HEIGHT);
@@ -214,7 +222,8 @@ namespace {
     BlockVector blocks;
     createBlocks(blocks, upgradeHeight, BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.upgradeHeight(), upgradeHeight);
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), UpgradeDetector::UNDEF_HEIGHT);
@@ -226,7 +235,8 @@ namespace {
     BlockVector blocks;
     createBlocks(blocks, upgradeHeight + 1, BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.upgradeHeight(), upgradeHeight);
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), UpgradeDetector::UNDEF_HEIGHT);
@@ -239,7 +249,8 @@ namespace {
     createBlocks(blocks, upgradeHeight + 1, BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
     createBlocks(blocks, 1, BLOCK_MAJOR_VERSION_2, BLOCK_MINOR_VERSION_0);
 
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
     ASSERT_EQ(upgradeDetector.upgradeHeight(), upgradeHeight);
     ASSERT_EQ(upgradeDetector.votingCompleteHeight(), UpgradeDetector::UNDEF_HEIGHT);
@@ -248,7 +259,8 @@ namespace {
   TEST_F(UpgradeDetector_voting, handlesVotingCompleteStartingEmptyBlockchain) {
     CryptoNote::Currency currency = createCurrency();
     BlockVector blocks;
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
 
     createBlocks(blocks, upgradeDetector, currency.upgradeVotingWindow(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_0);
@@ -262,7 +274,8 @@ namespace {
     const uint64_t portion = currency.minNumberVotingBlocks() - currency.minNumberVotingBlocks() / 2;
 
     BlockVector blocks;
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
 
     createBlocks(blocks, upgradeDetector, currency.upgradeVotingWindow(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_0);
     createBlocks(blocks, upgradeDetector, currency.minNumberVotingBlocks() - portion, BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_1);
@@ -275,7 +288,8 @@ namespace {
   TEST_F(UpgradeDetector_voting, handlesVotingCancelling) {
     CryptoNote::Currency currency = createCurrency();
     BlockVector blocks;
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
 
     createBlocks(blocks, upgradeDetector, currency.upgradeVotingWindow(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_0);
@@ -297,7 +311,8 @@ namespace {
   TEST_F(UpgradeDetector_voting, handlesVotingAndUpgradeCancelling) {
     CryptoNote::Currency currency = createCurrency();
     BlockVector blocks;
-    UpgradeDetector upgradeDetector(currency, blocks, BLOCK_MAJOR_VERSION_2, logger);
+        std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+        UpgradeDetector upgradeDetector(currency, blocks, *sFakeDB.release(), BLOCK_MAJOR_VERSION_2, logger);
     ASSERT_TRUE(upgradeDetector.init());
 
     createBlocks(blocks, upgradeDetector, currency.upgradeVotingWindow(), BLOCK_MAJOR_VERSION_1, BLOCK_MINOR_VERSION_0);

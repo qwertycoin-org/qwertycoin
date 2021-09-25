@@ -198,5 +198,7 @@ inline bool has_arg<bool, false>(const boost::program_options::variables_map &vm
 extern const arg_descriptor<bool> arg_help;
 extern const arg_descriptor<bool> arg_version;
 extern const arg_descriptor<std::string> arg_data_dir;
+extern const arg_descriptor<std::string> arg_db_type;
+extern const arg_descriptor<std::string> arg_db_sync_mode;
 
 } // namespace command_line

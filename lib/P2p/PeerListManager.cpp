@@ -18,11 +18,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <time.h>
+#include <ctime>
+
 #include <boost/foreach.hpp>
+
 #include <crypto/random2.h>
+
 #include <P2p/PeerListManager.h>
+
 #include <Serialization/SerializationOverloads.h>
+
 #include <System/Ipv4Address.h>
 
 using namespace CryptoNote;
@@ -344,7 +349,7 @@ bool PeerlistManager::get_and_empty_anchor_peerlist(std::vector<AnchorPeerlistEn
         auto end = m_peers_anchor.get<by_time>().end();
 
         std::for_each(begin, end, [&apl](const AnchorPeerlistEntry &a) {
-        apl.push_back(a);
+            apl.push_back(a);
         });
 
         m_peers_anchor.get<by_time>().clear();
@@ -354,7 +359,6 @@ bool PeerlistManager::get_and_empty_anchor_peerlist(std::vector<AnchorPeerlistEn
     }
     return false;
 }
-//--------------------------------------------------------------------------------------------------
 
 bool PeerlistManager::remove_from_peer_anchor(const NetworkAddress &addr)
 {

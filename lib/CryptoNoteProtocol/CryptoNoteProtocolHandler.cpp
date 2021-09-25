@@ -21,6 +21,8 @@
 #include <future>
 #include <boost/scope_exit.hpp>
 #include <boost/uuid/uuid_io.hpp>
+
+#include <CryptoNoteCore/Blockchain.h>
 #include <CryptoNoteCore/CryptoNoteBasicImpl.h>
 #include <CryptoNoteCore/CryptoNoteFormatUtils.h>
 #include <CryptoNoteCore/CryptoNoteTools.h>
@@ -129,11 +131,11 @@ void CryptoNoteProtocolHandler::stop()
 
 bool CryptoNoteProtocolHandler::start_sync(CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE) << context << "Starting synchronization";
 
     if (context.m_state == CryptoNoteConnectionContext::state_synchronizing) {
         assert(context.m_needed_objects.empty());
-
         assert(context.m_requested_objects.empty());
 
         NOTIFY_REQUEST_CHAIN::request r = boost::value_initialized<NOTIFY_REQUEST_CHAIN::request>();
@@ -186,6 +188,7 @@ bool CryptoNoteProtocolHandler::process_payload_sync_data(
     CryptoNoteConnectionContext &context,
     bool is_initial)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     if (context.m_state == CryptoNoteConnectionContext::state_befor_handshake && !is_initial) {
         return true;
     }
@@ -203,23 +206,23 @@ bool CryptoNoteProtocolHandler::process_payload_sync_data(
         int64_t diff = static_cast<int64_t>(hshd.current_height)
                        - static_cast<int64_t>(get_current_blockchain_height());
 
-        // Drop and eventually ban if peer is on fork too deep behind us 
+        // Drop and eventually ban if peer is on fork too deep behind us
         if (diff < 0 && std::abs(diff) > CryptoNote::parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
             && m_core.isInCheckpointZone(hshd.current_height)
-        ) {
+                ) {
             logger(Logging::DEBUGGING)
-                << context
-                << "Sync data returned a new top block candidate: " << get_current_blockchain_height()
-                << " -> " << hshd.current_height - 1
-                << ". Your node is " << std::abs(diff)
-                << " blocks (" << std::abs(diff) / (24 * 60 * 60 / m_currency.difficultyTarget())
-                << " days) "
-                << "ahead. The block candidate is too deep behind and in checkpoint zone, dropping connection";
+                    << context
+                    << "Sync data returned a new top block candidate: " << get_current_blockchain_height()
+                    << " -> " << hshd.current_height - 1
+                    << ". Your node is " << std::abs(diff)
+                    << " blocks (" << std::abs(diff) / (24 * 60 * 60 / m_currency.difficultyTarget())
+                    << " days) "
+                    << "ahead. The block candidate is too deep behind and in checkpoint zone, dropping connection";
             m_p2p->drop_connection(context, true);
         }
 
         logger(
-            diff >= 0 ? (is_initial ? Logging::INFO : Logging::DEBUGGING)
+            diff >= 0 ? Logging::DEBUGGING
                       : Logging::TRACE, Logging::BRIGHT_YELLOW
         )   << context
             << "Sync data returned a new top block candidate: " << get_current_blockchain_height()
@@ -254,6 +257,7 @@ bool CryptoNoteProtocolHandler::process_payload_sync_data(
 
 bool CryptoNoteProtocolHandler::get_payload_sync_data(CORE_SYNC_DATA &hshd)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     uint32_t current_height;
     m_core.get_blockchain_top(current_height, hshd.top_id);
     hshd.current_height = current_height;
@@ -300,19 +304,23 @@ int CryptoNoteProtocolHandler::handleCommand(bool is_notify,
                                              CryptoNoteConnectionContext &ctx,
                                              bool &handled)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     int ret = 0;
 
     handled = true;
-    switch (command) {
-    HANDLE_NOTIFY(NOTIFY_NEW_BLOCK, &CryptoNoteProtocolHandler::handle_notify_new_block)
-    HANDLE_NOTIFY(NOTIFY_NEW_TRANSACTIONS, &CryptoNoteProtocolHandler::handle_notify_new_transactions)
-    HANDLE_NOTIFY(NOTIFY_REQUEST_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_request_get_objects)
-    HANDLE_NOTIFY(NOTIFY_RESPONSE_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_response_get_objects)
-    HANDLE_NOTIFY(NOTIFY_REQUEST_CHAIN, &CryptoNoteProtocolHandler::handle_request_chain)
-    HANDLE_NOTIFY(NOTIFY_RESPONSE_CHAIN_ENTRY, &CryptoNoteProtocolHandler::handle_response_chain_entry)
-    HANDLE_NOTIFY(NOTIFY_REQUEST_TX_POOL, &CryptoNoteProtocolHandler::handleRequestTxPool)
-    default:
-        handled = false;
+    if (!m_core.getBlockchainStorage().isResizing()) {
+        // logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__ << ". DB is not set or is not resizing.";
+        switch (command) {
+            HANDLE_NOTIFY(NOTIFY_NEW_BLOCK, &CryptoNoteProtocolHandler::handle_notify_new_block)
+            HANDLE_NOTIFY(NOTIFY_NEW_TRANSACTIONS, &CryptoNoteProtocolHandler::handle_notify_new_transactions)
+            HANDLE_NOTIFY(NOTIFY_REQUEST_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_request_get_objects)
+            HANDLE_NOTIFY(NOTIFY_RESPONSE_GET_OBJECTS, &CryptoNoteProtocolHandler::handle_response_get_objects)
+            HANDLE_NOTIFY(NOTIFY_REQUEST_CHAIN, &CryptoNoteProtocolHandler::handle_request_chain)
+            HANDLE_NOTIFY(NOTIFY_RESPONSE_CHAIN_ENTRY, &CryptoNoteProtocolHandler::handle_response_chain_entry)
+            HANDLE_NOTIFY(NOTIFY_REQUEST_TX_POOL, &CryptoNoteProtocolHandler::handleRequestTxPool)
+            default:
+                handled = false;
+        }
     }
 
     return ret;
@@ -324,6 +332,7 @@ int CryptoNoteProtocolHandler::handle_notify_new_block(int command,
                                                        NOTIFY_NEW_BLOCK::request &arg,
                                                        CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE) << context << "NOTIFY_NEW_BLOCK (hop " << arg.hop << ")";
 
     updateObservedHeight(arg.current_blockchain_height, context);
@@ -386,6 +395,7 @@ int CryptoNoteProtocolHandler::handle_notify_new_transactions(
     NOTIFY_NEW_TRANSACTIONS::request &arg,
     CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE) << context << "NOTIFY_NEW_TRANSACTIONS";
     if (context.m_state != CryptoNoteConnectionContext::state_normal) {
         return 1;
@@ -425,6 +435,7 @@ int CryptoNoteProtocolHandler::handle_request_get_objects(
     NOTIFY_REQUEST_GET_OBJECTS::request &arg,
     CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE) << context << "NOTIFY_REQUEST_GET_OBJECTS";
 
     // Essentially, one can send such a large amount of IDs that core exhausts
@@ -469,6 +480,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
     NOTIFY_RESPONSE_GET_OBJECTS::request &arg,
     CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE) << context << "NOTIFY_RESPONSE_GET_OBJECTS";
 
     if (arg.blocks.empty()) {
@@ -493,9 +505,10 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
 
     context.m_remote_blockchain_height = arg.current_blockchain_height;
 
-    size_t count = 0;
+    m_core.getBlockchainStorage().prepareHandleIncomingBlocks(arg.blocks);
+    // size_t count = 0;
     for (const block_complete_entry& block_entry : arg.blocks) {
-        ++count;
+        // ++count;
         Block b;
         if (!fromBinaryArray(b, asBinaryArray(block_entry.block))) {
             logger(Logging::ERROR)
@@ -509,6 +522,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
 
         // to avoid concurrency in core between connections,
         // suspend connections which delivered block later then first one
+        /*
         if (count == 2) {
             if (m_core.have_block(get_block_hash(b))) {
                 context.m_state = CryptoNoteConnectionContext::state_idle;
@@ -518,9 +532,10 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
                 return 1;
             }
         }
+        */
 
         auto blockHash = get_block_hash(b);
-        auto req_it = context.m_requested_objects.find(blockHash);
+        std::unordered_set<Crypto::Hash>::iterator req_it = context.m_requested_objects.find(blockHash);
         if (req_it == context.m_requested_objects.end()) {
             logger(Logging::ERROR)
                 << context
@@ -530,6 +545,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
                 context.m_state = CryptoNoteConnectionContext::state_shutdown;
                 return 1;
         }
+
         if (b.transactionHashes.size() != block_entry.txs.size()) {
             logger(Logging::ERROR)
                 << context
@@ -582,6 +598,7 @@ int CryptoNoteProtocolHandler::handle_response_get_objects(
 int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext &context,
                                               const std::vector<block_complete_entry> &blocks)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     for (const block_complete_entry &block_entry : blocks) {
         if (m_stop) {
             break;
@@ -641,6 +658,7 @@ int CryptoNoteProtocolHandler::processObjects(CryptoNoteConnectionContext &conte
 
 bool CryptoNoteProtocolHandler::on_idle()
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     return m_core.on_idle();
 }
 
@@ -648,6 +666,7 @@ int CryptoNoteProtocolHandler::handle_request_chain(int command,
                                                     NOTIFY_REQUEST_CHAIN::request &arg,
                                                     CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE)
         << context
         << "NOTIFY_REQUEST_CHAIN: m_block_ids.size()=" << arg.block_ids.size();
@@ -660,6 +679,13 @@ int CryptoNoteProtocolHandler::handle_request_chain(int command,
 
         return 1;
     }
+
+	logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "CryptoNoteProtocol::" << __func__
+													 << ". arg.block_ids.back(): "
+													 << arg.block_ids.back();
+	logger(Logging::DEBUGGING, Logging::BRIGHT_CYAN) << "CryptoNoteProtocol::" << __func__
+													 << ". m_core.getBlockIdByHeight(0): "
+													 << m_core.getBlockIdByHeight(0);
 
     if (arg.block_ids.back() != m_core.getBlockIdByHeight(0)) {
         logger(Logging::ERROR)
@@ -690,6 +716,7 @@ int CryptoNoteProtocolHandler::handle_request_chain(int command,
 bool CryptoNoteProtocolHandler::request_missing_objects(CryptoNoteConnectionContext &context,
                                                         bool check_having_blocks)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     if (context.m_needed_objects.size()) {
         // we know objects that we need, request this objects
         NOTIFY_REQUEST_GET_OBJECTS::request req;
@@ -773,6 +800,7 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
     NOTIFY_RESPONSE_CHAIN_ENTRY::request &arg,
     CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE)
         << context
         << "NOTIFY_RESPONSE_CHAIN_ENTRY: m_block_ids.size()=" << arg.m_block_ids.size()
@@ -781,6 +809,13 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
     if (!arg.m_block_ids.size()) {
         logger(Logging::ERROR) << context << "sent empty m_block_ids, dropping connection";
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
+        return 1;
+    }
+
+    if (m_core.getBlockchainStorage().isResizing()) {
+        logger(Logging::WARNING) << "Attention: DB is resizing. Please try again later.";
+        context.m_state = CryptoNoteConnectionContext::state_shutdown;
+
         return 1;
     }
 
@@ -800,12 +835,12 @@ int CryptoNoteProtocolHandler::handle_response_chain_entry(
                                      + static_cast<uint32_t>(arg.m_block_ids.size()) - 1;
 
     if (context.m_last_response_height > context.m_remote_blockchain_height) {
-    logger(Logging::ERROR)
-    << context
-    << "sent wrong NOTIFY_RESPONSE_CHAIN_ENTRY, with \r\nm_total_height="
-    << arg.total_height << "\r\nm_start_height=" << arg.start_height
-    << "\r\nm_block_ids.size()=" << arg.m_block_ids.size();
-    context.m_state = CryptoNoteConnectionContext::state_shutdown;
+        logger(Logging::ERROR)
+                << context
+                << "sent wrong NOTIFY_RESPONSE_CHAIN_ENTRY, with \r\nm_total_height="
+                << arg.total_height << "\r\nm_start_height=" << arg.start_height
+                << "\r\nm_block_ids.size()=" << arg.m_block_ids.size();
+        context.m_state = CryptoNoteConnectionContext::state_shutdown;
     }
 
     for (auto &bl_id : arg.m_block_ids) {
@@ -826,7 +861,10 @@ int CryptoNoteProtocolHandler::handleRequestTxPool(int command,
                                                    NOTIFY_REQUEST_TX_POOL::request &arg,
                                                    CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     logger(Logging::TRACE) << context << "NOTIFY_REQUEST_TX_POOL: txs.size() = " << arg.txs.size();
+
+    bool val_expected = false;
 
     std::vector<Transaction> addedTransactions;
     std::vector<Crypto::Hash> deletedTransactions;
@@ -841,8 +879,8 @@ int CryptoNoteProtocolHandler::handleRequestTxPool(int command,
         bool ok = post_notify<NOTIFY_NEW_TRANSACTIONS>(*m_p2p, notification, context);
         if (!ok) {
             logger(Logging::WARNING, Logging::BRIGHT_YELLOW)
-                << "Failed to post notification NOTIFY_NEW_TRANSACTIONS to "
-                << context.m_connection_id;
+                    << "Failed to post notification NOTIFY_NEW_TRANSACTIONS to "
+                    << context.m_connection_id;
         }
     }
 
@@ -886,6 +924,7 @@ void CryptoNoteProtocolHandler::requestMissingPoolTransactions(
 void CryptoNoteProtocolHandler::updateObservedHeight(uint32_t peerHeight,
                                                      const CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     bool updated = false;
 
     {
@@ -918,6 +957,7 @@ void CryptoNoteProtocolHandler::updateObservedHeight(uint32_t peerHeight,
 void CryptoNoteProtocolHandler::recalculateMaxObservedHeight(
     const CryptoNoteConnectionContext &context)
 {
+    logger(TRACE, BRIGHT_CYAN) << "CNProtocol::" << __func__;
     //should be locked outside
     uint32_t peerHeight = 0;
     m_p2p->for_each_connection([&peerHeight, &context](const CryptoNoteConnectionContext &ctx,

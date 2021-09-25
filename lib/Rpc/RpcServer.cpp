@@ -1287,10 +1287,10 @@ namespace CryptoNote {
 	bool RpcServer::onGetIndex(const COMMAND_HTTP::request &req, COMMAND_HTTP::response &res)
 	{
 		const std::string index_start =
-			R"(
-				<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1, shrink-to-fit=no'>
-				<meta http-equiv='refresh' content='60'/><title data-i18n='website-title'>Masternode | Qwertycoin is a secure worldwide digital currency.</title><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Open+Sans&display=swap' rel='stylesheet'><link rel='stylesheet' href='https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css'></head><body style='color: white;background-color:black;'><img src='https://qwertycoin.org/img/logo.png' alt='Qwertycoin'><br/><hr/><h1>Masternode</h1><br/>Version 
-    		)";
+                R"(
+				    <!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1, shrink-to-fit=no'>
+				    <meta http-equiv='refresh' content='60'/><title data-i18n='website-title'>Masternode | Qwertycoin is a secure worldwide digital currency.</title><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Open+Sans&display=swap' rel='stylesheet'><link rel='stylesheet' href='https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css'></head><body style='color: white;background-color:black;'><img src='https://qwertycoin.org/img/logo.png' alt='Qwertycoin'><br/><hr/><h1>Masternode</h1><br/>Version
+    		    )";
 		const std::string index_finish = "</body></html>";
 		const std::time_t uptime = std::time(nullptr) - m_core.getStartTime();
 		const std::string uptime_str = std::to_string((unsigned int) floor(uptime / 60.0 / 60.0 / 24.0))
@@ -1304,39 +1304,39 @@ namespace CryptoNote {
 		size_t outConn = m_p2p.get_outgoing_connections_count();
 		size_t incConn = m_p2p.get_connections_count() - outConn;
 		Crypto::Hash last_block_hash = m_core.getBlockIdByHeight(top_block_index);
-		size_t anchor_peerlist_size = m_p2p.getPeerlistManager().get_anchor_peers_count();
+        size_t anchor_peerlist_size = m_p2p.getPeerlistManager().get_anchor_peers_count();
 		size_t white_peerlist_size = m_p2p.getPeerlistManager().get_white_peers_count();
 		size_t grey_peerlist_size = m_p2p.getPeerlistManager().get_gray_peers_count();
 		size_t alt_blocks_count = m_core.get_alternative_blocks_count();
 		size_t total_tx_count = m_core.get_blockchain_total_transactions() - top_block_index + 1;
 		size_t tx_pool_count = m_core.get_pool_transactions_count();
 
-		const std::string body = index_start +
-			PROJECT_VERSION_LONG + (m_core.currency().isTestnet() ? " testnet" : " mainnet") + 
-			"<ul>" + 
-			"<li>Synchronization status: " + std::to_string(top_block_index) + "/" + std::to_string(top_known_block_index) + 
-			"<li>Last Blockhash: " + Common::podToHex(last_block_hash) + "</li>" + 
-			"<li>Difficulty: " + std::to_string(m_core.getNextBlockDifficulty(0)) + "</li>" + 
-			"<li>Alt. Blocks: " + std::to_string(alt_blocks_count) + "</li>" + 
-			"<li>Total transactions in network: " + std::to_string(total_tx_count) + "</li>" + 
-			"<li>Transactions unconfirmed: " + std::to_string(tx_pool_count) + "</li>" + 
-			"<li>Connections: " + 
-			"<ul>" + 
-				"<li>RPC: \t" + std::to_string(get_connections_count()) + "</li>" + 
-				"<li>Outgoing: \t" + std::to_string(outConn) + "</li>" + 
-				"<li>Incoming: \t" + std::to_string(incConn) + "</li>" + 
-			"</ul></li>" + 
-			"<li>Peers: " + 
-			"<ul>" + 
-				"<li>Anchor: \t" + std::to_string(anchor_peerlist_size) + 
-				"<li>White: \t" + std::to_string(white_peerlist_size) + 
-				"<li>Grey: \t" + std::to_string(grey_peerlist_size) + 
-			"</ul></li>" + 
-			"<li>Contact: " + m_contact_info + "</li>" + 
-			"<li>Fee address: " + m_fee_address + "</li>" + 
-			"<li>Uptime: " + uptime_str + "</li>" + 
-			"</ul>" + 
-			index_finish;
+        const std::string body = index_start +
+                                 PROJECT_VERSION_LONG + (m_core.currency().isTestnet() ? " testnet" : " mainnet") +
+                                 "<ul>" +
+                                 "<li>Synchronization status: " + std::to_string(top_block_index) + "/" + std::to_string(top_known_block_index) +
+                                 "<li>Last Blockhash: " + Common::podToHex(last_block_hash) + "</li>" +
+                                 "<li>Difficulty: " + std::to_string(m_core.getNextBlockDifficulty(0)) + "</li>" +
+                                 "<li>Alt. Blocks: " + std::to_string(alt_blocks_count) + "</li>" +
+                                 "<li>Total transactions in network: " + std::to_string(total_tx_count) + "</li>" +
+                                 "<li>Transactions unconfirmed: " + std::to_string(tx_pool_count) + "</li>" +
+                                 "<li>Connections: " +
+                                 "<ul>" +
+                                 "<li>RPC: \t" + std::to_string(get_connections_count()) + "</li>" +
+                                 "<li>Outgoing: \t" + std::to_string(outConn) + "</li>" +
+                                 "<li>Incoming: \t" + std::to_string(incConn) + "</li>" +
+                                 "</ul></li>" +
+                                 "<li>Peers: " +
+                                 "<ul>" +
+                                 "<li>Anchor: \t" + std::to_string(anchor_peerlist_size) +
+                                 "<li>White: \t" + std::to_string(white_peerlist_size) +
+                                 "<li>Grey: \t" + std::to_string(grey_peerlist_size) +
+                                 "</ul></li>" +
+                                 "<li>Contact: " + m_contact_info + "</li>" +
+                                 "<li>Fee address: " + m_fee_address + "</li>" +
+                                 "<li>Uptime: " + uptime_str + "</li>" +
+                                 "</ul>" +
+                                 index_finish;
 
 		res = body;
 
@@ -1514,127 +1514,128 @@ namespace CryptoNote {
 		return true;
 	}
 
-	bool RpcServer::onGetTransactionsByHeights(
-			const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
-			COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res)
-	{
-		try {
-			std::vector<Crypto::Hash> vh;
+        bool RpcServer::onGetTransactionsByHeights(
+                const COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::request &req,
+                COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::response &res)
+        {
+            try {
+                std::vector<Crypto::Hash> vh;
 
-			if (req.range) {
-				if (req.heights.size() != 2) {
-					res.status = "Range set true but heights size != 2";
-					return true;
-				}
+                if (req.range) {
+                    if (req.heights.size() != 2) {
+                        res.status = "Range set true but heights size != 2";
+                        return true;
+                    }
 
-				uint32_t upperBorder = std::min(req.heights[1], m_core.get_current_blockchain_height());
+                    uint32_t upperBorder =
+                            std::min(req.heights[1], m_core.get_current_blockchain_height());
 
-				for (size_t i = 0; i < (upperBorder - req.heights[0]); i++) {
-					Block blk;
-					Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[0] + i);
+                    for (size_t i = 0; i < (upperBorder - req.heights[0]); i++) {
+                        Block blk;
+                        Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[0] + i);
 
-					if (!m_core.getBlockByHash(blockHash, blk)) {
-						throw JsonRpc::JsonRpcError{CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-													"Internal error: can't get block by hash. Hash = "
-													+ podToHex(blockHash) + '.'};
-					}
+                        if (!m_core.getBlockByHash(blockHash, blk)) {
+                            throw JsonRpc::JsonRpcError {
+                                CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                                "Internal error: can't get block by hash. Hash = "
+                                        + podToHex(blockHash) + '.'
+                            };
+                        }
 
-					if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
-						throw JsonRpc::JsonRpcError{
-								CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
-								"Internal error: coinbase transaction in the block has the wrong type"
-						};
-					}
+                        if (blk.baseTransaction.inputs.front().type() != typeid(BaseInput)) {
+                            throw JsonRpc::JsonRpcError { CORE_RPC_ERROR_CODE_INTERNAL_ERROR,
+                                                          "Internal error: coinbase transaction in "
+                                                          "the block has the wrong type" };
+                        }
 
-					for (Crypto::Hash &bTxs : blk.transactionHashes) {
-						vh.push_back(bTxs);
-					}
+                        for (Crypto::Hash &bTxs : blk.transactionHashes) {
+                            vh.push_back(bTxs);
+                        }
 
-					if (req.include_miner_txs) {
-						vh.push_back(getObjectHash(blk.baseTransaction));
-					}
-				}
-			}
-			else {
-				for (size_t i = 0; i < req.heights.size(); i++) {
-					Block blk;
-					Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[i]);
+                        if (req.include_miner_txs) {
+                            vh.push_back(getObjectHash(blk.baseTransaction));
+                        }
+                    }
+                } else {
+                    for (size_t i = 0; i < req.heights.size(); i++) {
+                        Block blk;
+                        Crypto::Hash blockHash = m_core.getBlockIdByHeight(req.heights[i]);
 
-					for (Crypto::Hash &bTxs : blk.transactionHashes) {
-						vh.push_back(bTxs);
-					}
+                        for (Crypto::Hash &bTxs : blk.transactionHashes) {
+                            vh.push_back(bTxs);
+                        }
 
-					if (req.include_miner_txs) {
-						vh.push_back(getObjectHash(blk.baseTransaction));
-					}
-				}
-			}
+                        if (req.include_miner_txs) {
+                            vh.push_back(getObjectHash(blk.baseTransaction));
+                        }
+                    }
+                }
 
-			std::list<Crypto::Hash> missedTxs;
-			std::list<Transaction> txs;
+                std::list<Crypto::Hash> missedTxs;
+                std::list<Transaction> txs;
 
-			m_core.getTransactions(vh, txs, missedTxs, true);
+                m_core.getTransactions(vh, txs, missedTxs, true);
 
-			std::list<std::string> txHashes;
-			for (auto &tx : txs) {
-				txHashes.push_back(Common::podToHex(getObjectHash(tx)));
-			}
+                std::list<std::string> txHashes;
+                for (auto &tx : txs) {
+                    txHashes.push_back(Common::podToHex(getObjectHash(tx)));
+                }
 
-			logger(DEBUGGING) << "Found " << txs.size() << "/" << vh.size()
-							  << " transactions on the blockchain.";
+                logger(DEBUGGING) << "Found " << txs.size() << "/" << vh.size()
+                                  << " transactions on the blockchain.";
 
-			std::list<std::string>::const_iterator txHi = txHashes.begin();
-			std::vector<Crypto::Hash>::const_iterator vHi = vh.begin();
+                std::list<std::string>::const_iterator txHi = txHashes.begin();
+                std::vector<Crypto::Hash>::const_iterator vHi = vh.begin();
 
-			for (const Transaction &tx : txs) {
-				res.txs.push_back(COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry());
-				COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry &e = res.txs.back();
+                for (const Transaction &tx : txs) {
+                    res.txs.push_back(COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry());
+                    COMMAND_RPC_GET_TRANSACTIONS_BY_HEIGHTS::entry &e = res.txs.back();
 
-				Crypto::Hash blockHash;
-				uint32_t blockHeight;
-				uint64_t fee;
-				get_tx_fee(tx, fee);
+                    Crypto::Hash blockHash;
+                    uint32_t blockHeight;
+                    uint64_t fee;
+                    get_tx_fee(tx, fee);
 
-				Crypto::Hash txHash = *vHi++;
-				e.tx_hash = *txHi++;
+                    Crypto::Hash txHash = *vHi++;
+                    e.tx_hash = *txHi++;
 
-				bool r = m_core.getBlockContainingTx(txHash, blockHash, blockHeight);
-				bool oR = m_core.get_tx_outputs_gindexs(txHash, e.output_indices);
+                    bool r = m_core.getBlockContainingTx(txHash, blockHash, blockHeight);
+                    bool oR = m_core.get_tx_outputs_gindexs(txHash, e.output_indices);
 
-				if (req.as_json) {
-					e.as_json = tx;
-				}
+                    if (req.as_json) {
+                        e.as_json = tx;
+                    }
 
-				e.block_height = blockHeight;
-				e.block_timestamp = m_core.getBlockTimestamp(blockHeight);
-				e.fee = fee;
-			}
+                    e.block_height = blockHeight;
+                    e.block_timestamp = m_core.getBlockTimestamp(blockHeight);
+                    e.fee = fee;
+                }
 
-			if (txs.empty() || !missedTxs.empty()) {
-				std::ostringstream oss;
-				std::string seperator;
-				for (auto h : missedTxs) {
-					oss << seperator << Common::podToHex(h);
-					seperator = ",";
-				}
-				res.status = "transaction(s) not found: " + oss.str() + ".";
-			}
+                if (txs.empty() || !missedTxs.empty()) {
+                    std::ostringstream oss;
+                    std::string seperator;
+                    for (auto h : missedTxs) {
+                        oss << seperator << Common::podToHex(h);
+                        seperator = ",";
+                    }
+                    res.status = "transaction(s) not found: " + oss.str() + ".";
+                }
 
-			res.status = CORE_RPC_STATUS_OK;
-			return true;
+                res.status = CORE_RPC_STATUS_OK;
+                return true;
 
-		} catch (std::system_error &e) {
-			res.status = e.what();
-			return false;
-		} catch (std::exception &e) {
-			res.status = "Error: " + std::string(e.what());
-			return false;
-		}
+            } catch (std::system_error &e) {
+                res.status = e.what();
+                return false;
+            } catch (std::exception &e) {
+                res.status = "Error: " + std::string(e.what());
+                return false;
+            }
 
-		return true;
-	}
+            return true;
+        }
 
-	bool RpcServer::onGetRawTransactionsByHeights(const COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::request &req,
+        bool RpcServer::onGetRawTransactionsByHeights(const COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::request &req,
 												  COMMAND_RPC_GET_RAW_TRANSACTIONS_BY_HEIGHTS::response &res)
 	{
 		try {
@@ -1762,12 +1763,12 @@ namespace CryptoNote {
 			res.transactions.push_back(TxWithOutputGlobalIndices());
 			TxWithOutputGlobalIndices &e = res.transactions.back();
 
-			e.hash = txd.id;
+			e.hash = txd.sTransactionHash;
 			e.height = boost::value_initialized<uint32_t>();
 			e.block_hash = boost::value_initialized<Crypto::Hash>();
-			e.timestamp = txd.receiveTime;
-			e.transaction = *static_cast<const TransactionPrefix *>(&txd.tx);
-			e.fee = txd.fee;
+			e.timestamp = txd.sReceiveTime;
+			e.transaction = *static_cast<const TransactionPrefix *>(&txd.sTransaction);
+			e.fee = txd.uFee;
 		}
 
 		res.status = CORE_RPC_STATUS_OK;
@@ -1903,31 +1904,36 @@ namespace CryptoNote {
 	bool RpcServer::onGetPeerList(const COMMAND_RPC_GET_PEER_LIST::request &req,
 									 	COMMAND_RPC_GET_PEER_LIST::response &res)
 	{
-		std::list<AnchorPeerlistEntry> pl_anchor;
-		std::vector<PeerlistEntry> pl_wite;
-		std::vector<PeerlistEntry> pl_gray;
-		m_p2p.getPeerlistManager().get_peerlist_full(pl_anchor, pl_gray, pl_wite);
+        if (m_restricted_rpc) {
+            res.status = "Method disabled";
+            return false;
+        }
 
-		for (const auto &pe : pl_anchor) {
-			std::stringstream ss;
-			ss << pe.adr;
-			res.anchor_peers.push_back(ss.str());
-		}
+        std::list<AnchorPeerlistEntry> pl_anchor;
+        std::vector<PeerlistEntry> pl_wite;
+        std::vector<PeerlistEntry> pl_gray;
+        m_p2p.getPeerlistManager().get_peerlist_full(pl_anchor, pl_gray, pl_wite);
 
-		for (const auto &pe : pl_wite) {
-			std::stringstream ss;
-			ss << pe.adr;
-			res.white_peers.push_back(ss.str());
-		}
+        for (const auto &pe : pl_anchor) {
+            std::stringstream ss;
+            ss << pe.adr;
+            res.anchor_peers.push_back(ss.str());
+        }
 
-		for (const auto &pe : pl_gray) {
-			std::stringstream ss;
-			ss << pe.adr;
-			res.gray_peers.push_back(ss.str());
-		}
+        for (const auto &pe : pl_wite) {
+            std::stringstream ss;
+            ss << pe.adr;
+            res.white_peers.push_back(ss.str());
+        }
 
-		res.status = CORE_RPC_STATUS_OK;
-		return true;
+        for (const auto &pe : pl_gray) {
+            std::stringstream ss;
+            ss << pe.adr;
+            res.gray_peers.push_back(ss.str());
+        }
+
+        res.status = CORE_RPC_STATUS_OK;
+        return true;
 	}
 
 	bool RpcServer::onBlocksListJson(const COMMAND_RPC_GET_BLOCKS_LIST::request &req,
@@ -2275,21 +2281,21 @@ namespace CryptoNote {
 								  COMMAND_RPC_GET_MEMPOOL::response &res)
 	{
 		auto pool = m_core.getMemoryPool();
-		for (const CryptoNote::tx_memory_pool::TransactionDetails txd : pool) {
+		for (const CryptoNote::TxMemoryPool::FTransactionDetails txd : pool) {
 			MEMPOOL_TRANSACTION_RESPONSE mempool_transaction;
-			uint64_t amount_out = getOutputAmount(txd.tx);
+			uint64_t amount_out = getOutputAmount(txd.sTransaction);
 
-			mempool_transaction.hash = Common::podToHex(txd.id);
-			mempool_transaction.fee = txd.fee;
+			mempool_transaction.hash = Common::podToHex(txd.sTransactionHash);
+			mempool_transaction.fee = txd.uFee;
 			mempool_transaction.amount_out = amount_out;
-			mempool_transaction.size = txd.blobSize;
-			mempool_transaction.receiveTime = txd.receiveTime;
-			mempool_transaction.keptByBlock = txd.keptByBlock;
+			mempool_transaction.size = txd.uBlobSize;
+			mempool_transaction.receiveTime = txd.sReceiveTime;
+			mempool_transaction.keptByBlock = txd.bKeepedByBlock;
 			mempool_transaction.max_used_block_height = txd.maxUsedBlock.height;
 			mempool_transaction.max_used_block_id = Common::podToHex(txd.maxUsedBlock.id);
 			mempool_transaction.last_failed_height = txd.lastFailedBlock.height;
 			mempool_transaction.last_failed_id = Common::podToHex(txd.lastFailedBlock.id);
-			mempool_transaction.tx_json = txd.tx;
+			mempool_transaction.tx_json = txd.sTransaction;
 			res.transactions.push_back(mempool_transaction);
 		}
 

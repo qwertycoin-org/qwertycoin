@@ -18,7 +18,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <cstdlib>
+#include <condition_variable>
 #include <cstring>
 #include <chrono>
 #include <condition_variable>
@@ -31,7 +31,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <thread>
 #include <vector>
+
 #include <Common/DnsTools.h>
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/Checkpoints.h>
@@ -189,7 +191,8 @@ bool Checkpoints::load_checkpoints_from_dns()
             cv.notify_one();
         });
 
-        t.detach(); {
+        t.detach();
+        {
             std::unique_lock<std::mutex> l(m);
             if (cv.wait_for(l, std::chrono::milliseconds(400)) == std::cv_status::timeout) {
                 logger(Logging::DEBUGGING) << "Timeout lookup DNS checkpoint records from " << domain;
@@ -201,17 +204,16 @@ bool Checkpoints::load_checkpoints_from_dns()
             logger(Logging::DEBUGGING) << "Failed to lookup DNS checkpoint records from " + domain;
             return false;
         }
-    }
-    catch (std::runtime_error& e) {
+    } catch (std::runtime_error &e) {
         logger(Logging::DEBUGGING) << e.what();
         return false;
     }
 
     auto dur = std::chrono::steady_clock::now() - start;
     logger(Logging::DEBUGGING)
-        << "DNS query time: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(dur).count()
-        << " ms";
+            << "DNS query time: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(dur).count()
+            << " ms";
 
     for (const auto &record : records) {
         uint32_t height;
@@ -234,9 +236,9 @@ bool Checkpoints::load_checkpoints_from_dns()
 
         if (!(0 == m_points.count(height))) {
             logger(DEBUGGING)
-                << "Checkpoint already exists for height: "
-                << height
-                << ". Ignoring DNS checkpoint.";
+                    << "Checkpoint already exists for height: "
+                    << height
+                    << ". Ignoring DNS checkpoint.";
         } else {
             add_checkpoint(height, hash_str);
             logger(DEBUGGING) << "Added DNS checkpoint: " << height_str << ":" << hash_str;

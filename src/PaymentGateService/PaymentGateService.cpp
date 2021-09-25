@@ -20,12 +20,20 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <future>
+
 #include <Common/SignalHandler.h>
+
 #include <CryptoNoteCore/CoreConfig.h>
 #include <CryptoNoteCore/Core.h>
+
 #include <CryptoNoteProtocol/CryptoNoteProtocolHandler.h>
+
 #include <Global/Checkpoints.h>
+
 #include <InProcessNode/InProcessNode.h>
+
+#include <Lmdb/BlockchainDB.h>
+
 #include <Logging/LoggerRef.h>
 #include <P2p/NetNode.h>
 #include <PaymentGate/PaymentServiceJsonRpcServer.h>
@@ -176,8 +184,9 @@ void PaymentGateService::runInProcess(Logging::LoggerRef &log)
 
     log(Logging::INFO) << "Starting Payment Gate with local node";
 
+	std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
     CryptoNote::Currency currency = currencyBuilder.currency();
-    CryptoNote::core core(currency, nullptr, logger, false);
+    CryptoNote::core core(sFakeDB ,currency, nullptr, logger, false);
 
     CryptoNote::CryptoNoteProtocolHandler protocol(currency, *dispatcher, core, nullptr, logger);
     CryptoNote::NodeServer p2pNode(*dispatcher, protocol, logger);

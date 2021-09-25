@@ -19,6 +19,7 @@
 #pragma once
 
 #include <cstdint>
+#include <iostream>
 #include <string>
 #include <Common/StringView.h>
 

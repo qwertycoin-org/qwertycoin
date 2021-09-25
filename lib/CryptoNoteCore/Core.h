@@ -50,6 +50,7 @@ class core : public ICore,
 {
 public:
     core(
+        std::unique_ptr<BlockchainDB> &sDB,
         const Currency &currency,
         i_cryptonote_protocol *pprotocol,
         Logging::ILogger &logger,
@@ -276,7 +277,7 @@ public:
     void print_blockchain(uint32_t start_index, uint32_t end_index);
     void print_blockchain_index();
     std::string print_pool(bool short_format);
-    std::list<CryptoNote::tx_memory_pool::TransactionDetails> getMemoryPool() const;
+    std::list<CryptoNote::TxMemoryPool::FTransactionDetails> getMemoryPool() const;
     void print_blockchain_outs(const std::string &file);
     bool getPoolChanges(
         const Crypto::Hash &tailBlockId,
@@ -304,8 +305,15 @@ public:
     bool is_key_image_spent(const Crypto::KeyImage &key_im);
 
     bool fillTxExtra(const std::vector<uint8_t> &rawExtra, TransactionExtraDetails2 &extraDetails);
+    Blockchain &getBlockchainStorage() override {return m_blockchain;}
 
     void setBlocksToFind(uint64_t blocksToFind);
+
+    //LMDB Stuff
+    uint64_t getDBMapSize();
+    uint64_t getDBUsedSize();
+
+    std::string pDBType;
 
 private:
     bool add_new_tx(
@@ -314,6 +322,13 @@ private:
         size_t blob_size,
         tx_verification_context &tvc,
         bool keeped_by_block);
+    bool add_new_tx(
+            const Transaction &tx,
+            const Crypto::Hash &tx_hash,
+            size_t blob_size,
+            tx_verification_context &tvc,
+            bool keeped_by_block,
+            BlockchainDB &sDB);
     bool load_state_data();
     bool parse_tx_from_blob(
         Transaction &tx,
@@ -334,7 +349,7 @@ private:
     // check if the mixin is not too large
     bool check_tx_fee(
         const Transaction &tx,
-        size_t blobSize,
+        uint64_t blobSize,
         tx_verification_context &tvc,
         uint32_t height,
         bool loose_check);
@@ -358,11 +373,13 @@ private:
 
     size_t median(std::vector<size_t> &v);
 
+    BlockchainDB *mDB;
+    std::string mDBSyncMode;
     const Currency &m_currency;
     Checkpoints m_checkpoints;
     Logging::LoggerRef logger;
     CryptoNote::RealTimeProvider m_timeProvider;
-    tx_memory_pool m_mempool;
+    TxMemoryPool m_mempool;
     Blockchain m_blockchain;
     i_cryptonote_protocol *m_pprotocol;
     std::unique_ptr<miner> m_miner;

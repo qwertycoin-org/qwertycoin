@@ -285,26 +285,68 @@ bool DaemonCommandsHandler::status(const std::vector<std::string> &args)
     uint64_t hashrate = (uint32_t)round(difficulty / CryptoNote::parameters::DIFFICULTY_TARGET);
     uint64_t alt_block_count = m_core.get_alternative_blocks_count();
 
+    bool bIsLMDB = Tools::getDefaultDBType(m_core.pDBType);
+    std::string cLMDBInfo;
+    uint32_t uMB = 1024 * 1024;
+    uint64_t uSizeUsed;
+    uint64_t uMapSize;
+    double uActualPercent;
+
+    if (bIsLMDB) {
+        uMapSize = m_core.getDBMapSize();
+        uSizeUsed = m_core.getDBUsedSize();
+        uActualPercent = (100. * uSizeUsed / uMapSize);
+
+        cLMDBInfo =
+                "\nLMDB status: \n"
+                "Actual DB MapSize: " + std::to_string(uMapSize / uMB) + " MiB\n"
+                "actual DB UsedSize: " + std::to_string(uSizeUsed / uMB) + " MiB\n"
+                "actual usage: " + (boost::format("%.02f") % uActualPercent).str() + "% \n";
+    }
+
     std::cout
-        << std::endl
-        << (synced ? ColouredMsg("Synced ", Common::Console::Color::BrightGreen) : ColouredMsg("Syncing ", Common::Console::Color::BrightYellow)) 
-        << ColouredMsg(std::to_string(height), Common::Console::Color::BrightWhite) << "/" << ColouredMsg(std::to_string(last_known_block_index), Common::Console::Color::BrightWhite)
-        << " (" << ColouredMsg(std::to_string(get_sync_percentage(height, last_known_block_index)).substr(0, 5) + "%", Common::Console::Color::BrightWhite) << ") "
-        << "on " << ColouredMsg((m_core.currency().isTestnet() ? "testnet" : "mainnet"), Common::Console::Color::BrightWhite) << ", "
-        << "block v. " << ColouredMsg(std::to_string((int)majorVersion), Common::Console::Color::BrightWhite) << ",\n"
-        << "last block hash: " << ColouredMsg(Common::podToHex(last_block_hash), Common::Console::Color::BrightWhite) << "\n"
-        << "next difficulty: " << ColouredMsg(std::to_string(difficulty), Common::Console::Color::BrightWhite) << ", "
-        << "network hashrate: " << ColouredMsg(get_mining_speed(hashrate), Common::Console::Color::BrightWhite) << ", "
-        << "alt. blocks: " << ColouredMsg(std::to_string(alt_blocks_count), Common::Console::Color::BrightWhite) << ", \n"
-        << ColouredMsg(std::to_string(outgoing_connections_count), Common::Console::Color::BrightWhite) << " out. + " 
-        << ColouredMsg(std::to_string(incoming_connections_count), Common::Console::Color::BrightWhite) << " inc. connection(s), "
-        << ColouredMsg(std::to_string(rpc_conn), Common::Console::Color::BrightWhite) << " rpc connection(s), " 
-        << "peers: " << ColouredMsg(std::to_string(white_peerlist_size), Common::Console::Color::BrightWhite) << " white / " 
-        << ColouredMsg(std::to_string(grey_peerlist_size), Common::Console::Color::BrightWhite) << " grey, \n"
-        << ColouredMsg(std::to_string(tx_pool_size), Common::Console::Color::BrightWhite) << " transaction(s) in mempool, "
-        << "uptime: " << ColouredMsg(std::to_string((unsigned int)floor(uptime / 60.0 / 60.0 / 24.0)) + "d " + std::to_string((unsigned int)floor(fmod((uptime / 60.0 / 60.0), 24.0))) + "h "
-        + std::to_string((unsigned int)floor(fmod((uptime / 60.0), 60.0))) + "m " + std::to_string((unsigned int)fmod(uptime, 60.0)) + "s", Common::Console::Color::BrightWhite) << std::endl
-        << std::endl;
+            << std::setprecision(2)
+            << ENDL
+            << "Node status: " << ENDL
+            << (synced ? ColouredMsg("Synced ", Common::Console::Color::BrightGreen) :
+                ColouredMsg("Syncing ", Common::Console::Color::BrightYellow))
+            << ColouredMsg(std::to_string(height), Common::Console::Color::BrightWhite) << "/"
+            << ColouredMsg(std::to_string(last_known_block_index), Common::Console::Color::BrightWhite)
+            << " ("
+            << ColouredMsg(std::to_string(get_sync_percentage(height, last_known_block_index)).substr(0, 5) + "%",
+                           Common::Console::Color::BrightWhite) << ") "
+            << "on "
+            << ColouredMsg((m_core.currency().isTestnet() ? "testnet" : "mainnet"), Common::Console::Color::BrightWhite)
+            << ", "
+            << "block v. " << ColouredMsg(std::to_string((int) majorVersion), Common::Console::Color::BrightWhite)
+            << ", " << ENDL
+            << "last block hash: "
+            << ColouredMsg(Common::podToHex(last_block_hash), Common::Console::Color::BrightWhite) << ", " << ENDL
+            << "next difficulty: " << ColouredMsg(std::to_string(difficulty), Common::Console::Color::BrightWhite)
+            << ", " << ENDL
+            << "network hashrate: " << ColouredMsg(get_mining_speed(hashrate), Common::Console::Color::BrightWhite)
+            << ", " << ENDL
+            << "alt. blocks: " << ColouredMsg(std::to_string(alt_blocks_count), Common::Console::Color::BrightWhite)
+            << ", " << ENDL
+            << ColouredMsg(std::to_string(outgoing_connections_count), Common::Console::Color::BrightWhite)
+            << " out. + "
+            << ColouredMsg(std::to_string(incoming_connections_count), Common::Console::Color::BrightWhite)
+            << " inc. connection(s), " << ENDL
+            << ColouredMsg(std::to_string(rpc_conn), Common::Console::Color::BrightWhite) << " rpc connection(s), "
+            << ENDL
+            << "peers: " << ColouredMsg(std::to_string(white_peerlist_size), Common::Console::Color::BrightWhite)
+            << " white / "
+            << ColouredMsg(std::to_string(grey_peerlist_size), Common::Console::Color::BrightWhite) << " grey, " << ENDL
+            << ColouredMsg(std::to_string(tx_pool_size), Common::Console::Color::BrightWhite)
+            << " transaction(s) in mempool, "
+            << "uptime: " << ColouredMsg(std::to_string((unsigned int) floor(uptime / 60.0 / 60.0 / 24.0)) + "d " +
+                                         std::to_string((unsigned int) floor(fmod((uptime / 60.0 / 60.0), 24.0))) + "h "
+                                         + std::to_string((unsigned int) floor(fmod((uptime / 60.0), 60.0))) + "m " +
+                                         std::to_string((unsigned int) fmod(uptime, 60.0)) + "s",
+                                         Common::Console::Color::BrightWhite) << ", " << ENDL
+            << cLMDBInfo
+            << ENDL
+            << ENDL;
 
     return true;
 }
@@ -944,6 +986,7 @@ bool DaemonCommandsHandler::ban(const std::vector<std::string> &args)
         logger(Logging::ERROR) << "Failed to parse ban parameters: " << e.what();
         return false;
     }
+
     return m_srv.ban_host(ip, seconds);
 }
 
@@ -959,6 +1002,7 @@ bool DaemonCommandsHandler::unban(const std::vector<std::string> &args)
         logger(Logging::ERROR) << "Invalid IP address: " << addr;
         return false;
     }
+
     return m_srv.unban_host(ip);
 }
 

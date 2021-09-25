@@ -35,6 +35,8 @@
 #include "BoostSerializationHelper.h"
 #include "AccountBoostSerialization.h"
 
+#include <Lmdb/BlockchainDB.h>
+
 #include <Logging/LoggerGroup.h>
 #include <Logging/ConsoleLogger.h>
 
@@ -416,7 +418,8 @@ inline bool do_replay_events(std::vector<test_event_entry>& events, t_test_class
   coreConfig.init(vm);
   CryptoNote::MinerConfig emptyMinerConfig;
   CryptoNote::cryptonote_protocol_stub pr; //TODO: stub only for this kind of test, make real validation of relayed objects
-  CryptoNote::core c(validator.currency(), &pr, logger, false);
+  std::unique_ptr<CryptoNote::BlockchainDB> sFakeDB(CryptoNote::newDB(Tools::getDefaultDBType(), logger));
+  CryptoNote::core c(sFakeDB, validator.currency(), &pr, logger, false);
   if (!c.init(coreConfig, emptyMinerConfig, false))
   {
     std::cout << concolor::magenta << "Failed to init core" << concolor::normal << std::endl;

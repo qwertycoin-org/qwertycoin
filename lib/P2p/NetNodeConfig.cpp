@@ -17,16 +17,19 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <fstream>
+
 #include <boost/utility/value_init.hpp>
+
 #include <Common/Util.h>
 #include <Common/StringTools.h>
+
 #include <crypto/crypto.h>
+
 #include <P2p/NetNodeConfig.h>
 
 namespace CryptoNote {
 
 namespace {
-
 bool parsePeerFromString(NetworkAddress &pe, const std::string &node_addr)
 {
     return Common::parseIpAddressAndPort(pe.ip, pe.port, node_addr);
@@ -230,7 +233,8 @@ std::vector<NetworkAddress> NetNodeConfig::getSeedNodes() const
     return seedNodes;
 }
 
-std::vector<uint32_t> NetNodeConfig::getBanList() const {
+std::vector<uint32_t> NetNodeConfig::getBanList() const
+{
     return banList;
 }
 

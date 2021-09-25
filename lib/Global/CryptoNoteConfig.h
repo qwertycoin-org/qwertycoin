@@ -27,7 +27,10 @@
 #include <initializer_list>
 #include <limits>
 #include <string>
+
 #include <boost/uuid/uuid.hpp>
+
+#include <version.h>
 
 namespace CryptoNote {
 
@@ -150,6 +153,10 @@ const uint32_t UPGRADE_WINDOW                                = EXPECTED_NUMBER_O
 static_assert(UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
+// LMDB
+const char     CRYPTONOTE_BLOCKCHAINDATA_LOCK_FILENAME[]     = "mdb.lock";
+const char     CRYPTONOTE_BLOCKCHAINDATA_FILENAME[]          = "data.mdb";
+
 const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.bin";
 const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.bin";
 const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.bin";
@@ -166,6 +173,7 @@ const uint32_t GOVERNANCE_HEIGHT_END                         = 4000000;
 } // namespace parameters
 
 const char     CRYPTONOTE_NAME[]                             = "Qwertycoin";
+const char     CRYPTONOTE_VERSION[]                          = PROJECT_VERSION;
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001ffffffffffff07029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101eddf1e272c1ffa70f49ca4eaad918578bc3b59689e53e48a1bc670fbdea08478";
 const char     DNS_CHECKPOINTS_HOST[]                        = "checkpoints.qwertycoin.org";
 
@@ -198,8 +206,9 @@ const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                 =  5000;
 // and the minimum version for communication between nodes
 const uint8_t  P2P_VERSION_1                                 = 1;
 const uint8_t  P2P_VERSION_2                                 = 2;
-const uint8_t  P2P_CURRENT_VERSION                           = 6;
+const uint8_t  P2P_CURRENT_VERSION                           = APP_VER_MAJOR;
 const uint8_t  P2P_MINIMUM_VERSION                           = 6;
+const char     P2P_MINIMUM_STRING_VERSION[]                  = "6.1.0";
 
 // This defines the number of versions ahead we must see peers before we start displaying
 // warning messages that we need to upgrade our software.
@@ -237,10 +246,6 @@ const std::string GOVERNANCE_WALLET_ADDRESS                  = "QWC1W9dWEf955q71
 const std::string GOVERNANCE_VIEW_SECRET_KEY                 = "d6c03cec7de78fe30895bf19edeb5c24529c3d2e40d00b300fa2336c6fdafe0d";
 
 const char *const SEED_NODES[] = {
-    "148.251.115.233:8196",         //E
-    "148.251.115.235:8196",         //E
-    "148.251.115.236:8196",         //E
-    "148.251.115.237:8196",         //E
     "node-01.qwertycoin.org:8196",  //A
     "node-02.qwertycoin.org:8196",  //A
     "node-03.qwertycoin.org:8196",  //A
@@ -252,7 +257,6 @@ const char *const SEED_NODES[] = {
 const char *const BANNED_NODES[] = {
     ""
 };
-
 } // namespace CryptoNote
 
 #define ALLOW_DEBUG_COMMANDS
