@@ -139,6 +139,7 @@ public:
     virtual Crypto::Hash getBlockIdByHeight(uint32_t height) = 0;
     virtual bool getBlockByHash(const Crypto::Hash &h, Block &blk) = 0;
     virtual bool getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeight) = 0;
+    virtual bool getTransactionHeight(const Crypto::Hash &txId, uint32_t &blockHeight) = 0;
     virtual void getTransactions(
         const std::vector<Crypto::Hash> &txs_ids,
         std::list<Transaction> &txs,

@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <stdexcept>
+#include <limits>
+
 #include <Common/StreamTools.h>
 #include <Serialization/KVBinaryCommon.h>
 #include <Serialization/KVBinaryOutputStreamSerializer.h>

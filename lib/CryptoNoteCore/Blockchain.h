@@ -90,6 +90,7 @@ public:
     Crypto::Hash getBlockIdByHeight(uint32_t height);
     bool getBlockByHash(const Crypto::Hash &h, Block &blk);
     bool getBlockHeight(const Crypto::Hash &blockId, uint32_t &blockHeight);
+    bool getTransactionHeight(const Crypto::Hash &txId, uint32_t &blockHeight);
 
     bool haveTransaction(const Crypto::Hash &id);
     bool haveTransactionKeyImagesAsSpent(const Transaction &tx);

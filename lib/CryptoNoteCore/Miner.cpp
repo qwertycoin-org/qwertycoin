@@ -300,6 +300,9 @@ bool miner::stop()
 
     m_threads.clear();
 
+    m_current_hash_rate = 0;
+    m_last_hash_rates.clear();
+
     logger(INFO) << "Mining has been stopped, " << m_threads.size() << " finished" ;
 
     return true;

@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018, The TurtleCoin developers
-// Copyright (c) 2018, The Karbo developers
+// Copyright (c) 2016-2021, The Karbo developers
 // Copyright (c) 2018-2021, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
@@ -21,17 +21,20 @@
 #include <cstdlib>
 #include <cstring>
 #include <chrono>
-#include <condition_variable>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <mutex>
 #include <thread>
+#include <future>
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <string.h>
 #include <vector>
+
+#include "Checkpoints.h"
+
 #include <Common/DnsTools.h>
 #include <Common/StringTools.h>
 #include <CryptoNoteCore/Checkpoints.h>
@@ -80,7 +83,7 @@ bool Checkpoints::load_checkpoints_from_file(const std::string &fileName)
     while (std::getline(file, indexString, ','), std::getline(file, hash)) {
         try {
             height = std::stoi(indexString);
-        } catch (const std::invalid_argument &)	{
+        } catch (const std::invalid_argument &) {
             logger(ERROR, BRIGHT_RED)
                 << "Invalid checkpoint file format - "
                 << "could not parse height as a number";
@@ -90,9 +93,7 @@ bool Checkpoints::load_checkpoints_from_file(const std::string &fileName)
             return false;
         }
     }
-
-    logger(Logging::INFO) << "Loaded " << m_points.size() << " checkpoints from "	<< fileName;
-
+    logger(Logging::INFO) << "Loaded " << m_points.size() << " checkpoints from "   << fileName;
     return true;
 }
 
@@ -139,8 +140,9 @@ bool Checkpoints::is_alternative_block_allowed(
         return false;
     }
 
-    if (block_height < blockchain_height - parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
-        && !is_in_checkpoint_zone(block_height)) {
+    if (block_height < blockchain_height - CryptoNote::parameters::CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
+        && !is_in_checkpoint_zone(block_height))
+    {
         logger(Logging::WARNING, Logging::WHITE)
             << "An attempt of too deep reorganization: "
             << blockchain_height - block_height
@@ -149,13 +151,13 @@ bool Checkpoints::is_alternative_block_allowed(
     }
 
     auto it = m_points.upper_bound(blockchain_height);
+    // Is blockchain_height before the first checkpoint?
     if (it == m_points.begin()) {
         return true;
     }
+
     --it;
-
     uint32_t  checkpoint_height = it->first;
-
     return checkpoint_height < block_height;
 }
 
@@ -169,41 +171,35 @@ std::vector<uint32_t> Checkpoints::getCheckpointHeights() const
 
     return checkpointHeights;
 }
-
 #ifndef __ANDROID__
+
 bool Checkpoints::load_checkpoints_from_dns()
 {
-    std::mutex m;
-    std::condition_variable cv;
     std::string domain(CryptoNote::DNS_CHECKPOINTS_HOST);
     std::vector<std::string>records;
     bool res = true;
     auto start = std::chrono::steady_clock::now();
-
-    logger(Logging::INFO) << "Fetching DNS checkpoint records from " << domain;
+    logger(Logging::DEBUGGING) << "Fetching DNS checkpoint records from " << domain;
 
     try {
-        std::thread t([&cv, &domain, &res, &records]()
-        {
+        auto future = std::async(std::launch::async, [this, &res, &domain, &records]() {
             res = Common::fetch_dns_txt(domain, records);
-            cv.notify_one();
         });
 
-        t.detach(); {
-            std::unique_lock<std::mutex> l(m);
-            if (cv.wait_for(l, std::chrono::milliseconds(400)) == std::cv_status::timeout) {
-                logger(Logging::INFO) << "Timeout lookup DNS checkpoint records from " << domain;
-                return false;
-            }
-        }
+        std::future_status status;
 
-        if (!res) {
-            logger(Logging::INFO) << "Failed to lookup DNS checkpoint records from " + domain;
+        status = future.wait_for(std::chrono::milliseconds(200));
+
+        if (status == std::future_status::timeout) {
+            logger(Logging::DEBUGGING) << "Timeout lookup DNS checkpoint records from " << domain;
             return false;
+        }
+        else if (status == std::future_status::ready) {
+            future.get();
         }
     }
     catch (std::runtime_error& e) {
-        logger(Logging::INFO) << e.what();
+        logger(Logging::DEBUGGING) << e.what();
         return false;
     }
 
@@ -228,7 +224,7 @@ bool Checkpoints::load_checkpoints_from_dns()
         }
 
         if ((ss.fail() || ss.get(c)) || !Common::podFromHex(hash_str, hash)) {
-            logger(Logging::INFO) << "Failed to parse DNS checkpoint record: " << record;
+            logger(Logging::DEBUGGING) << "Failed to parse DNS checkpoint record: " << record;
             continue;
         }
 
@@ -239,12 +235,15 @@ bool Checkpoints::load_checkpoints_from_dns()
                 << ". Ignoring DNS checkpoint.";
         } else {
             add_checkpoint(height, hash_str);
-            logger(DEBUGGING) << "Added DNS checkpoint: " << height_str << ":" << hash_str;
+            logger(DEBUGGING)
+                << "Added DNS checkpoint: "
+                << height_str
+                << ":"
+                << hash_str;
         }
     }
 
     return true;
 }
 #endif
-
-} // namespace CryptoNote
+}

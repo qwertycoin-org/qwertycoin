@@ -1105,7 +1105,9 @@ bool NodeServer::make_new_connection_from_anchor_peerlist(const std::vector<Anch
             continue;
         }
 
-        logger(ERROR) << "Selected peer: " << pe.id << " "
+        logger(INFO)
+        << "Selected peer: "
+        << pe.id << " "
         << Common::ipAddressToString(pe.adr.ip)
         << ":" << boost::lexical_cast<std::string>(pe.adr.port)
         << "[peer_type=" << anchor

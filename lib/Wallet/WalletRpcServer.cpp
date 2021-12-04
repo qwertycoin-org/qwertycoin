@@ -173,7 +173,8 @@ void wallet_rpc_server::processRequest(const CryptoNote::HttpRequest &request,
         jsonResponse.setError(JsonRpcError(WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR, e.what()));
     }
 
-	response.setBody(jsonResponse.getBody());
+    response.addHeader("Content-Type", "application/json");
+    response.setBody(jsonResponse.getBody());
 }
 
 bool wallet_rpc_server::on_getbalance(
