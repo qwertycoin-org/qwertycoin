@@ -140,11 +140,13 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                       tx_verification_context &tvc,
                                       bool bKeepedByBlock)
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << "L137";
         if (!check_inputs_types_supported(sTransaction)) {
             tvc.m_verification_failed = true;
             return false;
         }
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " check_inputs_types_supported successfully";
 
         uint64_t uInputsAmount = 0;
         uint64_t uOutputsAmount = get_outs_money_amount(sTransaction);
@@ -157,6 +159,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             return false;
         }
 
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " get_inputs_money_amount successfully";
+
         if (uOutputsAmount > uInputsAmount) {
             mLogger(ERROR, BRIGHT_RED) << "transaction use more money then it has: use "
                                        << mCurrency.formatAmount(uOutputsAmount) << ", have "
@@ -165,12 +169,16 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             return false;
         }
 
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " !uOutputsAmount > uInputsAmount";
+
         std::vector<TransactionExtraField> vTxExtraFields;
         parseTransactionExtra(sTransaction.extra, vTxExtraFields);
         TransactionExtraTTL sTtl;
         if (!findTransactionExtraFieldByType(vTxExtraFields, sTtl)) {
             sTtl.ttl = 0;
         }
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " findTransactionExtraFieldByType successfully";
 
         const uint64_t uFee = uInputsAmount - uOutputsAmount;
         bool bIsFusionTransaction = uFee == 0 && mCurrency.isFusionTransaction(sTransaction,
@@ -203,12 +211,16 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             }
         }
 
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " sTtl.ttl != 0 && bKeepedByBlock";
+
         TransactionExtraMergeMiningTag sMmTag;
         if (getMergeMiningTagFromExtra(sTransaction.extra, sMmTag)) {
             mLogger(ERROR, BRIGHT_RED) << "Merge mining tag was found in extra of transaction";
             tvc.m_verification_failed = true;
             return false;
         }
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " !getMergeMiningTagFromExtra";
 
         if (!bKeepedByBlock) {
             std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
@@ -220,6 +232,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                 return false;
             }
         }
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " !bKeepedByBlock 0";
 
         BlockInfo sMaxUsedBlock;
 
@@ -267,6 +281,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             sMaxUsedBlock.clear();
         }
 
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " !bInputsValid";
+
         if (!bKeepedByBlock) {
             bool bSizeValid = mBlockchain.checkTransactionSize(uBlobSize);
             if (!bSizeValid) {
@@ -275,6 +291,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                 return false;
             }
         }
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " !bKeepedByBlock 1";
 
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
@@ -285,6 +303,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
             tvc.m_added_to_pool = false;
             return true;
         }
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << " !bKeepedByBlock 2";
 
         if (!bIsLMDB) {
             FTransactionDetails sTxDetails;
@@ -371,7 +391,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                       tx_verification_context &tvc,
                                       bool bKeepedByBlock)
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << "L370";
         Crypto::Hash sHash = NULL_HASH;
         uint64_t uBlobSize = 0;
         getObjectHash(sTransaction, sHash, uBlobSize);
@@ -453,6 +473,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
     void TxMemoryPool::getTransactions(std::list<Transaction> &lTransactions) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "txList: " << lTransactions.size() << ENDL;
         bool bIsLMDB = Tools::getDefaultDBType("lmdb");
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
@@ -480,6 +501,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                        bool bIncludeUnrelayedTransactions) const
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "txList: " << lTransactions.size() << ENDL;
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
 
         mBlockchain.pDB->forAllTxPoolTransactions([&lTransactions](const Crypto::Hash &sTxhash,
@@ -501,6 +523,8 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                        std::vector<Crypto::Hash> &vMissedTxs)
     {
         mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::"<<__func__;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "txList: " << vTransactions.size() << ENDL;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "missedList: " << vMissedTxs.size() << ENDL;
         std::lock_guard<std::recursive_mutex> lock(mTransactionsLock);
         bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
@@ -1286,7 +1310,7 @@ std::unordered_set<Crypto::Hash> mValidatedTransactions;
                                             const Transaction &sTransaction,
                                             bool bKeptByBlock)
     {
-        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "TxMemoryPool::" << __func__ << "L1285";
         bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
         // TODO: lmdbization

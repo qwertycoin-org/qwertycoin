@@ -505,7 +505,7 @@ bool Blockchain::have_tx_keyimg_as_spent(const Crypto::KeyImage &key_im)
 
 uint32_t Blockchain::getCurrentBlockchainHeight()
 {
-    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    // logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     bool bIsLMDB = Tools::getDefaultDBType("lmdb");
 
@@ -844,24 +844,24 @@ void Blockchain::rebuildCache()
                     }
                 }
             }
-        }
-        else if (bIsLMDB) {
+        } else if (bIsLMDB) {
             DB_TX_START
             Block sBlock = (b > 0 ? pDB->getBlockFromHeight(b) : m_currency.genesisBlock());
-            Crypto::Hash blockHash = (b > 0 ? pDB->getBlockHashFromHeight(b) : m_currency.genesisBlockHash());
+            Crypto::Hash blockHash =
+                    (b > 0 ? pDB->getBlockHashFromHeight(b) : m_currency.genesisBlockHash());
             m_blockIndex.push(blockHash);
             Transaction sTransaction = boost::value_initialized<Transaction>();
 
-        	for (uint16_t i = 0; i < sBlock.transactionHashes.size(); ++i) {
-        		sTransaction = pDB->getTransaction(sBlock.transactionHashes[i]);
-				const Transaction tx = sTransaction;
-        		Crypto::Hash sTxHash = getObjectHash(sTransaction);
-        		TransactionIndex sTransactionIndex = {b, i};
-        		m_transactionMap.insert(std::make_pair(sTxHash, sTransactionIndex));
+            for (uint16_t i = 0; i < sBlock.transactionHashes.size(); ++i) {
+                sTransaction = pDB->getTransaction(sBlock.transactionHashes[i]);
+                const Transaction tx = sTransaction;
+                Crypto::Hash sTxHash = getObjectHash(sTransaction);
+                TransactionIndex sTransactionIndex = { b, i };
+                m_transactionMap.insert(std::make_pair(sTxHash, sTransactionIndex));
 
                 // process outputs
                 for (uint16_t j = 0; j < tx.outputs.size(); ++j) {
-                    const auto& out = tx.outputs[j];
+                    const auto &out = tx.outputs[j];
                     if (out.target.type() == typeid(KeyOutput)) {
                         m_outputs[out.amount].push_back(std::make_pair<>(sTransactionIndex, j));
                     } else if (out.target.type() == typeid(MultisignatureOutput)) {
@@ -870,16 +870,16 @@ void Blockchain::rebuildCache()
                     }
                 }
 
-				// process inputs
-				for (auto &in : tx.inputs) {
-					if (in.type() == typeid(KeyInput)) {
-						m_spent_keys.insert(::boost::get<KeyInput>(in).keyImage);
-					} else if (in.type() == typeid(MultisignatureInput)) {
-						auto mIn = ::boost::get<MultisignatureInput>(in);
-						m_multisignatureOutputs[mIn.amount][mIn.outputIndex].isUsed = true;
-					}
-				}
-        	}
+                // process inputs
+                for (auto &in : tx.inputs) {
+                    if (in.type() == typeid(KeyInput)) {
+                        m_spent_keys.insert(::boost::get<KeyInput>(in).keyImage);
+                    } else if (in.type() == typeid(MultisignatureInput)) {
+                        auto mIn = ::boost::get<MultisignatureInput>(in);
+                        m_multisignatureOutputs[mIn.amount][mIn.outputIndex].isUsed = true;
+                    }
+                }
+            }
         }
     }
 
@@ -1474,7 +1474,7 @@ uint64_t Blockchain::getCoinsInCirculation()
 
 uint8_t Blockchain::getBlockMajorVersionForHeight(uint32_t height) const
 {
-    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    // logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
     if (height > m_upgradeDetectorV6.upgradeHeight()) {
         return m_upgradeDetectorV6.targetVersion();
     } else if (height > m_upgradeDetectorV5.upgradeHeight()) {
@@ -2695,7 +2695,9 @@ void Blockchain::getDBTransactions(const T &sTxIds, D &sTransactions, S &sMissed
 template<class T, class D, class S>
 void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool checkTxPool)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
     if (checkTxPool) {
+        logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << " -- checkTxPool";
         std::lock_guard<decltype(m_tx_pool)> txLock(m_tx_pool);
         getBlockchainTransactions(txs_ids, txs, missed_txs);
         auto poolTxIds = std::move(missed_txs);
@@ -2715,6 +2717,8 @@ void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool c
             vMTxsHashes.push_back(std::move(sHash));
         }
 
+        logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << " -- checkTxPool -- vTxsHashes.size() = " << vTxsHashes.size();
+        logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << " -- checkTxPool -- vTxs.size() = " << vTxs.size();
         m_tx_pool.getTransactions(vTxsHashes, vTxs, vMTxsHashes);
 
         txs.clear();
@@ -2736,8 +2740,15 @@ void Blockchain::getTransactions(const T &txs_ids, D &txs, S &missed_txs, bool c
 
 Crypto::PublicKey Blockchain::getOutputKey(uint64_t uAmount, uint64_t uGlobIndex) const
 {
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
+    logger(TRACE, BRIGHT_MAGENTA) << "Blockchain::" << __func__ << ENDL
+        << "uAmount: " << uAmount << ENDL
+        << "uGlobIndex: " << uGlobIndex << ENDL;
     bool bIsLMDB = Tools::getDefaultDBType("lmdb");
     FOutputData sData = pDB->getOutputKey(uAmount, uGlobIndex);
+
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__
+                                          << " -- sData.sPublicKey = " << podToHex(sData.sPublicKey);
 
     return sData.sPublicKey;
 }
@@ -3020,6 +3031,8 @@ bool Blockchain::haveTransactionKeyImagesAsSpent(const Transaction &tx)
 
 bool Blockchain::checkTransactionInputs(const Transaction &tx, uint32_t *pmax_used_block_height)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << "0";
+
     Crypto::Hash tx_prefix_hash = getObjectHash(*static_cast<const TransactionPrefix *>(&tx));
     return checkTransactionInputs(tx, tx_prefix_hash, pmax_used_block_height);
 }
@@ -3029,6 +3042,8 @@ bool Blockchain::checkTransactionInputs(
     const Crypto::Hash &tx_prefix_hash,
     uint32_t *pmax_used_block_height)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__ << "1";
+
     bool bIsLMDB = Tools::getDefaultDBType("lmdb");
     size_t inputIndex = 0;
     if (pmax_used_block_height) {
@@ -3125,6 +3140,7 @@ bool Blockchain::check_tx_input(
     const std::vector<Crypto::Signature> &sig,
     uint32_t *pmax_related_block_height)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Blockchain::" << __func__;
     bool bIsLMDB = Tools::getDefaultDBType("lmdb");
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
 
@@ -3192,6 +3208,7 @@ bool Blockchain::check_tx_input(
         0x00, 0x00, 0x00, 0x10
     } };
 
+    logger(TRACE, BRIGHT_CYAN) << "KeyInput amount: " << txin.amount << ENDL;
     // check ring signature
     std::vector<const Crypto::PublicKey *> output_keys;
     if (!bIsLMDB) {
@@ -3206,6 +3223,7 @@ bool Blockchain::check_tx_input(
         }
     } else {
         for (int i = 0; i < txin.outputIndexes.size(); i++) {
+            logger(TRACE, BRIGHT_CYAN) << "KeyInput index: " << txin.outputIndexes[i] << ENDL;
             Crypto::PublicKey sPKey = getOutputKey(txin.amount, txin.outputIndexes[i]);
             if (Common::podToHex(sPKey) != Common::podToHex(NULL_HASH)) {
                 output_keys.push_back(&sPKey);
@@ -3239,11 +3257,8 @@ bool Blockchain::check_tx_input(
         return false;
     }
 
-    if (!(isInCheckpointZone(getCurrentBlockchainHeight()))) {
-        // return true;
-        logger(ERROR, BRIGHT_RED) << "internal error: tx signatures count=" << sig.size()
-                                  << " mismatch with outputs keys count for inputs=" << output_keys.size();
-        return false;
+    if (isInCheckpointZone(getCurrentBlockchainHeight())) {
+        return true;
     }
 
     bool check_tx_ring_signature = Crypto::check_ring_signature(
@@ -3916,6 +3931,7 @@ bool Blockchain::pushTransaction(
     }
 
     TransactionEntry &transaction = block.transactions[transactionIndex.transaction];
+    logger(TRACE, BRIGHT_CYAN) << "tx m_global_output_indexes: " << transaction.m_global_output_indexes.size() << " before";
     if (bIsLMDB) {
         if (pDB->transactionExists(transactionHash)) {
             logger(ERROR, BRIGHT_RED) << "Duplicate transaction was pushed to blockchain.";
@@ -3971,6 +3987,7 @@ bool Blockchain::pushTransaction(
     for (uint16_t output = 0; output < transaction.tx.outputs.size(); ++output) {
         if (transaction.tx.outputs[output].target.type() == typeid(KeyOutput)) {
             auto &amountOutputs = m_outputs[transaction.tx.outputs[output].amount];
+            // logger(TRACE, BRIGHT_CYAN) << "amountOutputs: " <<  << ENDL;
             transaction.m_global_output_indexes[output]=static_cast<uint32_t>(amountOutputs.size());
             amountOutputs.push_back(std::make_pair<>(transactionIndex, output));
         } else if (transaction.tx.outputs[output].target.type() == typeid(MultisignatureOutput)) {
@@ -3992,7 +4009,7 @@ bool Blockchain::pushTransaction(
         pDB->blockTxnStop();
     }
 
-
+    logger(TRACE, BRIGHT_CYAN) << "tx m_global_output_indexes: " << transaction.m_global_output_indexes.size() << " after";
 
     return true;
 }

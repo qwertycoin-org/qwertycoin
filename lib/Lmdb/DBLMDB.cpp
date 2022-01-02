@@ -914,6 +914,7 @@ namespace CryptoNote {
         }
 
         uint64_t uRetVal = sDBStats.ms_entries;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__ << ". numOutputs: " << uRetVal;
 
         return uRetVal;
     }
@@ -1127,6 +1128,9 @@ namespace CryptoNote {
     FOutputData BlockchainLMDB::getOutputKey(const uint64_t &uAmount, const uint32_t &uIndex)
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        mLogger(TRACE, BRIGHT_MAGENTA) << "BlockchainLMDB::" << __func__ << ENDL
+                                       << "uAmount: " << uAmount << ENDL
+                                       << "uGlobIndex: " << uIndex << ENDL;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -1134,14 +1138,19 @@ namespace CryptoNote {
 
         MDBValSet(sValAmount, uAmount);
         MDBValSet(sValIndex, uIndex);
+        mLogger(TRACE, BRIGHT_MAGENTA) << "BlockchainLMDB::" << __func__ << ENDL
+                                       << "sValAmount: " << uAmount << ENDL
+                                       << "sValIndex: " << uIndex << ENDL;
         auto getResult = mdb_cursor_get(sCurOutputAmounts, &sValAmount, &sValIndex, MDB_GET_BOTH);
+        mLogger(TRACE, BRIGHT_MAGENTA) << "BlockchainLMDB::" << __func__ << ENDL
+                                       << "getResult: " << getResult << ENDL;
         if (getResult == MDB_NOTFOUND) {
             throw (OUTPUT_DNE("Attempting to get output pubkey by index, but key does not exist"));
         } else if (getResult) {
             throw (DB_ERROR("Error attempting to retrieve an output pubkey from the db"));
         }
 
-        FOutputData sRet;
+        FOutputData sRet{};
         const FOutputKey *sOKe = (const FOutputKey *) sValIndex.mv_data;
         memcpy(&sRet, &sOKe->sData, sizeof(FOutputData));
 
@@ -2171,7 +2180,7 @@ namespace CryptoNote {
 
     CryptoNote::difficulty_type BlockchainLMDB::getBlockCumulativeDifficulty(const uint64_t &uHeight) const
     {
-        mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+        // mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
         checkOpen();
 
         TXN_PREFIX_READONLY();
@@ -2475,6 +2484,7 @@ namespace CryptoNote {
                                        const uint64_t &uUnlockTime)
     {
         mLogger(TRACE, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__;
+
         checkOpen();
 
         FMdbTxnCursors *sCursor = &mWriteCursors;
@@ -2484,6 +2494,7 @@ namespace CryptoNote {
         int result = 0;
 
         CURSOR(OutputTransactions)
+        CURSOR(OutputAmounts)
 
         FOutTx sOutTx = {uNumOutputs, sTxHash, uIndex};
         MDBValSet(sValOutTx, sOutTx);
@@ -2493,21 +2504,32 @@ namespace CryptoNote {
             throw (DB_ERROR(lmdbError("Failed to add output tx hash to db transaction: ", result).c_str()));
         }
 
-        CURSOR(OutputAmounts)
-
         FOutputKey sOutKey;
         MDB_val sData;
         FMdbValCopy<uint64_t> sValAmount(sTxOutput.amount);
         result = mdb_cursor_get(sCurOutputAmounts, &sValAmount, &sData, MDB_SET);
+        mLogger(TRACE, BRIGHT_WHITE) << "BlockchainLMDB::" << __func__
+                                     << ". mdb_cursor_get returned: " << result;
         if (!result) {
             mdb_size_t uNumElements = 0;
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                            << ". Found existing output amount: " << sTxOutput.amount << ENDL
+                                            << ", in db.";
             result = mdb_cursor_count(sCurOutputAmounts, &uNumElements);
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                            << ". Found " << uNumElements << " outputs with amount: "
+                                            << sTxOutput.amount << ENDL
+                                            << ", in db.";
             if (result) {
                 throw (DB_ERROR(std::string("Failed to get number of outputs for amount: ").append(
                         mdb_strerror(result)).c_str()));
             }
 
             sOutKey.uAmountIndex = uNumElements;
+            mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                            << ". Adding output amount: " << sTxOutput.amount << ENDL
+                                            << " at index: " << sOutKey.uAmountIndex << ENDL
+                                            << ", to db.";
         } else if (result != MDB_NOTFOUND) {
             throw (DB_ERROR(lmdbError("Failed to get output amount in db transaction: ", result).c_str()));
         } else {
@@ -2516,11 +2538,17 @@ namespace CryptoNote {
 
         if (sTxOutput.target.type() == typeid(KeyOutput)) {
             sOutKey.sData.sPublicKey = boost::get<KeyOutput>(sTxOutput.target).key;
-        } else if (sTxOutput.target.type() == typeid(KeyOutput)) {
+        } else if (sTxOutput.target.type() == typeid(MultisignatureOutput)) {
             throw (DB_ERROR(std::string("Transaction output should be of type KeyOutput!").c_str()));
         }
 
         // sOutKey.sData.sPublicKey = boost::get<MultisignatureOutput>(sTxOutput.target).keys;
+
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                        << ". Adding output amount: " << sTxOutput.amount
+                                        << ", with index: " << sOutKey.uAmountIndex << ENDL
+                                        << ", with public key: " << Common::podToHex(sOutKey.sData.sPublicKey)
+                                        << ", to db transaction.";
 
         sOutKey.uOutputId = uNumOutputs;
         sOutKey.sData.uUnlockTime = uUnlockTime;
@@ -2528,9 +2556,30 @@ namespace CryptoNote {
         sData.mv_size = sizeof(FOutputKey);
         sData.mv_data = &sOutKey;
 
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                        << ". mdb_cursor_get returned: " << result << ENDL
+                                        << ", sTxOutput.amount: " << sTxOutput.amount << ENDL
+                                        << ", uGlobIndex: " << sOutKey.uOutputId << ENDL
+                                        << ", uGlobIndex: " << sOutKey.uAmountIndex << ENDL
+                                        << ", sData.mv_size: " << sData.mv_size << ENDL
+                                        << ", sData.mv_data: " << sData.mv_data << ENDL
+                                        << ", sValAmount.mv_size: " << sValAmount.mv_size << ENDL
+                                        << ", sValAmount.mv_data: " << sValAmount.mv_data << ENDL;
+
         if ((result = mdb_cursor_put(sCurOutputAmounts, &sValAmount, &sData, MDB_APPENDDUP))) {
             throw (DB_ERROR(lmdbError("Failed to add output pubkey to db transaction: ", result).c_str()));
         }
+
+        mLogger(TRACE, BRIGHT_MAGENTA) << "BlockchainLMDB::" << __func__ << ENDL
+                                       << "sTxOutput.amount: " << sTxOutput.amount << ENDL
+                                       << "uGlobIndex: " << sOutKey.uOutputId << ENDL;
+        mLogger(DEBUGGING, BRIGHT_CYAN) << "BlockchainLMDB::" << __func__
+                                        << ". Adding output with amount: " << sTxOutput.amount << ENDL
+                                        << ", to tx with hash: " << Common::podToHex(sTxHash) << ENDL
+                                        << ", at index: " << uIndex << ENDL
+                                        << ", with unlock time: " << uUnlockTime << ENDL
+                                        << ", in block height: " << height() << ENDL
+                                        << ", successfully.";
 
         return sOutKey.uAmountIndex;
 
