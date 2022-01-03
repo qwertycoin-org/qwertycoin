@@ -1145,14 +1145,27 @@ namespace CryptoNote {
         mLogger(TRACE, BRIGHT_MAGENTA) << "BlockchainLMDB::" << __func__ << ENDL
                                        << "getResult: " << getResult << ENDL;
         if (getResult == MDB_NOTFOUND) {
-            throw (OUTPUT_DNE("Attempting to get output pubkey by index, but key does not exist"));
+            throw (
+                    OUTPUT_DNE(
+                            std::string("Attempting to get output pubkey by index, but key does not exist: ")
+                                    .append(std::string("Amount: "))
+                                    .append(std::to_string(uAmount))
+                                    .append(", Index: ")
+                                    .append(std::to_string(uIndex)).c_str()));
         } else if (getResult) {
             throw (DB_ERROR("Error attempting to retrieve an output pubkey from the db"));
         }
 
         FOutputData sRet{};
-        const FOutputKey *sOKe = (const FOutputKey *) sValIndex.mv_data;
+        const auto *sOKe = (const FOutputKey *) sValIndex.mv_data;
         memcpy(&sRet, &sOKe->sData, sizeof(FOutputData));
+
+        mLogger(TRACE, BRIGHT_MAGENTA) << "BlockchainLMDB::" << __func__ << ENDL
+                                       << "uAmount: " << uAmount << ENDL
+                                       << ", uIndex: " << uIndex << ENDL
+                                       << ", sRet.uHeight: " << sRet.uHeight << ENDL
+                                       << ", sRet.uUnlockTime: " << sRet.uUnlockTime << ENDL
+                                       << ", sRet.sPublicKey: " << podToHex(sRet.sPublicKey) << ENDL;
 
         return sRet;
     }
@@ -2581,6 +2594,8 @@ namespace CryptoNote {
                                         << ", in block height: " << height() << ENDL
                                         << ", successfully.";
 
+        mLogger(TRACE, BRIGHT_MAGENTA) << "BlockchainLMDB::" << __func__ << ENDL
+                                       << "sOutKey.uAmountIndex: " << sOutKey.uAmountIndex << ENDL;
         return sOutKey.uAmountIndex;
 
     }

@@ -3268,6 +3268,12 @@ bool Blockchain::check_tx_input(
         sig.data()
     );
 
+    logger(TRACE) << "check_tx_ring_signature: " << check_tx_ring_signature;
+    logger(TRACE) << "tx_prefix_hash: " << Common::podToHex(tx_prefix_hash);
+    logger(TRACE) << "txin.keyImage: " << Common::podToHex(txin.keyImage);
+    logger(TRACE) << "output_keys: " << Common::podToHex(output_keys);
+    logger(TRACE) << "sig.data(): " << Common::podToHex(sig.data());
+
     if (!check_tx_ring_signature) {
         logger(ERROR) << "Failed to check ring signature for keyImage: " << txin.keyImage;
     }
