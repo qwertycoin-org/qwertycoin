@@ -1,9 +1,10 @@
 **/bui*
 
 .DS_Store
-/build
-/build32
-/build64
+build/
+build/*
+build32
+build64
 /cmake-*
 /tags
 .idea
@@ -90,5 +91,6 @@ $RECYCLE.BIN/
 
 .vscode
 .vs
+cmake-*
 
 cmake/polly

@@ -192,7 +192,7 @@ const uint8_t  BLOCK_MINOR_VERSION_0                         =  0;
 const uint8_t  BLOCK_MINOR_VERSION_1                         =  1;
 
 const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  1000; // by default, blocks ids count in synchronizing
-const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  64; // by default, blocks count in blocks downloading
+const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  32;   // by default, blocks count in blocks downloading
 const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         =  1000;
 
 const int      P2P_DEFAULT_PORT                              =  8196;
@@ -255,20 +255,8 @@ const char *const SEED_NODES[] = {
 };
 
 const char *const BANNED_NODES[] = {
-     "8.140.169.173",
-     "146.255.65.161",
-     "92.94.131.156",
-     "178.184.195.55",
-     "103.68.63.19",
-     "146.255.68.132",
-     "85.50.4.138",
-     "39.42.65.212",
-     "92.90.243.170",
-     "152.208.59.249",
-     "31.167.51.51",
-     "176.191.96.108"
+    ""
 };
-
 } // namespace CryptoNote
 
 #define ALLOW_DEBUG_COMMANDS

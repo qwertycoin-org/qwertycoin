@@ -189,9 +189,16 @@ bool PeerlistManager::get_peerlist_head(std::vector<PeerlistEntry> &bs_head, uin
 
         bs_head.push_back(vl);
 
+        /*
         if (cnt++ > depth) {
             break;
         }
+        */
+    }
+
+    std::shuffle(bs_head.begin(), bs_head.end(), Random::generator());
+    if (bs_head.size() > depth) {
+        bs_head.resize(depth);
     }
 
     return true;

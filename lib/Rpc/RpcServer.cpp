@@ -1309,7 +1309,6 @@ namespace CryptoNote {
 		size_t grey_peerlist_size = m_p2p.getPeerlistManager().get_gray_peers_count();
 		size_t alt_blocks_count = m_core.get_alternative_blocks_count();
 		size_t total_tx_count = m_core.get_blockchain_total_transactions() - top_block_index + 1;
-
 		size_t tx_pool_count = m_core.get_pool_transactions_count();
 
         const std::string body = index_start +
@@ -1903,7 +1902,7 @@ namespace CryptoNote {
 	}
 
 	bool RpcServer::onGetPeerList(const COMMAND_RPC_GET_PEER_LIST::request &req,
-								  COMMAND_RPC_GET_PEER_LIST::response &res)
+									 	COMMAND_RPC_GET_PEER_LIST::response &res)
 	{
         if (m_restricted_rpc) {
             res.status = "Method disabled";

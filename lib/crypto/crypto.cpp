@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <mutex>
 
@@ -598,6 +599,7 @@ namespace Crypto {
   bool crypto_ops::check_ring_signature(const Hash &prefix_hash, const KeyImage &image,
     const PublicKey *const *pubs, size_t pubs_count,
     const Signature *sig) {
+      std::cout << "crypto_ops::" << __func__ << std::endl;
     size_t i;
     ge_p3 image_unp;
     ge_dsmp image_pre;
@@ -608,30 +610,57 @@ namespace Crypto {
       assert(check_key(*pubs[i]));
     }
 #endif
+    std::cout << "crypto_ops::" << __func__ << ": ge_frombytes_vartime" << std::endl;
     if (ge_frombytes_vartime(&image_unp, reinterpret_cast<const unsigned char*>(&image)) != 0) {
-      return false;
+      std::cout << "crypto_ops::" << __func__ << ": ge_frombytes_vartime failed" << std::endl;
+        return false;
     }
     ge_dsm_precomp(image_pre, &image_unp);
     sc_0(reinterpret_cast<unsigned char*>(&sum));
     buf->h = prefix_hash;
+    std::cout << "crypto_ops::" << __func__ << ": for" << std::endl;
     for (i = 0; i < pubs_count; i++) {
       ge_p2 tmp2;
       ge_p3 tmp3;
-      if (sc_check(reinterpret_cast<const unsigned char*>(&sig[i])) != 0 || sc_check(reinterpret_cast<const unsigned char*>(&sig[i]) + 32) != 0) {
+      if (sc_check(reinterpret_cast<const unsigned char*>(&sig[i])) != 0 ||
+          sc_check(reinterpret_cast<const unsigned char*>(&sig[i]) + 32) != 0) {
+		std::cout << "crypto_ops::" << __func__ << ": sc_check failed" << std::endl;
         return false;
       }
+
       if (ge_frombytes_vartime(&tmp3, reinterpret_cast<const unsigned char*>(&*pubs[i])) != 0) {
+		std::cout << "crypto_ops::" << __func__ << ": ge_frombytes_vartime aborted" << std::endl;
         abort();
       }
-      ge_double_scalarmult_base_vartime(&tmp2, reinterpret_cast<const unsigned char*>(&sig[i]), &tmp3, reinterpret_cast<const unsigned char*>(&sig[i]) + 32);
-      ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].a), &tmp2);
+      std::cout << "crypto_ops::" << __func__ << ": ge_double_scalarmult_base_vartime" << std::endl;
+      ge_double_scalarmult_base_vartime(&tmp2,
+                                        reinterpret_cast<const unsigned char*>(&sig[i]),
+                                        &tmp3,
+                                        reinterpret_cast<const unsigned char*>(&sig[i]) + 32);
+      std::cout << "crypto_ops::" << __func__ << ": ge_tobytes" << std::endl;
+      ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].a),
+                 &tmp2);
+	  std::cout << "crypto_ops::" << __func__ << ": hash_to_ec" << std::endl;
       hash_to_ec(*pubs[i], tmp3);
-      ge_double_scalarmult_precomp_vartime(&tmp2, reinterpret_cast<const unsigned char*>(&sig[i]) + 32, &tmp3, reinterpret_cast<const unsigned char*>(&sig[i]), image_pre);
+      std::cout << "crypto_ops::" << __func__ << ": ge_double_scalarmult_precomp_vartime" << std::endl;
+      ge_double_scalarmult_precomp_vartime(&tmp2,
+                                           reinterpret_cast<const unsigned char*>(&sig[i]) + 32,
+                                           &tmp3,
+                                           reinterpret_cast<const unsigned char*>(&sig[i]),
+                                           image_pre);
+      std::cout << "crypto_ops::" << __func__ << ": ge_tobytes" << std::endl;
       ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].b), &tmp2);
-      sc_add(reinterpret_cast<unsigned char*>(&sum), reinterpret_cast<unsigned char*>(&sum), reinterpret_cast<const unsigned char*>(&sig[i]));
+      std::cout << "crypto_ops::" << __func__ << ": sc_add" << std::endl;
+      sc_add(reinterpret_cast<unsigned char*>(&sum),
+             reinterpret_cast<unsigned char*>(&sum),
+             reinterpret_cast<const unsigned char*>(&sig[i]));
     }
+
+    std::cout << "crypto_ops::" << __func__ << ": hash_to_scalar" << std::endl;
     hash_to_scalar(buf, rs_comm_size(pubs_count), h);
+    std::cout << "crypto_ops::" << __func__ << ": sc_sub" << std::endl;
     sc_sub(reinterpret_cast<unsigned char*>(&h), reinterpret_cast<unsigned char*>(&h), reinterpret_cast<unsigned char*>(&sum));
+	std::cout << "crypto_ops::" << __func__ << ": sc_isnonzero" << std::endl;
     return sc_isnonzero(reinterpret_cast<unsigned char*>(&h)) == 0;
   }
 }

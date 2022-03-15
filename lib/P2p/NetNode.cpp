@@ -31,6 +31,7 @@
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/utility/value_init.hpp>
+
 #include <miniupnpc/miniupnpc.h>
 #include <miniupnpc/upnpcommands.h>
 #include <miniupnpc/upnpdev.h>
@@ -453,7 +454,7 @@ bool NodeServer::add_host_fail(const uint32_t address_ip)
     std::unique_lock<std::mutex> lock(mutex);
     uint64_t fails = ++m_host_fails_score[address_ip];
     logger(DEBUGGING) << "Host " << Common::ipAddressToString(address_ip) << " fail score="<<fails;
-	if (fails >= P2P_IP_FAILS_BEFORE_BLOCK) {
+        if (fails >= P2P_IP_FAILS_BEFORE_BLOCK) {
         auto i = m_host_fails_score.find(address_ip);
         if (i != m_host_fails_score.end()) {
             i->second = P2P_IP_FAILS_BEFORE_BLOCK / 2;
@@ -743,8 +744,8 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
     context.version = rsp.node_data.version;
     context.node_version = rsp.node_data.node_version;
 
-    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
-    logger(Logging::WARNING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
+    logger(Logging::DEBUGGING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.version: " << std::to_string(rsp.node_data.version);
+    logger(Logging::DEBUGGING, BRIGHT_MAGENTA) << "NetNode::" << __func__ << ". rsp.node_data.node_version: " << rsp.node_data.node_version.c_str();
 
     if (rsp.node_data.network_id != m_network_id) {
         logger(Logging::DEBUGGING)
@@ -773,7 +774,9 @@ bool NodeServer::handshake(CryptoNote::LevinProtocol &proto,
             << "), closing connection.";
         ban_host(context.m_remote_ip);
         return false;
-    } else if ((rsp.node_data.version - CryptoNote::P2P_CURRENT_VERSION) >= CryptoNote::P2P_UPGRADE_WINDOW) {
+    }
+    else if ((rsp.node_data.version - CryptoNote::P2P_CURRENT_VERSION) >= CryptoNote::P2P_UPGRADE_WINDOW)
+    {
         logger(Logging::WARNING)
             << context
             << "COMMAND_HANDSHAKE Warning, your software may be out of date. Please visit: "
@@ -1611,7 +1614,9 @@ int NodeServer::handle_handshake(int command,
         context.m_state = CryptoNoteConnectionContext::state_shutdown;
 		ban_host(context.m_remote_ip);
         return 1;
-    } else if (arg.node_data.version > CryptoNote::P2P_CURRENT_VERSION) {
+    }
+    else if (arg.node_data.version > CryptoNote::P2P_CURRENT_VERSION)
+    {
         logger(Logging::WARNING)
             << context
             << "Your software may be out of date. Please visit: "

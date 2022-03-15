@@ -148,8 +148,8 @@ bool Currency::getBlockReward(
     uint32_t height,
     uint64_t blockTarget) const
 {
-    logger(DEBUGGING, BRIGHT_CYAN) << "Blockchain::" << __func__;
-    assert(alreadyGeneratedCoins <= m_moneySupply);
+    logger(DEBUGGING, BRIGHT_CYAN) << "Currency::" << __func__;
+    // assert(alreadyGeneratedCoins <= m_moneySupply);
     assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
 
     // Consistency

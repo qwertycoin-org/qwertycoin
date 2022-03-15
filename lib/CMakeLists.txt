@@ -533,7 +533,6 @@ set(QwertycoinFramework_P2p_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeCommon.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeConfig.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/NetNodeConfig.h"
-    "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pInterfaces.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNetworks.h"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNodeConfig.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/P2p/P2pNodeConfig.h"

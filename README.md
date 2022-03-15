@@ -57,7 +57,7 @@ More information at [qwertycoin.org](https://qwertycoin.org/)
 
 ##### Prerequisites
 
-- You will need the following packages: build-essential, [cmake (3.10 or higher)](https://docs.qwertycoin.org/developer/compiling-from-source/untitled) and git;
+- You will need the following packages: build-essential, [cmake (3.14 or higher)](https://docs.qwertycoin.org/developer/compiling-from-source/untitled) and git;
 - Most of these should already be installed on your system. For example on Ubuntu by running:
 ```
 sudo apt-get install build-essential cmake git
@@ -80,9 +80,9 @@ cmake --build . --config Release
 
 ##### Prerequisites
 
-- Install [Visual Studio 2017 Community Edition](https://www.visualstudio.com/thank-you-downloading-visual-studio/?sku=Community&rel=15&page=inlineinstall);
-- When installing Visual Studio, it is **required** that you install **Desktop development with C++** and the **VC++ v140 toolchain** when selecting features. The option to install the v140 toolchain can be found by expanding the "Desktop development with C++" node on the right. You will need this for the project to build correctly;
-- Make sure that bundled cmake version is 3.10 or higher.
+- Install [Visual Studio 2019 Community Edition](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community&rel=16);
+- When installing Visual Studio, it is **required** that you install **Desktop development with C++** and the **VC++ v141 toolchain** when selecting features. The option to install the v141 toolchain can be found by expanding the "Desktop development with C++" node on the right. You will need this for the project to build correctly;
+- Make sure that bundled cmake version is 3.14 or higher.
 
 ##### Building
 
@@ -157,7 +157,7 @@ cmake --build . --config Release
 
 ##### Prerequisites
 
-- You will need the following packages: cmake (3.10 or higher) and git;
+- You will need the following packages: cmake (3.14 or higher) and git;
 - Most of these should already be installed on your system. For example on FreeBSD by running:
 ```
 sudo pkg install cmake git

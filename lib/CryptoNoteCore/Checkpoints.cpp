@@ -20,9 +20,16 @@
 
 #include <condition_variable>
 #include <cstring>
+#include <chrono>
+#include <condition_variable>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <mutex>
+#include <thread>
+#include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string>
 #include <thread>
 #include <vector>

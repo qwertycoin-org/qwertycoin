@@ -18,6 +18,7 @@
 
 #include <exception>
 #include <new>
+#include <exception>
 
 #include "hash.h"
 
