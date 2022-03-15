@@ -106,7 +106,8 @@ public:
     bool getLowerBound(uint64_t timestamp, uint64_t startOffset, uint32_t &height);
     std::vector<Crypto::Hash> getBlockIds(uint32_t startHeight, uint32_t maxCount);
 
-    Crypto::PublicKey getOutputKey(uint64_t uAmount, uint64_t uGlobIndex) const;
+    Crypto::PublicKey getOutputKey(uint64_t uAmount, uint64_t uGlobIndex);
+    std::vector<const Crypto::PublicKey *> getOutputKeys(uint64_t amount, const std::vector<uint32_t> &vOffsets);
     void setCheckpoints(Checkpoints &&chk_pts) { m_checkpoints = chk_pts; }
     bool getBlocks(uint32_t start_offset, uint32_t count, std::list<Block> &blocks, std::list<Transaction> &txs);
     bool getBlocks(uint32_t start_offset, uint32_t count, std::list<Block> &blocks);

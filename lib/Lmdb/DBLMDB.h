@@ -256,7 +256,7 @@ namespace CryptoNote {
 
         virtual FOutputData getOutputKey(const uint32_t &uGlobalIndex) const;
 
-        virtual void getOutputKey(const uint64_t &uAmount,
+        virtual void getOutputKeys(const uint64_t &uAmount,
                                   const std::vector<uint32_t> &vOffsets,
                                   std::vector<FOutputData> &vOutputs,
                                   bool bAllowPartial = false);
@@ -331,6 +331,8 @@ namespace CryptoNote {
                                   const uint64_t &uCoinsGenerated,
                                   const std::vector<CryptoNote::Transaction> &transactions);
 
+        virtual void addSpentKey(const Crypto::KeyImage &sSpentKeyImage);
+
         virtual void doResize(uint64_t uIncreaseSize = 0);
 
         virtual uint64_t getDBMapSize();
@@ -375,8 +377,6 @@ namespace CryptoNote {
                                               const CryptoNote::Transaction &sTransaction);
 
         void removeOutput(const uint64_t uAmount, const uint64_t &uOutIndex);
-
-        virtual void addSpentKey(const Crypto::KeyImage &sSpentKeyImage);
 
         virtual void removeSpentKey(const Crypto::KeyImage &sSpentKeyImage);
 

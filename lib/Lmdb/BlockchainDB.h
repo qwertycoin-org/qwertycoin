@@ -243,18 +243,6 @@ namespace CryptoNote {
                                           const std::vector<uint64_t> &vAmountOutputIndices) = 0;
 
         /**
-         * @brief Store a spent key
-         *
-         * The subclass implementing this will store the spent key image.
-         *
-         * If any of this cannot be done, the subclass should throw the corresponding
-         * subclass of DB_EXCEPTION
-         *
-         * @param sSpentKeyImage	The spent key image to store
-         */
-        virtual void addSpentKey(const Crypto::KeyImage &sSpentKeyImage) = 0;
-
-        /**
          *@brief Remove a spent key
          *
          * The subclass implementing this will remove the spent key image.
@@ -288,22 +276,9 @@ namespace CryptoNote {
         uint64_t mTimeBlockHash = 0;
         uint64_t mTimeAddBlock = 0;
         uint64_t mTimeAddTransaction = 0;
+        Logging::LoggerRef mLogger;
 
     protected:
-        /**
-         * @brief helper function for add_transactions, to add each individual transaction
-         *
-         * This function is called by add_transactions() for each transaction to be
-         * added.
-         *
-         * @param sBlockHash        Hash of the block which has the transaction
-         * @param sTransactions     The transaction to add
-         * @param sTxHashPtr        The hash of the transaction, if already calculated
-         */
-        void addTransaction(const Crypto::Hash &sBlockHash,
-                            const CryptoNote::Transaction &sTransactions,
-                            const Crypto::Hash *sTxHashPtr = NULL);
-
         mutable uint64_t gTimeTxExists = 0;
         uint64_t gTimeCommit = 0;
         bool gAutoRemoveLogs = true;
@@ -311,7 +286,7 @@ namespace CryptoNote {
     public:
         friend class BlockchainLMDB;
 
-        BlockchainDB() : pOpen(false), pIsResizing(false) {}
+        BlockchainDB(Logging::ILogger &sLogger);
 
         /**
          * @brief An empty destructor.
@@ -1010,7 +985,7 @@ namespace CryptoNote {
            * @param vOffsets a list of amount-specific output indices
            * @param vOutputs return-by-reference a list of outputs' metadata
            */
-        virtual void getOutputKey(const uint64_t &uAmount,
+        virtual void getOutputKeys(const uint64_t &uAmount,
                                   const std::vector<uint32_t> &vOffsets,
                                   std::vector<FOutputData> &vOutputs,
                                   bool bAllowPartial = false) = 0;
@@ -1237,6 +1212,18 @@ namespace CryptoNote {
 
         virtual uint64_t getDBUsedSize() = 0;
 
+        /**
+         * @brief Store a spent key
+         *
+         * The subclass implementing this will store the spent key image.
+         *
+         * If any of this cannot be done, the subclass should throw the corresponding
+         * subclass of DB_EXCEPTION
+         *
+         * @param sSpentKeyImage	The spent key image to store
+         */
+        virtual void addSpentKey(const Crypto::KeyImage &sSpentKeyImage) = 0;
+
         // TODO: this should perhaps be (or call) a series of functions which progressively update
         // through version updates
         /**
@@ -1248,6 +1235,19 @@ namespace CryptoNote {
         bool pIsResizing; // Whether or not the BlockchainDB is resizing/ready for use
         mutable std::recursive_mutex pSyncronizationLock; // A lock, currently for when BlockchainLMDB
         // needs to resize the backing db file
+        /**
+         * @brief helper function for add_transactions, to add each individual transaction
+         *
+         * This function is called by add_transactions() for each transaction to be
+         * added.
+         *
+         * @param sBlockHash        Hash of the block which has the transaction
+         * @param sTransactions     The transaction to add
+         * @param sTxHashPtr        The hash of the transaction, if already calculated
+         */
+        void addTransaction(const Crypto::Hash &sBlockHash,
+                            const CryptoNote::Transaction &sTransactions,
+                            const Crypto::Hash *sTxHashPtr = NULL);
     };
 
     BlockchainDB *newDB(const std::string &cDBType, Logging::ILogger &logger);

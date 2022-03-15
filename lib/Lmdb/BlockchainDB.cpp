@@ -25,6 +25,11 @@
 #include <Lmdb/DBLMDB.h>
 
 namespace CryptoNote {
+    BlockchainDB::BlockchainDB(Logging::ILogger &sLogger)
+    : pOpen(false),
+      pIsResizing(false),
+      mLogger(sLogger, "DB") {}
+
     BlockchainDB *newDB(const std::string &cDBType, Logging::ILogger &logger)
     {
         if (cDBType == "lmdb") {
@@ -37,6 +42,7 @@ namespace CryptoNote {
 
     void BlockchainDB::popBlock()
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         CryptoNote::Block sBlock;
         std::vector<CryptoNote::Transaction> vTransactions;
 
@@ -47,6 +53,7 @@ namespace CryptoNote {
                                       const CryptoNote::Transaction &sTransaction,
                                       const Crypto::Hash *sTxHashPtr)
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         bool bMinerTx = false;
         Crypto::Hash sTxHash;
 
@@ -92,6 +99,7 @@ namespace CryptoNote {
                                     const uint64_t &uCoinsGenerated,
                                     const std::vector<CryptoNote::Transaction> &transactions)
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         blockTxnStart(false);
 
         Crypto::Hash sBlockHash = get_block_hash(block);
@@ -119,6 +127,7 @@ namespace CryptoNote {
     void BlockchainDB::popBlock(CryptoNote::Block &sBlock,
                                 std::vector<CryptoNote::Transaction> &vTransactions)
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         sBlock = getTopBlock();
 
         for (const auto &sHash : boost::adaptors::reverse(sBlock.transactionHashes)) {
@@ -138,6 +147,7 @@ namespace CryptoNote {
 
     void BlockchainDB::removeTransaction(const Crypto::Hash &sTxHash)
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         CryptoNote::Transaction sTransaction = getTransaction(sTxHash);
 
         for (const CryptoNote::TransactionInput &sTxIn : sTransaction.inputs) {
@@ -161,6 +171,7 @@ namespace CryptoNote {
 
     CryptoNote::Block BlockchainDB::getBlockFromHeight(const uint64_t &uHeight) const
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         CryptoNote::blobData sBlobData = getBlockBlobFromHeight(uHeight);
         CryptoNote::Block sBlock;
         if (!parseAndValidateBlockFromBlob(sBlobData, sBlock)) {
@@ -172,6 +183,7 @@ namespace CryptoNote {
 
     CryptoNote::Block BlockchainDB::getBlock(const Crypto::Hash &sHash) const
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         CryptoNote::blobData sBlobData = getBlockBlob(sHash);
         CryptoNote::Block sBlock;
         if (!parseAndValidateBlockFromBlob(sBlobData, sBlock)) {
@@ -184,6 +196,7 @@ namespace CryptoNote {
     bool BlockchainDB::getTransaction(const Crypto::Hash &sHash,
                                       CryptoNote::Transaction &sTransaction) const
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         CryptoNote::blobData sBlobData;
         if (!getTransactionBlob(sHash, sBlobData)) {
             return false;
@@ -198,6 +211,7 @@ namespace CryptoNote {
 
     CryptoNote::Transaction BlockchainDB::getTransaction(const Crypto::Hash &sHash) const
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         CryptoNote::Transaction sTransaction;
         if (!getTransaction(sHash, sTransaction)) {
             throw (TX_DNE(std::string("tx with hash ")
@@ -236,6 +250,7 @@ namespace CryptoNote {
 
     void BlockchainDB::fixUp()
     {
+        mLogger(Logging::DEBUGGING) << "BlockchainDB::" << __func__;
         if (isReadOnly()) {
             return;
         }

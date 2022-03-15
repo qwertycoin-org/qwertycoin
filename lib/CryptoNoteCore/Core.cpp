@@ -447,6 +447,10 @@ bool core::handle_incoming_tx(
         return false;
     }
 
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__
+                               << " tx size " << tx_blob.size()
+                               << ", max tx size " << m_currency.maxTransactionSizeLimit();
+
     Crypto::Hash tx_hash = NULL_HASH;
     Crypto::Hash tx_prefixt_hash = NULL_HASH;
     Transaction tx;
@@ -463,6 +467,7 @@ bool core::handle_incoming_tx(
     if (!ok) {
         blockHeight = this->get_current_blockchain_height();
     }
+
     return handleIncomingTransaction(
         tx,
         tx_hash,
@@ -487,7 +492,9 @@ bool core::get_stat_info(core_stat_info &st_inf)
 
 bool core::check_tx_mixin(const Transaction &tx, uint32_t height)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     size_t inputIndex = 0;
+    uint8_t currentBlockMajorVersion = getBlockMajorVersionForHeight(height);
     for (const auto &txin : tx.inputs) {
         assert(inputIndex < tx.signatures.size());
         if (txin.type() == typeid(KeyInput)) {
@@ -504,7 +511,7 @@ bool core::check_tx_mixin(const Transaction &tx, uint32_t height)
                     << " has too large mixIn count, rejected";
                 return false;
             }
-            if (getCurrentBlockMajorVersion() >= BLOCK_MAJOR_VERSION_4
+            if (currentBlockMajorVersion >= BLOCK_MAJOR_VERSION_4
                 && txMixin < m_currency.minMixin() && txMixin != 1) {
                 logger(ERROR)
                     << "Transaction "
@@ -524,6 +531,7 @@ bool core::check_tx_fee(
     uint32_t height,
     bool loose_check)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     uint64_t inputs_amount = 0;
     if (!get_inputs_money_amount(tx, inputs_amount)) {
         tvc.m_verification_failed = true;
@@ -581,11 +589,14 @@ bool core::check_tx_fee(
             return true;
         }
     }
+
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << " fee: " << fee;
     return true;
 }
 
 bool core::check_tx_unmixable(const Transaction &tx, uint32_t height)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     for (const auto &out : tx.outputs) {
         if (!is_valid_decomposed_amount(out.amount)
             && height >= CryptoNote::parameters::UPGRADE_HEIGHT_V6) {
@@ -602,6 +613,7 @@ bool core::check_tx_unmixable(const Transaction &tx, uint32_t height)
 
 bool core::check_tx_semantic(const Transaction &tx, bool keeped_by_block)
 {
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__;
     if (tx.inputs.empty()) {
         logger(ERROR) << "tx with empty inputs, rejected for tx id= " << getObjectHash(tx);
         return false;
@@ -1158,7 +1170,7 @@ bool core::handle_incoming_block_blob(
     bool control_miner,
     bool relay_block)
 {
-    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << "0";
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << " 0";
     if (block_blob.size() > m_currency.maxBlockBlobSize()) {
         logger(INFO) << "WRONG BLOCK BLOB, too big size " << block_blob.size() << ", rejected";
         bvc.m_verification_failed = true;
@@ -2325,6 +2337,7 @@ bool core::handleIncomingTransaction(
         return false;
     }
 
+    logger(TRACE, BRIGHT_CYAN) << "Core::" << __func__ << " before add_new_tx";
     bool r = add_new_tx(tx, txHash, blobSize, tvc, keptByBlock);
     if (tvc.m_verification_failed) {
         if (!tvc.m_tx_fee_too_small) {
