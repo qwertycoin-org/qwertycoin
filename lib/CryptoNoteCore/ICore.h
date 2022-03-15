@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <list>
+#include <memory>
 #include <system_error>
 #include <utility>
 #include <vector>

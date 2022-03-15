@@ -17,6 +17,8 @@
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <iostream>
+#include <memory>
+
 #include <Common/int-util.h>
 #include <Common/MemoryInputStream.h>
 #include <Common/StreamTools.h>

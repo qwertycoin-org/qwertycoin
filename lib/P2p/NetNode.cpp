@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <chrono>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <thread>
 
@@ -67,6 +68,7 @@ using namespace Common;
 using namespace StringUtils;
 using namespace Logging;
 using namespace CryptoNote;
+using namespace std::placeholders;
 
 const int64_t LAST_SEEN_EVICT_THRESHOLD = 3600 * 24 * 10; // 10 days before removing from gray list
 

@@ -22,8 +22,11 @@
 
 
 #include <ctime>
-#include <math.h>
+#include <functional>
+#include <cmath>
+
 #include <boost/format.hpp>
+
 #include <P2p/NetNode.h>
 #include <Common/ColouredMsg.h>
 #include <CryptoNoteCore/Miner.h>
@@ -36,6 +39,8 @@
 #if defined(WIN32)
 #undef ERROR
 #endif
+
+using namespace std::placeholders;
 
 namespace {
 

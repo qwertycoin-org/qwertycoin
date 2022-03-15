@@ -18,7 +18,7 @@
 
 #include <iostream>
 #include <memory>
-#include <string.h>
+#include <cstring>
 #include <thread>
 #include <version.h>
 #include "PaymentGateService.h"
@@ -28,13 +28,13 @@
 #include <winsvc.h>
 #else
 #include <unistd.h>
-#include <signal.h>
+#include <csignal>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <errno.h>
+#include <cerrno>
 #endif
 
-#include <Breakpad/Breakpad.h>
+// #include <Breakpad/Breakpad.h>
 
 #define SERVICE_NAME "Payment Gate"
 
@@ -350,7 +350,7 @@ int unregisterService()
 
 int main(int argc, char **argv)
 {
-    Qwertycoin::Breakpad::ExceptionHandler exceptionHandler;
+    // Qwertycoin::Breakpad::ExceptionHandler exceptionHandler;
 
     PaymentGateService pg;
     ppg = &pg;

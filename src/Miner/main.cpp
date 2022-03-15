@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Qwertycoin.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <Breakpad/Breakpad.h>
+// #include <Breakpad/Breakpad.h>
 #include <Common/SignalHandler.h>
 #include <Logging/ConsoleLogger.h>
 #include <Logging/LoggerGroup.h>
@@ -26,7 +26,7 @@
 
 int main(int argc, char **argv)
 {
-    Qwertycoin::Breakpad::ExceptionHandler exceptionHandler;
+    // Qwertycoin::Breakpad::ExceptionHandler exceptionHandler;
 
     try {
         CryptoNote::MiningConfig config;

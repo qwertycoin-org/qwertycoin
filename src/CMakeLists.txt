@@ -33,7 +33,7 @@ endif()
 
 set(QwertycoinTools_ConnectivityTool_LIBS
     Boost::program_options
-    QwertycoinFramework::Breakpad
+#    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::P2p
@@ -69,7 +69,7 @@ endif()
 set(QwertycoinTools_Daemon_LIBS
     Boost::filesystem
     Boost::thread
-    QwertycoinFramework::Breakpad
+#    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Global
@@ -110,7 +110,7 @@ endif()
 
 set(QwertycoinTools_Miner_LIBS
     Boost::program_options
-    QwertycoinFramework::Breakpad
+#    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Logging
@@ -144,7 +144,7 @@ endif()
 set(QwertycoinTools_Optimizer_LIBS
     Boost::filesystem
     Boost::program_options
-    QwertycoinFramework::Breakpad
+#    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Global
@@ -187,7 +187,7 @@ endif()
 set(QwertycoinTools_PaymentGateService_LIBS
     Boost::filesystem
     Boost::program_options
-    QwertycoinFramework::Breakpad
+#    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::CryptoNoteCore
     QwertycoinFramework::Global
@@ -221,7 +221,7 @@ endif()
 set(QwertycoinTools_SimpleWallet_LIBS
     Boost::filesystem
     Boost::program_options
-    QwertycoinFramework::Breakpad
+#    QwertycoinFramework::Breakpad
     QwertycoinFramework::Common
     QwertycoinFramework::Global
     QwertycoinFramework::Logging

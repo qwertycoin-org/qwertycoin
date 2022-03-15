@@ -45,8 +45,8 @@ set(HUNTER_CONFIGURATION_TYPES Release;Debug CACHE STRING "Hunter configuration 
 set(HUNTER_JOBS_NUMBER 4 CACHE STRING "Hunter jobs number")
 include(hunter/HunterGate)
 HunterGate(
-    URL "https://github.com/cpp-pm/hunter/archive/v0.23.314.tar.gz"
-    SHA1 "95c47c92f68edb091b5d6d18924baabe02a6962a"
+    URL "https://github.com/cpp-pm/hunter/archive/v0.24.0.tar.gz"
+    SHA1 "a3d7f4372b1dcd52faa6ff4a3bd5358e1d0e5efd"
     FILEPATH "${CMAKE_CURRENT_LIST_DIR}/cmake/hunter/HunterConfig.cmake"
 )
 
@@ -112,7 +112,7 @@ include(ExternalProject)
 set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/_FetchContent" CACHE PATH "FetchContent" FORCE)
 include(FetchContent)
 include(external/Boost)
-include(external/Breakpad)
+# include(external/Breakpad)
 include(external/codecov)
 include(external/GTest)
 include(external/LMDB)

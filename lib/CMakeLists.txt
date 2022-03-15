@@ -8,7 +8,7 @@ message(STATUS "Generated version.h header: ${CMAKE_CURRENT_BINARY_DIR}/version.
 
 set(QwertycoinFramework_INCLUDE_DIRS
     "${Boost_INCLUDE_DIRS}"
-    "${Breakpad_INCLUDE_DIRS}"
+#    "${Breakpad_INCLUDE_DIRS}"
     "${lmdb_INCLUDE_DIRS}"
     "${MINIUPNP_INCLUDE_DIRS}"
     "${SPARSEHASH_INCLUDE_DIRS}"
@@ -41,7 +41,7 @@ set(QwertycoinFramework_INCLUDE_DIRS ${QwertycoinFramework_INCLUDE_DIRS} PARENT_
 
 set(QwertycoinFramework_LIBS
     QwertycoinFramework_BlockchainExplorer
-    QwertycoinFramework_Breakpad
+#    QwertycoinFramework_Breakpad
     QwertycoinFramework_Common
     QwertycoinFramework_Crypto
     QwertycoinFramework_CryptoNoteCore
@@ -90,7 +90,7 @@ target_include_directories(QwertycoinFramework_BlockchainExplorer PRIVATE ${Qwer
 target_link_libraries(QwertycoinFramework_BlockchainExplorer PRIVATE ${QwertycoinFramework_BlockchainExplorer_LIBS})
 
 # QwertycoinFramework::Breakpad
-
+#[[
 set(QwertycoinFramework_Breakpad_SOURCES
     ${Breakpad_SOURCES} # Compile Google Brekapad sources as part of this lib
     "${CMAKE_CURRENT_LIST_DIR}/Breakpad/Breakpad.cpp"
@@ -120,6 +120,7 @@ if(WIN32)
     # Fix for "cannot convert argument 1 from 'const wchar_t *' to 'LPCSTR'" and similar issues
     target_compile_definitions(QwertycoinFramework_Breakpad PRIVATE -DUNICODE -D_UNICODE)
 endif()
+]]
 
 # QwertycoinFramework::Common
 
