@@ -2,7 +2,7 @@
 // Copyright (c) 2014 - 2017, XDN - project developers
 // Copyright (c) 2018, The TurtleCoin Developers
 // Copyright (c) 2016-2019, The Karbo developers
-// Copyright (c) 2018-2021, The Qwertycoin Group.
+// Copyright (c) 2018-2022, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //

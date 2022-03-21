@@ -2,7 +2,7 @@
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2016, The Forknote developers
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2021, The Qwertycoin Group.
+// Copyright (c) 2018-2022, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //

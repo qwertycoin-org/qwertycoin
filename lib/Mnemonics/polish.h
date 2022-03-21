@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2018, Karbo developers
-// Copyright (c) 2018-2021, The Qwertycoin Group.
+// Copyright (c) 2018-2022, The Qwertycoin Group.
 
 #pragma once
 
