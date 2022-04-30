@@ -64,6 +64,7 @@ bool Currency::init()
         m_upgradeHeightV4 = 70;
         m_upgradeHeightV5 = 80;
         m_upgradeHeightV6 = 100;
+        m_upgradeHeightV7 = 1000;
         m_governancePercent = 10;
         m_governanceHeightStart = 1;
         m_governanceHeightEnd = 100;
@@ -122,7 +123,9 @@ size_t Currency::blockGrantedFullRewardZoneByBlockVersion(uint8_t blockMajorVers
 
 uint32_t Currency::upgradeHeight(uint8_t majorVersion) const
 {
-    if (majorVersion == BLOCK_MAJOR_VERSION_6) {
+    if (majorVersion == BLOCK_MAJOR_VERSION_7) {
+        return m_upgradeHeightV7;
+    } else if (majorVersion == BLOCK_MAJOR_VERSION_6) {
         return m_upgradeHeightV6;
     } else if (majorVersion == BLOCK_MAJOR_VERSION_5) {
         return m_upgradeHeightV5;
@@ -744,6 +747,9 @@ difficulty_type Currency::nextDifficulty(uint32_t height,
                                currentSolveTime, lazy_stat_cb);
     }
 
+    /*
+    TODO: are we still gonna use our difficultyV6 algorithm for v7?
+    */
     if (blockMajorVersion >= BLOCK_MAJOR_VERSION_6) {
         return nextDifficultyV6(blockMajorVersion, timestamps, cumulativeDifficulties, height);
     } else if (blockMajorVersion >= BLOCK_MAJOR_VERSION_5) {
@@ -1261,6 +1267,8 @@ bool Currency::checkProofOfWork(
     case BLOCK_MAJOR_VERSION_5:
         // fall through
     case BLOCK_MAJOR_VERSION_6:
+        // fall through
+    case BLOCK_MAJOR_VERSION_7:
         return checkProofOfWorkV1(context, block, currentDiffic, proofOfWork);
     case BLOCK_MAJOR_VERSION_2:
         // fall through
@@ -1377,6 +1385,7 @@ CurrencyBuilder::CurrencyBuilder(Logging::ILogger &log)
     upgradeHeightV4(parameters::UPGRADE_HEIGHT_V4);
     upgradeHeightV5(parameters::UPGRADE_HEIGHT_V5);
     upgradeHeightV6(parameters::UPGRADE_HEIGHT_V6);
+    upgradeHeightV7(parameters::UPGRADE_HEIGHT_V7);
     upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
     upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
     upgradeWindow(parameters::UPGRADE_WINDOW);
