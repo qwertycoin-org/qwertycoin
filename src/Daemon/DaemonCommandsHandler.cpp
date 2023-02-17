@@ -3,7 +3,7 @@
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2018, The TurtleCoin developers
 // Copyright (c) 2016-2019, The Karbowanec developers
-// Copyright (c) 2018-2022, The Qwertycoin Group.
+// Copyright (c) 2018-2023, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //

@@ -3,7 +3,7 @@
 // Copyright (c) 2014-2018, The Forknote developers
 // Copyright (c) 2018, Ryo Currency Project
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2022, The Qwertycoin Group.
+// Copyright (c) 2018-2023, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //
@@ -241,10 +241,10 @@ const char *const SEED_NODES[] = {
     "148.251.115.235:8196",         //E
     "148.251.115.236:8196",         //E
     "148.251.115.237:8196",         //E
-    "node-01.qwertycoin.org:8196",  //A
+    "node-00.qwertycoin.org:8196",  //A
     "node-02.qwertycoin.org:8196",  //A
     "node-03.qwertycoin.org:8196",  //A
-    "node-04.qwertycoin.org:8196",  //A
+    "195.201.29.64:8196",           //A
     "116.203.84.161:8196",          //A
     "95.216.221.239:8196"           //A
 };

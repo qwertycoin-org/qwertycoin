@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2018, The TurtleCoin Developers
-// Copyright (c) 2018-2022, The Qwertycoin Group.
+// Copyright (c) 2018-2023, The Qwertycoin Group.
 //
 // This file is part of Qwertycoin.
 //
@@ -60,7 +60,12 @@ const std::initializer_list<CheckpointData> CHECKPOINTS = {
     { 975000,"d86c71508ea2fda4847d518f779fbf1fc55782daea6d1ad299cab813a1415224"},
     {1000000,"e9bce0d6277580f91d8ee00e21145830e64085a194862e76e8c26c9ae3541f1a"},
     {1025000,"50ef509ed1f4ab13810c06c2cd5f59cf5ed6367771d465044be0497263cd7773"},
-    {1068800,"0dc4a71306fee724178a6c0f2e2354bc6c502058d8d2ce0d350dc9c617932022"}
+    {1050000,"f1263795721167f0608494a15257678e18e0f2a87ffa8e9171e465832d583575"},
+    {1075000,"7a15c2a628a3d09f7aec04ba8f6b9398849c9697f1723d98de3adc191c5a7cb0"},
+    {1100000,"9143c03ce6282de29ce3c5c110a17f9a3232a1f2d5261d3e2fe85a1393009ac9"},
+    {1250000,"8bd51a253c49d5febec4af2671d1388efac6c4a31a881d9255431db6f765ce7f"},
+    {1275000,"aea35d604fdbd592cdd8b8ec758c4641ed26171fee65df4ce4c7d17df34474c7"},
+    {1300000,"0dd803339966f8e31c15ee691e531353c1f7e4912a76640d7e560bd1c40cc6b2"} //v6.0.10
 };
 
 } // namespace CryptoNote
