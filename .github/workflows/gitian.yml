@@ -1,0 +1,71 @@
+name: ci/gh-actions/gitian
+
+on:
+  push:
+    paths:
+      - 'contrib/depends/**'
+      - 'contrib/gitian/**'
+      - '!contrib/**.md'
+      - '.github/workflows/gitian.yml'
+  pull_request:
+    paths:
+      - 'contrib/depends/**'
+      - 'contrib/gitian/**'
+      - '!contrib/**.md'
+      - '.github/workflows/gitian.yml'
+
+jobs:
+  build-gitian:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        operating-system:
+          - name: "Linux"
+            option: "l"
+          - name: "Windows"
+            option: "w"
+          - name: "Android"
+            option: "a"
+          - name: "FreeBSD"
+            option: "f"
+          - name: "macOS"
+            option: "m"
+    name: ${{ matrix.operating-system.name }}
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: recursive
+    - name: prepare
+      run: |
+        sudo apt update
+        cp contrib/gitian/gitian-build.py .
+        chmod +x gitian-build.py
+    - name: set env
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "GITIAN_VERSION=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          echo "GITIAN_OUTDIR=pull-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          echo "GITIAN_EXTRA_FLAGS=--pull" >> $GITHUB_ENV
+        else
+          echo "GITIAN_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "GITIAN_OUTDIR=${{ github.ref_name }}" >> $GITHUB_ENV
+        fi
+    - name: setup
+      run: |
+        ./gitian-build.py --setup --docker --url https://github.com/${{ github.repository }} ${{ env.GITIAN_EXTRA_FLAGS }} github-actions ${{ env.GITIAN_VERSION }}
+    - name: build
+      run: |
+        ./gitian-build.py --docker --url https://github.com/${{ github.repository }} --detach-sign --no-commit --build -j 3 -o ${{ matrix.operating-system.option }} ${{ env.GITIAN_EXTRA_FLAGS }} github-actions ${{ env.GITIAN_VERSION }}
+    - name: post build
+      run: |
+        cd out/${{ env.GITIAN_OUTDIR }}
+        shasum -a256 *
+        echo \`\`\` >> $GITHUB_STEP_SUMMARY
+        shasum -a256 * >> $GITHUB_STEP_SUMMARY
+        echo \`\`\` >> $GITHUB_STEP_SUMMARY
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ${{ matrix.operating-system.name }}
+        path: |
+          out/${{ env.GITIAN_OUTDIR }}/*
