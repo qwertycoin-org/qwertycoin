@@ -299,6 +299,7 @@ namespace nodetool
         "seed-00.qwertycoin.org",
         "seed-01.qwertycoin.org",
         "seed-02.qwertycoin.org",
+        "seed-03.qwertycoin.org",
     };
 
     bool islimitup=false;
