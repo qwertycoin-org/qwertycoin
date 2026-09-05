@@ -1,4 +1,7 @@
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 /doc
 /build
 /tags
