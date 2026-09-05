@@ -89,7 +89,7 @@ cmake --build . --config Release
 #### Visual Studio 2019
 
 - From the start menu, open "x64 Native Tools Command Prompt for vs2017";
-- And the run the following commands:
+- Then run the following commands:
 ```
 git clone https://github.com/qwertycoin-org/qwertycoin
 cd qwertycoin
