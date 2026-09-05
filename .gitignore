@@ -1,93 +1,120 @@
-**/bui*
-
 .DS_Store
+/doc
 /build
-/build32
-/build64
-/cmake-build-debug
 /tags
-.idea
-.ycm_extra_conf.py
-.ycm_extra_conf.pyc
-Release
-Debug
-src/CMakeCache.txt
-src/CMakeFiles/
-src/Makefile
-src/build/
-src/cmake_install.cmake
-.codelite/
+log/
 
-### mac
-# General
-.DS_Store
-.AppleDouble
-.LSOverride
+# vim swap files
+*.swp
+*.swo
+TAGS
+!TAGS/
+tags
+!tags/
+gtags.files
+GTAGS
+GRTAGS
+GPATH
+cscope.files
+cscope.out
+cscope.in.out
+cscope.po.out
 
-# Icon must end with two \r
-Icon
+version/
+ClangBuildAnalyzerSession.txt
+
+# gitian
+contrib/gitian/builder/
+contrib/gitian/docker/
+contrib/gitian/sigs/
+
+# Created by https://www.gitignore.io
+
+### C++ ###
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
 
 
-# Thumbnails
-._*
+### CMake ###
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake
+install_manifest.txt
+cmake-build-debug/
 
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-
-### linux
+### Linux ###
 *~
-
-# temporary files which can be created if a process still has a handle open of a deleted file
-.fuse_hidden*
 
 # KDE directory preferences
 .directory
 
-# Linux trash folder which might appear on any partition or disk
-.Trash-*
+### VSCode ###
+.vscode/
 
-# .nfs files are created when an open file is removed but is still being accessed
-.nfs*
+### Eclipse ###
+*.pydevproject
+.metadata
+.gradle
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
 
+# External tool builders
+.externalToolBuilders/
 
-### win
-# Windows thumbnail cache files
-Thumbs.db
-ehthumbs.db
-ehthumbs_vista.db
+# Locally stored "Eclipse launch configurations"
+*.launch
 
-# Dump file
-*.stackdump
+# CDT-specific
+.cproject
 
-# Folder config file
-[Dd]esktop.ini
+# PDT-specific
+.buildpath
 
-# Recycle Bin used on file shares
-$RECYCLE.BIN/
+# Netbeans-specific
+nbproject
 
-# Windows Installer files
-*.cab
-*.msi
-*.msm
-*.msp
+# sbteclipse plugin
+.target
 
-# Windows shortcuts
-*.lnk
+# TeXlipse plugin
+.texlipse
+.idea/
 
-.vscode
-.vs
-cmake-*
+/testnet
+
+__pycache__/
+*.pyc
+*.log
