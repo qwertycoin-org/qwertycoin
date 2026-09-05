@@ -114,5 +114,5 @@ jobs:
       with:
         name: ${{ matrix.toolchain.name }}
         path: |
-          build/${{ matrix.toolchain.host }}/release/bin/monero-wallet-cli*
-          build/${{ matrix.toolchain.host }}/release/bin/monerod*
+          build/${{ matrix.toolchain.host }}/release/bin/qwertycoin-wallet-cli*
+          build/${{ matrix.toolchain.host }}/release/bin/qwertycoind*

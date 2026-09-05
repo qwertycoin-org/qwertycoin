@@ -1,44 +1,45 @@
+- [ ] QWC public mainnet launch gates
+  - [ ] Release-candidate image built from current `main` or release branch
+  - [ ] Seed nodes run the same release-candidate image
+  - [ ] Seed DNS records resolve to the current QWC mainnet network
+  - [ ] Fresh independent node completes DNS-only bootstrap
+  - [ ] Public mining from a non-seed miner produces blocks
+  - [ ] Service-node registration is mined on-chain
+  - [ ] EPoSE attestations relay across public peers
+  - [ ] EPoSE reward is mined after qualification
+  - [ ] Matured denominated EPoSE reward is spent and received
+  - [ ] Explorer reports the public mainnet network correctly
 - [ ] Security audit
 - [ ] Code audit
 - [ ] Ledger integration
-  - [ ] Implemented in Monero codebase (if needed)
-  - [ ] Ledger app integration coded by Ledger
-  - [ ] Ledger Monero app update available
+  - [ ] Implemented in the Qwertycoin codebase (if needed)
+  - [ ] Ledger app integration coded and reviewed
+  - [ ] Ledger Qwertycoin app update available
 - [ ] Trezor integration
-  - [ ] Implemented in Monero codebase (if needed)
-  - [ ] Trezor app integration coded by Trezor
+  - [ ] Implemented in the Qwertycoin codebase (if needed)
+  - [ ] Trezor app integration coded and reviewed
   - [ ] Trezor firmware update available (if needed)
 - [ ] Fork height set
-  - [ ] Monero-announce mailer notice
+  - [ ] Qwertycoin announcement notice
   - [ ] Twitter announcement
   - [ ] Reddit announcement
-  - [ ] Getmonero.org announcement
+  - [ ] Qwertycoin website announcement
 - [ ] Notify wallets
-  - [ ] MyMonero
-  - [ ] Coinomi
-  - [ ] Exa Wallet
-  - [ ] Wookey Wallet
-  - [ ] X Wallet
-  - [ ] Guarda
-  - [ ] ZelCore
-  - [ ] Cake Wallet
-  - [ ] Monerujo
-  - [ ] Edge Wallet
-  - [ ] Exodus
-  - [ ] XMRWallet
+  - [ ] Qwertycoin Core Wallet
+  - [ ] Known third-party QWC wallets
 - [ ] Notify exchanges
-  - [ ] https://web.getmonero.org/community/merchants/#exchanges
+  - [ ] Known QWC exchanges
 - [ ] Notify 3rd party payment processors
-  - [ ] https://web.getmonero.org/community/merchants/#payment-gateways
+  - [ ] Known QWC payment processors
 - [ ] Notify mining pools
-  - [ ] https://miningpoolstats.stream/monero
+  - [ ] Known QWC mining pools
 - [ ] Release tagged
   - [ ] Update src/version.cpp.in with new version AND new name (if necessary)
   - [ ] Update Gitian YML files in contrib/gitian/ to the new version number
-  - [ ] Update README.md with new fork table entry (or at least update the Recommended Monero version)
+  - [ ] Update README.md with the Qwertycoin release status
   - [ ] Update contrib/gitian/README.md so that the instructions reflect the current version
   - [ ] Update src/checkpoints/checkpoints.cpp with a recent hardcoded checkpoint
-  - [ ] Update src/blocks/checkpoints.dat with ./monero-blockchain-export --output-file checkpoints.dat --block-stop <recent block height> --blocksdat
+  - [ ] Update src/blocks/checkpoints.dat with ./qwertycoin-blockchain-export --output-file checkpoints.dat --block-stop <recent block height> --blocksdat
   - [ ] Update expected_block_hashes_hash in src/cryptonote_core/blockchain.cpp with checkpoints.dat sha256 hash
 - [ ] Testnet forked
 - [ ] Testnet testing/verification
@@ -48,21 +49,21 @@
   - [ ] RPC testing/update RPC documentation
 - [ ] CLI reproducible builds validated
 - [ ] CLI released
-  - [ ] https://web.getmonero.org/downloads/ updated
+  - [ ] Qwertycoin downloads page updated
   - [ ] Update hashes.txt on website
   - [ ] Update downloads.yml on website
   - [ ] Update auto-update DNS records
   - [ ] Update redirects on downloads box
   - [ ] Update seed nodes
 - [ ] GUI released
-  - [ ] https://web.getmonero.org/downloads/ updated
+  - [ ] Qwertycoin downloads page updated
   - [ ] Update hashes.txt on website
   - [ ] Update hashes.txt.sig on website
   - [ ] Update downloads.yml on website
   - [ ] Update auto-update DNS records
   - [ ] Update redirects on downloads box
 - [ ] Release Announcements
-  - [ ] Monero-announce mailer notice
+  - [ ] Qwertycoin announcement notice
   - [ ] Twitter announcement
   - [ ] Reddit announcement
-  - [ ] Getmonero.org announcement
+  - [ ] Qwertycoin website announcement

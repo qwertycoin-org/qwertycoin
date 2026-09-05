@@ -191,6 +191,16 @@ t_command_server::t_command_server(
     , "Print the current daemon status."
     );
   m_command_lookup.set_handler(
+      "epose_status"
+    , std::bind(&t_command_parser_executor::print_epose_info, &m_parser, p::_1)
+    , "Show the current EPoSE consensus and local service-node status."
+    );
+  m_command_lookup.set_handler(
+      "prepare_service_node_registration"
+    , std::bind(&t_command_parser_executor::print_service_node_registration_payload, &m_parser, p::_1)
+    , "Print the current local service-node registration payload."
+    );
+  m_command_lookup.set_handler(
       "limit"
     , std::bind(&t_command_parser_executor::set_limit, &m_parser, p::_1)
     , "limit [<kB/s>]"
@@ -412,7 +422,7 @@ bool t_command_server::apropos(const std::vector<std::string>& args)
 std::string t_command_server::get_commands_str()
 {
   std::stringstream ss;
-  ss << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << std::endl;
+  ss << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")" << std::endl;
   ss << "Commands: " << std::endl;
   std::string usage = m_command_lookup.get_usage();
   boost::replace_all(usage, "\n", "\n  ");

@@ -1,4 +1,5 @@
 // Copyright (c) 2014-2022, The Monero Project
+// Copyright (c) 2026, The Qwertycoin Project
 // 
 // All rights reserved.
 // 
@@ -167,7 +168,7 @@ namespace
   std::string get_default_ringdb_path()
   {
     boost::filesystem::path dir = tools::get_default_data_dir();
-    // remove .bitmonero, replace with .shared-ringdb
+    // remove .qwertycoin, replace with .shared-ringdb
     dir = dir.remove_filename();
     dir /= ".shared-ringdb";
     return dir.string();
@@ -248,7 +249,7 @@ struct options {
   const command_line::arg_descriptor<bool> untrusted_daemon = {"untrusted-daemon", tools::wallet2::tr("Disable commands which rely on a trusted daemon"), false};
   const command_line::arg_descriptor<std::string> password = {"password", tools::wallet2::tr("Wallet password (escape/quote as needed)"), "", true};
   const command_line::arg_descriptor<std::string> password_file = wallet_args::arg_password_file();
-  const command_line::arg_descriptor<int> daemon_port = {"daemon-port", tools::wallet2::tr("Use daemon instance at port <arg> instead of 18081"), 0};
+  const command_line::arg_descriptor<int> daemon_port = {"daemon-port", tools::wallet2::tr("Use daemon instance at port <arg> instead of Qwertycoin default RPC port 8197"), 0};
   const command_line::arg_descriptor<std::string> daemon_login = {"daemon-login", tools::wallet2::tr("Specify username[:password] for daemon RPC client"), "", true};
   const command_line::arg_descriptor<std::string> daemon_ssl = {"daemon-ssl", tools::wallet2::tr("Enable SSL on daemon RPC connections: enabled|disabled|autodetect"), "autodetect"};
   const command_line::arg_descriptor<std::string> daemon_ssl_private_key = {"daemon-ssl-private-key", tools::wallet2::tr("Path to a PEM format private key"), ""};
@@ -2226,8 +2227,8 @@ void wallet2::scan_output(const cryptonote::transaction &tx, bool miner_tx, cons
     if (!m_encrypt_keys_after_refresh && !m_processing_background_cache)
     {
       boost::optional<epee::wipeable_string> pwd = m_callback->on_get_password(pool ? "output found in pool" : "output received");
-      THROW_WALLET_EXCEPTION_IF(!pwd, error::password_needed, tr("Password is needed to compute key image for incoming monero"));
-      THROW_WALLET_EXCEPTION_IF(!verify_password(*pwd), error::password_needed, tr("Invalid password: password is needed to compute key image for incoming monero"));
+      THROW_WALLET_EXCEPTION_IF(!pwd, error::password_needed, tr("Password is needed to compute key image for incoming QWC"));
+      THROW_WALLET_EXCEPTION_IF(!verify_password(*pwd), error::password_needed, tr("Invalid password: password is needed to compute key image for incoming QWC"));
       m_encrypt_keys_after_refresh.reset(new wallet_keys_unlocker(*this, m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only, *pwd));
     }
   }
@@ -3467,15 +3468,24 @@ void check_block_hard_fork_version(cryptonote::network_type nettype, uint8_t hf_
   const hardfork_t *wallet_hard_forks = nettype == TESTNET ? testnet_hard_forks
     : nettype == STAGENET ? stagenet_hard_forks : mainnet_hard_forks;
 
-  wallet_is_outdated = static_cast<size_t>(hf_version) > wallet_num_hard_forks;
+  const hardfork_t *hard_fork = std::find_if(wallet_hard_forks, wallet_hard_forks + wallet_num_hard_forks,
+    [hf_version](const hardfork_t &fork) { return fork.version == hf_version; });
+  wallet_is_outdated = hard_fork == wallet_hard_forks + wallet_num_hard_forks
+    && hf_version > wallet_hard_forks[wallet_num_hard_forks - 1].version;
   if (wallet_is_outdated)
     return;
+  if (hard_fork == wallet_hard_forks + wallet_num_hard_forks)
+  {
+    daemon_is_outdated = true;
+    return;
+  }
 
   // check block's height falls within wallet's expected range for block's given version
-  uint64_t start_height = hf_version == 1 ? 0 : wallet_hard_forks[hf_version - 1].height;
-  uint64_t end_height = static_cast<size_t>(hf_version) + 1 > wallet_num_hard_forks
+  const size_t fork_index = static_cast<size_t>(hard_fork - wallet_hard_forks);
+  uint64_t start_height = hard_fork->height;
+  uint64_t end_height = fork_index + 1 >= wallet_num_hard_forks
     ? std::numeric_limits<uint64_t>::max()
-    : wallet_hard_forks[hf_version].height;
+    : wallet_hard_forks[fork_index + 1].height;
 
   daemon_is_outdated = height < start_height || height >= end_height;
 }
@@ -6404,7 +6414,7 @@ bool wallet2::check_hard_fork_version(cryptonote::network_type nettype, const st
       uint64_t daemon_missed_fork_height = wallet_hard_forks[daemon_hard_forks.size()].height;
 
       // If the daemon missed the fork, then technically it is no longer part of
-      // the Monero network. Don't connect.
+      // the Qwertycoin network. Don't connect.
       bool daemon_missed_fork = height >= daemon_missed_fork_height || target_height >= daemon_missed_fork_height;
       if (daemon_missed_fork)
         return false;
@@ -6414,7 +6424,7 @@ bool wallet2::check_hard_fork_version(cryptonote::network_type nettype, const st
       uint64_t wallet_missed_fork_height = daemon_hard_forks[wallet_num_hard_forks].second;
 
       // If the wallet missed the fork, then technically it is no longer able
-      // to communicate with the Monero network. Don't connect.
+      // to communicate with the Qwertycoin network. Don't connect.
       bool wallet_missed_fork = height >= wallet_missed_fork_height || target_height >= wallet_missed_fork_height;
       if (wallet_missed_fork)
         return false;
@@ -6425,7 +6435,7 @@ bool wallet2::check_hard_fork_version(cryptonote::network_type nettype, const st
     // Non-updated daemons won't return daemon_hard_forks in response to
     // get_version. Fall back to extra call to get_hard_fork_info by version.
     uint64_t daemon_fork_height;
-    get_hard_fork_info(wallet_num_hard_forks-1/* wallet expects "double fork" pattern */, daemon_fork_height);
+    get_hard_fork_info(wallet_hard_forks[wallet_num_hard_forks-1].version, daemon_fork_height);
     bool daemon_outdated = daemon_fork_height == std::numeric_limits<uint64_t>::max();
 
     if (daemon_is_outdated)
@@ -6433,7 +6443,7 @@ bool wallet2::check_hard_fork_version(cryptonote::network_type nettype, const st
 
     if (daemon_outdated)
     {
-      uint64_t daemon_missed_fork_height = wallet_hard_forks[wallet_num_hard_forks-2].height;
+      uint64_t daemon_missed_fork_height = wallet_hard_forks[wallet_num_hard_forks-1].height;
       bool daemon_missed_fork = height >= daemon_missed_fork_height || target_height >= daemon_missed_fork_height;
       if (daemon_missed_fork)
         return false;
@@ -15603,7 +15613,7 @@ std::string wallet2::make_uri(const std::string &address, const std::string &pay
     return std::string();
   }
 
-  std::string uri = "monero:" + address;
+  std::string uri = "qwertycoin:" + address;
   unsigned int n_fields = 0;
 
   if (!payment_id.empty())
@@ -15632,13 +15642,16 @@ std::string wallet2::make_uri(const std::string &address, const std::string &pay
 //----------------------------------------------------------------------------------------------------
 bool wallet2::parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error)
 {
-  if (uri.substr(0, 7) != "monero:")
+  static constexpr const char qwertycoin_uri_scheme[] = "qwertycoin:";
+  static constexpr size_t qwertycoin_uri_scheme_length = sizeof(qwertycoin_uri_scheme) - 1;
+
+  if (uri.substr(0, qwertycoin_uri_scheme_length) != qwertycoin_uri_scheme)
   {
-    error = std::string("URI has wrong scheme (expected \"monero:\"): ") + uri;
+    error = std::string("URI has wrong scheme (expected \"qwertycoin:\"): ") + uri;
     return false;
   }
 
-  std::string remainder = uri.substr(7);
+  std::string remainder = uri.substr(qwertycoin_uri_scheme_length);
   const char *ptr = strchr(remainder.c_str(), '?');
   address = ptr ? remainder.substr(0, ptr-remainder.c_str()) : remainder;
 
@@ -15868,8 +15881,8 @@ std::vector<std::pair<uint64_t, uint64_t>> wallet2::estimate_backlog(const std::
     uint64_t nblocks_max = minfee_weight / full_reward_zone;
     uint64_t nblocks_min = maxfee_weight / full_reward_zone;
     MDEBUG("estimate_backlog: given a block weight of " << full_reward_zone << " you will need to wait "
-      << nblocks_min << " when paying " << our_fee_byte_max << " piconero per byte and " << nblocks_max
-      << " when paying " << our_fee_byte_min << " piconeros per byte.");
+      << nblocks_min << " when paying " << our_fee_byte_max << " atomic QWC per byte and " << nblocks_max
+      << " when paying " << our_fee_byte_min << " atomic QWC per byte.");
     blocks.push_back(std::make_pair(nblocks_min, nblocks_max));
   }
   return blocks;
@@ -15920,7 +15933,7 @@ mms::multisig_wallet_state wallet2::get_multisig_wallet_state() const
   state.num_transfer_details = m_transfers.size();
   if (state.multisig)
   {
-    THROW_WALLET_EXCEPTION_IF(!m_original_keys_available, error::wallet_internal_error, "MMS use not possible because own original Monero address not available");
+    THROW_WALLET_EXCEPTION_IF(!m_original_keys_available, error::wallet_internal_error, "MMS use not possible because own original Qwertycoin address not available");
     state.address = m_original_address;
     state.view_secret_key = m_original_view_secret_key;
   }

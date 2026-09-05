@@ -1,0 +1,16 @@
+build
+build-*
+cmake-build-*
+.ccache
+CMakeFiles
+CMakeCache.txt
+compile_commands.json
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.log
+*.tmp
+*.swp

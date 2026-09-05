@@ -104,6 +104,10 @@ public:
 
   bool print_status(const std::vector<std::string>& args);
 
+  bool print_epose_info(const std::vector<std::string>& args);
+
+  bool print_service_node_registration_payload(const std::vector<std::string>& args);
+
   bool set_limit(const std::vector<std::string>& args);
 
   bool set_limit_up(const std::vector<std::string>& args);

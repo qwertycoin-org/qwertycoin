@@ -1,4 +1,5 @@
 // Copyright (c) 2014-2022, The Monero Project
+// Copyright (c) 2026, The Qwertycoin Project
 //
 // All rights reserved.
 //
@@ -703,33 +704,12 @@ namespace nodetool
   std::set<std::string> node_server<t_payload_net_handler>::get_ip_seed_nodes() const
   {
     std::set<std::string> full_addrs;
-    if (m_nettype == cryptonote::TESTNET)
+    if (m_nettype == cryptonote::MAINNET)
     {
-      full_addrs.insert("176.9.0.187:28080");
-      full_addrs.insert("192.99.8.110:28080");
-      full_addrs.insert("37.187.74.171:28080");
-      full_addrs.insert("88.99.195.15:28080");
-      full_addrs.insert("5.104.84.64:28080");
-    }
-    else if (m_nettype == cryptonote::STAGENET)
-    {
-      full_addrs.insert("176.9.0.187:38080");
-      full_addrs.insert("192.99.8.110:38080");
-      full_addrs.insert("37.187.74.171:38080");
-      full_addrs.insert("88.99.195.15:38080");
-      full_addrs.insert("5.104.84.64:38080");
-    }
-    else if (m_nettype == cryptonote::FAKECHAIN)
-    {
-    }
-    else
-    {
-      full_addrs.insert("176.9.0.187:18080");
-      full_addrs.insert("88.198.163.90:18080");
-      full_addrs.insert("192.99.8.110:18080");
-      full_addrs.insert("37.187.74.171:18080");
-      full_addrs.insert("88.99.195.15:18080");
-      full_addrs.insert("5.104.84.64:18080");
+      const uint16_t default_port = cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT;
+      full_addrs.insert("159.195.194.92:" + std::to_string(default_port));
+      full_addrs.insert("159.195.216.239:" + std::to_string(default_port));
+      full_addrs.insert("95.216.221.239:" + std::to_string(default_port));
     }
     return full_addrs;
   }
@@ -858,17 +838,6 @@ namespace nodetool
     case epee::net_utils::zone::public_:
       return get_dns_seed_nodes();
     case epee::net_utils::zone::tor:
-      if (m_nettype == cryptonote::MAINNET)
-      {
-        return {
-          "zbjkbsxc5munw3qusl7j2hpcmikhqocdf4pqhnhtpzw5nt5jrmofptid.onion:18083",
-          "plowsof3t5hogddwabaeiyrno25efmzfxyro2vligremt7sxpsclfaid.onion:18083",
-          "plowsoffjexmxalw73tkjmf422gq6575fc7vicuu4javzn2ynnte6tyd.onion:18083",
-          "plowsofe6cleftfmk2raiw5h2x66atrik3nja4bfd3zrfa2hdlgworad.onion:18083",
-          "aclc4e2jhhtr44guufbnwk5bzwhaecinax4yip4wr4tjn27sjsfg6zqd.onion:18083",
-          "lykcas4tus7mkm4bhsgqe4drtd4awi7gja24goscc47xfgzj54yofyqd.onion:18083",
-        };
-      }
       return {};
     case epee::net_utils::zone::i2p:
       if (m_nettype == cryptonote::MAINNET)
@@ -1218,6 +1187,10 @@ namespace nodetool
         LOG_DEBUG_CC(context, " COMMAND_HANDSHAKE INVOKED OK");
       }else
       {
+        const auto azone = context.m_remote_address.get_zone();
+        network_zone& zone = m_network_zones.at(azone);
+        if(azone != epee::net_utils::zone::public_ || rsp.node_data.peer_id != zone.m_config.m_peer_id)
+          zone.m_peerlist.set_peer_just_seen(rsp.node_data.peer_id, context.m_remote_address, context.m_pruning_seed, rsp.node_data.rpc_port, rsp.node_data.rpc_credits_per_hash);
         LOG_DEBUG_CC(context, " COMMAND_HANDSHAKE(AND CLOSE) INVOKED OK");
       }
       context_ = context;
@@ -2126,49 +2099,7 @@ namespace nodetool
     if (m_nettype != cryptonote::MAINNET)
       return true;
 
-    static const std::vector<std::string> dns_urls = {
-      "blocklist.moneropulse.se"
-    , "blocklist.moneropulse.org"
-    , "blocklist.moneropulse.net"
-    , "blocklist.moneropulse.co"
-    , "blocklist.moneropulse.fr"
-    , "blocklist.moneropulse.de"
-    , "blocklist.moneropulse.ch"
-    };
-
-    std::vector<std::string> records;
-    if (!tools::dns_utils::load_txt_records_from_dns(records, dns_urls))
-      return true;
-
-    unsigned good = 0, bad = 0;
-    for (const auto& record : records)
-    {
-      std::vector<std::string> ips;
-      boost::split(ips, record, boost::is_any_of(";"));
-      for (const auto &ip: ips)
-      {
-        if (ip.empty())
-          continue;
-        auto subnet = net::get_ipv4_subnet_address(ip);
-        if (subnet)
-        {
-          block_subnet(*subnet, DNS_BLOCKLIST_LIFETIME);
-          ++good;
-          continue;
-        }
-        const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(ip, 0);
-        if (parsed_addr)
-        {
-          block_host(*parsed_addr, DNS_BLOCKLIST_LIFETIME, true);
-          ++good;
-          continue;
-        }
-        MWARNING("Invalid IP address or subnet from DNS blocklist: " << ip << " - " << parsed_addr.error());
-        ++bad;
-      }
-    }
-    if (good > 0)
-      MINFO(good << " addresses added to the blocklist");
+    MINFO("Qwertycoin DNS blocklist is disabled until QWC-owned signed blocklist metadata is configured");
     return true;
   }
   //-----------------------------------------------------------------------------------

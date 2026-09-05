@@ -1,0 +1,94 @@
+# Multistage development/test build for Qwertycoin EPoSE work.
+#
+# This Dockerfile intentionally keeps the production Dockerfile untouched and
+# enables BUILD_TESTS for consensus/unit-test validation on development hosts.
+
+FROM ubuntu:20.04 AS builder
+
+RUN set -ex && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get --no-install-recommends --yes install \
+        automake \
+        autotools-dev \
+        bsdmainutils \
+        build-essential \
+        ca-certificates \
+        ccache \
+        cmake \
+        curl \
+        git \
+        gperf \
+        libtool \
+        pkg-config \
+        python3 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+ARG NPROC
+
+# Dependencies change rarely and are expensive to rebuild, so copy only the
+# files needed for the depends stage before the full source tree.
+COPY Makefile Makefile
+COPY contrib contrib
+COPY external external
+
+RUN set -ex && \
+    if [ -z "$NPROC" ]; then \
+      make -j"$(nproc)" -C contrib/depends HOST=x86_64-linux-gnu; \
+    else \
+      make -j"$NPROC" -C contrib/depends HOST=x86_64-linux-gnu; \
+    fi
+
+COPY . .
+
+ARG EPOSE_SANITIZE=OFF
+ARG EPOSE_EXTRA_C_FLAGS=
+ARG EPOSE_EXTRA_CXX_FLAGS=
+ARG EPOSE_EXTRA_CMAKE_FLAGS=
+ARG EPOSE_BUILD_TARGETS="unit_tests epose_unit_tests epose_admission_bench epose_sybil_sim daemon simplewallet epose_fuzz_tests"
+
+RUN set -ex && \
+    sed -i 's/^SET(BUILD_TESTS OFF)$/SET(BUILD_TESTS ON)/' /src/contrib/depends/x86_64-linux-gnu/share/toolchain.cmake && \
+    rm -rf build/x86_64-linux-gnu/release && \
+    mkdir -p build/x86_64-linux-gnu/release && \
+    cd build/x86_64-linux-gnu/release && \
+    USE_DEVICE_TREZOR_MANDATORY=1 cmake \
+      -DBUILD_TESTS=ON \
+      -DSANITIZE="$EPOSE_SANITIZE" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_FLAGS="$EPOSE_EXTRA_C_FLAGS" \
+      -DCMAKE_CXX_FLAGS="$EPOSE_EXTRA_CXX_FLAGS" \
+      -DMANUAL_SUBMODULES=1 \
+      -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+      -DCMAKE_TOOLCHAIN_FILE=/src/contrib/depends/x86_64-linux-gnu/share/toolchain.cmake \
+      $EPOSE_EXTRA_CMAKE_FLAGS \
+      ../../.. && \
+    if [ -z "$NPROC" ]; then \
+      make -j"$(nproc)" $EPOSE_BUILD_TARGETS; \
+    else \
+      make -j"$NPROC" $EPOSE_BUILD_TARGETS; \
+    fi && \
+    mkdir -p /opt/qwertycoin-dev/bin /opt/qwertycoin-dev/tests/data && \
+    if [ -d bin ]; then cp -a bin/. /opt/qwertycoin-dev/bin/; fi && \
+    if [ -x tests/unit_tests/unit_tests ]; then cp tests/unit_tests/unit_tests /opt/qwertycoin-dev/bin/qwertycoin-unit-tests; fi && \
+    if [ -x tests/unit_tests/epose_unit_tests ]; then cp tests/unit_tests/epose_unit_tests /opt/qwertycoin-dev/bin/qwertycoin-epose-unit-tests; fi && \
+    if [ -x tests/unit_tests/epose_admission_bench ]; then cp tests/unit_tests/epose_admission_bench /opt/qwertycoin-dev/bin/qwertycoin-epose-admission-bench; fi && \
+    if [ -x tests/unit_tests/epose_sybil_sim ]; then cp tests/unit_tests/epose_sybil_sim /opt/qwertycoin-dev/bin/qwertycoin-epose-sybil-sim; fi && \
+    if [ -x tests/fuzz/epose_fuzz_tests ]; then cp tests/fuzz/epose_fuzz_tests /opt/qwertycoin-dev/bin/qwertycoin-epose-fuzz-tests; fi && \
+    if [ -x tests/qwertycoin-wallet-crypto-bench ]; then cp tests/qwertycoin-wallet-crypto-bench /opt/qwertycoin-dev/bin/qwertycoin-wallet-crypto-bench; fi && \
+    cp -a /src/tests/data/. /opt/qwertycoin-dev/tests/data/
+
+FROM ubuntu:20.04
+
+RUN set -ex && \
+    apt-get update && \
+    apt-get --no-install-recommends --yes install ca-certificates libasan5 libubsan1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/qwertycoin-dev/bin /usr/local/bin/
+COPY --from=builder /opt/qwertycoin-dev/tests/data /usr/local/share/qwertycoin/tests/data
+
+ENTRYPOINT ["/bin/bash"]

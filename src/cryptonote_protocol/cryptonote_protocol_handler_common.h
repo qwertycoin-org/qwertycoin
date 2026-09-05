@@ -43,6 +43,7 @@ namespace cryptonote
     virtual bool is_synchronized() const = 0;
     virtual bool relay_block(NOTIFY_NEW_FLUFFY_BLOCK::request& arg, cryptonote_connection_context& exclude_context)=0;
     virtual bool relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone, relay_method tx_relay)=0;
+    virtual bool relay_epose_payloads(NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone)=0;
     //virtual bool request_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote_connection_context& context)=0;
   };
 
@@ -60,6 +61,10 @@ namespace cryptonote
       return false;
     }
     virtual bool relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone, relay_method tx_relay)
+    {
+      return false;
+    }
+    virtual bool relay_epose_payloads(NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone)
     {
       return false;
     }

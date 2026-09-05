@@ -116,6 +116,10 @@ public:
 
   bool print_status();
 
+  bool print_epose_info();
+
+  bool print_service_node_registration_payload();
+
   bool get_limit();
 
   bool get_limit_up();

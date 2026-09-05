@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <iterator>
 #include <boost/asio/dispatch.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/range/adaptor/reversed.hpp>
@@ -60,6 +61,7 @@
 #include "common/varint.h"
 #include "common/pruning.h"
 #include "common/data_cache.h"
+#include "epose/service_node.h"
 #include "time_helper.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -102,7 +104,8 @@ Blockchain::Blockchain(tx_memory_pool& tx_pool) :
   m_btc_valid(false),
   m_batch_success(true),
   m_prepare_height(0),
-  m_rct_ver_cache()
+  m_rct_ver_cache(),
+  m_epose_state()
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 }
@@ -306,14 +309,18 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   m_nettype = test_options != NULL ? FAKECHAIN : nettype;
   m_offline = offline;
   m_fixed_difficulty = fixed_difficulty;
+  m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
+  m_epose_block_snapshots.clear();
   if (m_hardfork == nullptr)
   {
-    if (m_nettype ==  FAKECHAIN || m_nettype == STAGENET)
+    if (m_nettype ==  FAKECHAIN)
       m_hardfork = new HardFork(*db, 1, 0);
+    else if (m_nettype == STAGENET)
+      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE_V1, 0);
     else if (m_nettype == TESTNET)
-      m_hardfork = new HardFork(*db, 1, testnet_hard_fork_version_1_till);
+      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE_V1, 0);
     else
-      m_hardfork = new HardFork(*db, 1, mainnet_hard_fork_version_1_till);
+      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE_V1, 0);
   }
   if (m_nettype == FAKECHAIN)
   {
@@ -348,7 +355,8 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     MINFO("Blockchain not loaded, generating genesis block.");
     block bl;
     block_verification_context bvc = {};
-    generate_genesis_block(bl, get_config(m_nettype).GENESIS_TX, get_config(m_nettype).GENESIS_NONCE);
+    const uint8_t genesis_hf_version = m_hardfork->get_ideal_version(0);
+    generate_genesis_block(bl, get_config(m_nettype).GENESIS_TX, get_config(m_nettype).GENESIS_NONCE, genesis_hf_version, genesis_hf_version);
     db_wtxn_guard wtxn_guard(m_db);
     add_new_block(bl, bvc);
     CHECK_AND_ASSERT_MES(!bvc.m_verifivation_failed, false, "Failed to add genesis block to blockchain");
@@ -363,6 +371,12 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   {
     // ensure we fixup anything we found and fix in the future
     m_db->fixup();
+  }
+
+  if (!rebuild_epose_state())
+  {
+    LOG_ERROR("Failed to rebuild EPoSE state from blockchain database");
+    return false;
   }
 
   db_rtxn_guard rtxn_guard(m_db);
@@ -624,6 +638,8 @@ block Blockchain::pop_block_from_blockchain()
     throw;
   }
 
+  rollback_epose_block(m_db->height());
+
   // make sure the hard fork object updates its current version
   m_hardfork->on_block_popped(1);
 
@@ -690,6 +706,8 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
   m_db->reset();
   m_db->drop_alt_blocks();
   m_hardfork->init();
+  m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
+  m_epose_block_snapshots.clear();
 
   db_wtxn_guard wtxn_guard(m_db);
   block_verification_context bvc = {};
@@ -795,6 +813,229 @@ crypto::hash Blockchain::get_block_id_by_height(uint64_t height) const
     throw;
   }
   return null_hash;
+}
+//------------------------------------------------------------------
+bool Blockchain::is_epose_enabled_for_height(uint64_t height) const
+{
+  return m_hardfork && get_ideal_hard_fork_version(height) >= HF_VERSION_QWC_EPOSE_V1;
+}
+//------------------------------------------------------------------
+bool Blockchain::is_epose_enabled() const
+{
+  const uint64_t height = m_db ? m_db->height() : 0;
+  return height > 0 && is_epose_enabled_for_height(height - 1);
+}
+//------------------------------------------------------------------
+bool Blockchain::is_epose_enabled_at_height(uint64_t height) const
+{
+  return is_epose_enabled_for_height(height);
+}
+//------------------------------------------------------------------
+uint64_t Blockchain::get_epose_current_epoch() const
+{
+  const uint64_t height = m_db ? m_db->height() : 0;
+  return qwertycoin::epose::epoch_for_height(height > 0 ? height - 1 : 0);
+}
+//------------------------------------------------------------------
+uint64_t Blockchain::get_epose_epoch_start_height(uint64_t epoch) const
+{
+  return qwertycoin::epose::epoch_start_height(epoch);
+}
+//------------------------------------------------------------------
+uint64_t Blockchain::get_epose_epoch_end_height(uint64_t epoch) const
+{
+  return qwertycoin::epose::epoch_end_height(epoch);
+}
+//------------------------------------------------------------------
+std::vector<qwertycoin::epose::service_node_identity> Blockchain::get_epose_service_nodes() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_state)
+    return {};
+  return m_epose_state->registry().registrations();
+}
+//------------------------------------------------------------------
+std::vector<qwertycoin::epose::service_attestation> Blockchain::get_epose_attestations() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_state)
+    return {};
+  return m_epose_state->attestations();
+}
+//------------------------------------------------------------------
+std::vector<crypto::public_key> Blockchain::get_epose_qualified_service_nodes(uint64_t epoch) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_state)
+    return {};
+  return m_epose_state->qualified_service_nodes(epoch);
+}
+//------------------------------------------------------------------
+uint64_t Blockchain::get_epose_attestation_count() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_state)
+    return 0;
+  return m_epose_state->attestations().size();
+}
+//------------------------------------------------------------------
+crypto::hash Blockchain::get_epose_state_hash() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_state)
+    return crypto::null_hash;
+  return m_epose_state->state_hash();
+}
+//------------------------------------------------------------------
+crypto::hash Blockchain::get_epose_epoch_context_hash(uint64_t epoch) const
+{
+  if (!m_db || m_db->height() == 0)
+    return crypto::null_hash;
+
+  const uint64_t seed_height = qwertycoin::epose::epoch_seed_height(epoch);
+  if (seed_height >= m_db->height())
+    return crypto::null_hash;
+
+  return get_block_id_by_height(seed_height);
+}
+//------------------------------------------------------------------
+bool Blockchain::get_epose_service_reward_for_block(uint64_t height, uint64_t total_reward, account_public_address &reward_address, crypto::secret_key &reward_view_secret_key, uint64_t &service_reward) const
+{
+  service_reward = 0;
+  if (!is_epose_enabled_for_height(height) || !m_epose_state)
+    return false;
+
+  const uint64_t reward_source_epoch = qwertycoin::epose::reward_source_epoch_for_height(height);
+  const auto qualified_nodes = m_epose_state->qualified_service_nodes(reward_source_epoch);
+  crypto::public_key expected_payee{};
+  if (!qwertycoin::epose::select_service_payee(qualified_nodes, get_epose_epoch_context_hash(reward_source_epoch), height, expected_payee))
+    return false;
+
+  const auto registrations = m_epose_state->registry().registrations();
+  for (const auto &identity : registrations)
+  {
+    if (identity.service_public_key == expected_payee && qwertycoin::epose::identity_active_in_epoch(identity, reward_source_epoch))
+    {
+      reward_address = identity.reward_address;
+      reward_view_secret_key = identity.reward_view_secret_key;
+      service_reward = qwertycoin::epose::split_block_reward(total_reward, 0).service_reward;
+      return service_reward > 0;
+    }
+  }
+
+  return false;
+}
+//------------------------------------------------------------------
+bool Blockchain::validate_epose_service_reward(const block &b, uint64_t height, uint64_t total_reward) const
+{
+  account_public_address reward_address{};
+  crypto::secret_key reward_view_secret_key{};
+  uint64_t service_reward = 0;
+  if (!get_epose_service_reward_for_block(height, total_reward, reward_address, reward_view_secret_key, service_reward))
+    return true;
+
+  crypto::public_key tx_public_key = get_tx_pub_key_from_extra(b.miner_tx);
+  CHECK_AND_ASSERT_MES(tx_public_key != crypto::null_pkey, false, "EPoSE service reward cannot be validated without a coinbase tx public key");
+
+  if (qwertycoin::epose::validate_service_reward_output(b.miner_tx, reward_address, reward_view_secret_key, service_reward))
+    return true;
+
+  MERROR_VER("coinbase transaction does not pay required EPoSE service reward " << print_money(service_reward)
+      << " to the registered reward address");
+  return false;
+}
+//------------------------------------------------------------------
+bool Blockchain::apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height)
+{
+  if (!is_epose_enabled_for_height(height))
+    return true;
+
+  if (!m_epose_state)
+    m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
+
+  std::vector<transaction> block_txs;
+  block_txs.reserve(txs.size() + 1);
+  block_txs.push_back(bl.miner_tx);
+  for (const auto &tx_entry : txs)
+    block_txs.push_back(tx_entry.first);
+
+  const uint64_t epoch = qwertycoin::epose::epoch_for_height(height);
+  const crypto::hash epoch_context_hash = get_epose_epoch_context_hash(epoch);
+  const qwertycoin::epose::chain_state::snapshot before = m_epose_state->make_snapshot();
+  qwertycoin::epose::transaction_apply_summary summary{};
+  if (!m_epose_state->apply_transactions(block_txs, epoch_context_hash, &summary, epoch))
+  {
+    m_epose_state->restore_snapshot(before);
+    MERROR_VER("Block at height " << height << " failed EPoSE state validation");
+    return false;
+  }
+
+  if (summary.registrations_applied || summary.attestations_applied)
+  {
+    MINFO("Applied EPoSE block state at height " << height
+        << ": registrations=" << summary.registrations_applied
+        << ", attestations=" << summary.attestations_applied);
+  }
+  m_epose_block_snapshots.emplace_back(height, before);
+  constexpr size_t max_epose_snapshots =
+      qwertycoin::epose::EPOSE_EPOCH_LENGTH + qwertycoin::epose::EPOSE_FINALITY_DEPTH;
+  if (m_epose_block_snapshots.size() > max_epose_snapshots)
+    m_epose_block_snapshots.erase(m_epose_block_snapshots.begin(), m_epose_block_snapshots.begin() + (m_epose_block_snapshots.size() - max_epose_snapshots));
+  return true;
+}
+//------------------------------------------------------------------
+void Blockchain::rollback_epose_block(uint64_t popped_height)
+{
+  if (!m_epose_state)
+    return;
+
+  for (auto it = m_epose_block_snapshots.rbegin(); it != m_epose_block_snapshots.rend(); ++it)
+  {
+    if (it->first == popped_height)
+    {
+      m_epose_state->restore_snapshot(it->second);
+      m_epose_block_snapshots.erase(std::next(it).base(), m_epose_block_snapshots.end());
+      return;
+    }
+  }
+
+  if (!rebuild_epose_state())
+    MERROR("Failed to rebuild EPoSE state after rollback at height " << popped_height);
+}
+//------------------------------------------------------------------
+bool Blockchain::rebuild_epose_state()
+{
+  if (!m_db)
+    return false;
+
+  m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
+  m_epose_block_snapshots.clear();
+
+  const uint64_t chain_height = m_db->height();
+  for (uint64_t height = 0; height < chain_height; ++height)
+  {
+    if (!is_epose_enabled_for_height(height))
+      continue;
+
+    block bl = m_db->get_block_from_height(height);
+    std::vector<transaction> block_txs;
+    block_txs.reserve(bl.tx_hashes.size() + 1);
+    block_txs.push_back(bl.miner_tx);
+
+    std::vector<transaction> tx_list = m_db->get_tx_list(bl.tx_hashes);
+    block_txs.insert(block_txs.end(), tx_list.begin(), tx_list.end());
+
+    const uint64_t epoch = qwertycoin::epose::epoch_for_height(height);
+    const crypto::hash epoch_context_hash = get_epose_epoch_context_hash(epoch);
+    if (!m_epose_state->apply_transactions(block_txs, epoch_context_hash, nullptr, epoch))
+    {
+      MERROR("Failed to rebuild EPoSE state from block at height " << height);
+      return false;
+    }
+  }
+
+  MINFO("Rebuilt EPoSE state from " << chain_height << " chain blocks");
+  return true;
 }
 //------------------------------------------------------------------
 crypto::hash Blockchain::get_pending_block_id_by_height(uint64_t height) const
@@ -1386,6 +1627,11 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
       partial_block_reward = true;
     base_reward = money_in_use - fee;
   }
+  if (version >= HF_VERSION_QWC_EPOSE_V1 && !validate_epose_service_reward(b, boost::get<txin_gen>(b.miner_tx.vin[0]).height, money_in_use))
+  {
+    MERROR_VER("coinbase transaction has invalid EPoSE service reward");
+    return false;
+  }
   return true;
 }
 //------------------------------------------------------------------
@@ -1684,7 +1930,14 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
   size_t max_outs = hf_version >= 4 ? 1 : 11;
-  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+  account_public_address service_reward_address{};
+  crypto::secret_key service_reward_view_secret_key{};
+  uint64_t service_reward = 0;
+  uint64_t template_base_reward = 0;
+  if (get_block_reward(median_weight, txs_weight, already_generated_coins, template_base_reward, hf_version))
+    get_epose_service_reward_for_block(height, template_base_reward + fee, service_reward_address, service_reward_view_secret_key, service_reward);
+
+  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, service_reward ? &service_reward_address : NULL, service_reward);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -1693,7 +1946,12 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
   for (size_t try_count = 0; try_count != 10; ++try_count)
   {
-    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+    service_reward = 0;
+    template_base_reward = 0;
+    if (get_block_reward(median_weight, cumulative_weight, already_generated_coins, template_base_reward, hf_version))
+      get_epose_service_reward_for_block(height, template_base_reward + fee, service_reward_address, service_reward_view_secret_key, service_reward);
+
+    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, service_reward ? &service_reward_address : NULL, service_reward);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);
@@ -4420,6 +4678,13 @@ leave:
     return false;
   }
 
+  if (!apply_epose_block(bl, txs, blockchain_height))
+  {
+    bvc.m_verifivation_failed = true;
+    return_txs_to_pool();
+    return false;
+  }
+
   TIME_MEASURE_FINISH(vmt);
   size_t block_weight;
   difficulty_type cumulative_difficulty;
@@ -4455,6 +4720,7 @@ leave:
       LOG_ERROR("Error adding block with hash: " << id << " to blockchain, what = " << e.what());
       m_batch_success = false;
       bvc.m_verifivation_failed = true;
+      rollback_epose_block(blockchain_height);
       return_txs_to_pool();
       return false;
     }
@@ -4464,6 +4730,7 @@ leave:
       LOG_ERROR("Error adding block with hash: " << id << " to blockchain, what = " << e.what());
       m_batch_success = false;
       bvc.m_verifivation_failed = true;
+      rollback_epose_block(blockchain_height);
       return_txs_to_pool();
       return false;
     }
@@ -4571,6 +4838,9 @@ uint64_t Blockchain::get_next_long_term_block_weight(uint64_t block_weight) cons
   if (hf_version < HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
     return block_weight;
 
+  if (nblocks == 0)
+    return block_weight;
+
   uint64_t long_term_median = get_long_term_block_weight_median(db_height - nblocks, nblocks);
   uint64_t long_term_effective_median_block_weight = std::max<uint64_t>(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_term_median);
 
@@ -4611,7 +4881,7 @@ bool Blockchain::update_next_cumulative_weight_limit(uint64_t *long_term_effecti
   else
   {
     const uint64_t nblocks = std::min<uint64_t>(m_long_term_block_weights_window, db_height);
-    const uint64_t long_term_median = get_long_term_block_weight_median(db_height - nblocks, nblocks);
+    const uint64_t long_term_median = nblocks == 0 ? 0 : get_long_term_block_weight_median(db_height - nblocks, nblocks);
 
     m_long_term_effective_median_block_weight = std::max<uint64_t>(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_term_median);
 
@@ -4725,7 +4995,7 @@ void Blockchain::check_against_checkpoints(const checkpoints& points, bool enfor
       }
       else
       {
-        LOG_ERROR("WARNING: local blockchain failed to pass a MoneroPulse checkpoint, and you could be on a fork. You should either sync up from scratch, OR download a fresh blockchain bootstrap, OR enable checkpoint enforcing with the --enforce-dns-checkpointing command-line option");
+        LOG_ERROR("WARNING: local blockchain failed to pass a DNS checkpoint, and you could be on a fork. You should either sync up from scratch, OR download a fresh blockchain bootstrap, OR enable checkpoint enforcing with the --enforce-dns-checkpointing command-line option");
       }
     }
   }

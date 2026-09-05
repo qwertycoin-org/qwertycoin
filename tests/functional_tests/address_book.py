@@ -139,8 +139,8 @@ class AddressBookTest():
         res = wallet.get_address_book()
         assert not 'entries' in res or len(res.entries) == 0
 
-        # openalias
-        res = wallet.add_address_book('donate@getmonero.org', description = 'dev fund')
+        # QWC live OpenAlias is disabled until a Qwertycoin-owned DNS record is configured.
+        res = wallet.add_address_book('888tNkZrPN6JsEgekjMnABU4TBzc2Dt29EPAvkRxbANsAnjyPbb3iQ1YBRk1UXcdRsiKc9dhwMVgN5S9cQUiyoogDavup3H', description = 'dev fund')
         assert res.index == 0
         res = wallet.get_address_book()
         assert len(res.entries) == 1

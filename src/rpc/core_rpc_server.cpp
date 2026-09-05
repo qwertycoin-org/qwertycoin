@@ -31,6 +31,7 @@
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/uuid/nil_generator.hpp>
 #include <boost/filesystem.hpp>
+#include <algorithm>
 #include "include_base_utils.h"
 #include "string_tools.h"
 using namespace epee;
@@ -57,6 +58,7 @@ using namespace epee;
 #include "rpc/rpc_payment_costs.h"
 #include "rpc/rpc_payment_signature.h"
 #include "core_rpc_server_error_codes.h"
+#include "epose/service_node.h"
 #include "p2p/net_node.h"
 #include "version.h"
 
@@ -67,6 +69,35 @@ using namespace epee;
 #define MAX_RESTRICTED_GLOBAL_FAKE_OUTS_COUNT 5000
 
 #define OUTPUT_HISTOGRAM_RECENT_CUTOFF_RESTRICTION (3 * 86400) // 3 days max, the wallet requests 1.8 days
+
+namespace
+{
+  constexpr uint64_t EPOSE_RPC_SERVICE_NODE_LIMIT = 1000;
+
+  bool public_key_matches_hex(const crypto::public_key &key, const std::string &hex)
+  {
+    crypto::public_key decoded{};
+    return epee::string_tools::hex_to_pod(hex, decoded) && decoded == key;
+  }
+
+  cryptonote::epose_service_node_entry make_epose_service_node_entry(
+      const qwertycoin::epose::service_node_identity &identity,
+      uint64_t epoch,
+      const std::vector<crypto::public_key> &qualified_nodes)
+  {
+    cryptonote::epose_service_node_entry entry{};
+    entry.service_public_key = epee::string_tools::pod_to_hex(identity.service_public_key);
+    entry.reward_view_public_key = epee::string_tools::pod_to_hex(identity.reward_address.m_view_public_key);
+    entry.reward_spend_public_key = epee::string_tools::pod_to_hex(identity.reward_address.m_spend_public_key);
+    entry.endpoint_commitment = epee::string_tools::pod_to_hex(identity.endpoint_commitment);
+    entry.admission_hash = epee::string_tools::pod_to_hex(identity.admission_hash);
+    entry.registration_epoch = identity.registration_epoch;
+    entry.expiry_epoch = identity.expiry_epoch;
+    entry.active = qwertycoin::epose::identity_active_in_epoch(identity, epoch);
+    entry.qualified = std::find(qualified_nodes.begin(), qualified_nodes.end(), identity.service_public_key) != qualified_nodes.end();
+    return entry;
+  }
+}
 
 #define DEFAULT_PAYMENT_DIFFICULTY 1000
 #define DEFAULT_PAYMENT_CREDITS_PER_HASH 100
@@ -566,11 +597,201 @@ namespace cryptonote
     if (restricted)
       res.database_size = round_up(res.database_size, 5ull* 1024 * 1024 * 1024);
     res.update_available = restricted ? false : m_core.is_update_available();
-    res.version = restricted ? "" : MONERO_VERSION_FULL;
+    res.version = restricted ? "" : QWERTYCOIN_VERSION_FULL;
     res.synchronized = check_core_ready();
     res.busy_syncing = m_p2p.get_payload_object().is_busy_syncing();
     res.restricted = restricted;
 
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_epose_info(const COMMAND_RPC_GET_EPOSE_INFO::request& req, COMMAND_RPC_GET_EPOSE_INFO::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(get_epose_info);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const uint64_t epoch = blockchain.get_epose_current_epoch();
+    const auto service_nodes = blockchain.get_epose_service_nodes();
+    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+
+    res.enabled = blockchain.is_epose_enabled();
+    res.protocol_version = qwertycoin::epose::EPOSE_PROTOCOL_VERSION;
+    res.current_epoch = epoch;
+    res.epoch_start_height = blockchain.get_epose_epoch_start_height(epoch);
+    res.epoch_end_height = blockchain.get_epose_epoch_end_height(epoch);
+    res.service_node_count = service_nodes.size();
+    res.qualified_count = qualified_nodes.size();
+    res.attestation_count = blockchain.get_epose_attestation_count();
+    res.state_hash = epee::string_tools::pod_to_hex(blockchain.get_epose_state_hash());
+    res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS;
+    const auto &local_service_node = m_core.get_epose_local_service_node_config();
+    res.local_service_node = local_service_node.enabled;
+    res.local_service_node_key_loaded = local_service_node.key_loaded;
+    res.local_service_node_registered = false;
+    res.local_service_node_active = false;
+    res.local_service_node_qualified = false;
+    res.local_service_node_expiry_epoch = 0;
+    res.local_service_public_key = local_service_node.key_loaded ? epee::string_tools::pod_to_hex(local_service_node.service_public_key) : "";
+    res.local_service_reward_address = local_service_node.enabled ? local_service_node.reward_address_string : "";
+    res.local_service_advertised_endpoint = local_service_node.enabled ? local_service_node.advertised_endpoint : "";
+    res.local_service_endpoint_commitment = local_service_node.advertised_endpoint.empty() ? "" : epee::string_tools::pod_to_hex(local_service_node.endpoint_commitment);
+    if (local_service_node.key_loaded)
+    {
+      for (const auto &identity : service_nodes)
+      {
+        if (identity.service_public_key != local_service_node.service_public_key)
+          continue;
+        res.local_service_node_registered = true;
+        res.local_service_node_active = qwertycoin::epose::identity_active_in_epoch(identity, epoch);
+        res.local_service_node_qualified = std::find(qualified_nodes.begin(), qualified_nodes.end(), identity.service_public_key) != qualified_nodes.end();
+        res.local_service_node_expiry_epoch = identity.expiry_epoch;
+        break;
+      }
+    }
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(get_service_nodes);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const uint64_t epoch = blockchain.get_epose_current_epoch();
+    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+    const auto service_nodes = blockchain.get_epose_service_nodes();
+    const uint64_t limit = req.limit == 0 ? 100 : std::min<uint64_t>(req.limit, EPOSE_RPC_SERVICE_NODE_LIMIT);
+
+    res.total_count = service_nodes.size();
+    res.service_nodes.reserve(std::min<uint64_t>(res.total_count, limit));
+    for (const auto &identity : service_nodes)
+    {
+      if (res.service_nodes.size() >= limit)
+        break;
+      res.service_nodes.push_back(make_epose_service_node_entry(identity, epoch, qualified_nodes));
+    }
+    res.returned_count = res.service_nodes.size();
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_service_node_status(const COMMAND_RPC_GET_SERVICE_NODE_STATUS::request& req, COMMAND_RPC_GET_SERVICE_NODE_STATUS::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(get_service_node_status);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const uint64_t epoch = blockchain.get_epose_current_epoch();
+    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+    const auto service_nodes = blockchain.get_epose_service_nodes();
+
+    res.found = false;
+    for (const auto &identity : service_nodes)
+    {
+      if (public_key_matches_hex(identity.service_public_key, req.service_public_key))
+      {
+        res.service_node = make_epose_service_node_entry(identity, epoch, qualified_nodes);
+        res.found = true;
+        break;
+      }
+    }
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_service_node_registration_payload(const COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::request& req, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(get_service_node_registration_payload);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const auto &local_service_node = m_core.get_epose_local_service_node_config();
+    const uint64_t epoch = blockchain.get_epose_current_epoch();
+    qwertycoin::epose::service_node_identity identity{};
+    std::string error;
+
+    res.ready = qwertycoin::epose::build_service_node_registration_identity(
+        local_service_node,
+        m_core.get_nettype(),
+        epoch,
+        blockchain.get_epose_epoch_context_hash(epoch),
+        identity,
+        error);
+
+    res.registration_epoch = epoch;
+    if (!res.ready)
+    {
+      res.error_details = error;
+      res.status = CORE_RPC_STATUS_OK;
+      return true;
+    }
+
+    res.error_details = "";
+    res.expiry_epoch = identity.expiry_epoch;
+    res.service_public_key = epee::string_tools::pod_to_hex(identity.service_public_key);
+    res.reward_address = local_service_node.reward_address_string;
+    res.advertised_endpoint = local_service_node.advertised_endpoint;
+    res.endpoint_commitment = epee::string_tools::pod_to_hex(identity.endpoint_commitment);
+    res.admission_hash = epee::string_tools::pod_to_hex(identity.admission_hash);
+    res.admission_nonce = identity.admission_nonce;
+    res.tx_extra_nonce = epee::string_tools::buff_to_hex_nodelimer(qwertycoin::epose::make_registration_tx_extra_nonce(identity));
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_epose_epoch(const COMMAND_RPC_GET_EPOSE_EPOCH::request& req, COMMAND_RPC_GET_EPOSE_EPOCH::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(get_epose_epoch);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const uint64_t current_epoch = blockchain.get_epose_current_epoch();
+    const uint64_t epoch = req.epoch == 0 ? current_epoch : req.epoch;
+    const auto service_nodes = blockchain.get_epose_service_nodes();
+    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+
+    uint64_t active_count = 0;
+    for (const auto &identity : service_nodes)
+      if (qwertycoin::epose::identity_active_in_epoch(identity, epoch))
+        ++active_count;
+
+    res.epoch = epoch;
+    res.start_height = blockchain.get_epose_epoch_start_height(epoch);
+    res.end_height = blockchain.get_epose_epoch_end_height(epoch);
+    res.active_count = active_count;
+    res.qualified_count = qualified_nodes.size();
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_service_rewards(const COMMAND_RPC_GET_SERVICE_REWARDS::request& req, COMMAND_RPC_GET_SERVICE_REWARDS::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(get_service_rewards);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const uint64_t height = req.height == 0 ? m_core.get_current_blockchain_height() : req.height;
+    const uint64_t reward_source_epoch = qwertycoin::epose::reward_source_epoch_for_height(height);
+    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(reward_source_epoch);
+
+    crypto::public_key expected_payee{};
+    if (qwertycoin::epose::select_service_payee(qualified_nodes, blockchain.get_epose_epoch_context_hash(reward_source_epoch), height, expected_payee))
+    {
+      res.expected_payee_service_public_key = epee::string_tools::pod_to_hex(expected_payee);
+      const auto service_nodes = blockchain.get_epose_service_nodes();
+      for (const auto &identity : service_nodes)
+      {
+        if (identity.service_public_key == expected_payee && qwertycoin::epose::identity_active_in_epoch(identity, reward_source_epoch))
+        {
+          res.expected_reward_view_public_key = epee::string_tools::pod_to_hex(identity.reward_address.m_view_public_key);
+          res.expected_reward_spend_public_key = epee::string_tools::pod_to_hex(identity.reward_address.m_spend_public_key);
+          break;
+        }
+      }
+    }
+    else
+    {
+      res.expected_payee_service_public_key.clear();
+      res.expected_reward_view_public_key.clear();
+      res.expected_reward_spend_public_key.clear();
+    }
+
+    res.service_reward_active = blockchain.is_epose_enabled_at_height(height) && !qualified_nodes.empty();
+    res.height = height;
+    res.epoch = reward_source_epoch;
+    res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS;
+    res.qualified_count = qualified_nodes.size();
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -3137,7 +3358,7 @@ namespace cryptonote
       return true;
     }
 
-    static const char software[] = "monero";
+    static const char software[] = "qwertycoin";
 #ifdef BUILD_TAG
     static const char buildtag[] = BOOST_PP_STRINGIZE(BUILD_TAG);
     static const char subdir[] = "cli";

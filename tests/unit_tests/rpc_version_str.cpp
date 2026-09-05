@@ -35,9 +35,13 @@ TEST(rpc, is_version_string_valid)
 {
   using namespace cryptonote::rpc;
   ASSERT_TRUE(is_version_string_valid(MONERO_VERSION));
+  ASSERT_TRUE(is_version_string_valid(QWERTYCOIN_VERSION));
+  ASSERT_TRUE(is_version_string_valid(QWERTYCOIN_VERSION_FULL));
   ASSERT_TRUE(is_version_string_valid("0.14.1.2"));
   ASSERT_TRUE(is_version_string_valid("0.15.0.0-release"));
   ASSERT_TRUE(is_version_string_valid("0.15.0.0-fe3f6a3e6"));
+  ASSERT_TRUE(is_version_string_valid("2.0.0-beta.1"));
+  ASSERT_TRUE(is_version_string_valid("2.0.0-beta.1-fe3f6a3e6"));
 
   ASSERT_FALSE(is_version_string_valid(""));
   ASSERT_FALSE(is_version_string_valid("invalid"));

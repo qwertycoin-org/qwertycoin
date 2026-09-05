@@ -1,0 +1,82 @@
+services:
+  qwertycoin-mainnet:
+    image: ${QWC_IMAGE:?set QWC_IMAGE}
+    container_name: ${QWC_CONTAINER_NAME:-qwertycoin-mainnet}
+    restart: unless-stopped
+    environment:
+      QWC_SERVICE_NODE_KEY_PATH: ${QWC_SERVICE_NODE_KEY_PATH:-/service-node/service-node.key}
+      QWC_REWARD_ADDRESS: ${QWC_REWARD_ADDRESS:?set QWC_REWARD_ADDRESS}
+      QWC_REWARD_VIEW_KEY: ${QWC_REWARD_VIEW_KEY:?set QWC_REWARD_VIEW_KEY}
+      QWC_ADVERTISE_ADDRESS: ${QWC_ADVERTISE_ADDRESS:?set QWC_ADVERTISE_ADDRESS}
+      QWC_P2P_PORT: ${QWC_P2P_PORT:-8196}
+      QWC_RPC_PORT: ${QWC_RPC_PORT:-8197}
+      QWC_RESTRICTED_RPC_PORT: ${QWC_RESTRICTED_RPC_PORT:-8198}
+      QWC_ZMQ_RPC_PORT: ${QWC_ZMQ_RPC_PORT:-8199}
+      QWC_MAX_CONNECTIONS_PER_IP: ${QWC_MAX_CONNECTIONS_PER_IP:-4}
+      QWC_PRIORITY_NODES: ${QWC_PRIORITY_NODES:-}
+      QWC_PRIORITY_NODE_1: ${QWC_PRIORITY_NODE_1:-}
+      QWC_PRIORITY_NODE_2: ${QWC_PRIORITY_NODE_2:-}
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        set -eu
+
+        set -- qwertycoind \
+          --service-node \
+          --service-node-key="$${QWC_SERVICE_NODE_KEY_PATH:-/service-node/service-node.key}" \
+          --service-reward-address="$${QWC_REWARD_ADDRESS:?set QWC_REWARD_ADDRESS}" \
+          --service-reward-view-key="$${QWC_REWARD_VIEW_KEY:?set QWC_REWARD_VIEW_KEY}" \
+          --service-node-advertise-address="$${QWC_ADVERTISE_ADDRESS:?set QWC_ADVERTISE_ADDRESS}" \
+          --p2p-bind-ip=0.0.0.0 \
+          --p2p-bind-port="$${QWC_P2P_PORT:-8196}" \
+          --rpc-bind-ip=0.0.0.0 \
+          --rpc-bind-port="$${QWC_RPC_PORT:-8197}" \
+          --rpc-restricted-bind-ip=0.0.0.0 \
+          --rpc-restricted-bind-port="$${QWC_RESTRICTED_RPC_PORT:-8198}" \
+          --zmq-rpc-bind-port="$${QWC_ZMQ_RPC_PORT:-8199}" \
+          --non-interactive \
+          --confirm-external-bind \
+          --no-igd \
+          --hide-my-port \
+          --max-connections-per-ip="$${QWC_MAX_CONNECTIONS_PER_IP:-4}" \
+          --disable-dns-checkpoints
+
+        priority_nodes="$${QWC_PRIORITY_NODES:-}"
+        if [ -z "$$priority_nodes" ]; then
+          priority_nodes="$${QWC_PRIORITY_NODE_1:-},$${QWC_PRIORITY_NODE_2:-}"
+        fi
+
+        old_ifs="$$IFS"
+        IFS=,
+        for node in $$priority_nodes; do
+          IFS="$$old_ifs"
+          node=$$(printf '%s' "$$node" | tr -d '[:space:]')
+          if [ -n "$$node" ]; then
+            set -- "$$@" --add-priority-node="$$node"
+          fi
+          IFS=,
+        done
+        IFS="$$old_ifs"
+
+        exec "$$@"
+    ports:
+      - "${QWC_P2P_PORT:-8196}:${QWC_P2P_PORT:-8196}"
+      - "127.0.0.1:${QWC_RPC_PORT:-8197}:${QWC_RPC_PORT:-8197}"
+      - "127.0.0.1:${QWC_RESTRICTED_RPC_PORT:-8198}:${QWC_RESTRICTED_RPC_PORT:-8198}"
+      - "127.0.0.1:${QWC_ZMQ_RPC_PORT:-8199}:${QWC_ZMQ_RPC_PORT:-8199}"
+    volumes:
+      - qwc-chain:/home/qwertycoin/.qwertycoin
+      - qwc-service-identity:/service-node
+
+networks:
+  default:
+    name: ${QWC_NETWORK_NAME:-qwertycoin-mainnet-net}
+    external: true
+
+volumes:
+  qwc-chain:
+    name: ${QWC_DATA_VOLUME:?set QWC_DATA_VOLUME}
+  qwc-service-identity:
+    name: ${QWC_IDENTITY_VOLUME:?set QWC_IDENTITY_VOLUME}

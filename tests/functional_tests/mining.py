@@ -334,7 +334,7 @@ class MiningTest():
         assert new_seed_hash != res.seed_hash
         #print('First mining: ' + str(t0))
 
-        # pop all these blocks, and feed them again to monerod
+        # pop all these blocks, and feed them again to qwertycoind
         print('Recreating the chain')
         res = daemon.get_info()
         height = res.height

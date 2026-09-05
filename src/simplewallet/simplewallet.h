@@ -52,7 +52,7 @@
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
-// Hardcode Monero's donation address (see #1447)
+// Retained only as an inherited placeholder; the Qwertycoin donate command is disabled.
 constexpr const char MONERO_DONATION_ADDR[] = "888tNkZrPN6JsEgekjMnABU4TBzc2Dt29EPAvkRxbANsAnjyPbb3iQ1YBRk1UXcdRsiKc9dhwMVgN5S9cQUiyoogDavup3H";
 
 /*!
@@ -173,6 +173,7 @@ namespace cryptonote
     bool show_blockchain_height(const std::vector<std::string> &args);
     bool transfer_main(const std::vector<std::string> &args, bool called_by_mms);
     bool transfer(const std::vector<std::string> &args);
+    bool register_service_node(const std::vector<std::string> &args);
     bool sweep_main(uint32_t account, uint64_t below, const std::vector<std::string> &args);
     bool sweep_all(const std::vector<std::string> &args);
     bool sweep_account(const std::vector<std::string> &args);
