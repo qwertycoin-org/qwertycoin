@@ -1,0 +1,28 @@
+services:
+  qwertycoin-node:
+    build:
+      context: .
+      args:
+        NPROC: "2"
+    image: qwertycoin-v2-node:local
+    command:
+      - --testnet
+      - --p2p-bind-ip=0.0.0.0
+      - --p2p-bind-port=8196
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=8197
+      - --zmq-rpc-bind-port=8199
+      - --non-interactive
+      - --confirm-external-bind
+      - --no-igd
+      - --hide-my-port
+      - --disable-dns-checkpoints
+    ports:
+      - "8196:8196"
+      - "127.0.0.1:8197:8197"
+      - "127.0.0.1:8199:8199"
+    volumes:
+      - qwertycoin-chain:/home/qwertycoin/.qwertycoin
+
+volumes:
+  qwertycoin-chain:

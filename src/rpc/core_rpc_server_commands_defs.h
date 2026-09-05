@@ -88,7 +88,7 @@ namespace cryptonote
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 3
-#define CORE_RPC_VERSION_MINOR 16
+#define CORE_RPC_VERSION_MINOR 18
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -786,6 +786,261 @@ namespace cryptonote
         KV_SERIALIZE(version)
         KV_SERIALIZE(synchronized)
         KV_SERIALIZE(restricted)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct epose_service_node_entry
+  {
+    std::string service_public_key;
+    std::string reward_view_public_key;
+    std::string reward_spend_public_key;
+    std::string endpoint_commitment;
+    std::string admission_hash;
+    uint64_t registration_epoch;
+    uint64_t expiry_epoch;
+    bool active;
+    bool qualified;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(service_public_key)
+      KV_SERIALIZE(reward_view_public_key)
+      KV_SERIALIZE(reward_spend_public_key)
+      KV_SERIALIZE(endpoint_commitment)
+      KV_SERIALIZE(admission_hash)
+      KV_SERIALIZE(registration_epoch)
+      KV_SERIALIZE(expiry_epoch)
+      KV_SERIALIZE(active)
+      KV_SERIALIZE(qualified)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct COMMAND_RPC_GET_EPOSE_INFO
+  {
+    struct request_t: public rpc_request_base
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool enabled;
+      uint64_t protocol_version;
+      uint64_t current_epoch;
+      uint64_t epoch_start_height;
+      uint64_t epoch_end_height;
+      uint64_t service_node_count;
+      uint64_t qualified_count;
+      uint64_t attestation_count;
+      std::string state_hash;
+      uint64_t service_reward_bps;
+      bool local_service_node;
+      bool local_service_node_key_loaded;
+      bool local_service_node_registered;
+      bool local_service_node_active;
+      bool local_service_node_qualified;
+      uint64_t local_service_node_expiry_epoch;
+      std::string local_service_public_key;
+      std::string local_service_reward_address;
+      std::string local_service_advertised_endpoint;
+      std::string local_service_endpoint_commitment;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(enabled)
+        KV_SERIALIZE(protocol_version)
+        KV_SERIALIZE(current_epoch)
+        KV_SERIALIZE(epoch_start_height)
+        KV_SERIALIZE(epoch_end_height)
+        KV_SERIALIZE(service_node_count)
+        KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(attestation_count)
+        KV_SERIALIZE(state_hash)
+        KV_SERIALIZE(service_reward_bps)
+        KV_SERIALIZE(local_service_node)
+        KV_SERIALIZE(local_service_node_key_loaded)
+        KV_SERIALIZE(local_service_node_registered)
+        KV_SERIALIZE(local_service_node_active)
+        KV_SERIALIZE(local_service_node_qualified)
+        KV_SERIALIZE(local_service_node_expiry_epoch)
+        KV_SERIALIZE(local_service_public_key)
+        KV_SERIALIZE(local_service_reward_address)
+        KV_SERIALIZE(local_service_advertised_endpoint)
+        KV_SERIALIZE(local_service_endpoint_commitment)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD
+  {
+    struct request_t: public rpc_request_base
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool ready;
+      std::string error_details;
+      uint64_t registration_epoch;
+      uint64_t expiry_epoch;
+      std::string service_public_key;
+      std::string reward_address;
+      std::string advertised_endpoint;
+      std::string endpoint_commitment;
+      std::string admission_hash;
+      uint64_t admission_nonce;
+      std::string tx_extra_nonce;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(ready)
+        KV_SERIALIZE(error_details)
+        KV_SERIALIZE(registration_epoch)
+        KV_SERIALIZE(expiry_epoch)
+        KV_SERIALIZE(service_public_key)
+        KV_SERIALIZE(reward_address)
+        KV_SERIALIZE(advertised_endpoint)
+        KV_SERIALIZE(endpoint_commitment)
+        KV_SERIALIZE(admission_hash)
+        KV_SERIALIZE(admission_nonce)
+        KV_SERIALIZE(tx_extra_nonce)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_SERVICE_NODES
+  {
+    struct request_t: public rpc_request_base
+    {
+      uint64_t limit;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE_OPT(limit, (uint64_t)100)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      std::vector<epose_service_node_entry> service_nodes;
+      uint64_t total_count;
+      uint64_t returned_count;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(service_nodes)
+        KV_SERIALIZE(total_count)
+        KV_SERIALIZE(returned_count)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_SERVICE_NODE_STATUS
+  {
+    struct request_t: public rpc_request_base
+    {
+      std::string service_public_key;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE(service_public_key)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool found;
+      epose_service_node_entry service_node;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(found)
+        KV_SERIALIZE(service_node)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_EPOSE_EPOCH
+  {
+    struct request_t: public rpc_request_base
+    {
+      uint64_t epoch;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE_OPT(epoch, (uint64_t)0)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      uint64_t epoch;
+      uint64_t start_height;
+      uint64_t end_height;
+      uint64_t active_count;
+      uint64_t qualified_count;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(epoch)
+        KV_SERIALIZE(start_height)
+        KV_SERIALIZE(end_height)
+        KV_SERIALIZE(active_count)
+        KV_SERIALIZE(qualified_count)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_SERVICE_REWARDS
+  {
+    struct request_t: public rpc_request_base
+    {
+      uint64_t height;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE_OPT(height, (uint64_t)0)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool service_reward_active;
+      uint64_t height;
+      uint64_t epoch;
+      uint64_t service_reward_bps;
+      uint64_t qualified_count;
+      std::string expected_payee_service_public_key;
+      std::string expected_reward_view_public_key;
+      std::string expected_reward_spend_public_key;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(service_reward_active)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(epoch)
+        KV_SERIALIZE(service_reward_bps)
+        KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(expected_payee_service_public_key)
+        KV_SERIALIZE(expected_reward_view_public_key)
+        KV_SERIALIZE(expected_reward_spend_public_key)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

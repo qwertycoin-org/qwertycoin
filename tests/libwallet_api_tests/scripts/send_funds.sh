@@ -4,8 +4,8 @@ function send_funds {
     local amount=$1
     local dest=$(cat "$2.address.txt")
 
-    monero-wallet-cli --wallet-file wallet_m --password "" \
-        --testnet --trusted-daemon --daemon-address localhost:38081  --log-file wallet_m.log \
+    qwertycoin-wallet-cli --wallet-file wallet_m --password "" \
+        --testnet --trusted-daemon --daemon-address localhost:8197  --log-file wallet_m.log \
         --command transfer $dest $amount 
 }
 

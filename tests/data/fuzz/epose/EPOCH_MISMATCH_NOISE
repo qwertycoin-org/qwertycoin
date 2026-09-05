@@ -1,0 +1,3 @@
+QWC_EPOSE_FUZZ_EXPECTED_EPOCH_MISMATCH
+registration_epoch=18446744073709551615
+attestation_epoch=720

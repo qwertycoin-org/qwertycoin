@@ -1,4 +1,5 @@
 # Copyright (c) 2017-2022, The Monero Project
+# Copyright (c) 2026, The Qwertycoin Project
 #
 # All rights reserved.
 #
@@ -45,5 +46,5 @@ add_dependencies(gen_ssl_cert
   version)
 set_property(TARGET gen_ssl_cert
   PROPERTY
-    OUTPUT_NAME "monero-gen-ssl-cert")
+    OUTPUT_NAME "qwertycoin-gen-ssl-cert")
 install(TARGETS gen_ssl_cert DESTINATION bin)

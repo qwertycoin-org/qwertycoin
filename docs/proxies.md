@@ -1,4 +1,4 @@
-# Proxy usage in the Monero ecosystem
+# Proxy usage in Qwertycoin
 The CLI/RPC wallets and daemon both support proxies and use the same parameters
 to configure them. Currently socks 4, 4a, and 5 are supported and can be
 selected with command-line options.
@@ -183,14 +183,14 @@ The option can be specified once for each network type. The format for usage
 is: `hidden-service-address,[bind-ip:]port[,max_connections]`. Examples:
 
 ```
---anonymous-inbound rveahdfho7wo4b2m.onion:18083,18083
---anonymous-inbound rveahdfho7wo4b2m.onion:18083,18083,100
---anonymous-inbound rveahdfho7wo4b2m.onion:18083,127.0.0.1:18083
---anonymous-inbound rveahdfho7wo4b2m.onion:18083,127.0.0.1:18083,100
---anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,18083
---anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,18083,100
---anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,127.0.0.1:18083
---anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,127.0.0.1:18083,100
+--anonymous-inbound rveahdfho7wo4b2m.onion:8196,8196
+--anonymous-inbound rveahdfho7wo4b2m.onion:8196,8196,100
+--anonymous-inbound rveahdfho7wo4b2m.onion:8196,127.0.0.1:8196
+--anonymous-inbound rveahdfho7wo4b2m.onion:8196,127.0.0.1:8196,100
+--anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,8196
+--anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,8196,100
+--anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,127.0.0.1:8196
+--anonymous-inbound udhdrtrcetjm5sxzskjyr5ztpeszydbh4dpl3pl4utgqqw2v4jna.b32.i2p,127.0.0.1:8196,100
 ```
 
 Everything before the first `,` is the hidden service hostname. This must be

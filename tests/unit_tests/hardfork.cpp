@@ -34,6 +34,8 @@
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/hardfork.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
+#include "cryptonote_config.h"
 #include "blockchain_db/testdb.h"
 
 using namespace cryptonote;
@@ -259,6 +261,72 @@ TEST(steps_asap, Success)
   ASSERT_EQ(hf.get(7), 9);
   ASSERT_EQ(hf.get(8), 9);
   ASSERT_EQ(hf.get(9), 9);
+}
+
+TEST(qwc_relaunch, starts_from_current_monero_consensus)
+{
+  ASSERT_EQ(1u, num_mainnet_hard_forks);
+  ASSERT_EQ(1u, num_testnet_hard_forks);
+  ASSERT_EQ(1u, num_stagenet_hard_forks);
+
+  ASSERT_EQ(16, HF_VERSION_MONERO_CURRENT_CONSENSUS);
+  ASSERT_EQ(17, HF_VERSION_QWC_EPOSE_V1);
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE_V1, mainnet_hard_forks[0].version);
+  ASSERT_EQ(0u, mainnet_hard_forks[0].height);
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE_V1, testnet_hard_forks[0].version);
+  ASSERT_EQ(0u, testnet_hard_forks[0].height);
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE_V1, stagenet_hard_forks[0].version);
+  ASSERT_EQ(0u, stagenet_hard_forks[0].height);
+
+  for (size_t n = 0; n < num_mainnet_hard_forks; ++n)
+    ASSERT_GE(mainnet_hard_forks[n].version, HF_VERSION_QWC_EPOSE_V1);
+  for (size_t n = 0; n < num_testnet_hard_forks; ++n)
+    ASSERT_GE(testnet_hard_forks[n].version, HF_VERSION_QWC_EPOSE_V1);
+  for (size_t n = 0; n < num_stagenet_hard_forks; ++n)
+    ASSERT_GE(stagenet_hard_forks[n].version, HF_VERSION_QWC_EPOSE_V1);
+
+  ASSERT_GT(mainnet_hard_forks[0].version, HF_VERSION_2021_SCALING);
+  ASSERT_GT(testnet_hard_forks[0].version, HF_VERSION_2021_SCALING);
+  ASSERT_GT(stagenet_hard_forks[0].version, HF_VERSION_2021_SCALING);
+  ASSERT_GT(mainnet_hard_forks[0].version, HF_VERSION_BULLETPROOF_PLUS);
+  ASSERT_GT(testnet_hard_forks[0].version, HF_VERSION_BULLETPROOF_PLUS);
+  ASSERT_GT(stagenet_hard_forks[0].version, HF_VERSION_BULLETPROOF_PLUS);
+
+  TestDB db;
+  HardFork hf(db, HF_VERSION_QWC_EPOSE_V1, 0);
+  ASSERT_TRUE(hf.add_fork(
+      testnet_hard_forks[0].version,
+      testnet_hard_forks[0].height,
+      testnet_hard_forks[0].threshold,
+      testnet_hard_forks[0].time));
+  hf.init();
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE_V1, hf.get_current_version());
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE_V1, hf.get_ideal_version(0));
+}
+
+TEST(qwc_relaunch, genesis_block_uses_qwc_epose_protocol)
+{
+  block genesis;
+  block default_genesis;
+  ASSERT_TRUE(generate_genesis_block(
+      genesis,
+      config::testnet::GENESIS_TX,
+      config::testnet::GENESIS_NONCE,
+      HF_VERSION_QWC_EPOSE_V1,
+      HF_VERSION_QWC_EPOSE_V1));
+  ASSERT_TRUE(generate_genesis_block(
+      default_genesis,
+      config::testnet::GENESIS_TX,
+      config::testnet::GENESIS_NONCE));
+
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE_V1, genesis.major_version);
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE_V1, genesis.minor_version);
+  ASSERT_EQ(get_block_hash(genesis), get_block_hash(default_genesis));
+  ASSERT_EQ(2u, genesis.miner_tx.version);
+  ASSERT_FALSE(genesis.miner_tx.vout.empty());
+  ASSERT_TRUE(check_output_types(genesis.miner_tx, HF_VERSION_QWC_EPOSE_V1));
+  for (const tx_out& out: genesis.miner_tx.vout)
+    ASSERT_EQ(typeid(txout_to_tagged_key), out.target.type());
 }
 
 TEST(steps_1, Success)
@@ -603,4 +671,3 @@ TEST(get, earliest_ideal_height)
     ASSERT_EQ(hf.get_earliest_ideal_height_for_version(9), 15);
     ASSERT_EQ(hf.get_earliest_ideal_height_for_version(10), std::numeric_limits<uint64_t>::max());
 }
-

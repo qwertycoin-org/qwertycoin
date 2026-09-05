@@ -295,11 +295,11 @@ namespace nodetool
     virtual void clear_used_stripe_peers();
 
   private:
-    const std::vector<std::string> m_seed_nodes_list =
-    { "seeds.moneroseeds.se"
-    , "seeds.moneroseeds.ae.org"
-    , "seeds.moneroseeds.ch"
-    , "seeds.moneroseeds.li"
+    const std::vector<std::string> m_seed_nodes_list = {
+        "seed-00.qwertycoin.org",
+        "seed-01.qwertycoin.org",
+        "seed-02.qwertycoin.org",
+        "seed-03.qwertycoin.org",
     };
 
     bool islimitup=false;
@@ -546,4 +546,3 @@ namespace nodetool
 }
 
 POP_WARNINGS
-

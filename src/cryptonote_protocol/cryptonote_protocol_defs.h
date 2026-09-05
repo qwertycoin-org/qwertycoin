@@ -375,5 +375,25 @@ namespace cryptonote
     };
     typedef epee::misc_utils::struct_init<request_t> request;
   };
+
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct NOTIFY_NEW_EPOSE_PAYLOADS
+  {
+    const static int ID = BC_COMMANDS_POOL_BASE + 11;
+
+    struct request_t
+    {
+      std::vector<blobdata> registrations;
+      std::vector<blobdata> attestations;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(registrations)
+        KV_SERIALIZE(attestations)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+  };
     
 }

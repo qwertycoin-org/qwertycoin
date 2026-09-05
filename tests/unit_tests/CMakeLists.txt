@@ -50,6 +50,7 @@ set(unit_tests_sources
   epee_levin_protocol_handler_async.cpp
   epee_http_server.cpp
   epee_serialization.cpp
+  epose.cpp
   epee_utils.cpp
   expect.cpp
   fee.cpp
@@ -116,6 +117,7 @@ target_link_libraries(unit_tests
     ringct
     cryptonote_protocol
     cryptonote_core
+    epose
     daemon_messages
     daemon_rpc_server
     blockchain_db
@@ -150,6 +152,75 @@ SET_PROPERTY(SOURCE memwipe.cpp PROPERTY COMPILE_FLAGS -Ofast)
 add_test(
   NAME    unit_tests
   COMMAND unit_tests --data-dir "${TEST_DATA_DIR}")
+
+monero_add_minimal_executable(epose_unit_tests
+  epose.cpp
+  epose_main.cpp)
+target_link_libraries(epose_unit_tests
+  PRIVATE
+    ringct
+    cryptonote_core
+    epose
+    cryptonote_basic
+    blockchain_db
+    serialization
+    common
+    epee
+    version
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${GTEST_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${EXTRA_LIBRARIES})
+set_property(TARGET epose_unit_tests
+  PROPERTY
+    FOLDER "tests")
+if (NOT MSVC)
+  set_property(TARGET epose_unit_tests
+    APPEND_STRING
+    PROPERTY
+      COMPILE_FLAGS " -Wno-undef -Wno-sign-compare")
+endif ()
+add_test(
+  NAME    epose_unit_tests
+  COMMAND epose_unit_tests)
+
+monero_add_minimal_executable(epose_admission_bench
+  epose_admission_bench.cpp)
+target_link_libraries(epose_admission_bench
+  PRIVATE
+    epose
+    cryptonote_basic
+    common
+    epee
+    version
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${EXTRA_LIBRARIES})
+set_property(TARGET epose_admission_bench
+  PROPERTY
+    FOLDER "tests")
+
+monero_add_minimal_executable(epose_sybil_sim
+  epose_sybil_sim.cpp)
+target_link_libraries(epose_sybil_sim
+  PRIVATE
+    epose
+    cryptonote_basic
+    common
+    epee
+    version
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${EXTRA_LIBRARIES})
+set_property(TARGET epose_sybil_sim
+  PROPERTY
+    FOLDER "tests")
 
 monero_add_minimal_executable(test_notifier test_notifier.cpp)
 target_link_libraries(test_notifier ${EXTRA_LIBRARIES})

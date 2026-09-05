@@ -1,6 +1,12 @@
 name: ci/gh-actions/gitian
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: "Branch, tag, or commit to build"
+        required: true
+        default: "feature/epose-hardening-v2"
   push:
     paths:
       - 'contrib/depends/**'
@@ -35,6 +41,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
       with:
+        ref: ${{ github.event.inputs.release_ref || github.ref }}
         submodules: recursive
     - name: prepare
       run: |
@@ -47,9 +54,14 @@ jobs:
           echo "GITIAN_VERSION=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
           echo "GITIAN_OUTDIR=pull-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
           echo "GITIAN_EXTRA_FLAGS=--pull" >> $GITHUB_ENV
+        elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          SAFE_REF="$(printf '%s' '${{ github.event.inputs.release_ref }}' | tr '/:' '--')"
+          echo "GITIAN_VERSION=${SAFE_REF}" >> $GITHUB_ENV
+          echo "GITIAN_OUTDIR=${SAFE_REF}" >> $GITHUB_ENV
         else
-          echo "GITIAN_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-          echo "GITIAN_OUTDIR=${{ github.ref_name }}" >> $GITHUB_ENV
+          SAFE_REF="$(printf '%s' '${{ github.ref_name }}' | tr '/:' '--')"
+          echo "GITIAN_VERSION=${SAFE_REF}" >> $GITHUB_ENV
+          echo "GITIAN_OUTDIR=${SAFE_REF}" >> $GITHUB_ENV
         fi
     - name: setup
       run: |
@@ -60,9 +72,9 @@ jobs:
     - name: post build
       run: |
         cd out/${{ env.GITIAN_OUTDIR }}
-        shasum -a256 *
+        shasum -a256 * | tee SHA256SUMS
         echo \`\`\` >> $GITHUB_STEP_SUMMARY
-        shasum -a256 * >> $GITHUB_STEP_SUMMARY
+        cat SHA256SUMS >> $GITHUB_STEP_SUMMARY
         echo \`\`\` >> $GITHUB_STEP_SUMMARY
     - uses: actions/upload-artifact@v7
       with:

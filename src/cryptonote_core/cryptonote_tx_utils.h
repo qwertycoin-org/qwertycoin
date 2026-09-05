@@ -37,7 +37,7 @@
 namespace cryptonote
 {
   //---------------------------------------------------------------
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce = blobdata(), size_t max_outs = 999, uint8_t hard_fork_version = 1);
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce = blobdata(), size_t max_outs = 999, uint8_t hard_fork_version = 1, const account_public_address *service_reward_address = NULL, uint64_t service_reward = 0);
 
   struct tx_source_entry
   {
@@ -141,6 +141,8 @@ namespace cryptonote
       block& bl
     , std::string const & genesis_tx
     , uint32_t nonce
+    , uint8_t major_version = HF_VERSION_QWC_EPOSE_V1
+    , uint8_t minor_version = HF_VERSION_QWC_EPOSE_V1
     );
 
   class Blockchain;

@@ -1,4 +1,5 @@
 // Copyright (c) 2014-2022, The Monero Project
+// Copyright (c) 2026, The Qwertycoin Project
 //
 // All rights reserved.
 //

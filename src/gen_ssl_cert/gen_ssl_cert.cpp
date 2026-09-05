@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2022, The Monero Project
+// Copyright (c) 2026, The Qwertycoin Project
 // 
 // All rights reserved.
 // 
@@ -121,13 +122,13 @@ int main(int argc, char* argv[])
 
   if (command_line::get_arg(vm, command_line::arg_help))
   {
-    std::cout << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
+    std::cout << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")" << ENDL << ENDL;
     std::cout << desc_options << std::endl;
     return 0;
   }
   if (command_line::get_arg(vm, command_line::arg_version))
   {
-    std::cout << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL;
+    std::cout << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")" << ENDL;
     return 0;
   }
 

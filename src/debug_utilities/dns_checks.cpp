@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2022, The Monero Project
+// Copyright (c) 2026, The Qwertycoin Project
 //
 // All rights reserved.
 //
@@ -121,7 +122,7 @@ int main(int argc, char* argv[])
 
   if (command_line::get_arg(vm, command_line::arg_help))
   {
-    std::cout << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
+    std::cout << "Qwertycoin '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
     std::cout << desc_options << std::endl;
     return 1;
   }
@@ -129,20 +130,20 @@ int main(int argc, char* argv[])
   mlog_configure("", true);
   mlog_set_categories("+" MONERO_DEFAULT_LOG_CATEGORY ":INFO");
 
-  lookup(LOOKUP_A, {"seeds.moneroseeds.se", "seeds.moneroseeds.ae.org", "seeds.moneroseeds.ch", "seeds.moneroseeds.li"});
+  lookup(LOOKUP_A, {"seeds.qwertycoin.org"});
 
-  lookup(LOOKUP_TXT, {"updates.moneropulse.org", "updates.moneropulse.net", "updates.moneropulse.co", "updates.moneropulse.se", "updates.moneropulse.fr", "updates.moneropulse.de", "updates.moneropulse.ch"});
+  lookup(LOOKUP_TXT, {"updates.qwertycoin.org"});
 
-  lookup(LOOKUP_TXT, {"checkpoints.moneropulse.org", "checkpoints.moneropulse.net", "checkpoints.moneropulse.co", "checkpoints.moneropulse.se"});
+  lookup(LOOKUP_TXT, {"checkpoints.qwertycoin.org"});
 
   // those are in the code, but don't seem to actually exist
 #if 0
-  lookup(LOOKUP_TXT, {"testpoints.moneropulse.org", "testpoints.moneropulse.net", "testpoints.moneropulse.co", "testpoints.moneropulse.se");
+  lookup(LOOKUP_TXT, {"testpoints.qwertycoin.org"});
 
-  lookup(LOOKUP_TXT, {"stagenetpoints.moneropulse.org", "stagenetpoints.moneropulse.net", "stagenetpoints.moneropulse.co", "stagenetpoints.moneropulse.se"});
+  lookup(LOOKUP_TXT, {"stagenetpoints.qwertycoin.org"});
 #endif
 
-  lookup(LOOKUP_TXT, {"segheights.moneropulse.org", "segheights.moneropulse.net", "segheights.moneropulse.co", "segheights.moneropulse.se"});
+  lookup(LOOKUP_TXT, {"segheights.qwertycoin.org"});
 
   return 0;
   CATCH_ENTRY_L0("main", 1);

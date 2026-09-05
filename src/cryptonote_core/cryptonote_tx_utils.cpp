@@ -39,6 +39,7 @@ using namespace epee;
 #include "cryptonote_tx_utils.h"
 #include "cryptonote_config.h"
 #include "blockchain.h"
+#include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/tx_extra.h"
 #include "crypto/crypto.h"
@@ -110,7 +111,57 @@ namespace cryptonote
     LOG_PRINT_L2("destinations include " << num_stdaddresses << " standard addresses and " << num_subaddresses << " subaddresses");
   }
   //---------------------------------------------------------------
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version) {
+  namespace
+  {
+    bool add_miner_output(
+        transaction &tx,
+        uint64_t amount,
+        const account_public_address &address,
+        const crypto::secret_key &tx_secret_key,
+        size_t output_index,
+        uint8_t hard_fork_version)
+    {
+      crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);
+      crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
+      bool r = crypto::generate_key_derivation(address.m_view_public_key, tx_secret_key, derivation);
+      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << address.m_view_public_key << ", " << crypto::secret_key_explicit_print_ref{tx_secret_key} << ")");
+
+      r = crypto::derive_public_key(derivation, output_index, address.m_spend_public_key, out_eph_public_key);
+      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << output_index << ", "<< address.m_spend_public_key << ")");
+
+      bool use_view_tags = hard_fork_version >= HF_VERSION_VIEW_TAGS;
+      crypto::view_tag view_tag;
+      if (use_view_tags)
+        crypto::derive_view_tag(derivation, output_index, view_tag);
+
+      tx_out out;
+      cryptonote::set_tx_out(amount, out_eph_public_key, use_view_tags, view_tag, out);
+      tx.vout.push_back(out);
+      return true;
+    }
+
+    std::vector<uint64_t> decompose_miner_output_amount(uint64_t amount, uint8_t hard_fork_version)
+    {
+      std::vector<uint64_t> out_amounts;
+      decompose_amount_into_digits(amount, hard_fork_version >= 2 ? 0 : ::config::DEFAULT_DUST_THRESHOLD,
+        [&out_amounts](uint64_t a_chunk) { out_amounts.push_back(a_chunk); },
+        [&out_amounts](uint64_t a_dust) { out_amounts.push_back(a_dust); });
+      return out_amounts;
+    }
+
+    bool add_service_reward_outputs(transaction &tx, uint64_t amount, const account_public_address &address, const crypto::secret_key &tx_secret_key, uint8_t hard_fork_version)
+    {
+      const std::vector<uint64_t> out_amounts = decompose_miner_output_amount(amount, hard_fork_version);
+      for (uint64_t out_amount : out_amounts)
+      {
+        if (!add_miner_output(tx, out_amount, address, tx_secret_key, tx.vout.size(), hard_fork_version))
+          return false;
+      }
+      return !out_amounts.empty();
+    }
+  }
+
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, const account_public_address *service_reward_address, uint64_t service_reward) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
@@ -138,6 +189,11 @@ namespace cryptonote
       ", fee " << fee);
 #endif
     block_reward += fee;
+    if (service_reward_address && service_reward)
+    {
+      CHECK_AND_ASSERT_MES(service_reward <= block_reward, false, "EPoSE service reward exceeds block reward");
+      block_reward -= service_reward;
+    }
 
     // from hard fork 2, we cut out the low significant digits. This makes the tx smaller, and
     // keeps the paid amount almost the same. The unpaid remainder gets pushed back to the
@@ -149,10 +205,7 @@ namespace cryptonote
       block_reward = block_reward - block_reward % ::config::BASE_REWARD_CLAMP_THRESHOLD;
     }
 
-    std::vector<uint64_t> out_amounts;
-    decompose_amount_into_digits(block_reward, hard_fork_version >= 2 ? 0 : ::config::DEFAULT_DUST_THRESHOLD,
-      [&out_amounts](uint64_t a_chunk) { out_amounts.push_back(a_chunk); },
-      [&out_amounts](uint64_t a_dust) { out_amounts.push_back(a_dust); });
+    std::vector<uint64_t> out_amounts = decompose_miner_output_amount(block_reward, hard_fork_version);
 
     CHECK_AND_ASSERT_MES(1 <= max_outs, false, "max_out must be non-zero");
     if (height == 0 || hard_fork_version >= 4)
@@ -176,29 +229,20 @@ namespace cryptonote
     uint64_t summary_amounts = 0;
     for (size_t no = 0; no < out_amounts.size(); no++)
     {
-      crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);
-      crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
-      bool r = crypto::generate_key_derivation(miner_address.m_view_public_key, txkey.sec, derivation);
-      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << miner_address.m_view_public_key << ", " << crypto::secret_key_explicit_print_ref{txkey.sec} << ")");
-
-      r = crypto::derive_public_key(derivation, no, miner_address.m_spend_public_key, out_eph_public_key);
-      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << no << ", "<< miner_address.m_spend_public_key << ")");
-
       uint64_t amount = out_amounts[no];
       summary_amounts += amount;
 
-      bool use_view_tags = hard_fork_version >= HF_VERSION_VIEW_TAGS;
-      crypto::view_tag view_tag;
-      if (use_view_tags)
-        crypto::derive_view_tag(derivation, no, view_tag);
-
-      tx_out out;
-      cryptonote::set_tx_out(amount, out_eph_public_key, use_view_tags, view_tag, out);
-
-      tx.vout.push_back(out);
+      bool r = add_miner_output(tx, amount, miner_address, txkey.sec, no, hard_fork_version);
+      CHECK_AND_ASSERT_MES(r, false, "failed to add miner output");
     }
 
     CHECK_AND_ASSERT_MES(summary_amounts == block_reward, false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal block_reward = " << block_reward);
+
+    if (service_reward_address && service_reward)
+    {
+      CHECK_AND_ASSERT_MES(add_service_reward_outputs(tx, service_reward, *service_reward_address, txkey.sec, hard_fork_version), false, "failed to add EPoSE service reward output");
+      summary_amounts += service_reward;
+    }
 
     if (hard_fork_version >= 4)
       tx.version = 2;
@@ -695,6 +739,8 @@ namespace cryptonote
       block& bl
     , std::string const & genesis_tx
     , uint32_t nonce
+    , uint8_t major_version
+    , uint8_t minor_version
     )
   {
     //genesis block
@@ -705,8 +751,33 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(r, false, "failed to parse coinbase tx from hard coded blob");
     r = parse_and_validate_tx_from_blob(tx_bl, bl.miner_tx);
     CHECK_AND_ASSERT_MES(r, false, "failed to parse coinbase tx from hard coded blob");
-    bl.major_version = CURRENT_BLOCK_MAJOR_VERSION;
-    bl.minor_version = CURRENT_BLOCK_MINOR_VERSION;
+    if (major_version >= HF_VERSION_MIN_V2_COINBASE_TX)
+      bl.miner_tx.version = 2;
+    if (major_version >= HF_VERSION_QWC_RELAUNCH_BASE)
+    {
+      uint64_t genesis_reward = 0;
+      r = get_block_reward(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0, genesis_reward, major_version);
+      CHECK_AND_ASSERT_MES(r, false, "failed to calculate Qwertycoin relaunch genesis reward");
+      CHECK_AND_ASSERT_MES(!bl.miner_tx.vout.empty(), false, "Qwertycoin relaunch genesis tx has no outputs");
+      bl.miner_tx.vout.resize(1);
+      bl.miner_tx.vout.front().amount = genesis_reward;
+    }
+    if (major_version > HF_VERSION_VIEW_TAGS)
+    {
+      for (tx_out& out: bl.miner_tx.vout)
+      {
+        if (out.target.type() == typeid(txout_to_key))
+        {
+          txout_to_tagged_key tagged_key;
+          tagged_key.key = boost::get<txout_to_key>(out.target).key;
+          tagged_key.view_tag = crypto::view_tag{};
+          out.target = tagged_key;
+        }
+      }
+      bl.miner_tx.invalidate_hashes();
+    }
+    bl.major_version = major_version;
+    bl.minor_version = minor_version;
     bl.timestamp = 0;
     bl.nonce = nonce;
     miner::find_nonce_for_given_block([](const cryptonote::block &b, uint64_t height, const crypto::hash *seed_hash, unsigned int threads, crypto::hash &hash){

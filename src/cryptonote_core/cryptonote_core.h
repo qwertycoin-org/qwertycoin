@@ -44,6 +44,8 @@
 #include "common/command_line.h"
 #include "tx_pool.h"
 #include "blockchain.h"
+#include "epose/attestation_pool.h"
+#include "epose/service_node_config.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
 #include "warnings.h"
@@ -71,6 +73,11 @@ namespace cryptonote
   extern const command_line::arg_descriptor<bool> arg_offline;
   extern const command_line::arg_descriptor<size_t> arg_block_download_max_size;
   extern const command_line::arg_descriptor<bool> arg_sync_pruned_blocks;
+  extern const command_line::arg_descriptor<bool> arg_service_node;
+  extern const command_line::arg_descriptor<std::string> arg_service_node_key;
+  extern const command_line::arg_descriptor<std::string> arg_service_reward_address;
+  extern const command_line::arg_descriptor<std::string> arg_service_reward_view_key;
+  extern const command_line::arg_descriptor<std::string> arg_service_node_advertise_address;
 
   /************************************************************************/
   /*                                                                      */
@@ -127,6 +134,12 @@ namespace cryptonote
       * @return true if the transaction was accepted, false otherwise
       */
      bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, relay_method tx_relay, bool relayed);
+
+     bool handle_incoming_epose_payloads(
+       const std::vector<blobdata>& registration_blobs,
+       const std::vector<blobdata>& attestation_blobs,
+       std::vector<blobdata>& accepted_registration_blobs,
+       std::vector<blobdata>& accepted_attestation_blobs);
 
     /**
       * @brief handles a single incoming block
@@ -244,6 +257,8 @@ namespace cryptonote
       * @note see Blockchain::get_miner_data
       */
      bool get_miner_data(uint8_t& major_version, uint64_t& height, crypto::hash& prev_id, crypto::hash& seed_hash, difficulty_type& difficulty, uint64_t& median_weight, uint64_t& already_generated_coins, std::vector<tx_block_template_backlog_entry>& tx_backlog);
+
+     const qwertycoin::epose::local_service_node_config& get_epose_local_service_node_config() const { return m_epose_local_service_node_config; }
 
      /**
       * @brief called when a transaction is relayed.
@@ -1024,6 +1039,10 @@ namespace cryptonote
       */
      bool handle_command_line(const boost::program_options::variables_map& vm);
 
+     bool init_epose_service_node_config(const boost::program_options::variables_map& vm);
+     bool build_epose_miner_extra_nonce(blobdata& epose_extra_nonce) const;
+     bool publish_local_epose_payloads();
+
      /**
       * @brief attempts to relay any transactions in the mempool which need it
       *
@@ -1082,6 +1101,9 @@ namespace cryptonote
 
      std::string m_config_folder; //!< folder to look in for configs and other files
 
+     qwertycoin::epose::local_service_node_config m_epose_local_service_node_config;
+     qwertycoin::epose::attestation_pool m_epose_attestation_pool;
+
      cryptonote_protocol_stub m_protocol_stub; //!< cryptonote protocol stub instance
 
      epee::math_helper::once_a_time_seconds<60*60*12, false> m_store_blockchain_interval; //!< interval for manual storing of Blockchain, if enabled
@@ -1091,6 +1113,7 @@ namespace cryptonote
      epee::math_helper::once_a_time_seconds<90, false> m_block_rate_interval; //!< interval for checking block rate
      epee::math_helper::once_a_time_seconds<60*60*5, true> m_blockchain_pruning_interval; //!< interval for incremental blockchain pruning
      epee::math_helper::once_a_time_seconds<60*60*24*7, false> m_diff_recalc_interval; //!< interval for recalculating difficulties
+     epee::math_helper::once_a_time_seconds<60, false> m_epose_attestation_relay_interval;
 
      std::atomic<bool> m_starter_message_showed; //!< has the "daemon will sync now" message been shown?
 

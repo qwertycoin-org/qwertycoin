@@ -44,6 +44,8 @@
 #include <boost/multi_index/member.hpp>
 #include <atomic>
 #include <functional>
+#include <memory>
+#include <utility>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -64,6 +66,7 @@
 #include "checkpoints/checkpoints.h"
 #include "cryptonote_basic/hardfork.h"
 #include "blockchain_db/blockchain_db.h"
+#include "epose/chain_state.h"
 
 namespace tools { class Notify; }
 
@@ -934,6 +937,18 @@ namespace cryptonote
      */
     uint8_t get_hard_fork_version(uint64_t height) const { return m_hardfork->get(height); }
 
+    bool is_epose_enabled() const;
+    bool is_epose_enabled_at_height(uint64_t height) const;
+    uint64_t get_epose_current_epoch() const;
+    uint64_t get_epose_epoch_start_height(uint64_t epoch) const;
+    uint64_t get_epose_epoch_end_height(uint64_t epoch) const;
+    std::vector<qwertycoin::epose::service_node_identity> get_epose_service_nodes() const;
+    std::vector<qwertycoin::epose::service_attestation> get_epose_attestations() const;
+    std::vector<crypto::public_key> get_epose_qualified_service_nodes(uint64_t epoch) const;
+    uint64_t get_epose_attestation_count() const;
+    crypto::hash get_epose_state_hash() const;
+    crypto::hash get_epose_epoch_context_hash(uint64_t epoch) const;
+
     /**
      * @brief returns the earliest block a given version may activate
      *
@@ -1261,6 +1276,16 @@ namespace cryptonote
 
     // cache for verifying transaction RCT non semantics
     mutable rct_ver_cache_t m_rct_ver_cache;
+
+    std::unique_ptr<qwertycoin::epose::chain_state> m_epose_state;
+    std::vector<std::pair<uint64_t, qwertycoin::epose::chain_state::snapshot>> m_epose_block_snapshots;
+
+    bool is_epose_enabled_for_height(uint64_t height) const;
+    bool get_epose_service_reward_for_block(uint64_t height, uint64_t total_reward, account_public_address &reward_address, crypto::secret_key &reward_view_secret_key, uint64_t &service_reward) const;
+    bool validate_epose_service_reward(const block &b, uint64_t height, uint64_t total_reward) const;
+    bool apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height);
+    void rollback_epose_block(uint64_t popped_height);
+    bool rebuild_epose_state();
 
     /**
      * @brief collects the keys for all outputs being "spent" as an input

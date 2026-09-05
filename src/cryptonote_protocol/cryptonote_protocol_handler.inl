@@ -38,6 +38,7 @@
 #include <boost/optional/optional.hpp>
 #include <list>
 #include <ctime>
+#include <unordered_set>
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "profile_tools.h"
@@ -45,6 +46,8 @@
 #include "common/pruning.h"
 #include "common/util.h"
 #include "misc_log_ex.h"
+#include "epose/attestation_pool.h"
+#include "epose/service_node.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.cn"
@@ -978,6 +981,87 @@ namespace cryptonote
       arg.txs = std::move(fluff_txs);
       relay_transactions(arg, context.m_connection_id, context.m_remote_address.get_zone(), relay_method::fluff);
     }
+    return 1;
+  }
+  //------------------------------------------------------------------------------------------------------------------------
+  template<class t_core>
+  int t_cryptonote_protocol_handler<t_core>::handle_notify_new_epose_payloads(int command, NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, cryptonote_connection_context& context)
+  {
+    MLOG_P2P_MESSAGE("Received NOTIFY_NEW_EPOSE_PAYLOADS (" << arg.registrations.size()
+        << " registrations, " << arg.attestations.size() << " attestations)");
+
+    if (arg.registrations.size() + arg.attestations.size() > qwertycoin::epose::EPOSE_ATTESTATION_RELAY_MAX_BATCH)
+    {
+      LOG_PRINT_CCONTEXT_L1("EPoSE relay batch is too large, dropping connection");
+      drop_connection(context, false, false);
+      return 1;
+    }
+
+    std::unordered_set<crypto::hash> seen;
+    seen.reserve(arg.registrations.size() + arg.attestations.size());
+    for (const auto &blob : arg.registrations)
+    {
+      if (blob.size() != qwertycoin::epose::EPOSE_IDENTITY_BLOB_SIZE)
+      {
+        LOG_PRINT_CCONTEXT_L1("Invalid EPoSE registration relay payload size, dropping connection");
+        drop_connection(context, false, false);
+        return 1;
+      }
+
+      crypto::hash digest{};
+      tools::sha256sum(reinterpret_cast<const uint8_t*>(blob.data()), blob.size(), digest);
+      if (!seen.insert(digest).second)
+      {
+        LOG_PRINT_CCONTEXT_L1("Duplicate EPoSE payload in relay notification, dropping connection");
+        drop_connection(context, false, false);
+        return 1;
+      }
+    }
+
+    for (const auto &blob : arg.attestations)
+    {
+      if (blob.size() != qwertycoin::epose::EPOSE_ATTESTATION_BLOB_SIZE)
+      {
+        LOG_PRINT_CCONTEXT_L1("Invalid EPoSE attestation relay payload size, dropping connection");
+        drop_connection(context, false, false);
+        return 1;
+      }
+
+      crypto::hash digest{};
+      tools::sha256sum(reinterpret_cast<const uint8_t*>(blob.data()), blob.size(), digest);
+      if (!seen.insert(digest).second)
+      {
+        LOG_PRINT_CCONTEXT_L1("Duplicate EPoSE payload in relay notification, dropping connection");
+        drop_connection(context, false, false);
+        return 1;
+      }
+    }
+
+    if(context.m_state != cryptonote_connection_context::state_normal)
+      return 1;
+
+    if(!is_synchronized())
+    {
+      LOG_DEBUG_CC(context, "Received EPoSE payloads while syncing, ignored");
+      return 1;
+    }
+
+    std::vector<blobdata> accepted_registrations;
+    std::vector<blobdata> accepted_attestations;
+    if (!m_core.handle_incoming_epose_payloads(arg.registrations, arg.attestations, accepted_registrations, accepted_attestations))
+    {
+      LOG_PRINT_CCONTEXT_L1("EPoSE payload validation failed, dropping connection");
+      drop_connection(context, false, false);
+      return 1;
+    }
+
+    if (!accepted_registrations.empty() || !accepted_attestations.empty())
+    {
+      arg.registrations = std::move(accepted_registrations);
+      arg.attestations = std::move(accepted_attestations);
+      relay_epose_payloads(arg, context.m_connection_id, context.m_remote_address.get_zone());
+    }
+
     return 1;
   }
   //------------------------------------------------------------------------------------------------------------------------
@@ -2407,7 +2491,7 @@ skip:
         }
       }
       MGINFO_YELLOW(ENDL << "**********************************************************************" << ENDL
-        << "You are now synchronized with the network. You may now start monero-wallet-cli." << ENDL
+        << "You are now synchronized with the network. You may now start qwertycoin-wallet-cli." << ENDL
         << ENDL
         << "Use the \"help\" command to see the list of available commands." << ENDL
         << "**********************************************************************");
@@ -2673,6 +2757,27 @@ skip:
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
+  bool t_cryptonote_protocol_handler<t_core>::relay_epose_payloads(NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone)
+  {
+    std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>> connections;
+    m_p2p->for_each_connection([&source, zone, &connections](connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)
+    {
+      if (peer_id && source != context.m_connection_id && context.m_remote_address.get_zone() == zone)
+        connections.push_back({context.m_remote_address.get_zone(), context.m_connection_id});
+      return true;
+    });
+
+    if (!connections.empty())
+    {
+      epee::levin::message_writer blob{16 * 1024};
+      epee::serialization::store_t_to_binary(arg, blob.buffer);
+      m_p2p->relay_notify_to_list(NOTIFY_NEW_EPOSE_PAYLOADS::ID, std::move(blob), std::move(connections));
+    }
+
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------
+  template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::request_txpool_complement(cryptonote_connection_context &context)
   {
     NOTIFY_GET_TXPOOL_COMPLEMENT::request r = {};
@@ -2856,7 +2961,7 @@ skip:
         m_core.safesyncmode(true);
       if (target == 0 && context.m_state > cryptonote_connection_context::state_before_handshake && !m_stopping)
       {
-        MCWARNING("global", "monerod is now disconnected from the network");
+        MCWARNING("global", "qwertycoind is now disconnected from the network");
         m_ask_for_txpool_complement = true;
       }
     }
@@ -2873,4 +2978,3 @@ skip:
     m_core.stop();
   }
 } // namespace
-

@@ -143,7 +143,7 @@ jobs:
         run: ${{env.APT_SET_CONF}}
       - name: update apt
         run: apt update
-      - name: install monero dependencies
+      - name: install Qwertycoin dependencies
         run: ${{env.APT_INSTALL_LINUX}}
       - name: configure git
         run: git config --global --add safe.directory '*'
@@ -192,7 +192,7 @@ jobs:
         run: ${{env.APT_SET_CONF}}
       - name: update apt
         run: apt update
-      - name: install monero dependencies
+      - name: install Qwertycoin dependencies
         run: ${{env.APT_INSTALL_LINUX}}
       - name: configure git
         run: git config --global --add safe.directory '*'
@@ -242,7 +242,7 @@ jobs:
         run: ${{env.APT_SET_CONF}}
       - name: update apt
         run: apt update
-      - name: install monero dependencies
+      - name: install Qwertycoin dependencies
         run: ${{env.APT_INSTALL_LINUX}}
       - name: install pip
         run: apt install -y python3-pip
@@ -302,7 +302,7 @@ jobs:
       - name: archive
         run: |
           pip install git-archive-all
-          export VERSION="monero-$(git describe)"
+          export VERSION="qwertycoin-$(git describe)"
           export OUTPUT="$VERSION.tar"
           echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
           git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"

@@ -1463,12 +1463,102 @@ bool t_rpc_command_executor::print_status()
   bool daemon_is_alive = m_rpc_client->check_connection();
 
   if(daemon_is_alive) {
-    tools::success_msg_writer() << "monerod is running";
+    tools::success_msg_writer() << "qwertycoind is running";
   }
   else {
-    tools::fail_msg_writer() << "monerod is NOT running";
+    tools::fail_msg_writer() << "qwertycoind is NOT running";
   }
 
+  return true;
+}
+
+bool t_rpc_command_executor::print_epose_info()
+{
+  cryptonote::COMMAND_RPC_GET_EPOSE_INFO::request req;
+  cryptonote::COMMAND_RPC_GET_EPOSE_INFO::response res;
+  const std::string failure_message = "Couldn't get EPoSE info";
+
+  if (m_is_rpc)
+  {
+    if (!m_rpc_client->rpc_request(req, res, "/get_epose_info", failure_message.c_str()))
+      return true;
+  }
+  else
+  {
+    if (!m_rpc_server->on_get_epose_info(req, res) || res.status != CORE_RPC_STATUS_OK)
+    {
+      tools::fail_msg_writer() << make_error(failure_message, res.status);
+      return true;
+    }
+  }
+
+  tools::success_msg_writer()
+      << "EPoSE: " << (res.enabled ? "enabled" : "disabled")
+      << ", protocol: " << res.protocol_version
+      << ", epoch: " << res.current_epoch
+      << " [" << res.epoch_start_height << ", " << res.epoch_end_height << "]"
+      << ", service nodes: " << res.service_node_count
+      << ", qualified: " << res.qualified_count
+      << ", attestations: " << res.attestation_count
+      << ", reward bps: " << res.service_reward_bps;
+
+  tools::msg_writer() << "EPoSE state hash: " << res.state_hash;
+  tools::msg_writer() << "Local service-node mode: " << (res.local_service_node ? "enabled" : "disabled");
+  if (res.local_service_node)
+  {
+    tools::msg_writer() << "Local service public key: " << res.local_service_public_key;
+    tools::msg_writer() << "Local reward address: " << res.local_service_reward_address;
+    if (!res.local_service_advertised_endpoint.empty())
+      tools::msg_writer() << "Local advertised endpoint: " << res.local_service_advertised_endpoint;
+    tools::msg_writer()
+        << "Local registration: " << (res.local_service_node_registered ? "registered" : "not registered")
+        << ", active: " << (res.local_service_node_active ? "yes" : "no")
+        << ", qualified: " << (res.local_service_node_qualified ? "yes" : "no");
+    if (res.local_service_node_registered)
+      tools::msg_writer() << "Local service-node expiry epoch: " << res.local_service_node_expiry_epoch;
+    if (!res.local_service_endpoint_commitment.empty())
+      tools::msg_writer() << "Local endpoint commitment: " << res.local_service_endpoint_commitment;
+  }
+
+  return true;
+}
+
+bool t_rpc_command_executor::print_service_node_registration_payload()
+{
+  cryptonote::COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::request req;
+  cryptonote::COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::response res;
+  const std::string failure_message = "Couldn't prepare service-node registration payload";
+
+  if (m_is_rpc)
+  {
+    if (!m_rpc_client->rpc_request(req, res, "/get_service_node_registration_payload", failure_message.c_str()))
+      return true;
+  }
+  else
+  {
+    if (!m_rpc_server->on_get_service_node_registration_payload(req, res) || res.status != CORE_RPC_STATUS_OK)
+    {
+      tools::fail_msg_writer() << make_error(failure_message, res.status);
+      return true;
+    }
+  }
+
+  if (!res.ready)
+  {
+    tools::fail_msg_writer() << "Service-node registration is not ready: " << res.error_details;
+    return true;
+  }
+
+  tools::success_msg_writer() << "Service-node registration payload is ready";
+  tools::msg_writer() << "Registration epoch: " << res.registration_epoch;
+  tools::msg_writer() << "Expiry epoch: " << res.expiry_epoch;
+  tools::msg_writer() << "Service public key: " << res.service_public_key;
+  tools::msg_writer() << "Reward address: " << res.reward_address;
+  tools::msg_writer() << "Advertised endpoint: " << res.advertised_endpoint;
+  tools::msg_writer() << "Endpoint commitment: " << res.endpoint_commitment;
+  tools::msg_writer() << "Admission hash: " << res.admission_hash;
+  tools::msg_writer() << "Admission nonce: " << res.admission_nonce;
+  tools::msg_writer() << "Tx extra nonce hex: " << res.tx_extra_nonce;
   return true;
 }
 

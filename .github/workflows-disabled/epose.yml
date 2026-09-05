@@ -1,0 +1,176 @@
+name: ci/gh-actions/epose
+
+on:
+  push:
+    paths:
+      - '.github/workflows/epose.yml'
+      - 'Dockerfile'
+      - 'Dockerfile.epose-dev'
+      - 'deploy/mainnet/**'
+      - 'src/blockchain_utilities/**'
+      - 'src/cryptonote_basic/**'
+      - 'src/cryptonote_core/**'
+      - 'src/daemon/**'
+      - 'src/epose/**'
+      - 'src/gen_ssl_cert/**'
+      - 'src/rpc/**'
+      - 'tests/data/fuzz/epose/**'
+      - 'tests/epose/**'
+      - 'tests/fuzz/**'
+      - 'tests/unit_tests/**'
+  pull_request:
+    paths:
+      - '.github/workflows/epose.yml'
+      - 'Dockerfile'
+      - 'Dockerfile.epose-dev'
+      - 'deploy/mainnet/**'
+      - 'src/blockchain_utilities/**'
+      - 'src/cryptonote_basic/**'
+      - 'src/cryptonote_core/**'
+      - 'src/daemon/**'
+      - 'src/epose/**'
+      - 'src/gen_ssl_cert/**'
+      - 'src/rpc/**'
+      - 'tests/data/fuzz/epose/**'
+      - 'tests/epose/**'
+      - 'tests/fuzz/**'
+      - 'tests/unit_tests/**'
+
+jobs:
+  epose-tests:
+    name: EPoSE focused tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build focused EPoSE test image
+        run: |
+          docker build \
+            --build-arg NPROC=2 \
+            --build-arg EPOSE_BUILD_TARGETS="epose_unit_tests epose_fuzz_tests epose_admission_bench" \
+            -f Dockerfile.epose-dev \
+            -t qwertycoin-v2-node:epose-ci .
+
+      - name: Run EPoSE unit tests
+        run: |
+          docker run --rm \
+            --entrypoint /usr/local/bin/qwertycoin-epose-unit-tests \
+            qwertycoin-v2-node:epose-ci
+
+      - name: Run EPoSE fuzz seed corpus
+        run: |
+          docker run --rm \
+            --entrypoint /bin/sh \
+            qwertycoin-v2-node:epose-ci \
+            -c 'for f in /usr/local/share/qwertycoin/tests/data/fuzz/epose/*; do echo "RUN:$f"; /usr/local/bin/qwertycoin-epose-fuzz-tests "$f"; done'
+
+      - name: Validate local EPoSE harness syntax
+        run: |
+          bash -n tests/epose/integration/local_epose_network.sh
+          for nodes in 5 10 25; do
+            tmp="$(mktemp -d)"
+            EPOSE_NODE_COUNT="$nodes" EPOSE_SERVICE_REWARD_VIEW_KEY=0000000000000000000000000000000000000000000000000000000000000001 EPOSE_STATE_DIR="$tmp" tests/epose/integration/local_epose_network.sh generate
+            test -s "$tmp/docker-compose.yml"
+          done
+          tmp="$(mktemp -d)"
+          EPOSE_NODE_COUNT=1 EPOSE_SERVICE_REWARD_VIEW_KEY=0000000000000000000000000000000000000000000000000000000000000001 EPOSE_OFFLINE=1 EPOSE_STATE_DIR="$tmp" tests/epose/integration/local_epose_network.sh generate
+          grep -q -- "--offline" "$tmp/docker-compose.yml"
+
+      - name: Validate mainnet launch deployment config
+        run: |
+          bash -n deploy/mainnet/build-rc-image.sh
+          bash -n deploy/mainnet/start-qwertycoin-node.sh
+          ! grep -R "epose-pr[0-9]" deploy/mainnet
+          for env_file in deploy/mainnet/seed-*.env; do
+            set -a
+            . "$env_file"
+            set +a
+            docker compose --env-file "$env_file" -f deploy/mainnet/docker-compose.yml config >/dev/null
+          done
+
+  epose-asan:
+    name: EPoSE AddressSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build ASan EPoSE test image
+        run: |
+          docker build \
+            --build-arg NPROC=1 \
+            --build-arg EPOSE_SANITIZE=ON \
+            --build-arg EPOSE_BUILD_TARGETS="epose_unit_tests epose_fuzz_tests epose_admission_bench" \
+            -f Dockerfile.epose-dev \
+            -t qwertycoin-v2-node:epose-asan .
+
+      - name: Run ASan EPoSE unit tests
+        run: |
+          docker run --rm \
+            --entrypoint /usr/local/bin/qwertycoin-epose-unit-tests \
+            -e ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
+            qwertycoin-v2-node:epose-asan
+
+      - name: Run ASan EPoSE fuzz seed corpus
+        run: |
+          docker run --rm \
+            --entrypoint /bin/sh \
+            -e ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
+            qwertycoin-v2-node:epose-asan \
+            -c 'for f in /usr/local/share/qwertycoin/tests/data/fuzz/epose/*; do echo "RUN:$f"; /usr/local/bin/qwertycoin-epose-fuzz-tests "$f"; done'
+
+  qwc-branding-smoke:
+    name: QWC binary branding smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build QWC-branded utility image
+        run: |
+          docker build \
+            --build-arg NPROC=2 \
+            --build-arg EPOSE_BUILD_TARGETS="daemon blockchain_import blockchain_export blockchain_blackball blockchain_usage blockchain_ancestry blockchain_depth blockchain_stats blockchain_prune_known_spent_data blockchain_prune gen_ssl_cert" \
+            -f Dockerfile.epose-dev \
+            -t qwertycoin-v2-node:qwc-branding-ci .
+
+      - name: Verify QWC-branded utility names
+        run: |
+          docker run --rm \
+            --entrypoint /bin/sh \
+            qwertycoin-v2-node:qwc-branding-ci \
+            -c '
+              set -eu
+              test -x /usr/local/bin/qwertycoind
+              test -x /usr/local/bin/qwertycoin-blockchain-import
+              test -x /usr/local/bin/qwertycoin-blockchain-export
+              test -x /usr/local/bin/qwertycoin-blockchain-mark-spent-outputs
+              test -x /usr/local/bin/qwertycoin-blockchain-usage
+              test -x /usr/local/bin/qwertycoin-blockchain-ancestry
+              test -x /usr/local/bin/qwertycoin-blockchain-depth
+              test -x /usr/local/bin/qwertycoin-blockchain-stats
+              test -x /usr/local/bin/qwertycoin-blockchain-prune-known-spent-data
+              test -x /usr/local/bin/qwertycoin-blockchain-prune
+              test -x /usr/local/bin/qwertycoin-gen-ssl-cert
+              test ! -e /usr/local/bin/monerod
+              test ! -e /usr/local/bin/monero-wallet-cli
+              test ! -e /usr/local/bin/monero-wallet-rpc
+              test ! -e /usr/local/bin/monero-blockchain-import
+              test ! -e /usr/local/bin/monero-blockchain-export
+              test ! -e /usr/local/bin/monero-gen-ssl-cert
+            '
+
+      - name: Verify QWC-branded utility banners
+        run: |
+          docker run --rm \
+            --entrypoint /bin/sh \
+            qwertycoin-v2-node:qwc-branding-ci \
+            -c '
+              set -eu
+              /usr/local/bin/qwertycoin-gen-ssl-cert --version | grep -q "Qwertycoin"
+              /usr/local/bin/qwertycoin-blockchain-export --help 2>&1 | grep -q "Qwertycoin"
+            '
