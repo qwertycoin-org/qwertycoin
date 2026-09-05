@@ -1,7 +1,7 @@
 # Qwertycoin v2
 
 Qwertycoin v2 is the new QWC core implementation. It keeps QWC as a
-RandomX proof-of-work coin and adds EPoSE, a deterministic service-node reward
+RandomX proof-of-work coin and adds EPoSe, a deterministic service-node reward
 layer that can be verified by normal consensus nodes.
 
 This repository is based on the Monero 0.18.x codebase and retains upstream
@@ -33,12 +33,12 @@ project support channel for swap-related questions.
 | Property | Value |
 | --- | --- |
 | Ticker | QWC |
-| Consensus | RandomX proof of work with EPoSE service-node rewards |
+| Consensus | RandomX proof of work with EPoSe service-node rewards |
 | Block target | 120 seconds |
 | Decimals | 8 |
 | Supply constant | 184,467,440.73709551 QWC |
 | Tail emission | 0.3 QWC per minute, equal to 0.6 QWC at the 120-second block target |
-| Current EPoSE service reward | 10% of the tested block reward path |
+| Current EPoSe service reward | 10% of the tested block reward path |
 | Address scheme | Qwertycoin v2 address prefixes; not legacy-chain compatible |
 | P2P port | 8196 |
 | Daemon RPC port | 8197 |
@@ -62,8 +62,8 @@ beta artifacts unless a signed release is published by the project.
 Clone the repository and initialize submodules:
 
 ```bash
-git clone --recursive <repository-url>
-cd qwertycoin-v2-poc
+git clone --recursive https://github.com/qwertycoin-org/qwertycoin
+cd qwertycoin
 git submodule update --init --recursive
 ```
 
@@ -192,7 +192,7 @@ qwertycoin-wallet-rpc
 Build a local development image:
 
 ```bash
-docker build --build-arg NPROC=2 -t qwertycoin-v2-node:local .
+docker build --build-arg NPROC=2 -t qwertycoin-node:local .
 ```
 
 Run a local daemon:
@@ -203,16 +203,16 @@ docker run --rm -it \
   -p 8196:8196 \
   -p 127.0.0.1:8197:8197 \
   -p 127.0.0.1:8199:8199 \
-  qwertycoin-v2-node:local \
+  qwertycoin-node:local \
   --p2p-bind-ip=0.0.0.0 \
   --rpc-bind-ip=0.0.0.0 \
   --confirm-external-bind \
   --non-interactive
 ```
 
-## EPoSE Overview
+## EPoSe Overview
 
-EPoSE adds a service-node registry and deterministic reward selection on top of
+EPoSe adds a service-node registry and deterministic reward selection on top of
 proof of work. It is designed so that every honest node can reconstruct the
 same EPoSE state from canonical chain data and reject blocks with missing,
 duplicate, wrong-recipient, or wrong-amount service rewards.
@@ -224,7 +224,7 @@ The current `main` implementation includes:
   reward private view key,
 - epoch-based registration lifetime,
 - RandomX-bound admission proof,
-- P2P relay for signed EPoSE registrations and attestations,
+- P2P relay for signed EPoSe registrations and attestations,
 - deterministic verifier committee selection,
 - signed attestations,
 - qualification snapshots,
@@ -325,14 +325,14 @@ the local reward view as healthy.
 | --- | --- |
 | Website | https://qwertycoin.org/ |
 | Legacy repository | https://github.com/qwertycoin-org/qwertycoin |
-| Current Qwertycoin v2 development repository | <repository-url> |
+| Current Qwertycoin development repository | <repository-url> |
 | Bitcointalk ANN | https://bitcointalk.org/index.php?topic=2881418.0 |
 | CoinGecko | https://www.coingecko.com/en/coins/qwertycoin |
 | Discord | https://qwertycoin.org/discord |
 | X / Twitter | https://x.com/Qwertycoin_QWC |
 
 Old release, donation, web-wallet, pool, and node-map links were intentionally
-removed from this README because they are either not part of the current v2
+removed from this README because they are either not part of the current
 release process or were not reachable during this refresh.
 
 ## Tests
@@ -350,21 +350,21 @@ docker build \
   --build-arg NPROC=2 \
   --build-arg EPOSE_BUILD_TARGETS="epose_unit_tests epose_fuzz_tests" \
   -f Dockerfile.epose-dev \
-  -t qwertycoin-v2-node:epose-tests .
+  -t qwertycoin-node:epose-tests .
 ```
 
 Run the focused unit tests:
 
 ```bash
 docker run --rm --entrypoint /usr/local/bin/qwertycoin-epose-unit-tests \
-  qwertycoin-v2-node:epose-tests
+  qwertycoin-node:epose-tests
 ```
 
 Run the EPoSE fuzz seed corpus:
 
 ```bash
 docker run --rm --entrypoint /usr/local/bin/qwertycoin-epose-fuzz-tests \
-  qwertycoin-v2-node:epose-tests
+  qwertycoin-node:epose-tests
 ```
 
 ## Documentation
