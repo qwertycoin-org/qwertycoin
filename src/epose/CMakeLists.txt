@@ -3,6 +3,7 @@
 set(epose_sources
   attestation_pool.cpp
   chain_state.cpp
+  membership_v2.cpp
   service_epoch.cpp
   service_registry.cpp
   service_node.cpp
@@ -11,6 +12,7 @@ set(epose_sources
 set(epose_headers
   attestation_pool.h
   chain_state.h
+  membership_v2.h
   service_epoch.h
   service_registry.h
   service_node.h

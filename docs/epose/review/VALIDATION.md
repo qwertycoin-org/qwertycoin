@@ -128,3 +128,34 @@ Results:
 
 The vector-only limits in `co01_transition_v2.json` test parser boundaries and
 are not proposed mainnet constants. Final limits remain owned by CO-03/CO-05.
+
+## CO-02 C++ membership-pipeline validation
+
+CO-02 adds `membership_pipeline_v2` as an executable but non-activating C++
+state-transition primitive. It is linked into the EPoSE library but has no call
+site in HF17 block parsing, relay, template construction, reward validation, or
+RPC.
+
+Build and focused execution:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_v2.*'
+<build-dir>/tests/unit_tests/epose_unit_tests
+cmake --build <build-dir> --target daemon -j1
+```
+
+Reproduced on 2026-09-06 at this branch head: 10/10 `epose_v2` tests and
+92/92 tests in the complete focused binary passed. The complete daemon target
+also rebuilt successfully with the new EPoSE library object linked.
+
+The focused cases cover checked timing arithmetic; inclusive cutoff/deadline;
+invalid configuration and pre-service-epoch rejection; post-seed admission
+rejection; canonical arrival-order-independent snapshots;
+idempotent duplicates and conflicting records; snapshot-only subject/verifier
+membership; fixed committee/threshold behavior; one-time qualification close;
+and anchor replacement plus A -> B -> A replay equivalence.
+
+These tests do not claim authenticated service evidence, calibrated committee
+or admission parameters, a valid v2 wire encoding, persistent state, payout
+safety, or activation readiness. Those remain assigned to later COs.

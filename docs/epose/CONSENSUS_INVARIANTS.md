@@ -83,3 +83,13 @@ activated by CO-01.
 73. RandomX remains the sole chain-selection and block-production mechanism after v2 activation.
 74. Block validation performs no DNS lookup, live probe, remote RPC, or external API request.
 75. Final activation requires approved resource, committee, admission, reward, emission, payment-proof, state-schema, and pruning parameters.
+76. CO-02 code is unreachable from HF17 parsing, validation, rewards, RPC, relay, and block templates.
+77. A v2 admission lease included at the enrollment cutoff may enter the target snapshot; one included at the committee anchor or later may not.
+78. Snapshot membership is canonically ordered and cannot change after the committee anchor.
+79. Committee selection reads only the named immutable snapshot and binds its hash, anchor, round, network, genesis, and parameter set.
+80. If fewer than the configured number of non-subject verifiers exist, the v2 economic committee is empty; its size and threshold never shrink locally.
+81. A prevalidated receipt can contribute only when both identities are in the same frozen snapshot and the verifier is selected for that slot.
+82. A receipt at the evidence deadline may contribute; a receipt one block later may not.
+83. Qualification closes exactly once and only at the evidence deadline.
+84. Arrival order of otherwise independent admission leases cannot change the snapshot hash, committee, or qualification result.
+85. Replacing the committee anchor changes the dependent snapshot context; replaying the original anchor restores the original state hash.

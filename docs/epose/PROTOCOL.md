@@ -498,6 +498,65 @@ The reserved record-type registry is:
 CO-02, CO-04, CO-06, and CO-07 finalize the payload fields and cryptographic
 transcripts for these records. Until the relevant specification and executable
 vectors are merged, their versions remain reserved and invalid in consensus.
+
+### CO-02 frozen membership implementation
+
+`src/epose/membership_v2.*` implements the deterministic, non-activating v2
+membership pipeline. It does not parse a v2 record and is not called by HF17
+block validation. Its purpose is to make the cutoff, snapshot, committee, and
+qualification transition executable before later change orders finalize the
+wire records and cryptographic proofs.
+
+The module accepts only explicitly **prevalidated** admission leases and
+receipt slots. This boundary is intentional: CO-03 supplies calibrated
+admission parameters and proof validation; CO-04 supplies authenticated receipt
+parsing and signatures; CO-05 supplies the bounded transaction-extra envelope
+and carriers; CO-06 supplies payout and payment-proof semantics; and CO-07
+supplies descriptor lifecycle authorization. Until those layers exist, no
+network input can reach this module and no v2 state can affect a block reward.
+
+An admitted member freezes these selection-relevant commitments:
+
+```text
+service_public_key
+descriptor_hash
+reward_binding_hash
+endpoint_descriptor_hash
+sequence
+target_epoch
+lease_hash
+inclusion_height
+```
+
+At `committee_anchor(E)`, the module builds `snapshot(E)` only from leases for
+`E` included at or before `enrollment_cutoff(E)`. Members are sorted by service
+public key. The snapshot hash binds the `QWC_EPOSE_SNAPSHOT_V2` domain, network
+ID, genesis hash, parameter-set hash, epoch, cutoff and anchor heights, anchor
+hash, and every ordered frozen member.
+
+Committee scoring uses `QWC_EPOSE_SELECT_V2` and binds the same global context
+plus snapshot hash, epoch, round, anchor hash, subject, and candidate. It never
+reads the live v1 registry. If fewer than the configured number of non-subject
+candidates exist, it returns no committee instead of shrinking the economic
+threshold.
+
+CO-02 models a future CO-04 receipt only as a cryptographically-prevalidated
+slot `(epoch, round, service_kind, subject, verifier, receipt_hash)`. Subject
+and verifier must be in the same frozen snapshot, and the verifier must be
+selected for that subject and round. A byte-identical slot is idempotent; a
+different receipt hash for the same slot is a conflict. Receipts are accepted
+from `start(E)` through `evidence_deadline(E)`, inclusive.
+
+At exactly `evidence_deadline(E)`, qualification closes once. The generic
+committee policy is constructor-supplied because CO-03 has not approved
+mainnet values. It never falls back to v1's dynamic small-network quorum. The
+closed qualification hash binds network, genesis, parameter set, snapshot,
+epoch, close height, and the ordered qualified keys.
+
+The complete pipeline state hash commits to admitted leases, snapshots,
+accepted receipt slots, and closed qualification sets. Copy/replay tests use it
+as the current in-memory reorg oracle. Persistent LMDB/undo integration remains
+CO-08.
 No implementation may guess missing fields or accept an opaque payload merely
 because its outer envelope parses.
 
