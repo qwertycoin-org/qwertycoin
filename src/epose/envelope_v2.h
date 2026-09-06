@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "cryptonote_basic/cryptonote_basic.h"
+
 namespace qwertycoin
 {
 namespace epose
@@ -89,7 +91,9 @@ namespace epose
     block_record_budget_exceeded,
     block_signature_budget_exceeded,
     block_admission_budget_exceeded,
-    trailing_bytes
+    trailing_bytes,
+    inactive_protocol,
+    malformed_transaction_extra
   };
 
   envelope_status_v2 encode_envelope_v2(
@@ -127,5 +131,24 @@ namespace epose
       const envelope_budget_v2 &transaction_budget,
       const block_budget_limits_v2 &limits,
       envelope_budget_v2 &block_budget);
+
+  // These are the shared carrier adapters for both miner and ordinary
+  // transactions. They preserve unrelated tx_extra fields and reject the
+  // reserved carrier unless the exact reserved v2 major version is supplied.
+  envelope_status_v2 append_transaction_envelope_v2(
+      const std::vector<envelope_record_v2> &records,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      std::vector<uint8_t> &tx_extra,
+      envelope_budget_v2 &budget);
+
+  envelope_status_v2 parse_transaction_extra_v2(
+      const std::vector<uint8_t> &tx_extra,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      std::vector<envelope_record_v2> &records,
+      envelope_budget_v2 &budget);
 } // namespace epose
 } // namespace qwertycoin

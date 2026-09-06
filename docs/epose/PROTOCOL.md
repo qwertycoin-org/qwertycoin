@@ -498,9 +498,9 @@ The reserved record-type registry is:
 | `0x04` | descriptor lifecycle authorization | `1` |
 | `0x05` | scoped service-payment proof | `1` |
 
-CO-02, CO-04, CO-06, and CO-07 finalize the payload fields and cryptographic
-transcripts for these records. Until the relevant specification and executable
-vectors are merged, their versions remain reserved and invalid in consensus.
+The service-receipt payload has a first canonical codec below. The remaining
+record types stay reserved and invalid until their typed codecs, transcript
+vectors, and state adapters are implemented and reviewed.
 
 ### CO-02 frozen membership implementation
 
@@ -602,8 +602,12 @@ instead of fabricating service.
 ## CO-05 bounded envelope primitive
 
 `src/epose/envelope_v2.*` implements the dedicated `0x05` field and `QEP2`
-envelope format specified above without adding `0x05` to the historical HF17
-generic `tx_extra` variant. This preserves pre-activation parser behavior.
+envelope format specified above. `tx_extra_epose_v2` is present in the generic
+variant so unrelated fields can be parsed and preserved, but the ordinary
+parser rejects it unless a version-aware caller opts in. The shared carrier
+adapter opts in only for the exact reserved HF18 major version; HF17 and an
+unscheduled version 19 therefore reject the field. HF18 remains absent from
+the active hard-fork schedule.
 
 The parser accepts constructor-supplied limits only; no fallback mainnet values
 exist. It validates canonical outer varints, magic, versions, zero flags, exact
@@ -612,17 +616,28 @@ record counts, and signature/RandomX operation budgets. Empty envelopes and
 reserved record versions are invalid. Costs are charged by record type before
 payload semantics or duplicate handling.
 
-`parse_transaction_envelope_fields_v2` is intentionally carrier-neutral: a
-version-aware caller supplies exact `0x05` fields from either the miner
-transaction or an ordinary fee-funded transaction and receives the same
-records and budget. `charge_block_budget_v2` accumulates byte, record,
-signature, and admission costs transaction by transaction without mutating the
-committed budget on failure.
+`parse_transaction_extra_v2` is the common parser for a miner transaction and
+an ordinary fee-funded transaction. It extracts every dedicated field from the
+normal transaction extra, preserves unrelated tags, applies the same envelope
+semantics, and accounts for the outer tag and canonical length prefix.
+`append_transaction_envelope_v2` appends without modifying the caller's bytes
+on failure. `charge_block_budget_v2` accumulates byte, record, signature, and
+admission costs transaction by transaction without mutating the committed
+budget on failure.
 
-The primitive is non-activating. Version-aware integration into generic
-`tx_extra`, actual record payload codecs, miner template batching, wallet-funded
-submission, queue fairness, and measured manifest limits remain required before
-HF18 can recognize tag `0x05` in a block.
+`src/epose/record_codec_v2.*` currently defines the canonical service-receipt
+payload. It is exactly 402 bytes in this order: version and service kind
+(`uint8` each); epoch and round (`uint64` little-endian each); snapshot hash,
+round-anchor hash, subject key, verifier key, endpoint-descriptor hash, nonce,
+requested-object hash, and response-object hash (32 bytes each); then subject
+and verifier signatures (64 bytes each). Decode is atomic and returns a receipt
+only after the complete context-bound signature validation succeeds.
+
+The carrier and receipt codec remain non-activating: there is no HF18 schedule
+or block-state adapter. Codecs for lifecycle, admission, descriptors and the
+payment proof, miner template batching, wallet-funded submission, queue
+fairness, and measured manifest limits remain required before HF18 can affect
+block validity.
 
 ## CO-06 reward and payment-proof candidate
 

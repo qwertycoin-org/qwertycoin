@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "epose/envelope_v2.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
+#include "cryptonote_config.h"
 
 namespace
 {
@@ -252,4 +254,71 @@ TEST(epose_envelope_v2, failed_operations_clear_all_outputs_atomically)
       encode_tx_extra_envelope_field_v2({}, bounded, stale_field, budget));
   EXPECT_TRUE(stale_field.empty());
   EXPECT_EQ(0u, budget.bytes);
+}
+
+TEST(epose_envelope_v2, dedicated_tx_extra_carrier_is_exactly_version_gated)
+{
+  std::vector<uint8_t> extra;
+  ASSERT_TRUE(cryptonote::add_tx_pub_key_to_extra(extra, crypto::null_pkey));
+  const auto expected = record(record_type_v2::service_receipt, "receipt");
+  envelope_budget_v2 append_budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2({expected}, HF_VERSION_QWC_EPOSE_V2, 1,
+          limits(), extra, append_budget));
+
+  std::vector<cryptonote::tx_extra_field> generic_fields;
+  EXPECT_FALSE(cryptonote::parse_tx_extra(extra, generic_fields));
+  EXPECT_TRUE(generic_fields.empty());
+  ASSERT_TRUE(cryptonote::parse_tx_extra(extra, generic_fields, true));
+  ASSERT_EQ(2u, generic_fields.size());
+  EXPECT_EQ(typeid(cryptonote::tx_extra_pub_key), generic_fields[0].type());
+  EXPECT_EQ(typeid(cryptonote::tx_extra_epose_v2), generic_fields[1].type());
+
+  std::vector<envelope_record_v2> parsed;
+  envelope_budget_v2 parsed_budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      parse_transaction_extra_v2(extra, HF_VERSION_QWC_EPOSE_V2, 1,
+          limits(), parsed, parsed_budget));
+  ASSERT_EQ(1u, parsed.size());
+  EXPECT_EQ(expected.payload, parsed.front().payload);
+  EXPECT_EQ(append_budget.bytes, parsed_budget.bytes);
+
+  parsed = {expected};
+  parsed_budget = {9, 9, 9, 9};
+  EXPECT_EQ(envelope_status_v2::inactive_protocol,
+      parse_transaction_extra_v2(extra, HF_VERSION_QWC_EPOSE_V1, 1,
+          limits(), parsed, parsed_budget));
+  EXPECT_TRUE(parsed.empty());
+  EXPECT_EQ(0u, parsed_budget.bytes);
+  EXPECT_EQ(envelope_status_v2::inactive_protocol,
+      parse_transaction_extra_v2(extra, 19, 1, limits(), parsed, parsed_budget));
+}
+
+TEST(epose_envelope_v2, carrier_append_preserves_unrelated_fields_and_fails_atomically)
+{
+  std::vector<uint8_t> extra;
+  ASSERT_TRUE(cryptonote::add_extra_nonce_to_tx_extra(extra, "unrelated"));
+  const std::vector<uint8_t> original = extra;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2(
+          {record(record_type_v2::service_receipt, "first")},
+          HF_VERSION_QWC_EPOSE_V2, 1, limits(), extra, budget));
+  EXPECT_TRUE(std::equal(original.begin(), original.end(), extra.begin()));
+
+  const std::vector<uint8_t> once = extra;
+  budget = {9, 9, 9, 9};
+  EXPECT_EQ(envelope_status_v2::envelope_count_exceeded,
+      append_transaction_envelope_v2(
+          {record(record_type_v2::service_receipt, "second")},
+          HF_VERSION_QWC_EPOSE_V2, 1, limits(), extra, budget));
+  EXPECT_EQ(once, extra);
+  EXPECT_EQ(0u, budget.bytes);
+
+  std::vector<uint8_t> legacy = original;
+  EXPECT_EQ(envelope_status_v2::inactive_protocol,
+      append_transaction_envelope_v2(
+          {record(record_type_v2::service_receipt, "first")},
+          HF_VERSION_QWC_EPOSE_V1, 1, limits(), legacy, budget));
+  EXPECT_EQ(original, legacy);
 }

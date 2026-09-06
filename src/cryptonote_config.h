@@ -198,6 +198,9 @@
 #define HF_VERSION_MONERO_CURRENT_CONSENSUS     16
 #define HF_VERSION_QWC_RELAUNCH_BASE            HF_VERSION_MONERO_CURRENT_CONSENSUS
 #define HF_VERSION_QWC_EPOSE_V1                 17
+// Reserved for the reviewed EPoSE v2 transition. This value is deliberately
+// absent from every active hard-fork schedule until the release gates pass.
+#define HF_VERSION_QWC_EPOSE_V2                 18
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 #define CRYPTONOTE_SCALING_2021_FEE_ROUNDING_PLACES 2

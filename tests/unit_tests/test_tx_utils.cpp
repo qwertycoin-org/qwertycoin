@@ -50,6 +50,25 @@ TEST(parse_tx_extra, handles_empty_extra)
   ASSERT_TRUE(tx_extra_fields.empty());
 }
 
+TEST(parse_tx_extra, epose_v2_tag_requires_explicit_version_aware_opt_in)
+{
+  std::vector<uint8_t> extra;
+  ASSERT_TRUE(cryptonote::add_extra_nonce_to_tx_extra(extra, "unrelated"));
+  ASSERT_TRUE(cryptonote::add_epose_v2_to_tx_extra(extra, "QEP2-payload"));
+
+  std::vector<cryptonote::tx_extra_field> fields{
+      cryptonote::tx_extra_nonce{"stale"}};
+  EXPECT_FALSE(cryptonote::parse_tx_extra(extra, fields));
+  EXPECT_TRUE(fields.empty());
+
+  ASSERT_TRUE(cryptonote::parse_tx_extra(extra, fields, true));
+  ASSERT_EQ(2u, fields.size());
+  EXPECT_EQ(typeid(cryptonote::tx_extra_nonce), fields[0].type());
+  EXPECT_EQ(typeid(cryptonote::tx_extra_epose_v2), fields[1].type());
+  EXPECT_EQ("QEP2-payload",
+      boost::get<cryptonote::tx_extra_epose_v2>(fields[1]).data);
+}
+
 TEST(parse_tx_extra, handles_padding_only_size_1)
 {
   const uint8_t extra_arr[] = {0};

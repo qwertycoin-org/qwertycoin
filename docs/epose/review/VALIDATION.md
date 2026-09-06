@@ -257,8 +257,15 @@ Results reproduced on 2026-09-06:
   fail without committing a partial block budget;
 - miner and fee-funded field fixtures produce identical parse results and cost.
 
-This is not HF18 activation evidence. The historical generic `tx_extra` parser
-does not yet recognize tag `0x05`; payload codecs, actual template batching,
+Subsequent corrective-stack validation added the real `tx_extra_epose_v2`
+variant, explicit default rejection, exact HF18 opt-in, unrelated-field
+preservation, and the fixed 402-byte service-receipt codec. The carrier/receipt
+subset now contains 22 passing tests and the complete focused binary contains
+154 passing tests. HF17 and unscheduled version 19 rejection, duplicate-field
+limits, malformed receipt size/signature and atomic output reuse are covered.
+
+This is not HF18 activation evidence. HF18 is not scheduled and no block-state
+adapter consumes these records. Remaining codecs, actual template batching,
 wallet funding, queue fairness, worst-valid-block timing, synchronization cost,
 and approved manifest limits remain open.
 

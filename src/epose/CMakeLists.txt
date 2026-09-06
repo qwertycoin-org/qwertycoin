@@ -6,6 +6,7 @@ set(epose_sources
   envelope_v2.cpp
   lifecycle_v2.cpp
   membership_v2.cpp
+  record_codec_v2.cpp
   reward_v2.cpp
   resource_policy_v2.cpp
   service_receipt_v2.cpp
@@ -21,6 +22,7 @@ set(epose_headers
   envelope_v2.h
   lifecycle_v2.h
   membership_v2.h
+  record_codec_v2.h
   reward_v2.h
   resource_policy_v2.h
   service_receipt_v2.h

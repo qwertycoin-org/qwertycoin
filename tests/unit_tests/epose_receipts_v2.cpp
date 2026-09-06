@@ -8,6 +8,7 @@
 #include <string>
 
 #include "epose/service_receipt_v2.h"
+#include "epose/record_codec_v2.h"
 
 namespace
 {
@@ -79,6 +80,41 @@ TEST(epose_receipts_v2, valid_two_party_receipt_has_a_context_bound_identity)
   const auto receipt = make_receipt(subject, verifier);
   ASSERT_TRUE(validate_authenticated_service_receipt_v2(receipt, make_context()));
   EXPECT_NE(crypto::null_hash, hash_authenticated_service_receipt_v2(receipt, make_context()));
+}
+
+TEST(epose_receipts_v2, canonical_record_codec_roundtrips_and_is_atomic)
+{
+  key_pair subject = make_key_pair();
+  key_pair verifier = make_key_pair();
+  const auto expected = make_receipt(subject, verifier);
+  envelope_record_v2 record{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_service_receipt_record_v2(expected, make_context(), record));
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_receipt), record.type);
+  EXPECT_EQ(EPOSE_SERVICE_RECEIPT_RECORD_VERSION_V2, record.version);
+  ASSERT_EQ(EPOSE_SERVICE_RECEIPT_PAYLOAD_BYTES_V2, record.payload.size());
+  EXPECT_EQ(EPOSE_PROTOCOL_VERSION_V2, static_cast<uint8_t>(record.payload[0]));
+  EXPECT_EQ(static_cast<uint8_t>(service_kind_v2::canonical_object),
+      static_cast<uint8_t>(record.payload[1]));
+
+  authenticated_service_receipt_v2 actual{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      decode_service_receipt_record_v2(record, make_context(), actual));
+  EXPECT_EQ(hash_authenticated_service_receipt_v2(expected, make_context()),
+      hash_authenticated_service_receipt_v2(actual, make_context()));
+
+  auto malformed = record;
+  malformed.payload.pop_back();
+  actual = expected;
+  EXPECT_EQ(record_codec_status_v2::wrong_size,
+      decode_service_receipt_record_v2(malformed, make_context(), actual));
+  EXPECT_EQ(crypto::null_hash, actual.challenge.snapshot_hash);
+
+  malformed = record;
+  malformed.payload.back() ^= 1;
+  EXPECT_EQ(record_codec_status_v2::invalid_record,
+      decode_service_receipt_record_v2(malformed, make_context(), actual));
+  EXPECT_EQ(crypto::null_hash, actual.challenge.snapshot_hash);
 }
 
 TEST(epose_receipts_v2, verifier_cannot_fabricate_missing_subject_participation)
