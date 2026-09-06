@@ -1,10 +1,10 @@
 # EPoSE Protocol
 
-> **Status:** EPoSE protocol version 1 is the only implemented consensus
-> protocol. The hardened protocol described in "Reserved hardened protocol"
-> below is a normative design reservation for CO-01. It is not activated and
-> must not be accepted, relayed as consensus evidence, or paid by current
-> binaries.
+> **Status:** QWC HF17 is the fresh-genesis launch rule layer over the inherited
+> Monero-HF16 baseline. Its only permitted EPoSE format is protocol version 2.
+> The hardened components below are implemented, but the complete block,
+> storage, transport, reward, and wallet path is not yet release-ready. The
+> launch manifest therefore remains fail-closed.
 
 ## Constants
 
@@ -25,7 +25,10 @@ Defined in `src/epose/service_node.h`:
 - `EPOSE_ATTESTATION_POOL_MAX_ENTRIES = 4096`
 - `EPOSE_ATTESTATION_RELAY_MAX_BATCH = 32`
 
-EPoSE consensus is active from genesis for `HF_VERSION_QWC_EPOSE_V1 = 17`.
+QWC HF17 is scheduled from genesis as `HF_VERSION_QWC_EPOSE = 17`; EPoSE
+records on that fresh chain use `EPOSE_PROTOCOL_VERSION_V2 = 2` exclusively.
+The legacy protocol-v1 structures below document the disposable prototype and
+must not be dispatched by the public launch handler.
 
 Mainnet, testnet, and stagenet start directly at QWC protocol v17 from height 0. QWC v17 inherits Monero's current v16 consensus rules and adds EPoSE; historical Monero hardforks are not scheduled as later QWC activations. Low-height activation for deterministic regression tests uses local `HardFork` test fixtures.
 
@@ -330,7 +333,7 @@ The hardened protocol reserves these identifiers:
 
 | Identifier | Reserved value | Activation status |
 |---|---:|---|
-| QWC hardfork version | `18` | Intended public-genesis version; runtime activation still gated |
+| QWC hardfork version | `17` | Public-genesis launch version on the inherited Monero-HF16 rule baseline |
 | EPoSE protocol version | `2` | Reserved; parser/transition not implemented |
 | `tx_extra` envelope tag | `0x05` | Reserved in the pinned QWC/Monero tag space |
 | Envelope format version | `1` | Reserved for the first v2 envelope |
@@ -344,7 +347,7 @@ The public-genesis activation profile MUST satisfy:
 ```text
 A = 0
 activation.mode = fresh-genesis
-block.major_version = 18 for every height H until the next scheduled fork
+block.major_version = 17 for every height H until the next scheduled fork
 epoch_zero_has_v2_rewards = false
 ```
 
@@ -720,9 +723,9 @@ remain local transport work for CO-09; they never enter block validation.
 envelope format specified above. `tx_extra_epose_v2` is present in the generic
 variant so unrelated fields can be parsed and preserved, but the ordinary
 parser rejects it unless a version-aware caller opts in. The shared carrier
-adapter opts in only for the exact reserved HF18 major version; HF17 and an
-unscheduled version 19 therefore reject the field. HF18 remains absent from
-the active hard-fork schedule.
+adapter opts in only for exact QWC launch block version 17. Inherited Monero
+block version 16 and unscheduled version 18 therefore reject the field. EPoSE
+protocol version 2 remains a separate wire-format domain.
 
 The parser accepts constructor-supplied limits only; no fallback mainnet values
 exist. It validates canonical outer varints, magic, versions, zero flags, exact
@@ -748,10 +751,10 @@ requested-object hash, and response-object hash (32 bytes each); then subject
 and verifier signatures (64 bytes each). Decode is atomic and returns a receipt
 only after the complete context-bound signature validation succeeds.
 
-The carrier and receipt codec remain non-activating: there is no HF18 schedule
-or block-state adapter. Codecs for lifecycle, admission, descriptors and the
+The carrier and receipt codec remain non-activating pending real block-state
+wiring. Codecs for lifecycle, admission, descriptors and the
 payment proof, miner template batching, wallet-funded submission, queue
-fairness, and measured manifest limits remain required before HF18 can affect
+fairness, and measured manifest limits remain required before EPoSE v2 can affect
 block validity.
 
 ## CO-06 reward and payment-proof candidate
@@ -800,11 +803,15 @@ stable identity per active service public key in an epoch. A key becomes
 reusable by another identity only after the prior descriptor is inactive for
 that epoch. Consensus transaction order is explicit: a replacement or
 deregistration must be accepted before a later registration can reuse the key.
-An admission reserves its service key for one identity for its complete target
-epoch enrollment window; a cross-identity collision cannot displace the first
-valid lease. Freeze rechecks both identity and service-key uniqueness before
-publishing a snapshot. This primitive remains non-activating pending record
-serialization, envelope and persistent-index integration. See
+The currently stored admission reserves its service key for one stable identity
+in its target epoch. Replacing it with an authorized higher-sequence admission
+under a different service key releases the old key from pending admission
+state. A subsequent claimant must independently satisfy lifecycle non-overlap
+and admission validation in canonical transaction order. Deregistration alone
+does not remove an existing pending admission reservation. Freeze publishes
+only unique, currently authorized identities and service keys. This primitive
+remains non-activating pending record serialization, envelope and
+persistent-index integration. See
 `review/ADR-0004-IDENTITY-LIFECYCLE.md`.
 
 ## CO-08 state-index and replay boundary

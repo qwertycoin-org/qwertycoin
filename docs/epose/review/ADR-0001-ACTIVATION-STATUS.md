@@ -34,7 +34,8 @@ this review.
    infrastructure until the release gates are met.
 4. Define hardened behavior in CO-01 as a new protocol/hardfork version with a
    future, chain-preserving activation height and an epoch-aligned warm-up.
-   HF18 is reserved; its activation height is intentionally unassigned.
+   A later block version was reserved in this superseded decision; ADR-0007
+   replaces it with QWC HF17 plus EPoSE format version 2 at fresh genesis.
 5. Before activation, reconcile the deployed source and public source, publish
    a signed release manifest, and prove that old history validates identically.
 6. Preserve RandomX as the only chain-selection and block-production mechanism.

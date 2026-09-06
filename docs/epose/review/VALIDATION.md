@@ -287,14 +287,16 @@ Results reproduced on 2026-09-06:
 - miner and fee-funded field fixtures produce identical parse results and cost.
 
 Subsequent corrective-stack validation added the real `tx_extra_epose_v2`
-variant, explicit default rejection, exact HF18 opt-in, unrelated-field
+variant, explicit default rejection, exact version-gated opt-in, unrelated-field
 preservation, and the fixed 402-byte service-receipt codec. The carrier/receipt
 subset now contains 22 passing tests and the complete focused binary contains
-154 passing tests. HF17 and unscheduled version 19 rejection, duplicate-field
+154 passing tests. At that historical stage HF17 and unscheduled version 19
+rejection, duplicate-field
 limits, malformed receipt size/signature and atomic output reuse are covered.
 
-This is not HF18 activation evidence. HF18 is not scheduled and no block-state
-adapter consumes these records. Remaining codecs, actual template batching,
+This historical result is not launch-handler evidence. The launch mapping now
+assigns hardened EPoSE v2 to exact QWC HF17; no canonical block-state adapter
+consumed these records at the recorded stage. Remaining codecs, actual template batching,
 wallet funding, queue fairness, worst-valid-block timing, synchronization cost,
 and approved manifest limits remain open.
 
@@ -445,9 +447,10 @@ Results reproduced on 2026-09-06:
   evaluator output; it changes whenever the typed manifest changes.
 
 No genesis reset or four-host execution was performed. The existing integration
-harness exercises HF17 and cannot establish HF18 funds safety while the v2
-handler, LMDB, final parameters, reward policy, and payment-proof review remain
-open. Running it and relabeling the result would be false activation evidence.
+harness exercises the disposable legacy EPoSE-v1 path and cannot establish
+QWC-HF17/EPoSE-v2 funds safety while the hardened handler, LMDB, final
+parameters, reward policy, and payment-proof review remain open. Running it and
+relabeling the result would be false launch evidence.
 
 ## Consolidated review corrections
 
@@ -468,7 +471,8 @@ Reproduced on 2026-09-06:
 - current release result: **NO-GO**, 0/13 mandatory gates satisfied by
   candidate-bound evidence and 24 manifest fields unset.
 
-These corrections do not connect HF18 to block validation, LMDB, live probing,
+These corrections do not connect hardened EPoSE v2 to QWC-HF17 block
+validation, LMDB, live probing,
 wallet construction or release publication. They close concrete primitive
 defects while leaving their integration gates explicit.
 
@@ -503,8 +507,8 @@ Results reproduced on 2026-09-06:
 - broad `unit_tests` target and daemon target rebuilt successfully.
 
 This is still not handler, persistent-state, optimized-solver or parameter
-approval evidence. HF18 remains unscheduled and the manifest target remains
-unset.
+approval evidence. The mainnet manifest remains non-activatable while its
+security and resource parameters are unset.
 
 ## Remaining typed-record codecs
 
@@ -594,9 +598,10 @@ fuzzing remain open gates.
 ## Fresh-genesis target and cumulative PR validation
 
 The intended public-chain topology was changed from a later chain-preserving
-transition to a new version-18 genesis. This changes the target specification,
-manifest, and boundary vectors only; it does not schedule the incomplete v2
-runtime path in `hardforks.cpp`.
+transition to a fresh QWC-HF17 genesis over the inherited Monero-HF16 baseline.
+EPoSE protocol/format version 2 is a separate version domain. This changes the
+target specification, manifest, and boundary vectors; it does not by itself
+complete the v2 runtime path.
 
 Commands:
 
@@ -619,7 +624,8 @@ Results reproduced on 2026-09-06:
 - complete focused EPoSE C++ suite: **186/186 passed**;
 - complete EPoSE Python model/manifest/gate suite: **38/38 passed**;
 - fresh-genesis reference vectors passed;
-- protocol version 18 is the only accepted version at model height 0;
+- QWC block major version 17 is the only accepted launch version at model
+  height 0; EPoSE protocol/format version remains 2;
 - epoch 0 is enrollment-only, epoch 1 is the first service epoch, and the first
   possible v2 payout is height 1440;
 - release evaluation remains **NO-GO**, with **0/13** gates satisfied and

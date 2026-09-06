@@ -48,12 +48,12 @@
 44. A block with a qualified payee must not underpay or overpay the EPoSE service reward denomination set.
 45. Explorer/UI grouping of denominated service reward outputs must not change consensus interpretation of raw outputs.
 
-## Reserved HF18 / EPoSE v2 invariants
+## QWC HF17 / EPoSE v2 launch invariants
 
 These invariants are normative design requirements but are not implemented or
 activated by CO-01.
 
-46. The intended public chain has no pre-activation blocks: protocol version 18 is the only valid genesis version.
+46. The intended public chain has no pre-activation blocks: QWC block version 17 is the only valid genesis version and selects EPoSE protocol version 2.
 47. No v1 registration, attestation, qualification, or descriptor is implicitly promoted into v2.
 48. The fresh-genesis v2 activation height is exactly 0; epoch 0 remains reward-ineligible.
 49. A reservation manifest containing any required `null` value cannot activate.
@@ -83,7 +83,10 @@ activated by CO-01.
 73. RandomX remains the sole chain-selection and block-production mechanism after v2 activation.
 74. Block validation performs no DNS lookup, live probe, remote RPC, or external API request.
 75. Final activation requires approved resource, committee, admission, reward, emission, payment-proof, state-schema, and pruning parameters.
-76. CO-02 code is unreachable from HF17 parsing, validation, rewards, RPC, relay, and block templates.
+76. CO-02 membership primitives do not become production consensus merely by
+    sharing QWC block version 17; only the canonical hardened-v2 dispatcher may
+    invoke them, and release remains blocked until every production entry point
+    is integrated and tested.
 77. A v2 admission lease included at the enrollment cutoff may enter the target snapshot; one included at the committee anchor or later may not.
 78. Snapshot membership is canonically ordered and cannot change after the committee anchor.
 79. Committee selection reads only the named immutable snapshot and binds its hash, anchor, round, network, genesis, and parameter set.
@@ -101,7 +104,7 @@ activated by CO-01.
 91. A valid receipt for one network, genesis, parameter set, snapshot, anchor, round, endpoint, role assignment, or nonce is invalid after transplant to another.
 92. Only a fully authenticated v2 receipt may become a CO-02 prevalidated receipt slot.
 93. Subject participation does not prove an independent operator, dedicated machine, continuous uptime, or resistance to a colluding committee.
-94. Pre-HF18 generic transaction-extra parsing does not recognize the reserved EPoSE tag `0x05`.
+94. Generic transaction-extra parsing recognizes tag `0x05` only in explicit strict EPoSE-v2 mode; inherited HF16 and legacy-v1 paths cannot authorize it.
 95. V2 outer tag and size varints are canonical; overlong or overflowing encodings fail closed.
 96. Envelope magic, version, flags, record count, record lengths, and remaining bytes match exactly.
 97. Empty envelopes, unknown record types, disabled record versions, and nonzero envelope or record flags are invalid.
@@ -117,7 +120,7 @@ activated by CO-01.
 107. A scoped payment proof binds the complete payment context and a proof-excluded coinbase commitment; it cannot be transplanted across height, parent, payee, output, or coinbase.
 108. New v2 payment verification does not require or serialize a private reward view key.
 109. A zero service allocation due to integer rounding requires no service output or payment proof.
-110. HF17 reward and payment validation are unchanged by the non-activating CO-06 primitive.
+110. Hardened QWC-HF17 reward and payment validation must exclusively use the v2 reward rules; legacy-v1 state cannot supply a payee.
 111. A v2 identity ID is stable across online service-key recovery and derives from network/genesis, parameter set, and offline operator authority.
 112. Wallet spend secrets and operator-authorization secrets never enter a lifecycle descriptor or daemon signing path.
 113. Every lifecycle transition is predecessor- and sequence-bound and takes effect only in a permitted future epoch.

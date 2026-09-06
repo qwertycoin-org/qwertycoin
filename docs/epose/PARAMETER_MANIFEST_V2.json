@@ -37,7 +37,7 @@
     "envelope_magic_ascii": "QEP2",
     "envelope_version": 1,
     "epose_protocol_version": 2,
-    "hardfork_version": 18,
+    "hardfork_version": 17,
     "integer_byte_order": "little-endian",
     "record_versions": {
       "admission_lease": 1,

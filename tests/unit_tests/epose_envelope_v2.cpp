@@ -268,7 +268,7 @@ TEST(epose_envelope_v2, dedicated_tx_extra_carrier_is_exactly_version_gated)
   const auto expected = record(record_type_v2::service_receipt, "receipt");
   envelope_budget_v2 append_budget{};
   ASSERT_EQ(envelope_status_v2::accepted,
-      append_transaction_envelope_v2({expected}, HF_VERSION_QWC_EPOSE_V2, 1,
+      append_transaction_envelope_v2({expected}, HF_VERSION_QWC_EPOSE, 1,
           limits(), extra, append_budget));
 
   std::vector<cryptonote::tx_extra_field> generic_fields;
@@ -283,7 +283,7 @@ TEST(epose_envelope_v2, dedicated_tx_extra_carrier_is_exactly_version_gated)
   std::vector<envelope_record_v2> parsed;
   envelope_budget_v2 parsed_budget{};
   ASSERT_EQ(envelope_status_v2::accepted,
-      parse_transaction_extra_v2(extra, HF_VERSION_QWC_EPOSE_V2, 1,
+      parse_transaction_extra_v2(extra, HF_VERSION_QWC_EPOSE, 1,
           limits(), parsed, parsed_budget));
   ASSERT_EQ(1u, parsed.size());
   EXPECT_EQ(expected.payload, parsed.front().payload);
@@ -292,8 +292,12 @@ TEST(epose_envelope_v2, dedicated_tx_extra_carrier_is_exactly_version_gated)
   parsed = {expected};
   parsed_budget = {9, 9, 9, 9};
   EXPECT_EQ(envelope_status_v2::inactive_protocol,
-      parse_transaction_extra_v2(extra, HF_VERSION_QWC_EPOSE_V1, 1,
+      parse_transaction_extra_v2(extra, HF_VERSION_MONERO_CURRENT_CONSENSUS, 1,
           limits(), parsed, parsed_budget));
+  EXPECT_TRUE(parsed.empty());
+  EXPECT_EQ(0u, parsed_budget.bytes);
+  EXPECT_EQ(envelope_status_v2::inactive_protocol,
+      parse_transaction_extra_v2(extra, 18, 1, limits(), parsed, parsed_budget));
   EXPECT_TRUE(parsed.empty());
   EXPECT_EQ(0u, parsed_budget.bytes);
   EXPECT_EQ(envelope_status_v2::inactive_protocol,
@@ -309,7 +313,7 @@ TEST(epose_envelope_v2, carrier_append_preserves_unrelated_fields_and_fails_atom
   ASSERT_EQ(envelope_status_v2::accepted,
       append_transaction_envelope_v2(
           {record(record_type_v2::service_receipt, "first")},
-          HF_VERSION_QWC_EPOSE_V2, 1, limits(), extra, budget));
+          HF_VERSION_QWC_EPOSE, 1, limits(), extra, budget));
   EXPECT_TRUE(std::equal(original.begin(), original.end(), extra.begin()));
 
   const std::vector<uint8_t> once = extra;
@@ -317,7 +321,7 @@ TEST(epose_envelope_v2, carrier_append_preserves_unrelated_fields_and_fails_atom
   EXPECT_EQ(envelope_status_v2::envelope_count_exceeded,
       append_transaction_envelope_v2(
           {record(record_type_v2::service_receipt, "second")},
-          HF_VERSION_QWC_EPOSE_V2, 1, limits(), extra, budget));
+          HF_VERSION_QWC_EPOSE, 1, limits(), extra, budget));
   EXPECT_EQ(once, extra);
   EXPECT_EQ(0u, budget.bytes);
 
@@ -325,6 +329,6 @@ TEST(epose_envelope_v2, carrier_append_preserves_unrelated_fields_and_fails_atom
   EXPECT_EQ(envelope_status_v2::inactive_protocol,
       append_transaction_envelope_v2(
           {record(record_type_v2::service_receipt, "first")},
-          HF_VERSION_QWC_EPOSE_V1, 1, limits(), legacy, budget));
+          HF_VERSION_MONERO_CURRENT_CONSENSUS, 1, limits(), legacy, budget));
   EXPECT_EQ(original, legacy);
 }

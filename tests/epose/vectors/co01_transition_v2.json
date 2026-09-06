@@ -51,17 +51,17 @@
   ],
   "height_cases": [
     {
-      "expected": false,
+      "expected": true,
       "height": 0,
       "major_version": 17,
-      "name": "legacy-version-at-genesis",
+      "name": "qwc-hf17-version-at-genesis",
       "operation": "block_version_allowed"
     },
     {
-      "expected": true,
+      "expected": false,
       "height": 0,
       "major_version": 18,
-      "name": "hardened-version-at-genesis",
+      "name": "unscheduled-version-18-at-genesis",
       "operation": "block_version_allowed"
     },
     {

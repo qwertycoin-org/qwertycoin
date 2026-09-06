@@ -45,5 +45,5 @@ derived index from sufficient canonical history.
 
 Pruned nodes may discard ordinary historical payload bytes only if every datum
 needed to validate current/future EPoSE state is retained in a consensus-bound,
-rebuildable form. Until that proof exists, HF18 EPoSE on pruned nodes remains
+rebuildable form. Until that proof exists, QWC-HF17 EPoSE v2 on pruned nodes remains
 unsupported and activation is blocked.

@@ -10,11 +10,11 @@
 
 ## Context
 
-The disposable development chain starts with HF17/EPoSE v1, but the intended
+The disposable development chain used HF17/EPoSE v1, but the intended
 public mainnet has no history to preserve. The hardened design needs immutable
 snapshots, subject-authenticated receipts, a carrier larger than the legacy
-255-byte nonce, and separately reviewed reward semantics. Protocol version 18
-remains the explicit namespace for those start rules.
+255-byte nonce, and separately reviewed reward semantics. QWC block version 17
+selects those start rules while the wire protocol remains EPoSE version 2.
 
 The pinned transaction-extra registry uses tags `0x00` through `0x04` plus the
 historical `0xDE` tag. Hardfork 17 is the highest version in the QWC schedule.
@@ -46,18 +46,18 @@ machine-readable reservation manifest are the allocation record.
   existing HF17 parsing; this PR adds no runtime support.
 - CO-02 through CO-09 can implement against stable namespaces and boundary rules
   with a fixed height-zero target while tokenomics and final limits remain gated.
-- A later feature that needs HF18 or tx-extra tag `0x05` must coordinate with
+- A later feature that needs QWC block version 17 or tx-extra tag `0x05` must coordinate with
   this reservation instead of silently reusing it.
 - Activation remains impossible until CO-03, CO-05, CO-06, CO-08, CO-10, and
   CO-11 supply the missing manifest values and evidence.
 
 ## Rejected alternatives
 
-### Use HF17 as the public genesis protocol
+### Reuse legacy EPoSE-v1 dispatch at QWC HF17
 
 Rejected because the hardened records and state machine require an explicit
-version boundary. Version 18 preserves inherited threshold ordering without
-requiring a later chain transition.
+EPoSE protocol/format boundary. QWC block version 17 selects only v2 on the new
+chain; the legacy-v1 production dispatch is retired.
 
 ### Extend `tx_extra_nonce`
 

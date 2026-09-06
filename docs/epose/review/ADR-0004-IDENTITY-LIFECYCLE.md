@@ -49,4 +49,5 @@ and recovery UI are required before activation.
 HF17 registration and key files on the disposable development chain are
 unchanged. The public chain imports none of them. V2 record serialization,
 envelope integration, durable storage, and fresh dedicated reward-wallet
-operational guidance remain open. This state machine does not activate HF18.
+operational guidance remain open. This state machine alone does not complete
+QWC-HF17 EPoSE-v2 integration.

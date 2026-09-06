@@ -141,8 +141,8 @@ namespace cryptonote
       block& bl
     , std::string const & genesis_tx
     , uint32_t nonce
-    , uint8_t major_version = HF_VERSION_QWC_EPOSE_V1
-    , uint8_t minor_version = HF_VERSION_QWC_EPOSE_V1
+    , uint8_t major_version = HF_VERSION_QWC_EPOSE
+    , uint8_t minor_version = HF_VERSION_QWC_EPOSE
     );
 
   class Blockchain;

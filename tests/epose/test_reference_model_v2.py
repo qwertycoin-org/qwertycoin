@@ -35,9 +35,9 @@ class TimingTests(unittest.TestCase):
         self.assertEqual(1379, self.timing.evidence_deadline(1))
         self.assertEqual(1380, self.timing.payout_seed_height(1))
 
-    def test_genesis_boundary_accepts_only_v18(self):
-        self.assertTrue(self.timing.block_version_allowed(0, 18))
-        for version in (0, 1, 16, 17, 19, 255):
+    def test_genesis_boundary_accepts_only_qwc_hf17(self):
+        self.assertTrue(self.timing.block_version_allowed(0, 17))
+        for version in (0, 1, 16, 18, 19, 255):
             self.assertFalse(self.timing.block_version_allowed(0, version))
 
     def test_payout_source_is_exactly_previous_epoch(self):

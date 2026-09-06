@@ -18,7 +18,7 @@
       "evidence": [],
       "id": "consensus_handler_integration",
       "state": "blocked",
-      "summary": "V2 primitives are deliberately unreachable from HF17 and are not integrated with block parsing, connect/disconnect, templates, or coinbase validation.",
+      "summary": "QWC HF17 selects the hardened v2 carrier, but the primitives are not yet integrated with canonical block connect/disconnect, templates, persistent state, or coinbase validation.",
       "references": null
     },
     {

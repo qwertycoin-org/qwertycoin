@@ -6,7 +6,7 @@ This file describes current `main` at `60ccc9d08`.
 
 | Area | Status | Current state |
 | --- | --- | --- |
-| HF17 from genesis | `DONE` | QWC mainnet, testnet, and stagenet start at `HF_VERSION_QWC_EPOSE_V1 = 17` from height 0. |
+| HF17 from genesis | `DONE` | QWC mainnet, testnet, and stagenet start at `HF_VERSION_QWC_EPOSE = 17` from height 0; launch EPoSE records use format version 2. |
 | QWC baseline | `DONE` | 8 decimals, 120s v2 target, RandomX, QWC address prefix `0x14820c`, ports `8196/8197/8198/8199`, supply `184,467,440.73709551 QWC`, final subsidy `0.3 QWC/min`. |
 | EPoSE chain-state derivation | `PARTIAL` | State is deterministically rebuilt from canonical chain registrations and attestations. Dedicated LMDB EPoSE indexes are not implemented. |
 | Registration | `PARTIAL` | Signed tx-extra registration includes service key, reward spend key, disclosed reward view secret key, endpoint commitment, epoch, expiry, nonce, admission hash, and signature. Lifecycle is currently register/active/expire with duplicate guards; explicit renewal/update/deregister semantics remain open. |

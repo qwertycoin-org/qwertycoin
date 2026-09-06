@@ -194,4 +194,4 @@ funds-separation foundations,
 but its automatic positive attestation does not prove service. The hardened
 economic protocol is therefore **not approved for activation or public
 production claims**. Work proceeds in the CO-00 through CO-11 order, with a
-fresh-genesis version-18 target and separately reviewed consensus changes.
+fresh-genesis QWC-HF17 / EPoSE-v2 target and separately reviewed consensus changes.

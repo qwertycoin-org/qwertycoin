@@ -33,16 +33,16 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "blockchain.hardforks"
 
 const hardfork_t mainnet_hard_forks[] = {
-  { HF_VERSION_QWC_EPOSE_V1, 0, 0, 1787788800 },
+  { HF_VERSION_QWC_EPOSE, 0, 0, 1787788800 },
 };
 const size_t num_mainnet_hard_forks = sizeof(mainnet_hard_forks) / sizeof(mainnet_hard_forks[0]);
 
 const hardfork_t testnet_hard_forks[] = {
-  { HF_VERSION_QWC_EPOSE_V1, 0, 0, 1787788800 },
+  { HF_VERSION_QWC_EPOSE, 0, 0, 1787788800 },
 };
 const size_t num_testnet_hard_forks = sizeof(testnet_hard_forks) / sizeof(testnet_hard_forks[0]);
 
 const hardfork_t stagenet_hard_forks[] = {
-  { HF_VERSION_QWC_EPOSE_V1, 0, 0, 1787788800 },
+  { HF_VERSION_QWC_EPOSE, 0, 0, 1787788800 },
 };
 const size_t num_stagenet_hard_forks = sizeof(stagenet_hard_forks) / sizeof(stagenet_hard_forks[0]);

@@ -9,14 +9,16 @@
 ## Decision
 
 The stacked CO-00 through CO-09 branches provide reviewed design boundaries and
-non-activating C++ primitives. They do not yet form an integrated HF18 protocol.
+non-activating C++ primitives. They do not yet form an integrated QWC-HF17 /
+EPoSE-v2 launch protocol.
 The current mainnet manifest intentionally contains unset consensus parameters
 and has status `not-activatable`.
 
 It would therefore be invalid to reset a network from genesis and describe the
 result as an EPoSE v2 funds-safety test. The existing Docker integration harness
-exercises the historical HF17 protocol, including the legacy reward view-key
-interface. It cannot establish the HF18 properties required by CO-10.
+exercises the disposable legacy EPoSE-v1 prototype, including its reward
+view-key interface. It cannot establish the hardened EPoSE-v2 properties
+required by CO-10.
 
 No production, public-testnet, or four-host deployment of this branch is
 authorized by this assessment.
@@ -56,9 +58,9 @@ the component is connected to the canonical block transition and tested there.
 
 ## Blocking implementation work
 
-1. Integrate the version-aware envelope and record codecs into HF18 parsing,
-   block connect/disconnect, relay, miner templates, and fee-funded wallet
-   construction without changing HF17 history.
+1. Integrate the version-aware envelope and record codecs into the QWC-HF17
+   fresh-genesis parsing, block connect/disconnect, relay, miner templates, and
+   fee-funded wallet construction. Retire legacy-v1 production dispatch.
 2. Store lifecycle, snapshot, receipt, qualification, reward, and emission state
    atomically with the canonical LMDB block transaction; prove migration,
    pruning, rebuild, crash recovery, and deep rollback.

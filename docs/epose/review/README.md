@@ -16,10 +16,10 @@ authorize a node to reinterpret an already accepted block.
 - [`ADR-0001-ACTIVATION-STATUS.md`](ADR-0001-ACTIVATION-STATUS.md) preserves the
   superseded chain-preserving decision for audit history.
 - [`ADR-0007-FRESH-GENESIS-ACTIVATION.md`](ADR-0007-FRESH-GENESIS-ACTIVATION.md)
-  records the accepted public-mainnet target: protocol version 18 from a new
+  records the accepted public-mainnet target: QWC block version 17 and EPoSE v2 from a new
   genesis, with runtime activation still blocked by the release gates.
 - [`ADR-0002-HARDENED-PROTOCOL-RESERVATION.md`](ADR-0002-HARDENED-PROTOCOL-RESERVATION.md)
-  reserves HF18, EPoSE v2, transaction-extra tag `0x05`, epoch ordering, and
+  reserves QWC HF17, EPoSE v2, transaction-extra tag `0x05`, epoch ordering, and
   fail-closed activation rules.
 - [`VALIDATION.md`](VALIDATION.md) records the baseline build and test commands,
   results, and explicit gaps.

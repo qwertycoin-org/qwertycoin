@@ -433,7 +433,7 @@ namespace epose
   {
     records.clear();
     budget = {};
-    if (major_version != HF_VERSION_QWC_EPOSE_V2)
+    if (major_version != HF_VERSION_QWC_EPOSE)
       return envelope_status_v2::inactive_protocol;
     if (!limits.valid() || max_envelopes_per_transaction == 0)
       return envelope_status_v2::invalid_limits;
@@ -471,7 +471,7 @@ namespace epose
       envelope_budget_v2 &budget)
   {
     budget = {};
-    if (major_version != HF_VERSION_QWC_EPOSE_V2)
+    if (major_version != HF_VERSION_QWC_EPOSE)
       return envelope_status_v2::inactive_protocol;
     if (!limits.valid() || max_envelopes_per_transaction == 0)
       return envelope_status_v2::invalid_limits;

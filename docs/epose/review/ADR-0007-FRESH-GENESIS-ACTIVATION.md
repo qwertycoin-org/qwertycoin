@@ -1,4 +1,4 @@
-# ADR-0007: Fresh-genesis EPoSE v2 activation profile
+# ADR-0007: Fresh-genesis QWC-HF17 / EPoSE-v2 activation profile
 
 - **Status:** Accepted target profile; activation still gated
 - **Date:** 2026-09-06
@@ -14,17 +14,16 @@ since confirmed that the public mainnet has not launched, the existing chain is
 disposable, and no balances, registrations, qualifications, or other chain
 state need to be preserved.
 
-The inherited code already starts at protocol version 17 rather than replaying
-the historical Monero hardfork schedule. Renumbering the new start rules to
-version 1 would disturb many inherited version thresholds. Protocol version 18
-therefore remains the unambiguous identifier for the hardened QWC start rules,
-but it is scheduled from genesis rather than at a later height.
+The inherited code already starts at QWC block version 17 rather than replaying
+the historical Monero hardfork schedule. Monero HF16 is the retained technical
+rule baseline, not an earlier phase of the new chain. Block major version 17 and
+EPoSE protocol/format version 2 are separate version domains.
 
 ## Decision
 
 1. The intended public mainnet is a new chain with a newly reviewed genesis.
-2. Protocol version 18 and EPoSE protocol version 2 are the intended rules from
-   height 0. No protocol-17 block is valid on that public chain.
+2. QWC block version 17 and EPoSE protocol version 2 are the intended rules from
+   height 0. No block version 16, 18, or other unscheduled version is valid.
 3. The manifest activation mode is `fresh-genesis` and its activation height is
    exactly 0.
 4. Epoch 0 is enrollment/bootstrap only. It cannot qualify service or create an
@@ -40,16 +39,16 @@ but it is scheduled from genesis rather than at a later height.
    implication.
 9. DNS checkpoints remain disabled unless a separate reviewed trust,
    generation, signing, rotation, conflict, and operational design is approved.
-10. This ADR does not schedule version 18 in `hardforks.cpp`. Runtime activation
-    remains blocked until block/coinbase validation, atomic LMDB state, bounded
-    transport, wallet funds safety, final parameters, and every mandatory
-    release gate are complete.
+10. The hardfork table schedules QWC version 17 from genesis, but the hardened
+    v2 economic path is not release-ready until block/coinbase validation,
+    atomic LMDB state, bounded transport, wallet funds safety, final parameters,
+    and every mandatory release gate are complete.
 
 ## Consensus consequences
 
-- There is no mixed HF17/HF18 transition window on the intended public chain.
+- There is no Monero-HF16 operating phase or QWC-HF17 migration window.
 - There is no pre-activation height and no activation-block migration state.
-- Genesis and every descendant must use the exact scheduled version 18 until a
+- Genesis and every descendant must use exact QWC block version 17 until a
   future separately approved protocol version.
 - Reorg handling remains required from genesis onward. A fresh genesis does not
   weaken replay, crash-recovery, or deterministic-state requirements.
@@ -72,11 +71,11 @@ Rejected because the owner has explicitly stated that no pre-publication chain
 or balances need preservation. Carrying migration machinery into genesis would
 increase consensus complexity without preserving required state.
 
-### Rename the start protocol to version 1
+### Use block version 18 for EPoSE v2
 
-Rejected because inherited CryptoNote/Monero rules use ordered version
-thresholds. Keeping version 18 avoids broad unrelated rewrites and makes the
-new QWC rules distinguishable from every inherited historical rule set.
+Rejected because QWC HF17 is the launch-rule layer over the retained Monero-HF16
+baseline. EPoSE's `2` is its protocol/format version and does not require the
+block major version to be incremented again.
 
 ### Activate the current incomplete v2 stack immediately
 

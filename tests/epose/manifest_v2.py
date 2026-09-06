@@ -146,8 +146,8 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
     if source_revision is not None:
         require_hex(source_revision, "release.source_revision", 40)
 
-    if require_int(get_path(manifest, "encoding.hardfork_version"), "encoding.hardfork_version", 18, 18) != 18:
-        raise ManifestError("hardfork version reservation changed")
+    if require_int(get_path(manifest, "encoding.hardfork_version"), "encoding.hardfork_version", 17, 17) != 17:
+        raise ManifestError("Qwertycoin launch hardfork version changed")
     require_enum(get_path(manifest, "encoding.envelope_magic_ascii"), "encoding.envelope_magic_ascii", {"QEP2"})
     require_int(get_path(manifest, "encoding.envelope_version"), "encoding.envelope_version", 1, 1)
     require_int(get_path(manifest, "encoding.epose_protocol_version"), "encoding.epose_protocol_version", 2, 2)

@@ -316,11 +316,11 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     if (m_nettype ==  FAKECHAIN)
       m_hardfork = new HardFork(*db, 1, 0);
     else if (m_nettype == STAGENET)
-      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE_V1, 0);
+      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE, 0);
     else if (m_nettype == TESTNET)
-      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE_V1, 0);
+      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE, 0);
     else
-      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE_V1, 0);
+      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE, 0);
   }
   if (m_nettype == FAKECHAIN)
   {
@@ -817,7 +817,7 @@ crypto::hash Blockchain::get_block_id_by_height(uint64_t height) const
 //------------------------------------------------------------------
 bool Blockchain::is_epose_enabled_for_height(uint64_t height) const
 {
-  return m_hardfork && get_ideal_hard_fork_version(height) >= HF_VERSION_QWC_EPOSE_V1;
+  return m_hardfork && get_ideal_hard_fork_version(height) == HF_VERSION_QWC_EPOSE;
 }
 //------------------------------------------------------------------
 bool Blockchain::is_epose_enabled() const
@@ -1627,7 +1627,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
       partial_block_reward = true;
     base_reward = money_in_use - fee;
   }
-  if (version >= HF_VERSION_QWC_EPOSE_V1 && !validate_epose_service_reward(b, boost::get<txin_gen>(b.miner_tx.vin[0]).height, money_in_use))
+  if (version == HF_VERSION_QWC_EPOSE && !validate_epose_service_reward(b, boost::get<txin_gen>(b.miner_tx.vin[0]).height, money_in_use))
   {
     MERROR_VER("coinbase transaction has invalid EPoSE service reward");
     return false;

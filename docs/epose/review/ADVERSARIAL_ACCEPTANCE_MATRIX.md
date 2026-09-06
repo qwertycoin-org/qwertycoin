@@ -11,7 +11,7 @@ blockers.
 
 | Scenario | Status | Current evidence | Required final evidence |
 |---|---|---|---|
-| Post-seed subject/verifier grinding | Partial | CO-02 snapshot unit tests | HF18 block/reorg test on canonical state |
+| Post-seed subject/verifier grinding | Partial | CO-02 snapshot unit tests | HF17/v2 block/reorg test on canonical state |
 | Registration changes after prior votes | Partial | CO-02 fixed-snapshot tests | Serialized records through connect/disconnect and replay |
 | Malicious threshold approves offline identity | Partial | CO-03 exact probability model | Parameter-bound network simulation and residual-risk statement |
 | Missing, forged, or replayed subject signature | Partial | CO-04 dual-signature negative tests | Live transport plus block-carrier rejection |
