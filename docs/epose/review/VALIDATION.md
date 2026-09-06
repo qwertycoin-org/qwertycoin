@@ -388,25 +388,50 @@ python3 -m py_compile tests/epose/release_gate_v2.py tests/epose/test_release_ga
 python3 tests/epose/test_release_gate_v2.py
 python3 tests/epose/release_gate_v2.py \
   --manifest docs/epose/PARAMETER_MANIFEST_V2.json \
+  --policy docs/epose/review/RELEASE_GATE_POLICY_V2.json \
   --gates docs/epose/review/RELEASE_GATES_V2.json \
+  --evidence-root . \
   --expect no-go
 ```
 
 Results reproduced on 2026-09-06:
 
 - release-gate evaluator tests: **6/6 passed**;
-- all EPoSE Python model/gate tests: **27/27 passed**;
+- all corrected EPoSE Python model/gate/manifest tests: **34/34 passed**;
 - complete focused C++ EPoSE binary: **143/143 passed**;
 - EPoSE fuzz corpus: **11/11 files passed**;
 - daemon rebuilt and linked at stacked base `e90f64c60`;
 - malformed schema, duplicate gate, unsupported state, evidence-free satisfied
   gate, and false ready declaration fail closed;
-- the current result is `no-go`: 2/13 top-level gates satisfied, 11 unresolved,
+- the current result is `no-go`: 0/13 top-level gates satisfied by candidate-bound evidence, 13 unresolved,
   and 24 required manifest fields unset;
-- the reservation-manifest SHA-256 remains
-  `3cc33c916af6cd377485e163dd41006a9ea6ff8899ae4e31205cd01f104fe5f1`.
+- the corrected reservation-manifest canonical SHA-256 is recorded by the
+  evaluator output; it changes whenever the typed manifest changes.
 
 No genesis reset or four-host execution was performed. The existing integration
 harness exercises HF17 and cannot establish HF18 funds safety while the v2
 handler, LMDB, final parameters, reward policy, and payment-proof review remain
 open. Running it and relabeling the result would be false activation evidence.
+
+## Consolidated review corrections
+
+The corrective stack added negative regressions for exact scheduled versions,
+typed manifest semantics, mandatory release-gate IDs, candidate-bound evidence,
+rare-event numerical stability, Wilson confidence intervals, full authenticated
+receipt ingestion, distinct round windows/anchors, immutable lifecycle history,
+authority-key separation, payout-epoch upper/lower bounds, atomic envelope
+outputs, strict journal images, admission-cache rollover and reviewed address
+prefix boundaries.
+
+Reproduced on 2026-09-06:
+
+- corrected Python model/manifest/gate suites: **34/34 passed**;
+- complete focused EPoSE C++ binary: **151/151 passed**;
+- affected lifecycle/receipt/envelope/reward/resource/journal subsets:
+  **69/69 passed**;
+- current release result: **NO-GO**, 0/13 mandatory gates satisfied by
+  candidate-bound evidence and 24 manifest fields unset.
+
+These corrections do not connect HF18 to block validation, LMDB, live probing,
+wallet construction or release publication. They close concrete primitive
+defects while leaving their integration gates explicit.
