@@ -28,6 +28,14 @@ namespace epose
     bool valid() const;
   };
 
+  // Returns false until the checked-in activation manifest is complete and
+  // its exact parameter/genesis digest is compiled into the release. Runtime
+  // files and command-line flags are never consensus parameter sources.
+  bool compiled_consensus_parameters_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      consensus_parameters_v2 &parameters);
+
   struct coordinator_block_v2
   {
     uint8_t major_version = 0;
@@ -49,6 +57,13 @@ namespace epose
     uint8_t state_commitment_schema = 0;
     crypto::hash state_hash{};
     crypto::hash parameter_set_hash{};
+  };
+
+  struct coordinator_reward_plan_v2
+  {
+    reward_allocation_v2 allocation{};
+    bool has_service_payee = false;
+    service_payment_expectation_v2 expectation{};
   };
 
   enum class coordinator_status_v2
@@ -74,6 +89,13 @@ namespace epose
     explicit consensus_coordinator_v2(const consensus_parameters_v2 &parameters);
 
     bool valid() const;
+    coordinator_status_v2 plan_reward(
+        uint64_t height,
+        const crypto::hash &parent_hash,
+        uint64_t scheduled_subsidy,
+        uint64_t transaction_fees,
+        const canonical_context_source_v2 &contexts,
+        coordinator_reward_plan_v2 &plan) const;
     coordinator_status_v2 connect_block(
         const coordinator_block_v2 &block,
         const canonical_context_source_v2 &contexts,

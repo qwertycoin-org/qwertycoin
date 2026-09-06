@@ -30,6 +30,7 @@ namespace epose
     const cryptonote::transaction *transaction = nullptr;
     bool coinbase = false;
     const service_payment_context_v2 *payment = nullptr;
+    const validated_service_payment_v2 *validated_payment = nullptr;
   };
 
   struct block_apply_summary_v2

@@ -584,6 +584,13 @@ namespace epose
     uint64_t round_start = 0;
     if (!checked_add(start, policy_.round_offsets[challenge.round], round_start))
       return pipeline_status_v2::invalid_epoch;
+    uint64_t first_inclusion = round_start;
+    // Round zero is anchored before the service epoch. Later rounds use a
+    // block inside the epoch as their unpredictable anchor, so a receipt
+    // cannot be included in that same block.
+    if (challenge.round != 0
+        && !checked_add(round_start, 1, first_inclusion))
+      return pipeline_status_v2::invalid_epoch;
     uint64_t round_end = deadline;
     if (challenge.round + 1 < policy_.round_count)
     {
@@ -593,7 +600,7 @@ namespace epose
         return pipeline_status_v2::invalid_epoch;
       round_end = next_round_start - 1;
     }
-    if (inclusion_height < round_start)
+    if (inclusion_height < first_inclusion)
       return pipeline_status_v2::invalid_epoch;
     if (inclusion_height > round_end)
       return pipeline_status_v2::too_late;

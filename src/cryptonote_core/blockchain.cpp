@@ -283,7 +283,7 @@ uint64_t Blockchain::get_current_blockchain_height() const
 //------------------------------------------------------------------
 //FIXME: possibly move this into the constructor, to avoid accidentally
 //       dereferencing a null BlockchainDB pointer
-bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/)
+bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/, const qwertycoin::epose::consensus_parameters_v2 *epose_test_parameters/* = nullptr*/)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -309,8 +309,10 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   m_nettype = test_options != NULL ? FAKECHAIN : nettype;
   m_offline = offline;
   m_fixed_difficulty = fixed_difficulty;
-  m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
+  m_epose_state.reset();
   m_epose_block_snapshots.clear();
+  m_epose_v2.reset();
+  m_epose_v2_parameters = {};
   if (m_hardfork == nullptr)
   {
     if (m_nettype ==  FAKECHAIN)
@@ -346,6 +348,60 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
 
   m_db->set_hard_fork(m_hardfork);
 
+  // Public QWC-HF17 has no legacy EPoSE fallback. A complete, compiled
+  // parameter set must exist before genesis can be accepted. Unit/core tests
+  // may inject an explicit fixture only on FAKECHAIN.
+  if (m_hardfork->get_ideal_version(0) == HF_VERSION_QWC_EPOSE)
+  {
+    block genesis_preview{};
+    crypto::hash genesis_hash{};
+    if (m_db->height() == 0)
+    {
+      generate_genesis_block(
+          genesis_preview, get_config(m_nettype).GENESIS_TX,
+          get_config(m_nettype).GENESIS_NONCE,
+          HF_VERSION_QWC_EPOSE, HF_VERSION_QWC_EPOSE);
+      genesis_hash = get_block_hash(genesis_preview);
+    }
+    else
+      genesis_hash = m_db->get_block_hash_from_height(0);
+
+    bool have_parameters = false;
+    if (epose_test_parameters != nullptr)
+    {
+      CHECK_AND_ASSERT_MES(m_nettype == FAKECHAIN, false,
+          "EPoSE test parameters are restricted to FAKECHAIN");
+      m_epose_v2_parameters = *epose_test_parameters;
+      have_parameters = true;
+    }
+    else if (m_nettype != FAKECHAIN)
+    {
+      have_parameters = qwertycoin::epose::compiled_consensus_parameters_v2(
+          m_nettype, genesis_hash, m_epose_v2_parameters);
+    }
+
+    if (!have_parameters)
+    {
+      if (m_nettype != FAKECHAIN)
+      {
+        LOG_ERROR("QWC-HF17/EPoSE-v2 launch parameters are incomplete; refusing to initialize a public chain");
+        return false;
+      }
+    }
+    else
+    {
+      CHECK_AND_ASSERT_MES(
+          m_epose_v2_parameters.valid()
+              && m_epose_v2_parameters.nettype == m_nettype
+              && m_epose_v2_parameters.genesis_hash == genesis_hash,
+          false, "Invalid or genesis-mismatched EPoSE-v2 consensus parameters");
+      m_epose_v2.reset(new qwertycoin::epose::consensus_coordinator_v2(
+          m_epose_v2_parameters));
+      CHECK_AND_ASSERT_MES(m_epose_v2->valid(), false,
+          "Failed to initialize EPoSE-v2 consensus coordinator");
+    }
+  }
+
   // if the blockchain is new, add the genesis block
   // this feels kinda kludgy to do it this way, but can be looked at later.
   // TODO: add function to create and store genesis block,
@@ -371,6 +427,14 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   {
     // ensure we fixup anything we found and fix in the future
     m_db->fixup();
+  }
+
+  if (test_options && test_options->long_term_block_weight_window)
+  {
+    m_long_term_block_weights_window = test_options->long_term_block_weight_window;
+    m_long_term_block_weights_cache_rolling_median =
+        epee::misc_utils::rolling_median_t<uint64_t>(
+            m_long_term_block_weights_window);
   }
 
   if (!rebuild_epose_state())
@@ -452,12 +516,6 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     uint64_t top_block_height;
     crypto::hash top_block_hash = get_tail_id(top_block_height);
     m_tx_pool.on_blockchain_dec(top_block_height, top_block_hash);
-  }
-
-  if (test_options && test_options->long_term_block_weight_window)
-  {
-    m_long_term_block_weights_window = test_options->long_term_block_weight_window;
-    m_long_term_block_weights_cache_rolling_median = epee::misc_utils::rolling_median_t<uint64_t>(m_long_term_block_weights_window);
   }
 
   bool difficulty_ok;
@@ -706,8 +764,18 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
   m_db->reset();
   m_db->drop_alt_blocks();
   m_hardfork->init();
-  m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
+  m_epose_state.reset();
   m_epose_block_snapshots.clear();
+  if (m_epose_v2)
+  {
+    CHECK_AND_ASSERT_MES(
+        get_block_hash(b) == m_epose_v2_parameters.genesis_hash,
+        false, "Refusing to reset EPoSE-v2 to a different genesis");
+    m_epose_v2.reset(new qwertycoin::epose::consensus_coordinator_v2(
+        m_epose_v2_parameters));
+    CHECK_AND_ASSERT_MES(m_epose_v2->valid(), false,
+        "Failed to reset EPoSE-v2 coordinator");
+  }
 
   db_wtxn_guard wtxn_guard(m_db);
   block_verification_context bvc = {};
@@ -945,96 +1013,328 @@ bool Blockchain::validate_epose_service_reward(const block &b, uint64_t height, 
   return false;
 }
 //------------------------------------------------------------------
-bool Blockchain::apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height)
+bool Blockchain::plan_epose_reward_v2(
+    uint64_t height,
+    const crypto::hash &parent_hash,
+    uint64_t scheduled_subsidy,
+    uint64_t fees,
+    qwertycoin::epose::coordinator_reward_plan_v2 &plan) const
 {
+  plan = {};
+  if (!m_epose_v2)
+    return false;
+
+  class template_context_source final
+      : public qwertycoin::epose::canonical_context_source_v2
+  {
+  public:
+    template_context_source(
+        const Blockchain &chain,
+        const qwertycoin::epose::consensus_parameters_v2 &parameters)
+      : chain_(chain), parameters_(parameters) {}
+
+    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
+    {
+      hash = chain_.get_block_id_by_height(context_height);
+      return hash != crypto::null_hash;
+    }
+
+    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
+    {
+      if (round >= parameters_.committee.round_offsets.size())
+        return false;
+      uint64_t anchor_height = 0;
+      if (round == 0)
+      {
+        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
+          return false;
+      }
+      else
+      {
+        uint64_t start = 0;
+        if (!parameters_.timing.epoch_start(epoch, start)
+            || start > std::numeric_limits<uint64_t>::max()
+                - parameters_.committee.round_offsets[round])
+          return false;
+        anchor_height = start + parameters_.committee.round_offsets[round];
+      }
+      return block_hash(anchor_height, hash);
+    }
+
+  private:
+    const Blockchain &chain_;
+    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
+  } contexts(*this, m_epose_v2_parameters);
+
+  return m_epose_v2->plan_reward(
+      height, parent_hash, scheduled_subsidy, fees, contexts, plan)
+      == qwertycoin::epose::coordinator_status_v2::accepted;
+}
+//------------------------------------------------------------------
+bool Blockchain::apply_epose_block(
+    const block &bl,
+    const std::vector<std::pair<transaction, blobdata>> &txs,
+    uint64_t height,
+    uint64_t scheduled_subsidy,
+    uint64_t fees,
+    epose_state_commitment_v2 &commitment)
+{
+  commitment = {};
   if (!is_epose_enabled_for_height(height))
     return true;
+  if (!m_epose_v2)
+    return m_nettype == FAKECHAIN;
 
-  if (!m_epose_state)
-    m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
-
-  std::vector<transaction> block_txs;
-  block_txs.reserve(txs.size() + 1);
-  block_txs.push_back(bl.miner_tx);
-  for (const auto &tx_entry : txs)
-    block_txs.push_back(tx_entry.first);
-
-  const uint64_t epoch = qwertycoin::epose::epoch_for_height(height);
-  const crypto::hash epoch_context_hash = get_epose_epoch_context_hash(epoch);
-  const qwertycoin::epose::chain_state::snapshot before = m_epose_state->make_snapshot();
-  qwertycoin::epose::transaction_apply_summary summary{};
-  if (!m_epose_state->apply_transactions(block_txs, epoch_context_hash, &summary, epoch))
+  class blockchain_context_source final
+      : public qwertycoin::epose::canonical_context_source_v2
   {
-    m_epose_state->restore_snapshot(before);
-    MERROR_VER("Block at height " << height << " failed EPoSE state validation");
+  public:
+    blockchain_context_source(
+        const Blockchain &chain,
+        const qwertycoin::epose::consensus_parameters_v2 &parameters)
+      : chain_(chain), parameters_(parameters) {}
+
+    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
+    {
+      hash = chain_.get_block_id_by_height(context_height);
+      return hash != crypto::null_hash;
+    }
+
+    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
+    {
+      if (round >= parameters_.committee.round_offsets.size())
+        return false;
+      uint64_t anchor_height = 0;
+      if (round == 0)
+      {
+        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
+          return false;
+      }
+      else
+      {
+        uint64_t start = 0;
+        if (!parameters_.timing.epoch_start(epoch, start)
+            || start > std::numeric_limits<uint64_t>::max()
+                - parameters_.committee.round_offsets[round])
+          return false;
+        anchor_height = start + parameters_.committee.round_offsets[round];
+      }
+      return block_hash(anchor_height, hash);
+    }
+
+  private:
+    const Blockchain &chain_;
+    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
+  } contexts(*this, m_epose_v2_parameters);
+
+  std::vector<const transaction *> transactions;
+  transactions.reserve(txs.size());
+  for (const auto &entry : txs)
+    transactions.push_back(&entry.first);
+  const qwertycoin::epose::coordinator_block_v2 candidate{
+      bl.major_version,
+      height,
+      get_block_hash(bl),
+      bl.prev_id,
+      scheduled_subsidy,
+      fees,
+      &bl.miner_tx,
+      transactions};
+  qwertycoin::epose::coordinator_result_v2 result{};
+  if (m_epose_v2->connect_block(candidate, contexts, result)
+      != qwertycoin::epose::coordinator_status_v2::accepted)
+  {
+    MERROR_VER("Block at height " << height
+        << " failed hardened EPoSE-v2 consensus validation");
     return false;
   }
-
-  if (summary.registrations_applied || summary.attestations_applied)
-  {
-    MINFO("Applied EPoSE block state at height " << height
-        << ": registrations=" << summary.registrations_applied
-        << ", attestations=" << summary.attestations_applied);
-  }
-  m_epose_block_snapshots.emplace_back(height, before);
-  constexpr size_t max_epose_snapshots =
-      qwertycoin::epose::EPOSE_EPOCH_LENGTH + qwertycoin::epose::EPOSE_FINALITY_DEPTH;
-  if (m_epose_block_snapshots.size() > max_epose_snapshots)
-    m_epose_block_snapshots.erase(m_epose_block_snapshots.begin(), m_epose_block_snapshots.begin() + (m_epose_block_snapshots.size() - max_epose_snapshots));
+  commitment.schema_version = result.state_commitment_schema;
+  commitment.block_hash = candidate.block_hash;
+  commitment.state_hash = result.state_hash;
+  commitment.parameter_set_hash = result.parameter_set_hash;
   return true;
 }
 //------------------------------------------------------------------
 void Blockchain::rollback_epose_block(uint64_t popped_height)
 {
-  if (!m_epose_state)
+  if (!m_epose_v2)
     return;
-
-  for (auto it = m_epose_block_snapshots.rbegin(); it != m_epose_block_snapshots.rend(); ++it)
+  const qwertycoin::epose::block_transition_status_v2 status =
+      m_epose_v2->disconnect_tip(popped_height);
+  if (status == qwertycoin::epose::block_transition_status_v2::deep_replay_required)
   {
-    if (it->first == popped_height)
-    {
-      m_epose_state->restore_snapshot(it->second);
-      m_epose_block_snapshots.erase(std::next(it).base(), m_epose_block_snapshots.end());
-      return;
-    }
+    if (!rebuild_epose_state())
+      MERROR("Failed to replay hardened EPoSE-v2 state after deep rollback at height " << popped_height);
   }
-
-  if (!rebuild_epose_state())
-    MERROR("Failed to rebuild EPoSE state after rollback at height " << popped_height);
+  else if (status != qwertycoin::epose::block_transition_status_v2::accepted)
+    MERROR("Failed to disconnect hardened EPoSE-v2 state at height " << popped_height);
 }
 //------------------------------------------------------------------
 bool Blockchain::rebuild_epose_state()
 {
   if (!m_db)
     return false;
+  if (!m_epose_v2)
+    return m_nettype == FAKECHAIN;
 
-  m_epose_state.reset(new qwertycoin::epose::chain_state(m_nettype));
-  m_epose_block_snapshots.clear();
+  class replay_context_source final
+      : public qwertycoin::epose::canonical_context_source_v2
+  {
+  public:
+    replay_context_source(
+        const Blockchain &chain,
+        const qwertycoin::epose::consensus_parameters_v2 &parameters)
+      : chain_(chain), parameters_(parameters) {}
+
+    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
+    {
+      hash = chain_.get_block_id_by_height(context_height);
+      return hash != crypto::null_hash;
+    }
+
+    bool round_anchor(
+        uint64_t epoch, uint64_t round, crypto::hash &hash) const override
+    {
+      if (round >= parameters_.committee.round_offsets.size())
+        return false;
+      uint64_t anchor_height = 0;
+      if (round == 0)
+      {
+        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
+          return false;
+      }
+      else
+      {
+        uint64_t start = 0;
+        if (!parameters_.timing.epoch_start(epoch, start)
+            || start > std::numeric_limits<uint64_t>::max()
+                - parameters_.committee.round_offsets[round])
+          return false;
+        anchor_height = start + parameters_.committee.round_offsets[round];
+      }
+      return block_hash(anchor_height, hash);
+    }
+
+  private:
+    const Blockchain &chain_;
+    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
+  } contexts(*this, m_epose_v2_parameters);
+
+  auto rebuilt = std::make_unique<qwertycoin::epose::consensus_coordinator_v2>(
+      m_epose_v2_parameters);
+  if (!rebuilt->valid())
+    return false;
 
   const uint64_t chain_height = m_db->height();
   for (uint64_t height = 0; height < chain_height; ++height)
   {
-    if (!is_epose_enabled_for_height(height))
-      continue;
-
-    block bl = m_db->get_block_from_height(height);
-    std::vector<transaction> block_txs;
-    block_txs.reserve(bl.tx_hashes.size() + 1);
-    block_txs.push_back(bl.miner_tx);
-
-    std::vector<transaction> tx_list = m_db->get_tx_list(bl.tx_hashes);
-    block_txs.insert(block_txs.end(), tx_list.begin(), tx_list.end());
-
-    const uint64_t epoch = qwertycoin::epose::epoch_for_height(height);
-    const crypto::hash epoch_context_hash = get_epose_epoch_context_hash(epoch);
-    if (!m_epose_state->apply_transactions(block_txs, epoch_context_hash, nullptr, epoch))
+    const block bl = m_db->get_block_from_height(height);
+    if (bl.major_version != HF_VERSION_QWC_EPOSE
+        || m_hardfork->get_ideal_version(height) != HF_VERSION_QWC_EPOSE)
     {
-      MERROR("Failed to rebuild EPoSE state from block at height " << height);
+      MERROR("Unexpected block version while replaying EPoSE-v2 at height " << height);
+      return false;
+    }
+
+    std::vector<transaction> txs = m_db->get_tx_list(bl.tx_hashes);
+    if (txs.size() != bl.tx_hashes.size())
+      return false;
+    uint64_t fees = 0;
+    for (const transaction &tx : txs)
+    {
+      const uint64_t fee = get_tx_fee(tx);
+      if (fees > std::numeric_limits<uint64_t>::max() - fee)
+        return false;
+      fees += fee;
+    }
+
+    const uint8_t version = bl.major_version;
+    const size_t short_count = static_cast<size_t>(
+        std::min<uint64_t>(height, CRYPTONOTE_REWARD_BLOCKS_WINDOW));
+    const uint64_t short_start = height - short_count;
+    std::vector<uint64_t> short_weights =
+        short_count == 0
+        ? std::vector<uint64_t>{}
+        : m_db->get_block_weights(short_start, short_count);
+    const uint64_t short_median = short_weights.empty()
+        ? 0 : epee::misc_utils::median(short_weights);
+    uint64_t median_weight = short_median;
+    if (version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
+    {
+      const size_t long_count = static_cast<size_t>(
+          std::min<uint64_t>(height, m_long_term_block_weights_window));
+      const uint64_t long_start = height - long_count;
+      std::vector<uint64_t> long_weights =
+          long_count == 0
+          ? std::vector<uint64_t>{}
+          : m_db->get_long_term_block_weights(long_start, long_count);
+      const uint64_t long_median = long_weights.empty()
+          ? 0 : epee::misc_utils::median(long_weights);
+      const uint64_t effective_long_median = std::max<uint64_t>(
+          CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_median);
+      if (effective_long_median
+          > std::numeric_limits<uint64_t>::max()
+              / CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR)
+        return false;
+      const uint64_t upper =
+          CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR
+          * effective_long_median;
+      median_weight = version >= HF_VERSION_2021_SCALING
+          ? std::min<uint64_t>(
+              std::max<uint64_t>(effective_long_median, short_median), upper)
+          : std::min<uint64_t>(
+              std::max<uint64_t>(
+                  CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
+                  short_median),
+              upper);
+    }
+    median_weight = std::max<uint64_t>(
+        median_weight, get_min_block_weight(version));
+
+    const uint64_t already_generated = height == 0
+        ? 0 : m_db->get_block_already_generated_coins(height - 1);
+    uint64_t scheduled_subsidy = 0;
+    if (!get_block_reward(
+            median_weight, m_db->get_block_weight(height),
+            already_generated, scheduled_subsidy, version))
+      return false;
+
+    std::vector<const transaction *> transaction_pointers;
+    transaction_pointers.reserve(txs.size());
+    for (const transaction &tx : txs)
+      transaction_pointers.push_back(&tx);
+    const qwertycoin::epose::coordinator_block_v2 candidate{
+        version,
+        height,
+        get_block_hash(bl),
+        bl.prev_id,
+        scheduled_subsidy,
+        fees,
+        &bl.miner_tx,
+        transaction_pointers};
+    qwertycoin::epose::coordinator_result_v2 result{};
+    if (rebuilt->connect_block(candidate, contexts, result)
+        != qwertycoin::epose::coordinator_status_v2::accepted)
+    {
+      MERROR("Failed to replay hardened EPoSE-v2 transition at height " << height);
+      return false;
+    }
+
+    epose_state_commitment_v2 committed{};
+    if (!m_db->get_epose_state_commitment_v2(height, committed)
+        || committed.schema_version != result.state_commitment_schema
+        || committed.block_hash != candidate.block_hash
+        || committed.state_hash != result.state_hash
+        || committed.parameter_set_hash != result.parameter_set_hash)
+    {
+      MERROR("EPoSE-v2 state commitment mismatch at height " << height);
       return false;
     }
   }
 
-  MINFO("Rebuilt EPoSE state from " << chain_height << " chain blocks");
+  m_epose_v2 = std::move(rebuilt);
+  MINFO("Replayed and verified hardened EPoSE-v2 state through "
+      << chain_height << " canonical blocks");
   return true;
 }
 //------------------------------------------------------------------
@@ -1627,11 +1927,9 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
       partial_block_reward = true;
     base_reward = money_in_use - fee;
   }
-  if (version == HF_VERSION_QWC_EPOSE && !validate_epose_service_reward(b, boost::get<txin_gen>(b.miner_tx.vin[0]).height, money_in_use))
-  {
-    MERROR_VER("coinbase transaction has invalid EPoSE service reward");
-    return false;
-  }
+  // QWC-HF17 reward/payee/proof validation is owned by
+  // consensus_coordinator_v2 after the generic inherited reward calculation.
+  // The legacy reward-view-secret path must never authorize an HF17 block.
   return true;
 }
 //------------------------------------------------------------------
@@ -1734,6 +2032,11 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   m_tx_pool.lock();
   const auto unlock_guard = epee::misc_utils::create_scope_leave_handler([&]() { m_tx_pool.unlock(); });
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (m_epose_v2 && from_block && *from_block != get_tail_id())
+  {
+    MERROR("EPoSE-v2 block templates for alternative parents require branch-specific state replay");
+    return false;
+  }
   if (m_btc_valid && !from_block) {
     // The pool cookie is atomic. The lack of locking is OK, as if it changes
     // just as we compare it, we'll just use a slightly old template, but
@@ -1930,14 +2233,41 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
   size_t max_outs = hf_version >= 4 ? 1 : 11;
-  account_public_address service_reward_address{};
-  crypto::secret_key service_reward_view_secret_key{};
-  uint64_t service_reward = 0;
   uint64_t template_base_reward = 0;
-  if (get_block_reward(median_weight, txs_weight, already_generated_coins, template_base_reward, hf_version))
-    get_epose_service_reward_for_block(height, template_base_reward + fee, service_reward_address, service_reward_view_secret_key, service_reward);
+  CHECK_AND_ASSERT_MES(
+      get_block_reward(
+          median_weight, txs_weight, already_generated_coins,
+          template_base_reward, hf_version),
+      false, "Failed to calculate first-pass block reward");
+  qwertycoin::epose::coordinator_reward_plan_v2 reward_plan{};
+  miner_service_payment_v2 service_payment{};
+  const miner_service_payment_v2 *service_payment_ptr = nullptr;
+  if (hf_version == HF_VERSION_QWC_EPOSE && m_epose_v2)
+  {
+    CHECK_AND_ASSERT_MES(
+        plan_epose_reward_v2(
+            height, b.prev_id, template_base_reward, fee, reward_plan),
+        false, "Failed to derive first-pass EPoSE-v2 reward plan");
+    service_payment.expectation = reward_plan.has_service_payee
+        ? &reward_plan.expectation : nullptr;
+    service_payment.permanently_unissued =
+        reward_plan.allocation.permanently_unissued;
+    service_payment.expected_coinbase_total =
+        reward_plan.allocation.coinbase_total;
+    service_payment.max_envelopes_per_transaction =
+        m_epose_v2_parameters.limits.max_envelopes_per_transaction;
+    service_payment.limits = &m_epose_v2_parameters.limits.envelope;
+    service_payment_ptr = &service_payment;
+  }
+  else
+    CHECK_AND_ASSERT_MES(
+        hf_version != HF_VERSION_QWC_EPOSE || m_nettype == FAKECHAIN,
+        false, "HF17 block template requires the EPoSE-v2 coordinator");
 
-  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, service_reward ? &service_reward_address : NULL, service_reward);
+  bool r = construct_miner_tx(
+      height, median_weight, already_generated_coins, txs_weight, fee,
+      miner_address, b.miner_tx, ex_nonce, max_outs, hf_version,
+      nullptr, 0, service_payment_ptr);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -1946,12 +2276,31 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
   for (size_t try_count = 0; try_count != 10; ++try_count)
   {
-    service_reward = 0;
     template_base_reward = 0;
-    if (get_block_reward(median_weight, cumulative_weight, already_generated_coins, template_base_reward, hf_version))
-      get_epose_service_reward_for_block(height, template_base_reward + fee, service_reward_address, service_reward_view_secret_key, service_reward);
+    CHECK_AND_ASSERT_MES(
+        get_block_reward(
+            median_weight, cumulative_weight, already_generated_coins,
+            template_base_reward, hf_version),
+        false, "Failed to calculate EPoSE-v2 template reward");
+    if (service_payment_ptr != nullptr)
+    {
+      reward_plan = {};
+      CHECK_AND_ASSERT_MES(
+          plan_epose_reward_v2(
+              height, b.prev_id, template_base_reward, fee, reward_plan),
+          false, "Failed to derive EPoSE-v2 template reward plan");
+      service_payment.expectation = reward_plan.has_service_payee
+          ? &reward_plan.expectation : nullptr;
+      service_payment.permanently_unissued =
+          reward_plan.allocation.permanently_unissued;
+      service_payment.expected_coinbase_total =
+          reward_plan.allocation.coinbase_total;
+    }
 
-    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, service_reward ? &service_reward_address : NULL, service_reward);
+    r = construct_miner_tx(
+        height, median_weight, already_generated_coins, cumulative_weight,
+        fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version,
+        nullptr, 0, service_payment_ptr);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);
@@ -1967,6 +2316,14 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 
     if (coinbase_weight < cumulative_weight - txs_weight)
     {
+      // A v2 payment proof commits to the complete proofless Coinbase extra.
+      // Legacy zero-byte padding after proof construction would invalidate
+      // that commitment, so converge by rebuilding at the actual weight.
+      if (service_payment_ptr != nullptr)
+      {
+        cumulative_weight = txs_weight + coinbase_weight;
+        continue;
+      }
       size_t delta = cumulative_weight - txs_weight - coinbase_weight;
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
       MDEBUG("Creating block template: miner tx weight " << coinbase_weight <<
@@ -4678,7 +5035,10 @@ leave:
     return false;
   }
 
-  if (!apply_epose_block(bl, txs, blockchain_height))
+  epose_state_commitment_v2 epose_commitment{};
+  if (!apply_epose_block(
+          bl, txs, blockchain_height, base_reward, fee_summary,
+          epose_commitment))
   {
     bvc.m_verifivation_failed = true;
     return_txs_to_pool();
@@ -4713,7 +5073,9 @@ leave:
     {
       uint64_t long_term_block_weight = get_next_long_term_block_weight(block_weight);
       cryptonote::blobdata bd = cryptonote::block_to_blob(bl);
-      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, txs);
+      const epose_state_commitment_v2 *commitment =
+          m_epose_v2 ? &epose_commitment : nullptr;
+      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, txs, commitment);
     }
     catch (const KEY_IMAGE_EXISTS& e)
     {
@@ -5069,6 +5431,7 @@ void Blockchain::block_longhash_worker(uint64_t height, const epee::span<const b
 bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
 {
   bool success = false;
+  bool batch_aborted = false;
 
   MTRACE("Blockchain::" << __func__);
   CRITICAL_REGION_BEGIN(m_blockchain_lock);
@@ -5086,12 +5449,25 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
       }
     }
     else
+    {
       m_db->batch_abort();
+      batch_aborted = true;
+    }
     success = true;
   }
   catch (const std::exception &e)
   {
     MERROR("Exception in cleanup_handle_incoming_blocks: " << e.what());
+  }
+
+  // A database batch can contain several blocks. If a later block fails,
+  // LMDB rolls the complete batch back while the in-memory coordinator has
+  // already advanced through each earlier block. Rebuild only after the
+  // abort completed so memory and the canonical database converge again.
+  if (success && batch_aborted && m_epose_v2 && !rebuild_epose_state())
+  {
+    MERROR("Failed to replay EPoSE-v2 state after database batch abort");
+    success = false;
   }
 
   if (success && m_sync_counter > 0)

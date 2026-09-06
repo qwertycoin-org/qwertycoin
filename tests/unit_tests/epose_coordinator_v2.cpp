@@ -257,6 +257,15 @@ namespace
 
 TEST(epose_coordinator_v2, incomplete_or_wrong_version_configuration_fails_closed)
 {
+  consensus_parameters_v2 compiled{};
+  for (const cryptonote::network_type nettype : {
+           cryptonote::MAINNET, cryptonote::TESTNET, cryptonote::STAGENET})
+  {
+    EXPECT_FALSE(compiled_consensus_parameters_v2(
+        nettype, hash_text("candidate-genesis"), compiled));
+    EXPECT_FALSE(compiled.valid());
+  }
+
   consensus_parameters_v2 invalid = parameters(empty_qualification_policy_v2::miner_fallback);
   invalid.committee.committee_size = 0;
   consensus_coordinator_v2 disabled(invalid);
@@ -463,4 +472,7 @@ TEST(epose_coordinator_v2, settled_qualification_controls_actual_coinbase_paymen
   EXPECT_EQ(selected, result.payment.payee_service_public_key);
   EXPECT_EQ(1u, result.payment.outputs.size());
   EXPECT_EQ(100u, result.payment.outputs.front().amount);
+  EXPECT_EQ(1u, result.transition.charged.signature_verifications);
+  EXPECT_EQ(1u, result.transition.semantic.verifications.signatures);
+  EXPECT_EQ(0u, result.transition.semantic.verifications.randomx);
 }

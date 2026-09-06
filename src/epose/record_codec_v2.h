@@ -89,7 +89,8 @@ namespace epose
   record_codec_status_v2 decode_payment_proof_record_v2(
       const envelope_record_v2 &record,
       const service_payment_context_v2 &context,
-      scoped_payment_proof_v2 &proof);
+      scoped_payment_proof_v2 &proof,
+      verification_counters_v2 *counters = nullptr);
 
   // Parses the fixed-size proof payload without treating it as authorized.
   // Consensus callers use this only to derive the canonical Coinbase context,

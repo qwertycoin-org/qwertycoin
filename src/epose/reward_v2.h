@@ -16,6 +16,9 @@ namespace qwertycoin
 namespace epose
 {
   struct envelope_limits_v2;
+  struct envelope_record_v2;
+  struct service_payment_expectation_v2;
+  struct verification_counters_v2;
   constexpr uint64_t EPOSE_SERVICE_REWARD_BPS_V2 = 1000;
 
   enum class empty_qualification_policy_v2 : uint8_t
@@ -105,6 +108,26 @@ namespace epose
     crypto::signature proof{};
   };
 
+  class validated_service_payment_v2
+  {
+  public:
+    validated_service_payment_v2() = default;
+    validated_service_payment_v2(const validated_service_payment_v2 &) = default;
+    validated_service_payment_v2 &operator=(const validated_service_payment_v2 &) = default;
+
+    const service_payment_context_v2 &context() const;
+    bool matches(const envelope_record_v2 &record) const;
+
+  private:
+    service_payment_context_v2 context_{};
+    crypto::hash record_hash_{};
+
+    friend reward_status_v2 validate_coinbase_service_payment_v2(
+        const cryptonote::transaction &, uint8_t, size_t,
+        const envelope_limits_v2 &, const service_payment_expectation_v2 &,
+        validated_service_payment_v2 &, verification_counters_v2 *);
+  };
+
   struct service_payment_expectation_v2
   {
     cryptonote::network_type nettype = cryptonote::UNDEFINED;
@@ -130,7 +153,8 @@ namespace epose
 
   reward_status_v2 verify_scoped_payment_proof_v2(
       const service_payment_context_v2 &context,
-      const scoped_payment_proof_v2 &proof);
+      const scoped_payment_proof_v2 &proof,
+      verification_counters_v2 *counters = nullptr);
 
   // Hashes canonical Coinbase bytes after removing only v2 payment-proof
   // records. The caller checks removed_proofs against whether a payout is due.
@@ -153,7 +177,20 @@ namespace epose
       size_t max_envelopes_per_transaction,
       const envelope_limits_v2 &limits,
       const service_payment_expectation_v2 &expected,
-      service_payment_context_v2 &context);
+      service_payment_context_v2 &context,
+      verification_counters_v2 *counters = nullptr);
+
+  // Produces a capability bound to the complete authenticated proof record and
+  // actual Coinbase. Only this function can create one; semantic application
+  // consumes it without repeating the transaction-proof verification.
+  reward_status_v2 validate_coinbase_service_payment_v2(
+      const cryptonote::transaction &coinbase,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      const service_payment_expectation_v2 &expected,
+      validated_service_payment_v2 &validated,
+      verification_counters_v2 *counters = nullptr);
 
   // Appends the one scoped proof required for a prescribed service payout.
   // The Coinbase is changed only after the complete proof-bearing candidate

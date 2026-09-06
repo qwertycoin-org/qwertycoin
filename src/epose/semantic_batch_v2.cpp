@@ -177,19 +177,35 @@ namespace epose
         }
         case record_type_v2::service_payment_proof:
         {
-          if (!transaction.coinbase || transaction.payment == nullptr)
+          if (!transaction.coinbase
+              || (transaction.payment == nullptr
+                  && transaction.validated_payment == nullptr)
+              || (transaction.payment != nullptr
+                  && transaction.validated_payment != nullptr))
             return reject(semantic_status_v2::payment_proof_wrong_carrier);
           if (next_summary.payment_proof_records != 0)
             return reject(semantic_status_v2::duplicate_payment_proof);
-          const service_payment_context_v2 &payment = *transaction.payment;
+          const service_payment_context_v2 &payment =
+              transaction.validated_payment != nullptr
+              ? transaction.validated_payment->context()
+              : *transaction.payment;
           if (payment.nettype != nettype_ || payment.genesis_hash != genesis_hash_
               || payment.parameter_set_hash != parameter_set_hash_
               || payment.height != transaction.inclusion_height)
             return reject(semantic_status_v2::invalid_payment_proof);
-          scoped_payment_proof_v2 proof{};
-          if (decode_payment_proof_record_v2(record, payment, proof)
-              != record_codec_status_v2::accepted)
-            return reject(semantic_status_v2::invalid_payment_proof);
+          if (transaction.validated_payment != nullptr)
+          {
+            if (!transaction.validated_payment->matches(record))
+              return reject(semantic_status_v2::invalid_payment_proof);
+          }
+          else
+          {
+            scoped_payment_proof_v2 proof{};
+            if (decode_payment_proof_record_v2(
+                    record, payment, proof, &next_summary.verifications)
+                != record_codec_status_v2::accepted)
+              return reject(semantic_status_v2::invalid_payment_proof);
+          }
           ++next_summary.payment_proof_records;
           break;
         }

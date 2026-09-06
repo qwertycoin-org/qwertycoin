@@ -449,6 +449,13 @@ namespace cryptonote
       return true;
     }
 
+    // The inherited HF17-v1 options disclose a reward view secret and create
+    // legacy registration objects. They are intentionally not an input to the
+    // genesis-native v2 protocol. Keep the switches recognizable so operators
+    // receive a deterministic error, but never load keys or construct v1 state.
+    MERROR("The legacy --service-node interface is retired for QWC-HF17/EPoSE-v2; use the future v2 lifecycle/admission producer once its launch gate is complete");
+    return false;
+
     const std::string reward_address = command_line::get_arg(vm, arg_service_reward_address);
     CHECK_AND_ASSERT_MES(!reward_address.empty(), false, "--" << arg_service_reward_address.name << " is required with --" << arg_service_node.name);
 
@@ -504,6 +511,10 @@ namespace cryptonote
     const uint64_t registration_height = m_blockchain_storage.get_current_blockchain_height();
     if (!m_blockchain_storage.is_epose_enabled_at_height(registration_height))
       return true;
+
+    // HF17 is exclusively EPoSE-v2. The old extra-nonce carrier is never
+    // appended to a miner template; v2 records use the typed 0x05 envelope.
+    return true;
 
     const uint64_t registration_epoch = qwertycoin::epose::epoch_for_height(registration_height);
     const std::vector<qwertycoin::epose::service_node_identity> service_nodes = m_blockchain_storage.get_epose_service_nodes();
@@ -597,6 +608,11 @@ namespace cryptonote
     if (!m_blockchain_storage.is_epose_enabled_at_height(height))
       return true;
 
+    // This P2P command carries only legacy fixed-size registrations and
+    // attestations. HF17/v2 peers must not treat either collection as a v2
+    // lifecycle, admission, or receipt record.
+    return registration_blobs.empty() && attestation_blobs.empty();
+
     const uint64_t current_epoch = qwertycoin::epose::epoch_for_height(height);
     const crypto::hash epoch_context_hash = m_blockchain_storage.get_epose_epoch_context_hash(current_epoch);
     const std::vector<qwertycoin::epose::service_node_identity> service_nodes = m_blockchain_storage.get_epose_service_nodes();
@@ -664,6 +680,11 @@ namespace cryptonote
     const uint64_t height = m_blockchain_storage.get_current_blockchain_height();
     if (!m_blockchain_storage.is_epose_enabled_at_height(height))
       return true;
+
+    static std::atomic_flag warned_v2_producer = ATOMIC_FLAG_INIT;
+    if (!warned_v2_producer.test_and_set())
+      MWARNING("Legacy EPoSE relay production is disabled under HF17/v2; no v1 registration or attestation will be broadcast");
+    return true;
 
     const uint64_t current_epoch = qwertycoin::epose::epoch_for_height(height);
     m_epose_attestation_pool.prune(current_epoch);

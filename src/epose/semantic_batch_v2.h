@@ -28,6 +28,7 @@ namespace epose
     uint64_t inclusion_height = 0;
     bool coinbase = false;
     const service_payment_context_v2 *payment = nullptr;
+    const validated_service_payment_v2 *validated_payment = nullptr;
   };
 
   struct semantic_apply_summary_v2

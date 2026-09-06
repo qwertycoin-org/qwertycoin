@@ -512,8 +512,10 @@ TEST(epose_v2, later_rounds_have_distinct_windows_and_fresh_canonical_anchors)
       pipeline.apply_authenticated_receipt(receipt, receipt_context(), 2359, round_anchor));
   EXPECT_EQ(pipeline_status_v2::receipt_not_prevalidated,
       pipeline.apply_authenticated_receipt(receipt, receipt_context(), 2360, hash_text("wrong-anchor")));
-  EXPECT_EQ(pipeline_status_v2::accepted,
+  EXPECT_EQ(pipeline_status_v2::invalid_epoch,
       pipeline.apply_authenticated_receipt(receipt, receipt_context(), 2360, round_anchor));
+  EXPECT_EQ(pipeline_status_v2::accepted,
+      pipeline.apply_authenticated_receipt(receipt, receipt_context(), 2361, round_anchor));
   EXPECT_EQ(pipeline_status_v2::too_late,
       pipeline.apply_authenticated_receipt(
           make_receipt(3, 1, members[0], verifier, *pipeline.snapshot(3), 2, 1, round_anchor),

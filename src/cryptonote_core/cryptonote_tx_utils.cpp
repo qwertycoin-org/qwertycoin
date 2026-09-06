@@ -30,6 +30,7 @@
 
 #include <unordered_set>
 #include <random>
+#include <limits>
 #include "include_base_utils.h"
 #include "misc_log_ex.h"
 #include "string_tools.h"
@@ -44,6 +45,7 @@ using namespace epee;
 #include "cryptonote_basic/tx_extra.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
+#include "epose/reward_v2.h"
 #include "ringct/rctSigs.h"
 
 using namespace crypto;
@@ -161,10 +163,13 @@ namespace cryptonote
     }
   }
 
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, const account_public_address *service_reward_address, uint64_t service_reward) {
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, const account_public_address *service_reward_address, uint64_t service_reward, const miner_service_payment_v2 *service_payment_v2) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
+    if (service_payment_v2 != nullptr
+        && service_payment_v2->generated_context != nullptr)
+      *service_payment_v2->generated_context = {};
 
     keypair txkey = keypair::generate(hw::get_device("default"));
     add_tx_pub_key_to_extra(tx, txkey.pub);
@@ -188,7 +193,31 @@ namespace cryptonote
     LOG_PRINT_L1("Creating block template: reward " << block_reward <<
       ", fee " << fee);
 #endif
+    CHECK_AND_ASSERT_MES(
+        block_reward <= std::numeric_limits<uint64_t>::max() - fee,
+        false, "Fee overflows the permitted block reward");
     block_reward += fee;
+    if (service_payment_v2 != nullptr)
+    {
+      CHECK_AND_ASSERT_MES(
+          hard_fork_version == HF_VERSION_QWC_EPOSE
+              && service_reward_address == nullptr
+              && service_reward == 0
+              && service_payment_v2->limits != nullptr
+              && service_payment_v2->permanently_unissued <= block_reward,
+          false, "invalid EPoSE-v2 miner payment context");
+      block_reward -= service_payment_v2->permanently_unissued;
+      if (service_payment_v2->expectation != nullptr)
+      {
+        CHECK_AND_ASSERT_MES(
+            service_payment_v2->expectation->height == height
+                && service_payment_v2->expectation->service_reward != 0,
+            false, "invalid EPoSE-v2 service payment expectation");
+        service_reward_address =
+            &service_payment_v2->expectation->reward_address;
+        service_reward = service_payment_v2->expectation->service_reward;
+      }
+    }
     if (service_reward_address && service_reward)
     {
       CHECK_AND_ASSERT_MES(service_reward <= block_reward, false, "EPoSE service reward exceeds block reward");
@@ -230,6 +259,9 @@ namespace cryptonote
     for (size_t no = 0; no < out_amounts.size(); no++)
     {
       uint64_t amount = out_amounts[no];
+      CHECK_AND_ASSERT_MES(
+          summary_amounts <= std::numeric_limits<uint64_t>::max() - amount,
+          false, "Miner output sum overflow");
       summary_amounts += amount;
 
       bool r = add_miner_output(tx, amount, miner_address, txkey.sec, no, hard_fork_version);
@@ -241,8 +273,16 @@ namespace cryptonote
     if (service_reward_address && service_reward)
     {
       CHECK_AND_ASSERT_MES(add_service_reward_outputs(tx, service_reward, *service_reward_address, txkey.sec, hard_fork_version), false, "failed to add EPoSE service reward output");
+      CHECK_AND_ASSERT_MES(
+          summary_amounts <= std::numeric_limits<uint64_t>::max() - service_reward,
+          false, "Service output sum overflow");
       summary_amounts += service_reward;
     }
+
+    if (service_payment_v2 != nullptr)
+      CHECK_AND_ASSERT_MES(
+          summary_amounts == service_payment_v2->expected_coinbase_total,
+          false, "EPoSE-v2 constructed Coinbase total disagrees with reward plan");
 
     if (hard_fork_version >= 4)
       tx.version = 2;
@@ -254,6 +294,22 @@ namespace cryptonote
     tx.vin.push_back(in);
 
     tx.invalidate_hashes();
+
+    if (service_payment_v2 != nullptr
+        && service_payment_v2->expectation != nullptr)
+    {
+      qwertycoin::epose::service_payment_context_v2 generated{};
+      CHECK_AND_ASSERT_MES(
+          qwertycoin::epose::append_coinbase_service_payment_proof_v2(
+              tx, txkey.sec, hard_fork_version,
+              service_payment_v2->max_envelopes_per_transaction,
+              *service_payment_v2->limits,
+              *service_payment_v2->expectation,
+              generated) == qwertycoin::epose::reward_status_v2::accepted,
+          false, "failed to construct EPoSE-v2 service payment proof");
+      if (service_payment_v2->generated_context != nullptr)
+        *service_payment_v2->generated_context = std::move(generated);
+    }
 
     //LOG_PRINT("MINER_TX generated ok, block_reward=" << print_money(block_reward) << "("  << print_money(block_reward - fee) << "+" << print_money(fee)
     //  << "), current_block_size=" << current_block_size << ", already_generated_coins=" << already_generated_coins << ", tx_id=" << get_transaction_hash(tx), LOG_LEVEL_2);

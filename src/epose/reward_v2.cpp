@@ -6,6 +6,7 @@
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "epose/envelope_v2.h"
 #include "epose/record_codec_v2.h"
+#include "epose/verification_v2.h"
 
 #include <algorithm>
 #include <cstring>
@@ -107,6 +108,17 @@ namespace
     return crypto::cn_fast_hash(blob.data(), blob.size());
   }
 
+  crypto::hash payment_record_hash(
+      const qwertycoin::epose::envelope_record_v2 &record)
+  {
+    std::string blob("QWC_EPOSE_VALIDATED_PAYMENT_RECORD_V2");
+    append_u8(blob, record.type);
+    append_u8(blob, record.version);
+    append_u64_le(blob, record.payload.size());
+    blob.append(record.payload);
+    return fast_hash(blob);
+  }
+
   crypto::public_key derivation_as_public_key(const crypto::key_derivation &derivation)
   {
     static_assert(sizeof(crypto::public_key) == sizeof(crypto::key_derivation), "key sizes differ");
@@ -139,6 +151,18 @@ namespace qwertycoin
 {
 namespace epose
 {
+  const service_payment_context_v2 &validated_service_payment_v2::context() const
+  {
+    return context_;
+  }
+
+  bool validated_service_payment_v2::matches(
+      const envelope_record_v2 &record) const
+  {
+    return record_hash_ != crypto::null_hash
+        && payment_record_hash(record) == record_hash_;
+  }
+
   reward_status_v2 calculate_reward_allocation_v2(
       uint64_t scheduled_subsidy,
       uint64_t transaction_fees,
@@ -315,7 +339,8 @@ namespace epose
 
   reward_status_v2 verify_scoped_payment_proof_v2(
       const service_payment_context_v2 &context,
-      const scoped_payment_proof_v2 &proof)
+      const scoped_payment_proof_v2 &proof,
+      verification_counters_v2 *counters)
   {
     if (!context_shape_valid(context))
       return reward_status_v2::invalid_context;
@@ -325,6 +350,8 @@ namespace epose
     crypto::public_key cleared_view_key{};
     if (!cofactor_cleared_view_key(context.reward_address.m_view_public_key, cleared_view_key))
       return reward_status_v2::invalid_derivation;
+    if (counters != nullptr)
+      ++counters->signatures;
     if (!crypto::check_tx_proof(
             transcript,
             context.transaction_public_key,
@@ -386,7 +413,8 @@ namespace epose
       size_t max_envelopes_per_transaction,
       const envelope_limits_v2 &limits,
       const service_payment_expectation_v2 &expected,
-      service_payment_context_v2 &context)
+      service_payment_context_v2 &context,
+      verification_counters_v2 *counters)
   {
     context = {};
     if (!cryptonote::is_coinbase(coinbase)
@@ -469,9 +497,46 @@ namespace epose
       }
     }
 
-    if (verify_scoped_payment_proof_v2(next, proof) != reward_status_v2::accepted)
+    if (verify_scoped_payment_proof_v2(next, proof, counters)
+        != reward_status_v2::accepted)
       return reward_status_v2::invalid_payment_proof;
     context = std::move(next);
+    return reward_status_v2::accepted;
+  }
+
+  reward_status_v2 validate_coinbase_service_payment_v2(
+      const cryptonote::transaction &coinbase,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      const service_payment_expectation_v2 &expected,
+      validated_service_payment_v2 &validated,
+      verification_counters_v2 *counters)
+  {
+    validated.context_ = {};
+    validated.record_hash_ = {};
+    service_payment_context_v2 context{};
+    const reward_status_v2 status = verify_coinbase_service_payment_v2(
+        coinbase, major_version, max_envelopes_per_transaction,
+        limits, expected, context, counters);
+    if (status != reward_status_v2::accepted)
+      return status;
+
+    std::vector<envelope_record_v2> records;
+    envelope_budget_v2 budget{};
+    if (parse_transaction_extra_v2(
+            coinbase.extra, major_version, max_envelopes_per_transaction,
+            limits, records, budget) != envelope_status_v2::accepted)
+      return reward_status_v2::invalid_payment_proof;
+    const auto proof = std::find_if(
+        records.begin(), records.end(), [](const envelope_record_v2 &record) {
+          return record.type
+              == static_cast<uint8_t>(record_type_v2::service_payment_proof);
+        });
+    if (proof == records.end())
+      return reward_status_v2::invalid_payment_proof;
+    validated.context_ = std::move(context);
+    validated.record_hash_ = payment_record_hash(*proof);
     return reward_status_v2::accepted;
   }
 

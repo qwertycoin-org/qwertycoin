@@ -141,7 +141,8 @@ namespace epose
     {
       semantic_apply_summary_v2 transaction_summary{};
       const semantic_transaction_context_v2 transaction_context{
-          height, transactions[index].coinbase, transactions[index].payment};
+          height, transactions[index].coinbase, transactions[index].payment,
+          transactions[index].validated_payment};
       if (next.apply_transaction(
               parsed[index].records, transaction_context, contexts,
               transaction_summary) != semantic_status_v2::accepted)

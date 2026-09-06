@@ -10,9 +10,11 @@
 #include <vector>
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
 #include "epose/envelope_v2.h"
 #include "epose/reward_v2.h"
 #include "epose/record_codec_v2.h"
+#include "epose/verification_v2.h"
 
 namespace
 {
@@ -487,6 +489,19 @@ TEST(epose_reward_v2, coinbase_payment_proof_is_derived_from_actual_outputs)
   EXPECT_EQ(signing_context.coinbase_commitment, actual.coinbase_commitment);
   EXPECT_EQ(signing_context.outputs.size(), actual.outputs.size());
 
+  verification_counters_v2 validation_calls{};
+  validated_service_payment_v2 validated{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      validate_coinbase_service_payment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), expected, validated, &validation_calls));
+  EXPECT_EQ(0u, validation_calls.randomx);
+  EXPECT_EQ(1u, validation_calls.signatures);
+  EXPECT_TRUE(validated.matches(proof_record));
+  envelope_record_v2 changed_record = proof_record;
+  changed_record.payload.back() ^= 0x01;
+  EXPECT_FALSE(validated.matches(changed_record));
+
   cryptonote::transaction produced = proofless_coinbase;
   service_payment_context_v2 produced_context{};
   ASSERT_EQ(reward_status_v2::accepted,
@@ -529,4 +544,66 @@ TEST(epose_reward_v2, coinbase_payment_proof_is_derived_from_actual_outputs)
           duplicate_proof, HF_VERSION_QWC_EPOSE, 2,
           envelope_limits(), expected, actual));
   EXPECT_TRUE(actual.outputs.empty());
+}
+
+TEST(epose_reward_v2, production_miner_constructor_emits_verifiable_v2_payment)
+{
+  uint64_t scheduled_subsidy = 0;
+  ASSERT_TRUE(cryptonote::get_block_reward(
+      CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0,
+      scheduled_subsidy, HF_VERSION_QWC_EPOSE));
+  const uint64_t fees = 25;
+  const uint64_t service_reward = scheduled_subsidy / 10;
+  ASSERT_GT(service_reward, 0u);
+
+  service_payment_expectation_v2 expected{};
+  expected.nettype = cryptonote::TESTNET;
+  expected.genesis_hash = hash_text("miner-constructor-genesis");
+  expected.parameter_set_hash = hash_text("miner-constructor-parameters");
+  expected.height = 1440;
+  expected.parent_hash = hash_text("miner-constructor-parent");
+  expected.payout_epoch = 2;
+  expected.qualification_hash = hash_text("miner-constructor-qualification");
+  expected.payee_service_public_key = make_public_key();
+  expected.reward_address = make_address();
+  expected.service_reward = service_reward;
+
+  const cryptonote::account_public_address miner_address = make_address();
+  const envelope_limits_v2 limits = envelope_limits();
+  service_payment_context_v2 generated{};
+  const cryptonote::miner_service_payment_v2 payment{
+      &expected,
+      0,
+      scheduled_subsidy + fees,
+      2,
+      &limits,
+      &generated};
+  cryptonote::transaction coinbase{};
+  ASSERT_TRUE(cryptonote::construct_miner_tx(
+      expected.height,
+      CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
+      0,
+      1,
+      fees,
+      miner_address,
+      coinbase,
+      {},
+      1,
+      HF_VERSION_QWC_EPOSE,
+      nullptr,
+      0,
+      &payment));
+
+  service_payment_context_v2 verified{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      verify_coinbase_service_payment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2, limits,
+          expected, verified));
+  EXPECT_EQ(generated.coinbase_commitment, verified.coinbase_commitment);
+  EXPECT_EQ(service_reward, verified.service_reward);
+  ASSERT_FALSE(verified.outputs.empty());
+  uint64_t paid = 0;
+  for (const service_payment_output_v2 &output : verified.outputs)
+    paid += output.amount;
+  EXPECT_EQ(service_reward, paid);
 }

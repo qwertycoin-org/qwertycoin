@@ -265,7 +265,8 @@ namespace epose
   record_codec_status_v2 decode_payment_proof_record_v2(
       const envelope_record_v2 &record,
       const service_payment_context_v2 &context,
-      scoped_payment_proof_v2 &proof)
+      scoped_payment_proof_v2 &proof,
+      verification_counters_v2 *counters)
   {
     scoped_payment_proof_v2 next{};
     const record_codec_status_v2 structure =
@@ -275,7 +276,8 @@ namespace epose
       proof = {};
       return structure;
     }
-    if (verify_scoped_payment_proof_v2(context, next) != reward_status_v2::accepted)
+    if (verify_scoped_payment_proof_v2(context, next, counters)
+        != reward_status_v2::accepted)
     {
       proof = {};
       return record_codec_status_v2::invalid_record;
