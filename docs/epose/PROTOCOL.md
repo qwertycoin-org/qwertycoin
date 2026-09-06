@@ -512,6 +512,33 @@ context, or outer-type/action combination invalidates the semantic batch; no
 decoded prefix may be applied. Which record versions are enabled comes only
 from the active manifest, not from a peer or transaction.
 
+`semantic_state_v2` is the shared transaction-batch adapter for miner and
+ordinary transaction carriers. It consumes records in their serialized order
+against temporary lifecycle and membership state and publishes neither state
+nor summary unless the complete batch succeeds. Lifecycle inclusion epoch and
+the earliest permitted effective epoch are derived from the containing block
+height and the canonical enrollment cutoff; callers cannot relax them.
+Admissions resolve their claimed context height through a canonical-chain
+source, recompute RandomX, and must exactly match the authorized descriptor for
+the target service epoch, including service/operator keys, sequence,
+descriptor, reward and endpoint bindings. Receipts resolve their round anchor
+through the same canonical source before membership mutation. Scoped payment
+proofs are rejected outside the miner transaction, and duplicate proof records
+are invalid. Required-payment and exact-Coinbase enforcement remains the
+reward-validation adapter's responsibility.
+
+The frozen reward binding is:
+
+```text
+H("QWC_EPOSE_REWARD_BINDING_V2" ||
+  bytes16 network_id || bytes32 genesis_hash ||
+  bytes32 parameter_set_hash || bytes32 reward_view_public_key ||
+  bytes32 reward_spend_public_key)
+```
+
+This transcript uses exactly the displayed order and fixed widths, with no
+terminator or additional common prefix.
+
 ### CO-02 frozen membership implementation
 
 `src/epose/membership_v2.*` implements the deterministic, non-activating v2
@@ -831,21 +858,22 @@ record type, service identity, and sequence or receipt slot as applicable.
 
 ### Domain separation and context
 
-Every v2 hash or signature transcript begins with an ASCII domain string ending
-in `_V2`, followed by the fixed context below:
-
-```text
-bytes16 network_id
-bytes32 genesis_hash
-uint8   epose_protocol_version = 2
-bytes32 parameter_set_hash
-uint64  epoch
-```
+Every v2 hash or signature transcript begins with its displayed ASCII domain
+string ending in `_V2`. There is deliberately no universal binary prefix:
+identity, descriptor and reward-binding objects have no epoch, while snapshot,
+receipt, qualification and payout objects do. Each transcript's component
+section defines the exact following fields and order. Implementations MUST NOT
+silently insert an epoch, protocol byte or other field that its transcript does
+not display.
 
 Reserved domains are:
 
 ```text
+QWC_EPOSE_IDENTITY_V2
 QWC_EPOSE_DESCRIPTOR_V2
+QWC_EPOSE_REWARD_BINDING_V2
+QWC_EPOSE_LIFECYCLE_V2
+QWC_EPOSE_LIFECYCLE_STATE_V2
 QWC_EPOSE_ADMISSION_WORK_V2
 QWC_EPOSE_ADMISSION_LEASE_V2
 QWC_EPOSE_SNAPSHOT_V2
@@ -855,9 +883,16 @@ QWC_EPOSE_SUBJECT_RESPONSE_V2
 QWC_EPOSE_RECEIPT_V2
 QWC_EPOSE_QUALIFICATION_V2
 QWC_EPOSE_PAYOUT_V2
-QWC_EPOSE_STATE_V2
+QWC_EPOSE_PIPELINE_STATE_V2
+QWC_EPOSE_SEMANTIC_STATE_V2
 QWC_EPOSE_PAYMENT_PROOF_V2
+QWC_EPOSE_ENDPOINT_V2
+QWC_EPOSE_INDEX_ROOT_V2
 ```
+
+`QWC_EPOSE_SEMANTIC_STATE_V2` hashes the lifecycle-state hash followed by the
+membership-pipeline-state hash. `QWC_EPOSE_INDEX_ROOT_V2` is a local journal
+digest and is not a consensus-state commitment.
 
 Strings are encoded as their exact ASCII bytes without a NUL terminator.
 Variable-length fields are prefixed by an unsigned 32-bit little-endian length.

@@ -135,6 +135,26 @@ namespace epose
     return fast_hash(blob);
   }
 
+  crypto::hash hash_reward_binding_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const cryptonote::account_public_address &reward_address)
+  {
+    if (nettype == cryptonote::UNDEFINED || genesis_hash == crypto::null_hash
+        || parameter_set_hash == crypto::null_hash
+        || !valid_key(reward_address.m_view_public_key)
+        || !valid_key(reward_address.m_spend_public_key))
+      return crypto::null_hash;
+    std::string blob("QWC_EPOSE_REWARD_BINDING_V2");
+    append_network(blob, nettype);
+    append_bytes(blob, genesis_hash);
+    append_bytes(blob, parameter_set_hash);
+    append_bytes(blob, reward_address.m_view_public_key);
+    append_bytes(blob, reward_address.m_spend_public_key);
+    return fast_hash(blob);
+  }
+
   crypto::hash hash_lifecycle_record_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,

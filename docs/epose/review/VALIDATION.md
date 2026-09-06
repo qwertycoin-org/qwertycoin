@@ -559,3 +559,33 @@ Results reproduced on 2026-09-06:
 
 This is local relay/template policy. It does not change complete-block validity
 and is not yet evidence for producer integration or measured inclusion latency.
+
+## Atomic semantic transaction batch
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_semantic_batch_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- semantic-batch subset: **7/7 passed**;
+- complete focused EPoSE C++ suite: **174/174 passed**;
+- broad `unit_tests` and `daemon` targets rebuilt and linked;
+- lifecycle followed by its bound admission applies in serialized order;
+- admission before lifecycle fails without retaining either operation;
+- an invalid suffix rolls back a valid lifecycle prefix and clears the summary;
+- a separately valid RandomX lease with a redirected reward binding fails
+  against the authorized historical descriptor;
+- canonical round anchors are re-resolved before receipt state mutation;
+- post-cutoff lifecycle timing is derived from inclusion height, and scoped
+  payment proof records are rejected outside Coinbase;
+- Coinbase accepts one context-bound scoped proof, while duplicate proof
+  records fail atomically.
+
+The adapter is not yet an activated block handler. Exact required-payment
+enforcement, block-level LMDB atomicity, disconnect/replay and sustained carrier
+fuzzing remain open gates.

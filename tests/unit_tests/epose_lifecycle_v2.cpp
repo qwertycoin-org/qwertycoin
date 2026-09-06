@@ -94,6 +94,21 @@ TEST(epose_lifecycle_v2, registration_is_future_effective_and_idempotent)
   EXPECT_EQ(nullptr, registry.descriptor_for_epoch(record.next_descriptor.identity_id, 11));
 }
 
+TEST(epose_lifecycle_v2, reward_binding_is_context_and_address_bound)
+{
+  fixture f;
+  const crypto::hash binding = hash_reward_binding_v2(
+      f.nettype, f.genesis, f.parameters, descriptor(f, 0, 2, 10).reward_address);
+  EXPECT_NE(crypto::null_hash, binding);
+  EXPECT_NE(binding, hash_reward_binding_v2(
+      cryptonote::MAINNET, f.genesis, f.parameters, descriptor(f, 0, 2, 10).reward_address));
+  auto changed = descriptor(f, 0, 2, 10).reward_address;
+  changed.m_spend_public_key = make_keys().public_key;
+  EXPECT_NE(binding, hash_reward_binding_v2(f.nettype, f.genesis, f.parameters, changed));
+  EXPECT_EQ(crypto::null_hash, hash_reward_binding_v2(
+      cryptonote::UNDEFINED, f.genesis, f.parameters, changed));
+}
+
 TEST(epose_lifecycle_v2, post_cutoff_and_retroactive_changes_fail_closed)
 {
   fixture f;

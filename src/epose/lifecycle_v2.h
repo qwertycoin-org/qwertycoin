@@ -78,6 +78,12 @@ namespace epose
       const crypto::hash &parameter_set_hash,
       const identity_descriptor_v2 &descriptor);
 
+  crypto::hash hash_reward_binding_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const cryptonote::account_public_address &reward_address);
+
   crypto::hash hash_lifecycle_record_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
