@@ -2,8 +2,8 @@
   "envelope_cases": [
     {
       "expected": {
-        "record_count": 0,
-        "valid": true
+        "error": "empty envelope",
+        "valid": false
       },
       "hex": "050c514550320100000000000000",
       "name": "empty-envelope"
@@ -76,6 +76,20 @@
       "height": 1440,
       "major_version": 18,
       "name": "hardened-version-at-activation",
+      "operation": "block_version_allowed"
+    },
+    {
+      "expected": false,
+      "height": 1439,
+      "major_version": 16,
+      "name": "unscheduled-old-version-before-activation",
+      "operation": "block_version_allowed"
+    },
+    {
+      "expected": false,
+      "height": 1440,
+      "major_version": 19,
+      "name": "unscheduled-future-version-at-activation",
       "operation": "block_version_allowed"
     },
     {

@@ -31,7 +31,9 @@ the computed state.
 ```bash
 python3 tests/epose/release_gate_v2.py \
   --manifest docs/epose/PARAMETER_MANIFEST_V2.json \
-  --gates docs/epose/review/RELEASE_GATES_V2.json
+  --policy docs/epose/review/RELEASE_GATE_POLICY_V2.json \
+  --gates docs/epose/review/RELEASE_GATES_V2.json \
+  --evidence-root .
 ```
 
 The command exits nonzero while activation is blocked. Review and test jobs that
@@ -40,14 +42,15 @@ ignore the default failure.
 
 ## Current result
 
-- 2 of 13 top-level release gates are satisfied.
+- 0 of 13 top-level release gates are satisfied by candidate-bound evidence.
 - 24 required manifest values remain unset.
-- 11 gates remain blocked or not run.
+- 13 gates remain blocked or not run.
 - The security-parameter study independently reports
   `no_go_for_economic_activation`.
 
-The two satisfied gates are the source/invariant baseline and normative
-transition reservation. All implementation evidence through CO-09 remains
+The source/invariant baseline and normative transition reservation remain useful
+review material, but their earlier filename-only evidence is not a verified
+candidate-bound gate result. All implementation evidence through CO-09 remains
 valuable, but a component unit test is not promoted to a release-gate pass until
 the component is connected to the canonical block transition and tested there.
 
@@ -72,8 +75,10 @@ the component is connected to the canonical block transition and tested there.
 ## CO-10 execution preconditions
 
 The four-host test may start only when all six items above are closed and the
-candidate manifest is complete except for a future activation height/hash that
-is deliberately assigned at release freeze. Before any reset:
+candidate manifest is complete except for a future activation height that is
+deliberately assigned at release freeze. A future activation-block hash is not
+a preactivation prerequisite; the observed activation block is recorded after
+activation. Before any reset:
 
 - inventory every container, volume, wallet, chain directory, and persistent
   service identity on the target host;

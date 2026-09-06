@@ -30,6 +30,9 @@ machine-readable reservation manifest are the allocation record.
    in `PROTOCOL.md`.
 5. Require a future activation height aligned to 720 blocks and strictly above
    the release-freeze mainnet tip.
+   The preactivation commitment may use a known earlier reference height/hash,
+   but MUST NOT require the unknowable future activation-block hash.  The latter
+   is a postactivation observation only.
 6. Preserve every pre-activation HF17/v1 rule byte-for-byte. No v1 object is
    implicitly promoted into v2.
 7. Use a two-epoch v2 warm-up: enrollment, then measured service, then payouts.

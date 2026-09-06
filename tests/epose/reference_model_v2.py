@@ -9,13 +9,20 @@ defines fields, transcripts, limits, and vectors.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import struct
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Tuple
+
+from manifest_v2 import (
+    ManifestError,
+    canonical_bytes as canonical_manifest_bytes,
+    digest as manifest_hash,
+    missing_activation_fields,
+    validate_manifest,
+)
 
 
 UINT64_MAX = (1 << 64) - 1
@@ -166,7 +173,7 @@ class Timing:
         checked_u64(height, "height")
         if not isinstance(major_version, int) or isinstance(major_version, bool) or not 0 <= major_version <= 0xFF:
             raise ModelError("major_version is outside uint8")
-        return major_version < 18 if height < self.activation_height else major_version >= 18
+        return major_version == 17 if height < self.activation_height else major_version == 18
 
 
 def encode_envelope(records: Iterable[Tuple[int, int, bytes]]) -> bytes:
@@ -183,6 +190,8 @@ def encode_envelope(records: Iterable[Tuple[int, int, bytes]]) -> bytes:
         count += 1
     if count > 0xFFFF or len(encoded_records) > 0xFFFFFFFF:
         raise ModelError("envelope exceeds structural encoding")
+    if count == 0:
+        raise ModelError("empty envelope")
     return MAGIC + struct.pack("<BBHI", ENVELOPE_VERSION, 0, count, len(encoded_records)) + encoded_records
 
 
@@ -198,6 +207,8 @@ def decode_envelope(blob: bytes, max_bytes: int, max_records: int) -> list[Tuple
         raise ModelError("unsupported envelope version or flags")
     if count > max_records:
         raise ModelError("record budget exceeded")
+    if count == 0:
+        raise ModelError("empty envelope")
     if records_size != len(blob) - 12:
         raise ModelError("records_size mismatch")
     records = []
@@ -233,36 +244,6 @@ def decode_tx_extra_field(blob: bytes, max_bytes: int, max_records: int) -> list
     if size != len(blob) - offset:
         raise ModelError("outer envelope size mismatch")
     return decode_envelope(blob[offset:], max_bytes, max_records)
-
-
-def canonical_manifest_bytes(manifest: dict) -> bytes:
-    return (json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
-
-
-def manifest_hash(manifest: dict) -> str:
-    return hashlib.sha256(canonical_manifest_bytes(manifest)).hexdigest()
-
-
-def missing_activation_fields(manifest: dict) -> list[str]:
-    required = {
-        "activation.block_hash": manifest["activation"]["block_hash"],
-        "activation.height": manifest["activation"]["height"],
-        "network.genesis_hash": manifest["network"]["genesis_hash"],
-        "admission.lease_epochs": manifest["admission"]["lease_epochs"],
-        "admission.leading_zero_bits": manifest["admission"]["leading_zero_bits"],
-        "committee.round_offsets": manifest["committee"]["round_offsets"],
-        "committee.rounds_required": manifest["committee"]["rounds_required"],
-        "committee.size": manifest["committee"]["size"],
-        "committee.threshold": manifest["committee"]["threshold"],
-        "reward.empty_set_policy": manifest["reward"]["empty_set_policy"],
-        "reward.emission_accounting": manifest["reward"]["emission_accounting"],
-        "reward.fee_policy": manifest["reward"]["fee_policy"],
-        "reward.payment_proof_scheme": manifest["reward"]["payment_proof_scheme"],
-        "state.index_schema": manifest["state"]["index_schema"],
-        "state.pruned_validation_mode": manifest["state"]["pruned_validation_mode"],
-    }
-    required.update({f"resource_limits.{key}": value for key, value in manifest["resource_limits"].items()})
-    return sorted(key for key, value in required.items() if value is None)
 
 
 def validate_vectors(path: Path) -> None:
@@ -310,6 +291,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (ModelError, AssertionError, json.JSONDecodeError) as exc:
+    except (ModelError, ManifestError, AssertionError, json.JSONDecodeError) as exc:
         print(f"vector validation failed: {exc}", file=sys.stderr)
         raise SystemExit(1)

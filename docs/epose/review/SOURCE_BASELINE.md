@@ -43,7 +43,6 @@ Pinned submodules at the baseline:
 |---|---|
 | RandomX | `6c4340ba4561aec9a3611c1aedf9931239777fb3` |
 | RapidJSON | `129d19ba7f496df5e33658527a7158c79b99c21c` |
-| GoogleTest | `0a439623f75c029912728d80cb7f1b8b48739ca4` |
 | supercop | `633500ad8c8759995049ccd022107d1fa8a1bbc9` |
 | trezor-common | `bff7fdfe436c727982cc553bdfb29a9021b423b0` |
 
@@ -51,6 +50,11 @@ Pinned submodules at the baseline:
 The nearest inherited Git tag remains the legacy `v6.0.9` tag and is not a QWC
 v2 release manifest. A signed release manifest tying source, submodules,
 compiler, binaries, genesis, and activation schedule does not yet exist.
+
+GoogleTest is vendored source under `tests/gtest`, not a Gitlink.  There is no
+`external/miniupnp` Gitlink or path at this baseline.  The table above is the
+complete recursive Gitlink set and is checked against the manifest by the
+CO-01 regression test.
 
 The additional DNS hardening revision
 `845efabd2251c837c0dce5a2e9c142bc963a559b` is the head of open PR #166. It is

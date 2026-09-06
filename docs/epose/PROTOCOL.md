@@ -344,8 +344,9 @@ An activation proposal MUST set an activation height `A` such that:
 ```text
 A > observed_mainnet_tip_at_release_freeze
 A mod 720 = 0
-block.major_version < 18 for heights < A
-block.major_version >= 18 for heights >= A
+block.major_version = scheduled_version(H) for every height H
+block.major_version = 17 immediately before A
+block.major_version = 18 from A until the next scheduled fork
 ```
 
 Historical HF17 blocks and v1 payloads retain their original meaning. At and
@@ -354,9 +355,11 @@ v1 state is read-only and cannot supply a v2 committee or payee. There is no
 implicit migration of an identity, descriptor, admission lease, receipt, or
 reward destination from v1 to v2.
 
-The activation height, activation block hash, parameter-set hash, reward-policy
-identifier, and final resource limits remain deliberately unassigned. A binary
-MUST refuse to advertise v2 activation while any required manifest field is
+The activation height, a known earlier reference height/hash, parameter-set
+hash, reward-policy identifier, and final resource limits remain deliberately
+unassigned.  The hash of the future activation block is not a preactivation
+input: it is recorded only as a postactivation observation.  A binary MUST
+refuse to advertise v2 activation while any required manifest field is
 unassigned.
 
 ### Consensus inputs and processing order
@@ -585,7 +588,9 @@ There is no circular transcript.
 Validation rejects a missing or bad subject signature, bad verifier signature,
 self-vote, role swap, unsupported service kind, null context/commitment, wrong
 object, or any context transplant. Only a fully valid receipt can be converted
-to CO-02's `prevalidated_receipt_slot_v2`.
+directly to CO-02's membership pipeline together with its canonical receipt
+context.  No caller-supplied `cryptographically_verified` Boolean or publicly
+constructible aggregate is accepted.
 
 The legacy HF17 automation that fabricated its response locally and set
 `service_ok = true` is disabled. Historical HF17 blocks retain their original

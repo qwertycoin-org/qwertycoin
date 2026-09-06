@@ -1,6 +1,5 @@
 {
   "activation": {
-    "block_hash": null,
     "height": null,
     "required_epoch_alignment": 720
   },
@@ -26,10 +25,10 @@
     "core_source_commit": "1c4c1bf10c387887a42243dc690a65abb6c6e786",
     "monero_upstream_commit": "4f92268d7c16741cfb41e5bbe2aa46cc260a9ea5",
     "submodules": {
-      "external/miniupnp": "b1f546b0662beea5a1ecbe98a8d54da0f9bde4dc",
       "external/rapidjson": "129d19ba7f496df5e33658527a7158c79b99c21c",
-      "external/randomx": "02e11b8a1e4b1f4aa4487835f8f2029b7c82c96a",
-      "external/trezor-common": "18ae7c92154e4c58455ecbea84d114bab3035b20"
+      "external/randomx": "6c4340ba4561aec9a3611c1aedf9931239777fb3",
+      "external/supercop": "633500ad8c8759995049ccd022107d1fa8a1bbc9",
+      "external/trezor-common": "bff7fdfe436c727982cc553bdfb29a9021b423b0"
     }
   },
   "encoding": {
@@ -58,6 +57,9 @@
     "network_id": "515743324d41494e32303236504f4301",
     "type": "mainnet"
   },
+  "release": {
+    "source_revision": null
+  },
   "resource_limits": {
     "max_active_population": null,
     "max_admission_verifications_per_block": null,
@@ -77,7 +79,7 @@
     "payment_proof_scheme": null,
     "schedule": "epoch-relative-index"
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "state": {
     "index_schema": null,
     "pruned_validation_mode": null

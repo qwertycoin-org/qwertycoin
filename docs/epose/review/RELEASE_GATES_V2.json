@@ -1,116 +1,97 @@
 {
   "gates": [
     {
-      "evidence": [
-        "docs/epose/review/SOURCE_BASELINE.md",
-        "docs/epose/review/FINDINGS.md"
-      ],
+      "evidence": [],
       "id": "source_and_invariant_baseline",
-      "state": "satisfied",
-      "summary": "Public source, inherited baseline, deployed observations, and F01-F21 ownership are recorded."
+      "state": "blocked",
+      "summary": "Baseline provenance is being reconciled against the declared Git tree and deployed binary identity remains unresolved.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/PROTOCOL.md",
-        "docs/epose/CONSENSUS_INVARIANTS.md",
-        "tests/epose/vectors/co01_transition_v2.json"
-      ],
+      "evidence": [],
       "id": "normative_transition_specification",
-      "state": "satisfied",
-      "summary": "HF18 reservation, epoch ordering, canonical envelope framing, and boundary vectors are specified."
+      "state": "blocked",
+      "summary": "Specification requires corrected activation, transcript, manifest and differential-vector evidence before satisfaction.",
+      "references": null
     },
     {
-      "evidence": [
-        "src/epose/membership_v2.cpp",
-        "src/epose/envelope_v2.cpp",
-        "src/epose/reward_v2.cpp"
-      ],
+      "evidence": [],
       "id": "consensus_handler_integration",
       "state": "blocked",
-      "summary": "V2 primitives are deliberately unreachable from HF17 and are not integrated with block parsing, connect/disconnect, templates, or coinbase validation."
+      "summary": "V2 primitives are deliberately unreachable from HF17 and are not integrated with block parsing, connect/disconnect, templates, or coinbase validation.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/SECURITY_PARAMETERS.md",
-        "docs/epose/review/results/security_parameters_v1.json"
-      ],
+      "evidence": [],
       "id": "approved_security_parameters",
       "state": "blocked",
-      "summary": "No owner-approved risk budget or optimized multi-hardware admission/committee parameter set exists."
+      "summary": "No owner-approved risk budget or optimized multi-hardware admission/committee parameter set exists.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/review/ADR-0003-REWARD-SEMANTICS.md"
-      ],
+      "evidence": [],
       "id": "reward_and_emission_decision",
       "state": "blocked",
-      "summary": "Empty-set policy and emission accounting require an explicit tokenomics decision."
+      "summary": "Empty-set policy and emission accounting require an explicit tokenomics decision.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/review/ADR-0003-REWARD-SEMANTICS.md"
-      ],
+      "evidence": [],
       "id": "independent_payment_proof_review",
       "state": "not_run",
-      "summary": "The scoped payment-proof candidate has not received independent cryptographic review."
+      "summary": "The scoped payment-proof candidate has not received independent cryptographic review.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/review/ADR-0005-PERSISTENT-STATE.md"
-      ],
+      "evidence": [],
       "id": "atomic_lmdb_and_pruning",
       "state": "blocked",
-      "summary": "The journal primitive is not connected to same-transaction LMDB state, crash recovery, migration, or pruned validation."
+      "summary": "The journal primitive is not connected to same-transaction LMDB state, crash recovery, migration, or pruned validation.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/review/ADR-0006-RESOURCE-POLICY.md"
-      ],
+      "evidence": [],
       "id": "network_and_rpc_resource_integration",
       "state": "blocked",
-      "summary": "Probe, P2P, RPC, admission-cache, and DNS-race protections are not connected to live handlers or sustained-load tests."
+      "summary": "Probe, P2P, RPC, admission-cache, and DNS-race protections are not connected to live handlers or sustained-load tests.",
+      "references": null
     },
     {
-      "evidence": [
-        "tests/epose/integration/local_epose_network.sh"
-      ],
+      "evidence": [],
       "id": "four_node_consensus_convergence",
       "state": "not_run",
-      "summary": "No final-protocol four-node enrollment, receipt, payout, partition, restart, and deep-reorg run exists."
+      "summary": "No final-protocol four-node enrollment, receipt, payout, partition, restart, and deep-reorg run exists.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/review/VALIDATION.md"
-      ],
+      "evidence": [],
       "id": "wallet_funds_safety_e2e",
       "state": "not_run",
-      "summary": "Maturity, spend, recipient receipt, rescan, repeated output uniqueness, and reward-fork replacement are not proven on final binaries."
+      "summary": "Maturity, spend, recipient receipt, rescan, repeated output uniqueness, and reward-fork replacement are not proven on final binaries.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/review/SOURCE_BASELINE.md"
-      ],
+      "evidence": [],
       "id": "reproducible_release_matrix",
       "state": "not_run",
-      "summary": "Linux, Docker, macOS Apple Silicon, checksums, source-to-binary identity, and dependency manifest are incomplete."
+      "summary": "Linux, Docker, macOS Apple Silicon, checksums, source-to-binary identity, and dependency manifest are incomplete.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/review/ADR-0001-ACTIVATION-STATUS.md"
-      ],
+      "evidence": [],
       "id": "independent_consensus_review",
       "state": "not_run",
-      "summary": "No independent adversarial review of the integrated hardened protocol exists."
+      "summary": "No independent adversarial review of the integrated hardened protocol exists.",
+      "references": null
     },
     {
-      "evidence": [
-        "docs/epose/PARAMETER_MANIFEST_V2.json"
-      ],
+      "evidence": [],
       "id": "signed_activation_manifest",
       "state": "blocked",
-      "summary": "Genesis, activation height/hash, final limits, parameters, state schema, and release binaries remain unset."
+      "summary": "Genesis, activation height, final limits, parameters, state schema, and release binaries remain unset; the observed activation block is postactivation evidence.",
+      "references": null
     }
   ],
   "overall_status": "no-go",
-  "schema_version": 1
+  "schema_version": 2
 }
