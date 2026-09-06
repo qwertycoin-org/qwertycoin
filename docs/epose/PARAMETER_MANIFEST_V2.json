@@ -69,8 +69,14 @@
     "max_epose_bytes_per_block": null,
     "max_records_per_block": null,
     "max_records_per_envelope": null,
+    "max_relay_queue_bytes": null,
+    "max_relay_queue_items": null,
     "max_signature_verifications_per_block": null,
-    "minimum_undo_blocks": null
+    "minimum_undo_blocks": null,
+    "reserved_enrollment_queue_bytes": null,
+    "reserved_enrollment_queue_items": null,
+    "reserved_evidence_queue_bytes": null,
+    "reserved_evidence_queue_items": null
   },
   "reward": {
     "basis_points": 1000,

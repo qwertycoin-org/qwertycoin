@@ -878,12 +878,23 @@ protocol is intentionally not activatable:
 - maximum signature verifications and RandomX admission verifications per block;
 - maximum descriptor and proof payload sizes;
 - maximum active population and lease interval;
+- maximum relay-queue items and bytes, with nonzero enrollment and evidence
+  reservations whose sums do not exceed the queue totals;
 - retained state/undo requirements needed to validate and reorganize the chain.
 
 Budget charges occur after structural length checks but before signature,
 RandomX, duplicate, or semantic checks. Both miner-transaction batches and
 fee-funded transaction carriers consume the same block-wide budgets and produce
 the same canonical transition.
+
+Relay/template policy is not consensus. The local deadline queue reserves both
+item and byte capacity for enrollment and evidence so either class can continue
+to enter under a flood of the other. Duplicate IDs are idempotent only when all
+queue metadata agree; conflicts fail closed. Deadlines are inclusive, expired
+items are pruned before capacity checks, and template selection first fills the
+configured reservation for each class before considering the remaining records
+in `(deadline, id, class)` order. These local choices cannot invalidate an
+otherwise complete block.
 
 ### Activation manifest and parameter-set hash
 

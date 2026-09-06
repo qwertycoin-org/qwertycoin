@@ -54,8 +54,14 @@ class ReleaseGateTests(unittest.TestCase):
                 "max_epose_bytes_per_block": 262144,
                 "max_records_per_block": 1024,
                 "max_records_per_envelope": 256,
+                "max_relay_queue_bytes": 1048576,
+                "max_relay_queue_items": 2048,
                 "max_signature_verifications_per_block": 2048,
                 "minimum_undo_blocks": 2160,
+                "reserved_enrollment_queue_bytes": 262144,
+                "reserved_enrollment_queue_items": 512,
+                "reserved_evidence_queue_bytes": 262144,
+                "reserved_evidence_queue_items": 512,
             }
         )
         manifest["reward"].update(

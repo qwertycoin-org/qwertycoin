@@ -39,6 +39,7 @@ namespace epose
   enum class resource_status_v2
   {
     accepted,
+    idempotent_duplicate,
     invalid_configuration,
     invalid_descriptor,
     invalid_signature,
@@ -54,7 +55,10 @@ namespace epose
     unknown_admission_context,
     context_cache_full,
     invalid_page,
-    scan_limit_exceeded
+    scan_limit_exceeded,
+    relay_item_expired,
+    relay_queue_full,
+    relay_item_conflict
   };
 
   crypto::hash hash_endpoint_descriptor_v2(
@@ -124,6 +128,64 @@ namespace epose
   private:
     size_t max_contexts_ = 0;
     std::vector<crypto::hash> contexts_;
+  };
+
+  enum class relay_class_v2 : uint8_t
+  {
+    enrollment = 1,
+    evidence = 2
+  };
+
+  struct relay_item_v2
+  {
+    crypto::hash id{};
+    relay_class_v2 record_class = relay_class_v2::enrollment;
+    size_t bytes = 0;
+    uint64_t deadline_height = 0;
+  };
+
+  struct relay_queue_limits_v2
+  {
+    size_t max_items = 0;
+    size_t max_bytes = 0;
+    size_t reserved_enrollment_items = 0;
+    size_t reserved_evidence_items = 0;
+    size_t reserved_enrollment_bytes = 0;
+    size_t reserved_evidence_bytes = 0;
+
+    bool valid() const;
+  };
+
+  struct relay_template_limits_v2
+  {
+    size_t max_items = 0;
+    size_t max_bytes = 0;
+    size_t reserved_enrollment_items = 0;
+    size_t reserved_evidence_items = 0;
+    size_t reserved_enrollment_bytes = 0;
+    size_t reserved_evidence_bytes = 0;
+
+    bool valid() const;
+  };
+
+  class deadline_relay_queue_v2
+  {
+  public:
+    explicit deadline_relay_queue_v2(const relay_queue_limits_v2 &limits);
+    resource_status_v2 enqueue(const relay_item_v2 &item, uint64_t current_height);
+    void prune_expired(uint64_t current_height);
+    resource_status_v2 select_for_template(
+        uint64_t current_height,
+        const relay_template_limits_v2 &limits,
+        std::vector<relay_item_v2> &selected) const;
+    size_t size() const;
+    size_t bytes() const;
+    size_t size(relay_class_v2 record_class) const;
+
+  private:
+    relay_queue_limits_v2 limits_{};
+    size_t bytes_ = 0;
+    std::vector<relay_item_v2> items_;
   };
 
   resource_status_v2 validate_rpc_page_v2(

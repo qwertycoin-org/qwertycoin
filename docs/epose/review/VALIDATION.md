@@ -530,5 +530,32 @@ Results reproduced on 2026-09-06:
 - envelope accounting charges the two lifecycle signatures and the payment
   proof operation before semantic duplicate handling.
 
-This does not yet prove the generic semantic batch adapter, queue fairness,
-wallet submission, sustained fuzzing or worst-valid-block cost.
+This does not yet prove the generic semantic batch adapter, producer queue
+integration, wallet submission, sustained fuzzing or worst-valid-block cost.
+
+## Deadline relay queue and class reservations
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_resource_policy_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- resource-policy subset: **12/12 passed**;
+- complete focused EPoSE C++ suite: **166/166 passed**;
+- complete EPoSE Python model/manifest/gate suite: **36/36 passed**;
+- broad `unit_tests` target and `daemon` target rebuilt and linked;
+- enrollment flooding cannot consume the configured evidence item/byte reserve,
+  and the symmetric rule protects enrollment;
+- duplicate IDs are idempotent only for identical metadata; conflicting reuse
+  fails and expired records release capacity before admission;
+- deterministic template selection fills nonzero shares for both classes before
+  deadline-ordered surplus capacity;
+- invalid share sums fail atomically in both the C++ policy and typed manifest.
+
+This is local relay/template policy. It does not change complete-block validity
+and is not yet evidence for producer integration or measured inclusion latency.

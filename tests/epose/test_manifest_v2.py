@@ -64,6 +64,18 @@ class ManifestV2Tests(unittest.TestCase):
                 with self.assertRaises(ManifestError):
                     validate_manifest(broken)
 
+    def test_relay_queue_reservations_cannot_exceed_total_capacity(self):
+        broken = json.loads(json.dumps(self.manifest))
+        broken["resource_limits"].update(
+            {
+                "max_relay_queue_items": 10,
+                "reserved_enrollment_queue_items": 6,
+                "reserved_evidence_queue_items": 5,
+            }
+        )
+        with self.assertRaises(ManifestError):
+            validate_manifest(broken)
+
 
 if __name__ == "__main__":
     unittest.main()

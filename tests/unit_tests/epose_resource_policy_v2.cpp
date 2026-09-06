@@ -32,6 +32,12 @@ namespace
         hash_text("parameters"), out, secret));
     return out;
   }
+
+  relay_item_v2 relay_item(
+      const char *id, relay_class_v2 record_class, size_t bytes, uint64_t deadline)
+  {
+    return {hash_text(id), record_class, bytes, deadline};
+  }
 }
 
 TEST(epose_resource_policy_v2, signed_canonical_descriptor_is_context_bound)
@@ -162,4 +168,68 @@ TEST(epose_resource_policy_v2, invalid_transport_and_literal_family_fail_closed)
       hash_text("parameters"), value, secret));
   EXPECT_EQ(resource_status_v2::noncanonical_host, validate_endpoint_descriptor_v2(
       cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), value));
+}
+
+TEST(epose_resource_policy_v2, relay_queue_reserves_capacity_for_enrollment_and_evidence)
+{
+  deadline_relay_queue_v2 queue(relay_queue_limits_v2{6, 600, 2, 2, 200, 200});
+  ASSERT_EQ(resource_status_v2::accepted,
+      queue.enqueue(relay_item("enroll-a", relay_class_v2::enrollment, 100, 20), 10));
+  ASSERT_EQ(resource_status_v2::accepted,
+      queue.enqueue(relay_item("enroll-b", relay_class_v2::enrollment, 100, 21), 10));
+  ASSERT_EQ(resource_status_v2::accepted,
+      queue.enqueue(relay_item("enroll-c", relay_class_v2::enrollment, 100, 22), 10));
+  ASSERT_EQ(resource_status_v2::accepted,
+      queue.enqueue(relay_item("enroll-d", relay_class_v2::enrollment, 100, 23), 10));
+  EXPECT_EQ(resource_status_v2::relay_queue_full,
+      queue.enqueue(relay_item("enroll-e", relay_class_v2::enrollment, 1, 24), 10));
+  EXPECT_EQ(resource_status_v2::accepted,
+      queue.enqueue(relay_item("evidence-a", relay_class_v2::evidence, 100, 18), 10));
+  EXPECT_EQ(resource_status_v2::accepted,
+      queue.enqueue(relay_item("evidence-b", relay_class_v2::evidence, 100, 19), 10));
+  EXPECT_EQ(4u, queue.size(relay_class_v2::enrollment));
+  EXPECT_EQ(2u, queue.size(relay_class_v2::evidence));
+  EXPECT_EQ(600u, queue.bytes());
+}
+
+TEST(epose_resource_policy_v2, relay_queue_is_idempotent_conflict_safe_and_prunes_deadlines)
+{
+  deadline_relay_queue_v2 queue(relay_queue_limits_v2{4, 400, 1, 1, 100, 100});
+  const auto original = relay_item("same", relay_class_v2::enrollment, 100, 10);
+  ASSERT_EQ(resource_status_v2::accepted, queue.enqueue(original, 9));
+  EXPECT_EQ(resource_status_v2::idempotent_duplicate, queue.enqueue(original, 9));
+  auto conflict = original;
+  ++conflict.deadline_height;
+  EXPECT_EQ(resource_status_v2::relay_item_conflict, queue.enqueue(conflict, 9));
+  EXPECT_EQ(resource_status_v2::relay_item_expired,
+      queue.enqueue(relay_item("expired", relay_class_v2::evidence, 10, 8), 9));
+  queue.prune_expired(11);
+  EXPECT_EQ(0u, queue.size());
+  EXPECT_EQ(0u, queue.bytes());
+}
+
+TEST(epose_resource_policy_v2, relay_template_selection_preserves_both_shares_and_deadline_order)
+{
+  deadline_relay_queue_v2 queue(relay_queue_limits_v2{8, 800, 2, 2, 200, 200});
+  const auto enrollment_early = relay_item("enroll-early", relay_class_v2::enrollment, 100, 30);
+  const auto enrollment_late = relay_item("enroll-late", relay_class_v2::enrollment, 100, 50);
+  const auto evidence_early = relay_item("evidence-early", relay_class_v2::evidence, 100, 20);
+  const auto evidence_late = relay_item("evidence-late", relay_class_v2::evidence, 100, 40);
+  ASSERT_EQ(resource_status_v2::accepted, queue.enqueue(enrollment_late, 10));
+  ASSERT_EQ(resource_status_v2::accepted, queue.enqueue(evidence_late, 10));
+  ASSERT_EQ(resource_status_v2::accepted, queue.enqueue(enrollment_early, 10));
+  ASSERT_EQ(resource_status_v2::accepted, queue.enqueue(evidence_early, 10));
+
+  std::vector<relay_item_v2> selected{{hash_text("stale"), relay_class_v2::evidence, 1, 1}};
+  ASSERT_EQ(resource_status_v2::accepted,
+      queue.select_for_template(10, relay_template_limits_v2{3, 300, 1, 1, 100, 100}, selected));
+  ASSERT_EQ(3u, selected.size());
+  EXPECT_EQ(enrollment_early.id, selected[0].id);
+  EXPECT_EQ(evidence_early.id, selected[1].id);
+  EXPECT_EQ(evidence_late.id, selected[2].id);
+
+  const relay_template_limits_v2 invalid{1, 100, 1, 1, 50, 50};
+  EXPECT_EQ(resource_status_v2::invalid_configuration,
+      queue.select_for_template(10, invalid, selected));
+  EXPECT_TRUE(selected.empty());
 }

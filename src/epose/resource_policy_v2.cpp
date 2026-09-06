@@ -281,6 +281,154 @@ namespace epose
 
   size_t admission_context_cache_v2::size() const { return contexts_.size(); }
 
+  bool relay_queue_limits_v2::valid() const
+  {
+    return max_items > 0 && max_bytes > 0
+        && reserved_enrollment_items > 0 && reserved_evidence_items > 0
+        && reserved_enrollment_items <= max_items
+        && reserved_evidence_items <= max_items - reserved_enrollment_items
+        && reserved_enrollment_bytes > 0 && reserved_evidence_bytes > 0
+        && reserved_enrollment_bytes <= max_bytes
+        && reserved_evidence_bytes <= max_bytes - reserved_enrollment_bytes;
+  }
+
+  bool relay_template_limits_v2::valid() const
+  {
+    return max_items > 0 && max_bytes > 0
+        && reserved_enrollment_items > 0 && reserved_evidence_items > 0
+        && reserved_enrollment_items <= max_items
+        && reserved_evidence_items <= max_items - reserved_enrollment_items
+        && reserved_enrollment_bytes > 0 && reserved_evidence_bytes > 0
+        && reserved_enrollment_bytes <= max_bytes
+        && reserved_evidence_bytes <= max_bytes - reserved_enrollment_bytes;
+  }
+
+  deadline_relay_queue_v2::deadline_relay_queue_v2(const relay_queue_limits_v2 &limits)
+    : limits_(limits)
+  {
+  }
+
+  resource_status_v2 deadline_relay_queue_v2::enqueue(
+      const relay_item_v2 &item, uint64_t current_height)
+  {
+    if (!limits_.valid() || item.id == crypto::null_hash || item.bytes == 0
+        || (item.record_class != relay_class_v2::enrollment
+            && item.record_class != relay_class_v2::evidence))
+      return resource_status_v2::invalid_configuration;
+    prune_expired(current_height);
+    if (item.deadline_height < current_height)
+      return resource_status_v2::relay_item_expired;
+    const auto duplicate = std::find_if(items_.begin(), items_.end(), [&](const relay_item_v2 &stored) {
+      return stored.id == item.id;
+    });
+    if (duplicate != items_.end())
+      return duplicate->record_class == item.record_class && duplicate->bytes == item.bytes
+              && duplicate->deadline_height == item.deadline_height
+          ? resource_status_v2::idempotent_duplicate : resource_status_v2::relay_item_conflict;
+
+    size_t class_items = 0;
+    size_t class_bytes = 0;
+    for (const auto &stored : items_)
+      if (stored.record_class == item.record_class)
+      {
+        ++class_items;
+        if (class_bytes > std::numeric_limits<size_t>::max() - stored.bytes)
+          return resource_status_v2::invalid_configuration;
+        class_bytes += stored.bytes;
+      }
+    const bool enrollment = item.record_class == relay_class_v2::enrollment;
+    const size_t other_reserved_items = enrollment
+        ? limits_.reserved_evidence_items : limits_.reserved_enrollment_items;
+    const size_t other_reserved_bytes = enrollment
+        ? limits_.reserved_evidence_bytes : limits_.reserved_enrollment_bytes;
+    if (items_.size() >= limits_.max_items
+        || class_items >= limits_.max_items - other_reserved_items
+        || item.bytes > limits_.max_bytes - bytes_
+        || item.bytes > limits_.max_bytes - other_reserved_bytes - class_bytes)
+      return resource_status_v2::relay_queue_full;
+    items_.push_back(item);
+    bytes_ += item.bytes;
+    return resource_status_v2::accepted;
+  }
+
+  void deadline_relay_queue_v2::prune_expired(uint64_t current_height)
+  {
+    items_.erase(std::remove_if(items_.begin(), items_.end(), [&](const relay_item_v2 &item) {
+      if (item.deadline_height >= current_height)
+        return false;
+      bytes_ -= item.bytes;
+      return true;
+    }), items_.end());
+  }
+
+  resource_status_v2 deadline_relay_queue_v2::select_for_template(
+      uint64_t current_height,
+      const relay_template_limits_v2 &limits,
+      std::vector<relay_item_v2> &selected) const
+  {
+    selected.clear();
+    if (!limits_.valid() || !limits.valid())
+      return resource_status_v2::invalid_configuration;
+    std::vector<const relay_item_v2 *> candidates;
+    candidates.reserve(items_.size());
+    for (const auto &item : items_)
+      if (item.deadline_height >= current_height)
+        candidates.push_back(&item);
+    std::sort(candidates.begin(), candidates.end(), [](const relay_item_v2 *left, const relay_item_v2 *right) {
+      if (left->deadline_height != right->deadline_height)
+        return left->deadline_height < right->deadline_height;
+      const int id_order = std::memcmp(&left->id, &right->id, sizeof(left->id));
+      if (id_order != 0)
+        return id_order < 0;
+      return static_cast<uint8_t>(left->record_class) < static_cast<uint8_t>(right->record_class);
+    });
+    size_t selected_bytes = 0;
+    const auto already_selected = [&](const relay_item_v2 *candidate) {
+      return std::any_of(selected.begin(), selected.end(), [&](const relay_item_v2 &item) {
+        return item.id == candidate->id;
+      });
+    };
+    const auto add = [&](const relay_item_v2 *candidate) {
+      if (selected.size() >= limits.max_items || candidate->bytes > limits.max_bytes - selected_bytes)
+        return false;
+      selected.push_back(*candidate);
+      selected_bytes += candidate->bytes;
+      return true;
+    };
+    const auto reserve_class = [&](relay_class_v2 record_class, size_t item_limit, size_t byte_limit) {
+      size_t class_items = 0;
+      size_t class_bytes = 0;
+      for (const relay_item_v2 *candidate : candidates)
+      {
+        if (candidate->record_class != record_class || class_items >= item_limit
+            || candidate->bytes > byte_limit - class_bytes)
+          continue;
+        if (add(candidate))
+        {
+          ++class_items;
+          class_bytes += candidate->bytes;
+        }
+      }
+    };
+    reserve_class(relay_class_v2::enrollment, limits.reserved_enrollment_items,
+        limits.reserved_enrollment_bytes);
+    reserve_class(relay_class_v2::evidence, limits.reserved_evidence_items,
+        limits.reserved_evidence_bytes);
+    for (const relay_item_v2 *candidate : candidates)
+      if (!already_selected(candidate))
+        add(candidate);
+    return resource_status_v2::accepted;
+  }
+
+  size_t deadline_relay_queue_v2::size() const { return items_.size(); }
+  size_t deadline_relay_queue_v2::bytes() const { return bytes_; }
+  size_t deadline_relay_queue_v2::size(relay_class_v2 record_class) const
+  {
+    return static_cast<size_t>(std::count_if(items_.begin(), items_.end(), [&](const relay_item_v2 &item) {
+      return item.record_class == record_class;
+    }));
+  }
+
   resource_status_v2 validate_rpc_page_v2(
       uint64_t offset, uint64_t limit, uint64_t max_limit, uint64_t available_records,
       uint64_t max_scan, uint64_t &end_offset)
