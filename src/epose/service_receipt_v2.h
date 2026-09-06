@@ -56,6 +56,10 @@ namespace epose
       const service_challenge_v2 &challenge,
       const receipt_context_v2 &context);
 
+  bool validate_service_challenge_v2(
+      const service_challenge_v2 &challenge,
+      const receipt_context_v2 &context);
+
   crypto::hash hash_subject_response_v2(
       const authenticated_service_receipt_v2 &receipt,
       const receipt_context_v2 &context);

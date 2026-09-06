@@ -94,6 +94,13 @@ namespace epose
     return hash_blob(blob);
   }
 
+  bool validate_service_challenge_v2(
+      const service_challenge_v2 &challenge,
+      const receipt_context_v2 &context)
+  {
+    return context_valid(context) && challenge_valid(challenge);
+  }
+
   crypto::hash hash_subject_response_v2(
       const authenticated_service_receipt_v2 &receipt,
       const receipt_context_v2 &context)
@@ -142,7 +149,7 @@ namespace epose
       const authenticated_service_receipt_v2 &receipt,
       const receipt_context_v2 &context)
   {
-    if (!context_valid(context) || !challenge_valid(receipt.challenge))
+    if (!validate_service_challenge_v2(receipt.challenge, context))
       return false;
     if (receipt.response_object_hash != receipt.challenge.requested_object_hash)
       return false;

@@ -228,10 +228,38 @@ Results reproduced on 2026-09-06:
 - no `service_ok = true` assignment remains under `src/`;
 - cryptographic receipt validation contains no network or wall-clock call.
 
-The live bounded probe transport, v2 serialization/carrier, endpoint descriptor
-discovery, and multi-host offline-subject test remain open dependencies in
-CO-05/CO-07/CO-10. This evidence does not claim that dual signatures prove
+At that revision, the live bounded probe transport, v2 serialization/carrier,
+endpoint descriptor discovery, and multi-host offline-subject test remained
+open dependencies in CO-05/CO-07/CO-10. This evidence does not claim that dual signatures prove
 operator independence or prevent a colluding committee/shared proxy.
+
+### Canonical block service exchange
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_canonical_service_v2.*'
+<build-dir>/tests/unit_tests/epose_unit_tests
+```
+
+Results reproduced on 2026-09-06:
+
+- canonical service exchange tests: **5/5 passed**;
+- complete focused EPoSE binary after integration: **159/159 passed**;
+- the broad `unit_tests` target, including `wallet2.cpp`, built successfully;
+- challenge authorization occurs before object lookup or signing;
+- exact-limit canonical block bytes pass, while unknown, oversized, malformed,
+  wrong-hash and locally divergent blocks fail with atomic outputs;
+- wrong signing keys, missing subject participation and byte tampering fail;
+- returned bytes are parsed, canonically reserialized and compared with the
+  verifier's canonical source before its signature is produced.
+
+This is an in-process, transport-independent exchange over real serialized
+block objects. It is not evidence of DNS, HTTP, socket, timeout or four-host
+operation. The public adapter remains intentionally unavailable until its
+authorization callback is backed by integrated frozen v2 state; exposing it
+earlier would create an unsafe signing boundary.
 
 ## CO-05 bounded-envelope validation
 

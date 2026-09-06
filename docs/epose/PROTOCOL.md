@@ -599,6 +599,36 @@ attestations. The eventual live probe transport depends on the bounded carrier
 and endpoint/lifecycle work in CO-05/CO-07; until then automation fails closed
 instead of fabricating service.
 
+### Canonical block service boundary
+
+`src/epose/canonical_service_v2.*` implements the transport-independent data
+exchange behind `canonical_object = 1`. The only currently permitted object is
+an exact canonical block blob identified by its CryptoNote block hash. A
+subject-side adapter must authorize the complete challenge against the frozen
+snapshot, selected verifier, endpoint and round before any database lookup or
+signature. It then retrieves the block from its canonical chain, enforces the
+explicit byte limit, parses and canonically reserializes it, verifies the block
+hash and signs the response transcript.
+
+The verifier independently parses the returned bytes, checks their canonical
+serialization and block hash, and compares them byte-for-byte with the same
+block from its own canonical chain before accepting the subject signature and
+creating its signature. Unknown, alternative-chain, malformed, truncated,
+oversized or locally divergent objects therefore produce no receipt. All
+failure outputs are cleared atomically.
+
+The two injected boundaries are intentionally strict:
+
+- `challenge_authorizer_v2` must be backed by canonical frozen membership,
+  committee and lifecycle state; and
+- `canonical_block_source_v2` must return main-chain bytes, never an
+  alternative-chain or caller-supplied blob.
+
+No public RPC adapter is enabled while those canonical v2 state adapters are
+absent. This prevents the service key from becoming a generic signing oracle.
+DNS, connection setup, redirects, streaming limits and request concurrency
+remain local transport work for CO-09; they never enter block validation.
+
 ## CO-05 bounded envelope primitive
 
 `src/epose/envelope_v2.*` implements the dedicated `0x05` field and `QEP2`
