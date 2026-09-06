@@ -21,6 +21,8 @@ DEFAULT_SEED = 0x515743
 
 
 def probability_at_least_binomial(n: int, threshold: int, probability: float) -> float:
+    if n < 0 or not 0.0 <= probability <= 1.0:
+        raise ValueError("invalid binomial inputs")
     if threshold <= 0:
         return 1.0
     if threshold > n:
@@ -96,10 +98,32 @@ def capture_probability(
 
 
 def grinding_probability(single_probability: float, attempts: int) -> dict[str, float]:
+    if not 0.0 <= single_probability <= 1.0 or attempts < 0:
+        raise ValueError("invalid grinding inputs")
+    if attempts == 0 or single_probability == 0.0:
+        independent = 0.0
+    elif single_probability == 1.0:
+        independent = 1.0
+    else:
+        independent = -math.expm1(attempts * math.log1p(-single_probability))
     return {
-        "independent_estimate": 1.0 - (1.0 - single_probability) ** attempts,
+        "independent_estimate": independent,
         "union_bound": min(1.0, single_probability * attempts),
     }
+
+
+def wilson_interval(successes: int, trials: int, z: float = 1.959963984540054) -> tuple[float, float]:
+    if trials <= 0 or successes < 0 or successes > trials or z <= 0.0:
+        raise ValueError("invalid Wilson interval inputs")
+    estimate = successes / trials
+    denominator = 1.0 + z * z / trials
+    center = (estimate + z * z / (2.0 * trials)) / denominator
+    margin = z * math.sqrt(
+        estimate * (1.0 - estimate) / trials + z * z / (4.0 * trials * trials)
+    ) / denominator
+    low = 0.0 if successes == 0 else max(0.0, center - margin)
+    high = 1.0 if successes == trials else min(1.0, center + margin)
+    return low, high
 
 
 @dataclass(frozen=True)
@@ -116,8 +140,20 @@ class CorrelatedScenario:
 
 
 def simulate_correlated_liveness(scenario: CorrelatedScenario) -> dict[str, float | int]:
-    if scenario.population - scenario.controlled - 1 <= 0:
-        raise ValueError("scenario needs at least one honest verifier candidate")
+    if (
+        scenario.population <= 1
+        or scenario.controlled < 0
+        or scenario.controlled >= scenario.population
+        or scenario.committee <= 0
+        or scenario.committee >= scenario.population
+        or scenario.threshold <= 0
+        or scenario.threshold > scenario.committee
+        or scenario.honest_identities_per_operator <= 0
+        or scenario.trials <= 0
+        or not 0.0 <= scenario.operator_availability <= 1.0
+        or not 0.0 <= scenario.identity_availability_given_operator <= 1.0
+    ):
+        raise ValueError("invalid correlated scenario")
     rng = random.Random(scenario.seed)
     subject = scenario.controlled
     candidates = [index for index in range(scenario.population) if index != subject]
@@ -138,13 +174,13 @@ def simulate_correlated_liveness(scenario: CorrelatedScenario) -> dict[str, floa
         if votes >= scenario.threshold:
             successes += 1
     estimate = successes / scenario.trials
-    standard_error = math.sqrt(estimate * (1.0 - estimate) / scenario.trials)
+    low, high = wilson_interval(successes, scenario.trials)
     return {
         "successes": successes,
         "trials": scenario.trials,
         "estimate": estimate,
-        "normal_95_low": max(0.0, estimate - 1.96 * standard_error),
-        "normal_95_high": min(1.0, estimate + 1.96 * standard_error),
+        "wilson_95_low": low,
+        "wilson_95_high": high,
     }
 
 
@@ -275,7 +311,7 @@ def build_report() -> dict[str, object]:
             "admission_hash_rates": "illustrative_not_hardware_measurements",
             "capture": "exact_hypergeometric_attacker_subject_excluded",
             "liveness": "exact_hypergeometric_plus_binomial_unless_marked_simulation",
-            "correlated_liveness": "deterministic_monte_carlo_normal_95_interval",
+            "correlated_liveness": "deterministic_monte_carlo_wilson_95_interval",
             "grinding": "independence_estimate_and_union_bound_not_a_beacon_proof",
             "capacity": "record_count_only_wire_bytes_owned_by_CO_05",
         },

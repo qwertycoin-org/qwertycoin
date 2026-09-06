@@ -11,6 +11,7 @@ from security_parameter_model import (
     honest_qualification_probability,
     probability_at_least_hypergeometric,
     simulate_correlated_liveness,
+    wilson_interval,
 )
 
 
@@ -45,6 +46,22 @@ class SecurityParameterModelTests(unittest.TestCase):
         result = grinding_probability(0.01, 10)
         self.assertLess(result["independent_estimate"], result["union_bound"])
         self.assertEqual(0.1, result["union_bound"])
+
+    def test_rare_grinding_probability_does_not_cancel_to_zero(self):
+        result = grinding_probability(1e-20, 1_000_000)
+        self.assertGreater(result["independent_estimate"], 0.0)
+        self.assertAlmostEqual(1e-14, result["independent_estimate"], delta=1e-27)
+        self.assertEqual(0.0, grinding_probability(0.0, 1_000_000)["independent_estimate"])
+        self.assertEqual(1.0, grinding_probability(1.0, 1)["independent_estimate"])
+        self.assertEqual(0.0, grinding_probability(0.5, 0)["independent_estimate"])
+
+    def test_wilson_interval_is_nondegenerate_at_extremes(self):
+        zero_low, zero_high = wilson_interval(0, 100)
+        all_low, all_high = wilson_interval(100, 100)
+        self.assertEqual(0.0, zero_low)
+        self.assertGreater(zero_high, 0.0)
+        self.assertLess(all_low, 1.0)
+        self.assertEqual(1.0, all_high)
 
     def test_correlated_simulation_is_reproducible(self):
         scenario = CorrelatedScenario(100, 20, 9, 6, 5, 0.99, 0.99, 1_000, 42)

@@ -909,10 +909,10 @@
     {
       "result": {
         "estimate": 0.89596,
-        "normal_95_high": 0.8986361814218824,
-        "normal_95_low": 0.8932838185781176,
         "successes": 44798,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.8986057833896147,
+        "wilson_95_low": 0.8932533787231244
       },
       "scenario": {
         "committee": 9,
@@ -929,10 +929,10 @@
     {
       "result": {
         "estimate": 0.84392,
-        "normal_95_high": 0.8471012319609792,
-        "normal_95_low": 0.8407387680390208,
         "successes": 42196,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.8470747399698723,
+        "wilson_95_low": 0.8407124179092399
       },
       "scenario": {
         "committee": 9,
@@ -949,10 +949,10 @@
     {
       "result": {
         "estimate": 0.89914,
-        "normal_95_high": 0.9017796370188064,
-        "normal_95_low": 0.8965003629811937,
         "successes": 44957,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.9017490019836385,
+        "wilson_95_low": 0.8964696715330771
       },
       "scenario": {
         "committee": 9,
@@ -969,10 +969,10 @@
     {
       "result": {
         "estimate": 0.8425,
-        "normal_95_high": 0.8456929807703775,
-        "normal_95_low": 0.8393070192296226,
         "successes": 42125,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.8456665958965867,
+        "wilson_95_low": 0.839280780160624
       },
       "scenario": {
         "committee": 9,
@@ -989,10 +989,10 @@
     {
       "result": {
         "estimate": 0.89746,
-        "normal_95_high": 0.9001190424845551,
-        "normal_95_low": 0.894800957515445,
         "successes": 44873,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.9000885326256467,
+        "wilson_95_low": 0.89477039901727
       },
       "scenario": {
         "committee": 9,
@@ -1009,10 +1009,10 @@
     {
       "result": {
         "estimate": 0.836,
-        "normal_95_high": 0.8392456084988796,
-        "normal_95_low": 0.8327543915011203,
         "successes": 41800,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.8392197142199755,
+        "wilson_95_low": 0.832728660539799
       },
       "scenario": {
         "committee": 9,
@@ -1029,10 +1029,10 @@
     {
       "result": {
         "estimate": 0.89544,
-        "normal_95_high": 0.8981220823108408,
-        "normal_95_low": 0.8927579176891592,
         "successes": 44772,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.8980917230584713,
+        "wilson_95_low": 0.8927275189504729
       },
       "scenario": {
         "committee": 9,
@@ -1049,10 +1049,10 @@
     {
       "result": {
         "estimate": 0.8276,
-        "normal_95_high": 0.8309109295576439,
-        "normal_95_low": 0.8242890704423561,
         "successes": 41380,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.8308856698915186,
+        "wilson_95_low": 0.8242639954992617
       },
       "scenario": {
         "committee": 9,
@@ -1069,10 +1069,10 @@
     {
       "result": {
         "estimate": 0.69372,
-        "normal_95_high": 0.6977603826369356,
-        "normal_95_low": 0.6896796173630644,
         "successes": 34686,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6977452984012095,
+        "wilson_95_low": 0.6896649371894558
       },
       "scenario": {
         "committee": 9,
@@ -1089,10 +1089,10 @@
     {
       "result": {
         "estimate": 0.6032,
-        "normal_95_high": 0.6074883237704632,
-        "normal_95_low": 0.5989116762295367,
         "successes": 30160,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6074801594170612,
+        "wilson_95_low": 0.5989039842591551
       },
       "scenario": {
         "committee": 9,
@@ -1109,10 +1109,10 @@
     {
       "result": {
         "estimate": 0.6906,
-        "normal_95_high": 0.694651767446989,
-        "normal_95_low": 0.686548232553011,
         "successes": 34530,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6946369213030192,
+        "wilson_95_low": 0.6865337936648765
       },
       "scenario": {
         "committee": 9,
@@ -1129,10 +1129,10 @@
     {
       "result": {
         "estimate": 0.60132,
-        "normal_95_high": 0.6056117668249712,
-        "normal_95_low": 0.5970282331750287,
         "successes": 30066,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6056037464335392,
+        "wilson_95_low": 0.597020686098188
       },
       "scenario": {
         "committee": 9,
@@ -1149,10 +1149,10 @@
     {
       "result": {
         "estimate": 0.6932,
-        "normal_95_high": 0.6972422951807506,
-        "normal_95_low": 0.6891577048192494,
         "successes": 34660,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6972272506246674,
+        "wilson_95_low": 0.6891430648622031
       },
       "scenario": {
         "committee": 9,
@@ -1169,10 +1169,10 @@
     {
       "result": {
         "estimate": 0.60266,
-        "normal_95_high": 0.606949319496552,
-        "normal_95_low": 0.598370680503448,
         "successes": 30133,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6069411964929907,
+        "wilson_95_low": 0.5983630301523617
       },
       "scenario": {
         "committee": 9,
@@ -1189,10 +1189,10 @@
     {
       "result": {
         "estimate": 0.6935,
-        "normal_95_high": 0.6975411925279551,
-        "normal_95_low": 0.6894588074720449,
         "successes": 34675,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6975261250796565,
+        "wilson_95_low": 0.6894441443132493
       },
       "scenario": {
         "committee": 9,
@@ -1209,10 +1209,10 @@
     {
       "result": {
         "estimate": 0.60504,
-        "normal_95_high": 0.6093248899272057,
-        "normal_95_low": 0.6007551100727944,
         "successes": 30252,
-        "trials": 50000
+        "trials": 50000,
+        "wilson_95_high": 0.6093165846837394,
+        "wilson_95_low": 0.6007472762828283
       },
       "scenario": {
         "committee": 9,
@@ -1231,7 +1231,7 @@
     {
       "attempts": 1,
       "committee": 9,
-      "independent_estimate": 0.0013832971293931129,
+      "independent_estimate": 0.001383297129393118,
       "threshold": 6,
       "threshold_rule": "ceil_two_thirds",
       "union_bound": 0.001383297129393118
@@ -1239,7 +1239,7 @@
     {
       "attempts": 10,
       "committee": 9,
-      "independent_estimate": 0.013747180168121709,
+      "independent_estimate": 0.01374718016812179,
       "threshold": 6,
       "threshold_rule": "ceil_two_thirds",
       "union_bound": 0.013832971293931181
@@ -1247,7 +1247,7 @@
     {
       "attempts": 100,
       "committee": 9,
-      "independent_estimate": 0.12927186171036487,
+      "independent_estimate": 0.12927186171036528,
       "threshold": 6,
       "threshold_rule": "ceil_two_thirds",
       "union_bound": 0.13832971293931182
@@ -1255,7 +1255,7 @@
     {
       "attempts": 1000,
       "committee": 9,
-      "independent_estimate": 0.7494895813992799,
+      "independent_estimate": 0.7494895813992812,
       "threshold": 6,
       "threshold_rule": "ceil_two_thirds",
       "union_bound": 1.0
@@ -1263,7 +1263,7 @@
     {
       "attempts": 1,
       "committee": 9,
-      "independent_estimate": 9.55297872727856e-05,
+      "independent_estimate": 9.552978727279703e-05,
       "threshold": 7,
       "threshold_rule": "strict_supermajority",
       "union_bound": 9.552978727279703e-05
@@ -1271,7 +1271,7 @@
     {
       "attempts": 10,
       "committee": 9,
-      "independent_estimate": 0.000954887310014696,
+      "independent_estimate": 0.0009548873100148412,
       "threshold": 7,
       "threshold_rule": "strict_supermajority",
       "union_bound": 0.0009552978727279703
@@ -1279,7 +1279,7 @@
     {
       "attempts": 100,
       "committee": 9,
-      "independent_estimate": 0.009507945966956588,
+      "independent_estimate": 0.009507945966957674,
       "threshold": 7,
       "threshold_rule": "strict_supermajority",
       "union_bound": 0.009552978727279704
@@ -1287,7 +1287,7 @@
     {
       "attempts": 1000,
       "committee": 9,
-      "independent_estimate": 0.09111285964075366,
+      "independent_estimate": 0.09111285964076399,
       "threshold": 7,
       "threshold_rule": "strict_supermajority",
       "union_bound": 0.09552978727279703
@@ -1297,7 +1297,7 @@
     "admission_hash_rates": "illustrative_not_hardware_measurements",
     "capacity": "record_count_only_wire_bytes_owned_by_CO_05",
     "capture": "exact_hypergeometric_attacker_subject_excluded",
-    "correlated_liveness": "deterministic_monte_carlo_normal_95_interval",
+    "correlated_liveness": "deterministic_monte_carlo_wilson_95_interval",
     "grinding": "independence_estimate_and_union_bound_not_a_beacon_proof",
     "liveness": "exact_hypergeometric_plus_binomial_unless_marked_simulation"
   },
