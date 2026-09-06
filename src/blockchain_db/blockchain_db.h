@@ -99,9 +99,11 @@
 
 namespace cryptonote
 {
+constexpr uint8_t EPOSE_STATE_COMMITMENT_SCHEMA_V2 = 1;
+
 struct epose_state_commitment_v2
 {
-  uint8_t schema_version = 0;
+  uint8_t schema_version = EPOSE_STATE_COMMITMENT_SCHEMA_V2;
   crypto::hash block_hash{};
   crypto::hash state_hash{};
   crypto::hash parameter_set_hash{};

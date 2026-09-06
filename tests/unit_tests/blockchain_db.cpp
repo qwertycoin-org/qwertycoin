@@ -353,6 +353,16 @@ TYPED_TEST(BlockchainDBTest, EPoSEStateCommitmentSharesCanonicalBlockTransaction
   }
   EXPECT_EQ(0u, this->m_db->height());
   EXPECT_FALSE(this->m_db->get_epose_state_commitment_v2(0, actual));
+
+  epose_state_commitment_v2 unsupported = expected;
+  unsupported.schema_version = EPOSE_STATE_COMMITMENT_SCHEMA_V2 + 1;
+  {
+    db_wtxn_guard guard(this->m_db);
+    EXPECT_THROW(this->m_db->add_block(
+        this->m_blocks[0], t_sizes[0], t_sizes[0], t_diffs[0], t_coins[0],
+        this->m_txs[0], &unsupported), std::runtime_error);
+  }
+  EXPECT_EQ(0u, this->m_db->height());
 }
 
 TYPED_TEST(BlockchainDBTest, RetrieveBlockData)

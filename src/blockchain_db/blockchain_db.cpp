@@ -269,7 +269,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
   time_blk_hash += time1;
 
   if (epose_commitment != nullptr
-      && (epose_commitment->schema_version == 0
+      && (epose_commitment->schema_version != EPOSE_STATE_COMMITMENT_SCHEMA_V2
           || epose_commitment->block_hash != blk_hash
           || epose_commitment->state_hash == crypto::null_hash
           || epose_commitment->parameter_set_hash == crypto::null_hash))

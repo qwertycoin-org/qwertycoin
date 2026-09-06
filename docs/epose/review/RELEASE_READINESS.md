@@ -61,9 +61,12 @@ the component is connected to the canonical block transition and tested there.
 1. Integrate the version-aware envelope and record codecs into the QWC-HF17
    fresh-genesis parsing, block connect/disconnect, relay, miner templates, and
    fee-funded wallet construction. Retire legacy-v1 production dispatch.
-2. Store lifecycle, snapshot, receipt, qualification, reward, and emission state
-   atomically with the canonical LMDB block transaction; prove migration,
-   pruning, rebuild, crash recovery, and deep rollback.
+2. Complete canonical handler ownership of the v2 state. LMDB now stores a
+   schema-bound state/parameter commitment in the same write transaction as
+   each canonical block, and the streaming replay verifier rejects missing or
+   mismatched commitments. The handler still must supply those commitments,
+   retire the legacy state, and prove crash recovery, pruning and deep replay
+   through the production coordinator.
 3. Connect the bounded probe/descriptor policy to live P2P and RPC handlers and
    measure worst-valid-block plus sustained invalid-load behavior.
 4. Select committee, round, admission, capacity, and resource constants from

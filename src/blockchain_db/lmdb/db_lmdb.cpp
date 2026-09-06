@@ -4164,6 +4164,8 @@ bool BlockchainLMDB::get_epose_state_commitment_v2(
     throw0(DB_ERROR("Invalid EPoSE v2 state commitment size"));
   const auto *bytes = static_cast<const uint8_t *>(data.mv_data);
   commitment.schema_version = bytes[0];
+  if (commitment.schema_version != EPOSE_STATE_COMMITMENT_SCHEMA_V2)
+    throw0(DB_ERROR("Unsupported EPoSE v2 state commitment schema"));
   std::memcpy(&commitment.block_hash, bytes + 1, sizeof(commitment.block_hash));
   std::memcpy(&commitment.state_hash, bytes + 1 + sizeof(crypto::hash), sizeof(commitment.state_hash));
   std::memcpy(&commitment.parameter_set_hash,

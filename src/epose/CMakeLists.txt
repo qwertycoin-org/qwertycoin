@@ -3,6 +3,7 @@
 set(epose_sources
   attestation_pool.cpp
   block_transition_v2.cpp
+  replay_v2.cpp
   canonical_service_v2.cpp
   chain_state.cpp
   envelope_v2.cpp

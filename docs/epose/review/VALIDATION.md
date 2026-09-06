@@ -100,6 +100,39 @@ documentation-only PR. They remain release-hardening inputs.
 These gaps are explicit gates for later change orders. Passing this CO-00
 baseline validates the inventory process, not economic production readiness.
 
+## HF17 genesis adapter and commitment/replay validation
+
+The consolidated candidate adds an exact-version HF17/EPoSE-v2 block adapter,
+bounded recent undo, a same-transaction LMDB commitment index, and a streaming
+replay verifier. The verifier rebuilds from canonical blocks and compares every
+state root, block hash, parameter-set hash, and schema version with the stored
+commitment. It never trusts a serialized semantic-state cache.
+
+Commands reproduced on Linux x86-64 with GCC 12.2, CMake 3.25.1 and Boost
+1.74.0:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_replay_v2.*:epose_block_transition_v2.*'
+<build-dir>/tests/unit_tests/unit_tests \
+  --gtest_filter='BlockchainDBTest/0.EPoSEStateCommitmentSharesCanonicalBlockTransaction'
+```
+
+Results:
+
+- block-transition plus replay tests: **8/8 passed**;
+- LMDB atomic add/restart/pop and invalid-commitment test: **1/1 passed**;
+- full broad `unit_tests` target: built and linked successfully;
+- exact QWC HF17 is accepted; inherited version 16 and unscheduled version 18
+  fail closed in the v2 adapter;
+- missing, wrong-state, wrong-parameter and wrong-schema commitments fail;
+- LMDB accepts only commitment schema version 1.
+
+This evidence does not claim that the production `Blockchain` coordinator has
+retired the legacy v1 state. Connecting it to this adapter and commitment index,
+including canonical Coinbase payment contexts, remains a launch blocker.
+
 ## CO-01 design and vector validation
 
 CO-01 adds documentation and an independent Python standard-library reference
