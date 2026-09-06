@@ -209,7 +209,8 @@ namespace epose
   bool validate_admission_lease_v2(
       const admission_lease_v2 &lease,
       const admission_context_v2 &context,
-      const admission_policy_v2 &policy)
+      const admission_policy_v2 &policy,
+      verification_counters_v2 *counters)
   {
     if (!policy.valid() || context.nettype == cryptonote::UNDEFINED
         || context.genesis_hash == crypto::null_hash
@@ -230,6 +231,8 @@ namespace epose
         || lease.admission_context_height != context.height
         || lease.admission_context_hash != context.block_hash)
       return false;
+    if (counters != nullptr)
+      ++counters->randomx;
     const crypto::hash expected_work = calculate_admission_work_v2(lease, context);
     return expected_work == lease.work_hash
         && admission_work_meets_target_v2(expected_work, policy.leading_zero_bits)
@@ -351,7 +354,8 @@ namespace epose
   pipeline_status_v2 membership_pipeline_v2::apply_admission(
       const admission_lease_v2 &lease,
       const admission_context_v2 &context,
-      uint64_t inclusion_height)
+      uint64_t inclusion_height,
+      verification_counters_v2 *counters)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
@@ -372,8 +376,6 @@ namespace epose
         || context.height != expected_context_height
         || !timing_.enrollment_cutoff(lease.target_epoch, cutoff))
       return pipeline_status_v2::invalid_epoch;
-    if (!validate_admission_lease_v2(lease, context, admission_policy_))
-      return pipeline_status_v2::invalid_member;
     if (inclusion_height > cutoff)
       return pipeline_status_v2::too_late;
     if (!valid_public_key(lease.member.service_public_key)
@@ -383,14 +385,21 @@ namespace epose
       return pipeline_status_v2::invalid_member;
     if (snapshots_.count(lease.target_epoch) != 0)
       return pipeline_status_v2::too_late;
+    if (!validate_admission_lease_v2(lease, context, admission_policy_, counters))
+      return pipeline_status_v2::invalid_member;
 
-    for (const stored_lease &stored : leases_)
+    for (stored_lease &stored : leases_)
     {
       if (stored.lease.target_epoch != lease.target_epoch
-          || !same_member_key(stored.lease.member, lease.member))
+          || stored.lease.member.identity_id != lease.member.identity_id)
         continue;
       if (same_lease(stored.lease, lease))
         return pipeline_status_v2::idempotent_duplicate;
+      if (lease.member.sequence > stored.lease.member.sequence)
+      {
+        stored = {lease, inclusion_height};
+        return pipeline_status_v2::accepted;
+      }
       return pipeline_status_v2::conflicting_record;
     }
 
@@ -402,6 +411,24 @@ namespace epose
       uint64_t epoch,
       uint64_t height,
       const crypto::hash &anchor_hash)
+  {
+    return freeze_membership_impl(epoch, height, anchor_hash, nullptr);
+  }
+
+  pipeline_status_v2 membership_pipeline_v2::freeze_membership(
+      uint64_t epoch,
+      uint64_t height,
+      const crypto::hash &anchor_hash,
+      const std::vector<frozen_member_v2> &authorized_members)
+  {
+    return freeze_membership_impl(epoch, height, anchor_hash, &authorized_members);
+  }
+
+  pipeline_status_v2 membership_pipeline_v2::freeze_membership_impl(
+      uint64_t epoch,
+      uint64_t height,
+      const crypto::hash &anchor_hash,
+      const std::vector<frozen_member_v2> *authorized_members)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
@@ -426,8 +453,20 @@ namespace epose
     frozen.anchor_hash = anchor_hash;
     for (const stored_lease &stored : leases_)
     {
-      if (stored.lease.target_epoch == epoch && stored.inclusion_height <= cutoff)
-        frozen.members.push_back(stored.lease.member);
+      if (stored.lease.target_epoch != epoch || stored.inclusion_height > cutoff)
+        continue;
+      if (authorized_members != nullptr)
+      {
+        const auto authorized = std::find_if(
+            authorized_members->begin(), authorized_members->end(),
+            [&](const frozen_member_v2 &member) {
+              return member.identity_id == stored.lease.member.identity_id;
+            });
+        if (authorized == authorized_members->end()
+            || !same_member(*authorized, stored.lease.member))
+          continue;
+      }
+      frozen.members.push_back(stored.lease.member);
     }
     std::sort(frozen.members.begin(), frozen.members.end(), member_less);
 
@@ -495,13 +534,13 @@ namespace epose
       const authenticated_service_receipt_v2 &receipt,
       const receipt_context_v2 &context,
       uint64_t inclusion_height,
-      const crypto::hash &canonical_round_anchor_hash)
+      const crypto::hash &canonical_round_anchor_hash,
+      verification_counters_v2 *counters)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
     if (context.nettype != nettype_ || context.genesis_hash != genesis_hash_
-        || context.parameter_set_hash != parameter_set_hash_
-        || !validate_authenticated_service_receipt_v2(receipt, context))
+        || context.parameter_set_hash != parameter_set_hash_)
       return pipeline_status_v2::receipt_not_prevalidated;
     const service_challenge_v2 &challenge = receipt.challenge;
     if (challenge.service_kind != policy_.service_kind)
@@ -567,6 +606,8 @@ namespace epose
         return pipeline_status_v2::idempotent_duplicate;
       return pipeline_status_v2::receipt_slot_conflict;
     }
+    if (!validate_authenticated_service_receipt_v2(receipt, context, counters))
+      return pipeline_status_v2::receipt_not_prevalidated;
     receipts_.push_back({challenge.epoch, challenge.round, challenge.service_kind,
         challenge.subject_public_key, challenge.verifier_public_key, receipt_hash, inclusion_height});
     return pipeline_status_v2::accepted;

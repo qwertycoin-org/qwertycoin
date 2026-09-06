@@ -190,7 +190,7 @@ namespace epose
     return true;
   }
 
-  lifecycle_status_v2 validate_lifecycle_record_authorization_v2(
+  lifecycle_status_v2 validate_lifecycle_record_structure_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
@@ -208,10 +208,29 @@ namespace epose
       return lifecycle_status_v2::invalid_descriptor;
     if (next.service_public_key == next.operator_authorization_public_key)
       return lifecycle_status_v2::nonseparated_authorities;
+    return lifecycle_status_v2::accepted;
+  }
+
+  lifecycle_status_v2 validate_lifecycle_record_authorization_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const lifecycle_record_v2 &record,
+      verification_counters_v2 *counters)
+  {
+    const lifecycle_status_v2 structure = validate_lifecycle_record_structure_v2(
+        nettype, genesis_hash, parameter_set_hash, record);
+    if (structure != lifecycle_status_v2::accepted)
+      return structure;
+    const identity_descriptor_v2 &next = record.next_descriptor;
     const crypto::hash message = hash_lifecycle_record_v2(
         nettype, genesis_hash, parameter_set_hash, record);
+    if (counters != nullptr)
+      ++counters->signatures;
     if (!crypto::check_signature(message, next.operator_authorization_public_key, record.operator_signature))
       return lifecycle_status_v2::invalid_operator_signature;
+    if (counters != nullptr)
+      ++counters->signatures;
     if (!crypto::check_signature(message, next.service_public_key, record.service_signature))
       return lifecycle_status_v2::invalid_service_signature;
     return lifecycle_status_v2::accepted;
@@ -236,14 +255,15 @@ namespace epose
   lifecycle_status_v2 lifecycle_registry_v2::apply(
       const lifecycle_record_v2 &record,
       uint64_t inclusion_epoch,
-      uint64_t minimum_effective_epoch)
+      uint64_t minimum_effective_epoch,
+      verification_counters_v2 *counters)
   {
     if (!valid_)
       return lifecycle_status_v2::invalid_context;
-    const lifecycle_status_v2 authorization = validate_lifecycle_record_authorization_v2(
+    const lifecycle_status_v2 structure = validate_lifecycle_record_structure_v2(
         nettype_, genesis_hash_, parameter_set_hash_, record);
-    if (authorization != lifecycle_status_v2::accepted)
-      return authorization;
+    if (structure != lifecycle_status_v2::accepted)
+      return structure;
     const identity_descriptor_v2 &next = record.next_descriptor;
     if (next.effective_epoch < minimum_effective_epoch || next.effective_epoch < inclusion_epoch)
       return lifecycle_status_v2::retroactive_change;
@@ -253,23 +273,23 @@ namespace epose
     auto history_it = std::find_if(histories_.begin(), histories_.end(), [&](const identity_history &history) {
       return hash_equal(history.identity_id, next.identity_id);
     });
+    bool idempotent_duplicate = false;
     if (history_it != histories_.end())
     {
       const auto duplicate = std::find_if(history_it->records.begin(), history_it->records.end(), [&](const lifecycle_record_v2 &stored) {
         return message == hash_lifecycle_record_v2(nettype_, genesis_hash_, parameter_set_hash_, stored);
       });
-      if (duplicate != history_it->records.end())
-        return lifecycle_status_v2::idempotent_duplicate;
+      idempotent_duplicate = duplicate != history_it->records.end();
     }
     const bool registering = record.action == lifecycle_action_v2::register_identity;
-    if (registering)
+    if (!idempotent_duplicate && registering)
     {
       if (history_it != histories_.end())
         return lifecycle_status_v2::identity_already_exists;
       if (record.previous_descriptor_hash != crypto::null_hash || next.sequence != 0)
         return lifecycle_status_v2::invalid_transition;
     }
-    else
+    else if (!idempotent_duplicate)
     {
       if (history_it == histories_.end())
         return lifecycle_status_v2::identity_not_found;
@@ -308,6 +328,13 @@ namespace epose
           return lifecycle_status_v2::invalid_transition;
       }
     }
+
+    const lifecycle_status_v2 authorization = validate_lifecycle_record_authorization_v2(
+        nettype_, genesis_hash_, parameter_set_hash_, record, counters);
+    if (authorization != lifecycle_status_v2::accepted)
+      return authorization;
+    if (idempotent_duplicate)
+      return lifecycle_status_v2::idempotent_duplicate;
 
     if (registering)
     {
@@ -351,6 +378,22 @@ namespace epose
         || selected->action == lifecycle_action_v2::deregister_identity)
       return nullptr;
     return &selected->next_descriptor;
+  }
+
+  std::vector<identity_descriptor_v2> lifecycle_registry_v2::descriptors_for_epoch(uint64_t epoch) const
+  {
+    std::vector<identity_descriptor_v2> descriptors;
+    descriptors.reserve(histories_.size());
+    for (const identity_history &history : histories_)
+    {
+      const identity_descriptor_v2 *descriptor = descriptor_for_epoch(history.identity_id, epoch);
+      if (descriptor != nullptr)
+        descriptors.push_back(*descriptor);
+    }
+    std::sort(descriptors.begin(), descriptors.end(), [](const identity_descriptor_v2 &left, const identity_descriptor_v2 &right) {
+      return hash_less(left.identity_id, right.identity_id);
+    });
+    return descriptors;
   }
 
   crypto::hash lifecycle_registry_v2::state_hash() const

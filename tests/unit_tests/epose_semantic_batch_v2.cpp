@@ -44,15 +44,19 @@ namespace
   {
   public:
     crypto::hash admission = hash_text("admission-anchor");
+    crypto::hash next_admission = hash_text("next-admission-anchor");
     crypto::hash round = hash_text("committee-anchor");
+    mutable size_t block_hash_calls = 0;
 
     bool block_hash(uint64_t height, crypto::hash &hash) const override
     {
+      ++block_hash_calls;
       hash = {};
-      if (height != 1440)
-        return false;
-      hash = admission;
-      return true;
+      if (height == 1440)
+        hash = admission;
+      else if (height == 2160)
+        hash = next_admission;
+      return hash != crypto::null_hash;
     }
 
     bool round_anchor(uint64_t epoch, uint64_t round_number, crypto::hash &hash) const override
@@ -104,7 +108,11 @@ namespace
     return record;
   }
 
-  admission_lease_v2 admission(const identity &value, const contexts &source)
+  admission_lease_v2 admission(
+      const identity &value,
+      const contexts &source,
+      uint64_t target_epoch = 3,
+      uint64_t context_height = 1440)
   {
     admission_lease_v2 lease{};
     lease.member.service_public_key = value.descriptor.service_public_key;
@@ -116,13 +124,14 @@ namespace
         cryptonote::TESTNET, genesis, parameters, value.descriptor.reward_address);
     lease.member.endpoint_descriptor_hash = value.descriptor.endpoint_descriptor_hash;
     lease.member.sequence = value.descriptor.sequence;
-    lease.target_epoch = 3;
+    lease.target_epoch = target_epoch;
     lease.work_algorithm = static_cast<uint8_t>(admission_policy.algorithm);
     lease.leading_zero_bits = admission_policy.leading_zero_bits;
-    lease.admission_context_height = 1440;
-    lease.admission_context_hash = source.admission;
+    lease.admission_context_height = context_height;
+    lease.admission_context_hash = context_height == 2160 ? source.next_admission : source.admission;
     const admission_context_v2 context{
-        cryptonote::TESTNET, genesis, parameters, 1440, source.admission};
+        cryptonote::TESTNET, genesis, parameters,
+        context_height, lease.admission_context_hash};
     do
     {
       lease.work_hash = calculate_admission_work_v2(lease, context);
@@ -133,14 +142,38 @@ namespace
     return lease;
   }
 
-  envelope_record_v2 admission_record(const identity &value, const contexts &source)
+  envelope_record_v2 admission_record(
+      const identity &value,
+      const contexts &source,
+      uint64_t target_epoch = 3,
+      uint64_t context_height = 1440)
   {
-    const admission_lease_v2 lease = admission(value, source);
+    const admission_lease_v2 lease = admission(value, source, target_epoch, context_height);
     const admission_context_v2 context{
-        cryptonote::TESTNET, genesis, parameters, 1440, source.admission};
+        cryptonote::TESTNET, genesis, parameters,
+        context_height, lease.admission_context_hash};
     envelope_record_v2 record{};
     EXPECT_EQ(record_codec_status_v2::accepted,
         encode_admission_lease_record_v2(lease, context, admission_policy, record));
+    return record;
+  }
+
+  envelope_record_v2 lifecycle_record(
+      lifecycle_action_v2 action,
+      const identity_descriptor_v2 &previous,
+      const identity &next)
+  {
+    lifecycle_record_v2 lifecycle{};
+    lifecycle.action = action;
+    lifecycle.previous_descriptor_hash = hash_identity_descriptor_v2(
+        cryptonote::TESTNET, genesis, parameters, previous);
+    lifecycle.next_descriptor = next.descriptor;
+    EXPECT_TRUE(sign_lifecycle_record_v2(
+        cryptonote::TESTNET, genesis, parameters, lifecycle,
+        next.operator_auth.secret_key, next.service.secret_key));
+    envelope_record_v2 record{};
+    EXPECT_EQ(record_codec_status_v2::accepted,
+        encode_lifecycle_record_v2(lifecycle, cryptonote::TESTNET, genesis, parameters, record));
     return record;
   }
 
@@ -192,6 +225,8 @@ TEST(epose_semantic_batch_v2, lifecycle_and_admission_apply_atomically_in_wire_o
   ASSERT_EQ(semantic_status_v2::accepted, enroll(state, subject, source, summary));
   EXPECT_EQ(1u, summary.lifecycle_records);
   EXPECT_EQ(1u, summary.admission_records);
+  EXPECT_EQ(2u, summary.verifications.signatures);
+  EXPECT_EQ(1u, summary.verifications.randomx);
   EXPECT_NE(nullptr, state.lifecycle().descriptor_for_epoch(subject.descriptor.identity_id, 3));
 
   semantic_state_v2 reversed = make_state();
@@ -246,6 +281,145 @@ TEST(epose_semantic_batch_v2, admission_must_match_authorized_historical_descrip
           {registration_record(subject), lease_record},
           semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
   EXPECT_EQ(nullptr, state.lifecycle().descriptor_for_epoch(subject.descriptor.identity_id, 3));
+  EXPECT_EQ(0u, summary.verifications.randomx);
+  EXPECT_EQ(0u, source.block_hash_calls);
+}
+
+TEST(epose_semantic_batch_v2, recovery_replaces_pending_admission_by_stable_identity)
+{
+  contexts source;
+  identity original = make_identity("original-endpoint");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(original)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {admission_record(original, source, 4, 2160)},
+          semantic_transaction_context_v2{2200, false, nullptr}, source, summary));
+
+  identity recovered = original;
+  recovered.service = make_keys();
+  recovered.descriptor.service_public_key = recovered.service.public_key;
+  recovered.descriptor.sequence = 1;
+  recovered.descriptor.effective_epoch = 4;
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {lifecycle_record(
+              lifecycle_action_v2::recover_service_key, original.descriptor, recovered)},
+          semantic_transaction_context_v2{2201, false, nullptr}, source, summary));
+  EXPECT_EQ(2u, summary.verifications.signatures);
+
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {admission_record(recovered, source, 4, 2160)},
+          semantic_transaction_context_v2{2202, false, nullptr}, source, summary));
+  EXPECT_EQ(1u, summary.verifications.randomx);
+
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+  const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
+  ASSERT_NE(nullptr, snapshot);
+  ASSERT_EQ(1u, snapshot->members.size());
+  EXPECT_EQ(original.descriptor.identity_id, snapshot->members.front().identity_id);
+  EXPECT_EQ(recovered.service.public_key, snapshot->members.front().service_public_key);
+  EXPECT_EQ(1u, snapshot->members.front().sequence);
+}
+
+TEST(epose_semantic_batch_v2, final_descriptor_view_invalidates_superseded_bindings)
+{
+  contexts source;
+  identity original = make_identity("original-endpoint");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(original)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {admission_record(original, source, 4, 2160)},
+          semantic_transaction_context_v2{2200, false, nullptr}, source, summary));
+
+  identity updated = original;
+  updated.descriptor.endpoint_descriptor_hash = hash_text("updated-endpoint");
+  updated.descriptor.reward_address.m_view_public_key = make_keys().public_key;
+  updated.descriptor.reward_address.m_spend_public_key = make_keys().public_key;
+  updated.descriptor.sequence = 1;
+  updated.descriptor.effective_epoch = 4;
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {lifecycle_record(
+              lifecycle_action_v2::update_descriptor, original.descriptor, updated)},
+          semantic_transaction_context_v2{2201, false, nullptr}, source, summary));
+
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+  const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
+  ASSERT_NE(nullptr, snapshot);
+  EXPECT_TRUE(snapshot->members.empty());
+}
+
+TEST(epose_semantic_batch_v2, deregistration_before_cutoff_invalidates_pending_admission)
+{
+  contexts source;
+  identity subject = make_identity("subject-endpoint");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(subject)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {admission_record(subject, source, 4, 2160)},
+          semantic_transaction_context_v2{2200, false, nullptr}, source, summary));
+
+  identity deregistered = subject;
+  deregistered.descriptor.sequence = 1;
+  deregistered.descriptor.effective_epoch = 4;
+  deregistered.descriptor.expiry_epoch = 4;
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {lifecycle_record(
+              lifecycle_action_v2::deregister_identity, subject.descriptor, deregistered)},
+          semantic_transaction_context_v2{2201, false, nullptr}, source, summary));
+
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+  const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
+  ASSERT_NE(nullptr, snapshot);
+  EXPECT_TRUE(snapshot->members.empty());
+}
+
+TEST(epose_semantic_batch_v2, invalid_admission_contexts_do_no_randomx_work)
+{
+  contexts source;
+  identity subject = make_identity("subject-endpoint");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(subject)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+
+  const size_t initial_lookups = source.block_hash_calls;
+  EXPECT_EQ(semantic_status_v2::invalid_admission,
+      state.apply_transaction(
+          {admission_record(subject, source, 3, 1439)},
+          semantic_transaction_context_v2{1501, false, nullptr}, source, summary));
+  EXPECT_EQ(0u, summary.verifications.randomx);
+  EXPECT_EQ(initial_lookups, source.block_hash_calls);
+
+  EXPECT_EQ(semantic_status_v2::invalid_admission,
+      state.apply_transaction(
+          {admission_record(subject, source)},
+          semantic_transaction_context_v2{2100, false, nullptr}, source, summary));
+  EXPECT_EQ(0u, summary.verifications.randomx);
+  EXPECT_EQ(initial_lookups, source.block_hash_calls);
 }
 
 TEST(epose_semantic_batch_v2, effective_epoch_is_derived_from_inclusion_height_and_cutoff)
@@ -298,6 +472,7 @@ TEST(epose_semantic_batch_v2, authenticated_receipt_uses_canonical_round_anchor)
       state.apply_transaction(
           {record}, semantic_transaction_context_v2{2160, false, nullptr}, source, summary));
   EXPECT_EQ(1u, summary.receipt_records);
+  EXPECT_EQ(2u, summary.verifications.signatures);
 
   contexts wrong = source;
   wrong.round = hash_text("wrong-round-anchor");

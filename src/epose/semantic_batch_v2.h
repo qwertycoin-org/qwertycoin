@@ -36,6 +36,7 @@ namespace epose
     size_t admission_records = 0;
     size_t receipt_records = 0;
     size_t payment_proof_records = 0;
+    verification_counters_v2 verifications{};
   };
 
   enum class semantic_status_v2

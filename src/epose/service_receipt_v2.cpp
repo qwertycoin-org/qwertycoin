@@ -147,17 +147,22 @@ namespace epose
 
   bool validate_authenticated_service_receipt_v2(
       const authenticated_service_receipt_v2 &receipt,
-      const receipt_context_v2 &context)
+      const receipt_context_v2 &context,
+      verification_counters_v2 *counters)
   {
     if (!validate_service_challenge_v2(receipt.challenge, context))
       return false;
     if (receipt.response_object_hash != receipt.challenge.requested_object_hash)
       return false;
+    if (counters != nullptr)
+      ++counters->signatures;
     if (!crypto::check_signature(
           hash_subject_response_v2(receipt, context),
           receipt.challenge.subject_public_key,
           receipt.subject_signature))
       return false;
+    if (counters != nullptr)
+      ++counters->signatures;
     return crypto::check_signature(
         hash_authenticated_service_receipt_v2(receipt, context),
         receipt.challenge.verifier_public_key,

@@ -9,6 +9,7 @@
 #include "crypto/crypto.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_config.h"
+#include "epose/verification_v2.h"
 
 namespace qwertycoin
 {
@@ -98,11 +99,18 @@ namespace epose
       const crypto::secret_key &operator_authorization_secret_key,
       const crypto::secret_key &service_secret_key);
 
-  lifecycle_status_v2 validate_lifecycle_record_authorization_v2(
+  lifecycle_status_v2 validate_lifecycle_record_structure_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
       const lifecycle_record_v2 &record);
+
+  lifecycle_status_v2 validate_lifecycle_record_authorization_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const lifecycle_record_v2 &record,
+      verification_counters_v2 *counters = nullptr);
 
   class lifecycle_registry_v2
   {
@@ -117,12 +125,14 @@ namespace epose
     lifecycle_status_v2 apply(
         const lifecycle_record_v2 &record,
         uint64_t inclusion_epoch,
-        uint64_t minimum_effective_epoch);
+        uint64_t minimum_effective_epoch,
+        verification_counters_v2 *counters = nullptr);
 
     const identity_descriptor_v2 *latest(const crypto::hash &identity_id) const;
     const identity_descriptor_v2 *descriptor_for_epoch(
         const crypto::hash &identity_id,
         uint64_t epoch) const;
+    std::vector<identity_descriptor_v2> descriptors_for_epoch(uint64_t epoch) const;
     crypto::hash state_hash() const;
 
   private:

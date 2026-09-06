@@ -87,10 +87,8 @@ namespace epose
     return record_codec_status_v2::accepted;
   }
 
-  record_codec_status_v2 decode_admission_lease_record_v2(
+  record_codec_status_v2 decode_admission_lease_record_structure_v2(
       const envelope_record_v2 &record,
-      const admission_context_v2 &context,
-      const admission_policy_v2 &policy,
       admission_lease_v2 &lease)
   {
     lease = {};
@@ -119,8 +117,28 @@ namespace epose
         || !read_bytes(record.payload, offset, next.lease_hash)
         || offset != record.payload.size())
       return record_codec_status_v2::wrong_size;
+    lease = next;
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 decode_admission_lease_record_v2(
+      const envelope_record_v2 &record,
+      const admission_context_v2 &context,
+      const admission_policy_v2 &policy,
+      admission_lease_v2 &lease)
+  {
+    admission_lease_v2 next{};
+    const record_codec_status_v2 status = decode_admission_lease_record_structure_v2(record, next);
+    if (status != record_codec_status_v2::accepted)
+    {
+      lease = {};
+      return status;
+    }
     if (!validate_admission_lease_v2(next, context, policy))
+    {
+      lease = {};
       return record_codec_status_v2::invalid_record;
+    }
     lease = next;
     return record_codec_status_v2::accepted;
   }
@@ -161,11 +179,8 @@ namespace epose
     return record_codec_status_v2::accepted;
   }
 
-  record_codec_status_v2 decode_lifecycle_record_v2(
+  record_codec_status_v2 decode_lifecycle_record_structure_v2(
       const envelope_record_v2 &record,
-      cryptonote::network_type nettype,
-      const crypto::hash &genesis_hash,
-      const crypto::hash &parameter_set_hash,
       lifecycle_record_v2 &lifecycle)
   {
     lifecycle = {};
@@ -199,9 +214,30 @@ namespace epose
     const bool registration_type = record.type == static_cast<uint8_t>(record_type_v2::identity_descriptor);
     if (registration_type != (next.action == lifecycle_action_v2::register_identity))
       return record_codec_status_v2::wrong_type;
+    lifecycle = next;
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 decode_lifecycle_record_v2(
+      const envelope_record_v2 &record,
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      lifecycle_record_v2 &lifecycle)
+  {
+    lifecycle_record_v2 next{};
+    const record_codec_status_v2 status = decode_lifecycle_record_structure_v2(record, next);
+    if (status != record_codec_status_v2::accepted)
+    {
+      lifecycle = {};
+      return status;
+    }
     if (validate_lifecycle_record_authorization_v2(
             nettype, genesis_hash, parameter_set_hash, next) != lifecycle_status_v2::accepted)
+    {
+      lifecycle = {};
       return record_codec_status_v2::invalid_record;
+    }
     lifecycle = next;
     return record_codec_status_v2::accepted;
   }
@@ -284,9 +320,8 @@ namespace epose
     return record_codec_status_v2::accepted;
   }
 
-  record_codec_status_v2 decode_service_receipt_record_v2(
+  record_codec_status_v2 decode_service_receipt_record_structure_v2(
       const envelope_record_v2 &record,
-      const receipt_context_v2 &context,
       authenticated_service_receipt_v2 &receipt)
   {
     receipt = {};
@@ -315,8 +350,27 @@ namespace epose
         || !read_bytes(record.payload, offset, next.verifier_signature)
         || offset != record.payload.size())
       return record_codec_status_v2::wrong_size;
+    receipt = next;
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 decode_service_receipt_record_v2(
+      const envelope_record_v2 &record,
+      const receipt_context_v2 &context,
+      authenticated_service_receipt_v2 &receipt)
+  {
+    authenticated_service_receipt_v2 next{};
+    const record_codec_status_v2 status = decode_service_receipt_record_structure_v2(record, next);
+    if (status != record_codec_status_v2::accepted)
+    {
+      receipt = {};
+      return status;
+    }
     if (!validate_authenticated_service_receipt_v2(next, context))
+    {
+      receipt = {};
       return record_codec_status_v2::invalid_record;
+    }
     receipt = next;
     return record_codec_status_v2::accepted;
   }

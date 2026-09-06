@@ -43,6 +43,10 @@ namespace epose
       const receipt_context_v2 &context,
       authenticated_service_receipt_v2 &receipt);
 
+  record_codec_status_v2 decode_service_receipt_record_structure_v2(
+      const envelope_record_v2 &record,
+      authenticated_service_receipt_v2 &receipt);
+
   record_codec_status_v2 encode_admission_lease_record_v2(
       const admission_lease_v2 &lease,
       const admission_context_v2 &context,
@@ -53,6 +57,10 @@ namespace epose
       const envelope_record_v2 &record,
       const admission_context_v2 &context,
       const admission_policy_v2 &policy,
+      admission_lease_v2 &lease);
+
+  record_codec_status_v2 decode_admission_lease_record_structure_v2(
+      const envelope_record_v2 &record,
       admission_lease_v2 &lease);
 
   record_codec_status_v2 encode_lifecycle_record_v2(
@@ -67,6 +75,10 @@ namespace epose
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
+      lifecycle_record_v2 &lifecycle);
+
+  record_codec_status_v2 decode_lifecycle_record_structure_v2(
+      const envelope_record_v2 &record,
       lifecycle_record_v2 &lifecycle);
 
   record_codec_status_v2 encode_payment_proof_record_v2(

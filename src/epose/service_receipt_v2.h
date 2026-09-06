@@ -80,7 +80,8 @@ namespace epose
 
   bool validate_authenticated_service_receipt_v2(
       const authenticated_service_receipt_v2 &receipt,
-      const receipt_context_v2 &context);
+      const receipt_context_v2 &context,
+      verification_counters_v2 *counters = nullptr);
 
 } // namespace epose
 } // namespace qwertycoin

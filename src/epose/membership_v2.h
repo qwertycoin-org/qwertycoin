@@ -12,6 +12,7 @@
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include "cryptonote_config.h"
+#include "epose/verification_v2.h"
 
 namespace qwertycoin
 {
@@ -114,7 +115,8 @@ namespace epose
   bool validate_admission_lease_v2(
       const admission_lease_v2 &lease,
       const admission_context_v2 &context,
-      const admission_policy_v2 &policy);
+      const admission_policy_v2 &policy,
+      verification_counters_v2 *counters = nullptr);
 
   struct membership_snapshot_v2
   {
@@ -179,18 +181,26 @@ namespace epose
     pipeline_status_v2 apply_admission(
         const admission_lease_v2 &lease,
         const admission_context_v2 &context,
-        uint64_t inclusion_height);
+        uint64_t inclusion_height,
+        verification_counters_v2 *counters = nullptr);
 
     pipeline_status_v2 freeze_membership(
         uint64_t epoch,
         uint64_t height,
         const crypto::hash &anchor_hash);
 
+    pipeline_status_v2 freeze_membership(
+        uint64_t epoch,
+        uint64_t height,
+        const crypto::hash &anchor_hash,
+        const std::vector<frozen_member_v2> &authorized_members);
+
     pipeline_status_v2 apply_authenticated_receipt(
         const authenticated_service_receipt_v2 &receipt,
         const receipt_context_v2 &context,
         uint64_t inclusion_height,
-        const crypto::hash &canonical_round_anchor_hash);
+        const crypto::hash &canonical_round_anchor_hash,
+        verification_counters_v2 *counters = nullptr);
 
     pipeline_status_v2 close_qualification(uint64_t epoch, uint64_t height);
 
@@ -234,6 +244,12 @@ namespace epose
     std::map<uint64_t, membership_snapshot_v2> snapshots_;
     std::vector<stored_receipt> receipts_;
     std::map<uint64_t, qualification_set_v2> qualifications_;
+
+    pipeline_status_v2 freeze_membership_impl(
+        uint64_t epoch,
+        uint64_t height,
+        const crypto::hash &anchor_hash,
+        const std::vector<frozen_member_v2> *authorized_members);
   };
 } // namespace epose
 } // namespace qwertycoin

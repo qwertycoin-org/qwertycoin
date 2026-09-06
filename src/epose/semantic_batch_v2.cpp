@@ -3,7 +3,6 @@
 
 #include "epose/semantic_batch_v2.h"
 
-#include <cstring>
 #include <limits>
 #include <string>
 #include <utility>
@@ -13,16 +12,6 @@
 
 namespace
 {
-  bool read_u64_le_at(const std::string &input, size_t offset, uint64_t &value)
-  {
-    if (offset > input.size() || input.size() - offset < 8)
-      return false;
-    value = 0;
-    for (unsigned shift = 0; shift < 64; shift += 8)
-      value |= static_cast<uint64_t>(static_cast<uint8_t>(input[offset++])) << shift;
-    return true;
-  }
-
   crypto::hash combined_state_hash(
       const crypto::hash &lifecycle, const crypto::hash &membership)
   {
@@ -85,6 +74,12 @@ namespace epose
     lifecycle_registry_v2 next_lifecycle = lifecycle_;
     membership_pipeline_v2 next_membership = membership_;
     semantic_apply_summary_v2 next_summary{};
+    const auto reject = [&](semantic_status_v2 status) {
+      // Record counters remain atomic, but attempted cryptographic work is
+      // observable so block-budget tests can cover rejected records too.
+      summary.verifications = next_summary.verifications;
+      return status;
+    };
 
     for (const envelope_record_v2 &record : records)
     {
@@ -94,40 +89,39 @@ namespace epose
         case record_type_v2::descriptor_lifecycle:
         {
           lifecycle_record_v2 lifecycle{};
-          if (decode_lifecycle_record_v2(
-                  record, nettype_, genesis_hash_, parameter_set_hash_, lifecycle)
+          if (decode_lifecycle_record_structure_v2(record, lifecycle)
               != record_codec_status_v2::accepted)
-            return semantic_status_v2::invalid_record;
+            return reject(semantic_status_v2::invalid_record);
           const lifecycle_status_v2 status = next_lifecycle.apply(
-              lifecycle, inclusion_epoch, minimum_effective_epoch);
+              lifecycle, inclusion_epoch, minimum_effective_epoch,
+              &next_summary.verifications);
           if (status != lifecycle_status_v2::accepted
               && status != lifecycle_status_v2::idempotent_duplicate)
-            return semantic_status_v2::invalid_lifecycle;
+            return reject(semantic_status_v2::invalid_lifecycle);
           ++next_summary.lifecycle_records;
           break;
         }
         case record_type_v2::admission_lease:
         {
-          if (record.version != EPOSE_ADMISSION_LEASE_RECORD_VERSION_V2
-              || record.payload.size() != EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2)
-            return semantic_status_v2::invalid_record;
-          constexpr size_t context_height_offset =
-              sizeof(crypto::public_key) + sizeof(crypto::hash)
-              + sizeof(crypto::public_key) + 3 * sizeof(crypto::hash)
-              + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(uint8_t) + sizeof(uint8_t);
-          uint64_t context_height = 0;
-          if (!read_u64_le_at(record.payload, context_height_offset, context_height))
-            return semantic_status_v2::invalid_record;
-          crypto::hash context_hash{};
-          if (!contexts.block_hash(context_height, context_hash) || context_hash == crypto::null_hash)
-            return semantic_status_v2::context_unavailable;
-          const admission_context_v2 admission_context{
-              nettype_, genesis_hash_, parameter_set_hash_, context_height, context_hash};
           admission_lease_v2 lease{};
-          if (decode_admission_lease_record_v2(
-                  record, admission_context, admission_policy_, lease)
+          if (decode_admission_lease_record_structure_v2(record, lease)
               != record_codec_status_v2::accepted)
-            return semantic_status_v2::invalid_record;
+            return reject(semantic_status_v2::invalid_record);
+
+          uint64_t first_service_epoch = 0;
+          uint64_t expected_context_height = 0;
+          uint64_t enrollment_cutoff = 0;
+          if (!timing_.first_service_epoch(first_service_epoch)
+              || lease.target_epoch < first_service_epoch
+              || lease.target_epoch < admission_policy_.context_epoch_offset
+              || !timing_.epoch_start(
+                    lease.target_epoch - admission_policy_.context_epoch_offset,
+                    expected_context_height)
+              || !timing_.enrollment_cutoff(lease.target_epoch, enrollment_cutoff)
+              || lease.admission_context_height != expected_context_height
+              || transaction.inclusion_height > enrollment_cutoff)
+            return reject(semantic_status_v2::invalid_admission);
+
           const identity_descriptor_v2 *descriptor = next_lifecycle.descriptor_for_epoch(
               lease.member.identity_id, lease.target_epoch);
           if (descriptor == nullptr
@@ -142,12 +136,21 @@ namespace epose
                     nettype_, genesis_hash_, parameter_set_hash_, descriptor->reward_address)
                     != lease.member.reward_binding_hash
               || descriptor->endpoint_descriptor_hash != lease.member.endpoint_descriptor_hash)
-            return semantic_status_v2::lifecycle_binding_mismatch;
+            return reject(semantic_status_v2::lifecycle_binding_mismatch);
+
+          crypto::hash context_hash{};
+          if (!contexts.block_hash(expected_context_height, context_hash)
+              || context_hash == crypto::null_hash)
+            return reject(semantic_status_v2::context_unavailable);
+          const admission_context_v2 admission_context{
+              nettype_, genesis_hash_, parameter_set_hash_,
+              expected_context_height, context_hash};
           const pipeline_status_v2 status = next_membership.apply_admission(
-              lease, admission_context, transaction.inclusion_height);
+              lease, admission_context, transaction.inclusion_height,
+              &next_summary.verifications);
           if (status != pipeline_status_v2::accepted
               && status != pipeline_status_v2::idempotent_duplicate)
-            return semantic_status_v2::invalid_admission;
+            return reject(semantic_status_v2::invalid_admission);
           ++next_summary.admission_records;
           break;
         }
@@ -155,42 +158,43 @@ namespace epose
         {
           const receipt_context_v2 receipt_context{nettype_, genesis_hash_, parameter_set_hash_};
           authenticated_service_receipt_v2 receipt{};
-          if (decode_service_receipt_record_v2(record, receipt_context, receipt)
+          if (decode_service_receipt_record_structure_v2(record, receipt)
               != record_codec_status_v2::accepted)
-            return semantic_status_v2::invalid_record;
+            return reject(semantic_status_v2::invalid_record);
           crypto::hash round_anchor{};
           if (!contexts.round_anchor(
                   receipt.challenge.epoch, receipt.challenge.round, round_anchor)
               || round_anchor == crypto::null_hash)
-            return semantic_status_v2::context_unavailable;
+            return reject(semantic_status_v2::context_unavailable);
           const pipeline_status_v2 status = next_membership.apply_authenticated_receipt(
-              receipt, receipt_context, transaction.inclusion_height, round_anchor);
+              receipt, receipt_context, transaction.inclusion_height, round_anchor,
+              &next_summary.verifications);
           if (status != pipeline_status_v2::accepted
               && status != pipeline_status_v2::idempotent_duplicate)
-            return semantic_status_v2::invalid_receipt;
+            return reject(semantic_status_v2::invalid_receipt);
           ++next_summary.receipt_records;
           break;
         }
         case record_type_v2::service_payment_proof:
         {
           if (!transaction.coinbase || transaction.payment == nullptr)
-            return semantic_status_v2::payment_proof_wrong_carrier;
+            return reject(semantic_status_v2::payment_proof_wrong_carrier);
           if (next_summary.payment_proof_records != 0)
-            return semantic_status_v2::duplicate_payment_proof;
+            return reject(semantic_status_v2::duplicate_payment_proof);
           const service_payment_context_v2 &payment = *transaction.payment;
           if (payment.nettype != nettype_ || payment.genesis_hash != genesis_hash_
               || payment.parameter_set_hash != parameter_set_hash_
               || payment.height != transaction.inclusion_height)
-            return semantic_status_v2::invalid_payment_proof;
+            return reject(semantic_status_v2::invalid_payment_proof);
           scoped_payment_proof_v2 proof{};
           if (decode_payment_proof_record_v2(record, payment, proof)
               != record_codec_status_v2::accepted)
-            return semantic_status_v2::invalid_payment_proof;
+            return reject(semantic_status_v2::invalid_payment_proof);
           ++next_summary.payment_proof_records;
           break;
         }
         default:
-          return semantic_status_v2::invalid_record;
+          return reject(semantic_status_v2::invalid_record);
       }
     }
 
@@ -205,7 +209,24 @@ namespace epose
   pipeline_status_v2 semantic_state_v2::freeze_membership(
       uint64_t epoch, uint64_t height, const crypto::hash &anchor_hash)
   {
-    return membership_.freeze_membership(epoch, height, anchor_hash);
+    std::vector<frozen_member_v2> authorized_members;
+    const std::vector<identity_descriptor_v2> descriptors = lifecycle_.descriptors_for_epoch(epoch);
+    authorized_members.reserve(descriptors.size());
+    for (const identity_descriptor_v2 &descriptor : descriptors)
+    {
+      frozen_member_v2 member{};
+      member.service_public_key = descriptor.service_public_key;
+      member.identity_id = descriptor.identity_id;
+      member.operator_authorization_public_key = descriptor.operator_authorization_public_key;
+      member.descriptor_hash = hash_identity_descriptor_v2(
+          nettype_, genesis_hash_, parameter_set_hash_, descriptor);
+      member.reward_binding_hash = hash_reward_binding_v2(
+          nettype_, genesis_hash_, parameter_set_hash_, descriptor.reward_address);
+      member.endpoint_descriptor_hash = descriptor.endpoint_descriptor_hash;
+      member.sequence = descriptor.sequence;
+      authorized_members.push_back(member);
+    }
+    return membership_.freeze_membership(epoch, height, anchor_hash, authorized_members);
   }
   pipeline_status_v2 semantic_state_v2::close_qualification(uint64_t epoch, uint64_t height)
   {
