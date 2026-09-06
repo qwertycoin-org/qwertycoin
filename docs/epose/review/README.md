@@ -21,6 +21,12 @@ authorize a node to reinterpret an already accepted block.
   fail-closed activation rules.
 - [`VALIDATION.md`](VALIDATION.md) records the baseline build and test commands,
   results, and explicit gaps.
+- [`RELEASE_READINESS.md`](RELEASE_READINESS.md) records the CO-10/11 no-go
+  assessment and the preconditions for a valid four-node funds-safety run.
+- [`RELEASE_GATES_V2.json`](RELEASE_GATES_V2.json) is the machine-readable,
+  fail-closed release evidence ledger.
+- [`ADVERSARIAL_ACCEPTANCE_MATRIX.md`](ADVERSARIAL_ACCEPTANCE_MATRIX.md) maps
+  the required attacks and failure modes to current and final evidence.
 
 ## Governing rule
 

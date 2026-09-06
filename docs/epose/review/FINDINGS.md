@@ -69,3 +69,10 @@ These properties are necessary but do not close the P0 findings above.
 No later package may silently relax an earlier invariant to make a test pass.
 Consensus, cryptography, wallet, storage, and operational changes should remain
 separate reviewable commits and, where practical, separate pull requests.
+
+CO-10/11 assessment is recorded in `RELEASE_READINESS.md`,
+`ADVERSARIAL_ACCEPTANCE_MATRIX.md`, and the machine-readable
+`RELEASE_GATES_V2.json`. The current result is a deliberate no-go: component
+evidence from CO-02 through CO-09 does not close a finding until the final HF18
+handler, persistent state, network path, reward/wallet path, and release build
+traverse it end to end.

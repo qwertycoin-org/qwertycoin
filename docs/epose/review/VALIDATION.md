@@ -378,3 +378,35 @@ Results reproduced on 2026-09-06:
 This is not handler or load-test evidence. P2P/RPC/probe integration,
 streaming/no-redirect socket enforcement, DNS race fixtures, RandomX VM hooks,
 fuzzing, and sustained malicious-load benchmarks remain open.
+
+## CO-10/11 release-gate validation
+
+Commands:
+
+```text
+python3 -m py_compile tests/epose/release_gate_v2.py tests/epose/test_release_gate_v2.py
+python3 tests/epose/test_release_gate_v2.py
+python3 tests/epose/release_gate_v2.py \
+  --manifest docs/epose/PARAMETER_MANIFEST_V2.json \
+  --gates docs/epose/review/RELEASE_GATES_V2.json \
+  --expect no-go
+```
+
+Results reproduced on 2026-09-06:
+
+- release-gate evaluator tests: **6/6 passed**;
+- all EPoSE Python model/gate tests: **27/27 passed**;
+- complete focused C++ EPoSE binary: **143/143 passed**;
+- EPoSE fuzz corpus: **11/11 files passed**;
+- daemon rebuilt and linked at stacked base `e90f64c60`;
+- malformed schema, duplicate gate, unsupported state, evidence-free satisfied
+  gate, and false ready declaration fail closed;
+- the current result is `no-go`: 2/13 top-level gates satisfied, 11 unresolved,
+  and 24 required manifest fields unset;
+- the reservation-manifest SHA-256 remains
+  `3cc33c916af6cd377485e163dd41006a9ea6ff8899ae4e31205cd01f104fe5f1`.
+
+No genesis reset or four-host execution was performed. The existing integration
+harness exercises HF17 and cannot establish HF18 funds safety while the v2
+handler, LMDB, final parameters, reward policy, and payment-proof review remain
+open. Running it and relabeling the result would be false activation evidence.
