@@ -134,3 +134,10 @@ activated by CO-01.
 124. Activation requires EPoSE index updates in the same LMDB write transaction as block connect/disconnect.
 125. A missing/corrupt index is recoverable derived data, not grounds for a different block-validity result.
 126. Pruned validation remains unsupported until required EPoSE history retention/reconstruction is proved.
+127. Endpoint descriptors bind network/genesis, parameter set, service identity, typed transport, canonical host/port, service version, sequence, and expiry.
+128. DNS answers, live probes, redirects, elapsed wall time, and external APIs never participate in block validation.
+129. Public-internet probes reject local/private/link-local/multicast/unspecified/metadata and IPv4-mapped private destinations and recheck DNS answers at connection time.
+130. Probe work is bounded by request/response bytes, timeout, global concurrency, peer count, and per-peer concurrency.
+131. Unknown admission contexts are rejected before allocating a RandomX VM, dataset, cache, or pending verification entry.
+132. EPoSE RPC list/scan operations require pagination and checked page/scan ceilings.
+133. Local overload may reject relay/probe work but cannot change deterministic validation of the same complete block.

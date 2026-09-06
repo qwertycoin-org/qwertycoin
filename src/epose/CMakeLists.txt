@@ -7,6 +7,7 @@ set(epose_sources
   lifecycle_v2.cpp
   membership_v2.cpp
   reward_v2.cpp
+  resource_policy_v2.cpp
   service_receipt_v2.cpp
   state_index_v2.cpp
   service_epoch.cpp
@@ -21,6 +22,7 @@ set(epose_headers
   lifecycle_v2.h
   membership_v2.h
   reward_v2.h
+  resource_policy_v2.h
   service_receipt_v2.h
   state_index_v2.h
   service_epoch.h

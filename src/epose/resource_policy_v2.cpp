@@ -1,0 +1,287 @@
+// Copyright (c) 2026, Qwertycoin
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include "epose/resource_policy_v2.h"
+
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <limits>
+
+#include <boost/asio/ip/address.hpp>
+
+namespace
+{
+  template <typename T>
+  void append_bytes(std::string &out, const T &value)
+  {
+    out.append(reinterpret_cast<const char *>(&value), sizeof(T));
+  }
+
+  void append_u8(std::string &out, uint8_t value) { out.push_back(static_cast<char>(value)); }
+  void append_u16(std::string &out, uint16_t value)
+  {
+    out.push_back(static_cast<char>(value & 0xff));
+    out.push_back(static_cast<char>((value >> 8) & 0xff));
+  }
+  void append_u64(std::string &out, uint64_t value)
+  {
+    for (unsigned shift = 0; shift < 64; shift += 8)
+      out.push_back(static_cast<char>((value >> shift) & 0xff));
+  }
+  void append_network(std::string &out, cryptonote::network_type nettype)
+  {
+    for (const auto byte : cryptonote::get_config(nettype).NETWORK_ID)
+      append_u8(out, byte);
+  }
+  crypto::hash fast_hash(const std::string &blob) { return crypto::cn_fast_hash(blob.data(), blob.size()); }
+
+  bool canonical_dns(const std::string &host)
+  {
+    if (host.empty() || host.size() > 253 || host.front() == '.' || host.back() == '.'
+        || host.find('.') == std::string::npos)
+      return false;
+    size_t label = 0;
+    unsigned char previous = 0;
+    for (const unsigned char byte : host)
+    {
+      if (byte == '.')
+      {
+        if (label == 0 || label > 63 || previous == '-')
+          return false;
+        label = 0;
+      }
+      else
+      {
+        if (!(std::islower(byte) || std::isdigit(byte) || byte == '-'))
+          return false;
+        if ((label == 0 && byte == '-') || label >= 63)
+          return false;
+        ++label;
+      }
+      previous = byte;
+    }
+    return label > 0 && label <= 63 && previous != '-';
+  }
+
+  bool prohibited_v4(const boost::asio::ip::address_v4 &address)
+  {
+    const auto b = address.to_bytes();
+    return address.is_unspecified() || address.is_loopback() || address.is_multicast()
+        || b[0] == 0 || b[0] == 10 || b[0] == 127
+        || (b[0] == 100 && b[1] >= 64 && b[1] <= 127)
+        || (b[0] == 169 && b[1] == 254)
+        || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+        || (b[0] == 192 && b[1] == 0) || (b[0] == 192 && b[1] == 88 && b[2] == 99)
+        || (b[0] == 192 && b[1] == 168)
+        || (b[0] == 198 && (b[1] == 18 || b[1] == 19))
+        || (b[0] == 198 && b[1] == 51 && b[2] == 100)
+        || (b[0] == 203 && b[1] == 0 && b[2] == 113)
+        || b[0] >= 224;
+  }
+
+  bool prohibited_v6(const boost::asio::ip::address_v6 &address)
+  {
+    if (address.is_v4_mapped())
+    {
+      const auto b = address.to_bytes();
+      boost::asio::ip::address_v4::bytes_type v4{{b[12], b[13], b[14], b[15]}};
+      return prohibited_v4(boost::asio::ip::address_v4(v4));
+    }
+    const auto b = address.to_bytes();
+    return address.is_unspecified() || address.is_loopback() || address.is_multicast()
+        || address.is_link_local() || address.is_site_local()
+        || (b[0] & 0xfe) == 0xfc
+        || (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x0d && b[3] == 0xb8);
+  }
+}
+
+namespace qwertycoin
+{
+namespace epose
+{
+  crypto::hash hash_endpoint_descriptor_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const endpoint_descriptor_v2 &descriptor)
+  {
+    std::string blob("QWC_EPOSE_ENDPOINT_V2");
+    append_network(blob, nettype);
+    append_bytes(blob, genesis_hash);
+    append_bytes(blob, parameter_set_hash);
+    append_u8(blob, descriptor.version);
+    append_bytes(blob, descriptor.service_public_key);
+    append_u8(blob, static_cast<uint8_t>(descriptor.transport));
+    append_u64(blob, descriptor.host.size());
+    blob.append(descriptor.host);
+    append_u16(blob, descriptor.port);
+    append_u8(blob, descriptor.service_kind);
+    append_u8(blob, descriptor.service_version);
+    append_u64(blob, descriptor.sequence);
+    append_u64(blob, descriptor.expiry_epoch);
+    return fast_hash(blob);
+  }
+
+  bool sign_endpoint_descriptor_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      endpoint_descriptor_v2 &descriptor,
+      const crypto::secret_key &service_secret_key)
+  {
+    crypto::public_key public_key{};
+    if (!crypto::secret_key_to_public_key(service_secret_key, public_key)
+        || public_key != descriptor.service_public_key)
+      return false;
+    crypto::generate_signature(hash_endpoint_descriptor_v2(nettype, genesis_hash, parameter_set_hash, descriptor),
+        descriptor.service_public_key, service_secret_key, descriptor.signature);
+    return true;
+  }
+
+  resource_status_v2 validate_endpoint_descriptor_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const endpoint_descriptor_v2 &descriptor)
+  {
+    if (nettype == cryptonote::UNDEFINED || genesis_hash == crypto::null_hash
+        || parameter_set_hash == crypto::null_hash || descriptor.version != 1
+        || descriptor.service_public_key == crypto::null_pkey
+        || !crypto::check_key(descriptor.service_public_key) || descriptor.port == 0
+        || descriptor.service_kind == 0 || descriptor.service_version == 0
+        || (descriptor.transport != endpoint_transport_v2::tcp_ipv4
+            && descriptor.transport != endpoint_transport_v2::tcp_ipv6
+            && descriptor.transport != endpoint_transport_v2::dns))
+      return resource_status_v2::invalid_descriptor;
+
+    boost::system::error_code error;
+    const auto parsed = boost::asio::ip::address::from_string(descriptor.host, error);
+    if (descriptor.transport == endpoint_transport_v2::dns)
+    {
+      if (!error || !canonical_dns(descriptor.host))
+        return resource_status_v2::noncanonical_host;
+    }
+    else
+    {
+      if (error || parsed.to_string() != descriptor.host
+          || (descriptor.transport == endpoint_transport_v2::tcp_ipv4 && !parsed.is_v4())
+          || (descriptor.transport == endpoint_transport_v2::tcp_ipv6 && !parsed.is_v6()))
+        return resource_status_v2::noncanonical_host;
+      if (!public_probe_address_v2(descriptor.host))
+        return resource_status_v2::prohibited_address;
+    }
+    if (!crypto::check_signature(hash_endpoint_descriptor_v2(nettype, genesis_hash, parameter_set_hash, descriptor),
+            descriptor.service_public_key, descriptor.signature))
+      return resource_status_v2::invalid_signature;
+    return resource_status_v2::accepted;
+  }
+
+  bool public_probe_address_v2(const std::string &text)
+  {
+    boost::system::error_code error;
+    const auto address = boost::asio::ip::address::from_string(text, error);
+    if (error)
+      return false;
+    return address.is_v4() ? !prohibited_v4(address.to_v4()) : !prohibited_v6(address.to_v6());
+  }
+
+  resource_status_v2 validate_resolved_targets_v2(const std::vector<std::string> &addresses, size_t max_addresses)
+  {
+    if (max_addresses == 0)
+      return resource_status_v2::invalid_configuration;
+    if (addresses.empty())
+      return resource_status_v2::resolution_empty;
+    if (addresses.size() > max_addresses)
+      return resource_status_v2::resolution_limit_exceeded;
+    for (const auto &address : addresses)
+      if (!public_probe_address_v2(address))
+        return resource_status_v2::prohibited_address;
+    return resource_status_v2::accepted;
+  }
+
+  bool probe_limits_v2::valid() const
+  {
+    return max_concurrent > 0 && max_pending_peers > 0 && max_per_peer > 0
+        && max_per_peer <= max_concurrent && max_request_bytes > 0
+        && max_response_bytes > 0 && max_timeout_ms > 0;
+  }
+
+  probe_budget_v2::probe_budget_v2(const probe_limits_v2 &limits) : limits_(limits) {}
+
+  resource_status_v2 probe_budget_v2::acquire(
+      const crypto::hash &peer, size_t request_bytes, size_t response_limit, uint64_t timeout_ms)
+  {
+    if (!limits_.valid() || peer == crypto::null_hash)
+      return resource_status_v2::invalid_configuration;
+    if (request_bytes > limits_.max_request_bytes)
+      return resource_status_v2::request_too_large;
+    if (response_limit > limits_.max_response_bytes)
+      return resource_status_v2::response_too_large;
+    if (timeout_ms > limits_.max_timeout_ms || timeout_ms == 0)
+      return resource_status_v2::timeout_too_large;
+    if (active_ >= limits_.max_concurrent)
+      return resource_status_v2::concurrency_exceeded;
+    auto found = std::find_if(peers_.begin(), peers_.end(), [&](const peer_count &entry) { return entry.peer == peer; });
+    if (found == peers_.end())
+    {
+      if (peers_.size() >= limits_.max_pending_peers)
+        return resource_status_v2::peer_limit_exceeded;
+      peers_.push_back({peer, 1});
+    }
+    else
+    {
+      if (found->count >= limits_.max_per_peer)
+        return resource_status_v2::peer_limit_exceeded;
+      ++found->count;
+    }
+    ++active_;
+    return resource_status_v2::accepted;
+  }
+
+  void probe_budget_v2::release(const crypto::hash &peer)
+  {
+    auto found = std::find_if(peers_.begin(), peers_.end(), [&](const peer_count &entry) { return entry.peer == peer; });
+    if (found == peers_.end() || found->count == 0)
+      return;
+    --found->count;
+    --active_;
+    if (found->count == 0)
+      peers_.erase(found);
+  }
+
+  size_t probe_budget_v2::active() const { return active_; }
+
+  admission_context_cache_v2::admission_context_cache_v2(size_t max_contexts) : max_contexts_(max_contexts) {}
+
+  resource_status_v2 admission_context_cache_v2::admit(
+      const crypto::hash &context, const std::vector<crypto::hash> &currently_allowed)
+  {
+    if (max_contexts_ == 0 || context == crypto::null_hash)
+      return resource_status_v2::invalid_configuration;
+    if (std::find(currently_allowed.begin(), currently_allowed.end(), context) == currently_allowed.end())
+      return resource_status_v2::unknown_admission_context;
+    if (std::find(contexts_.begin(), contexts_.end(), context) != contexts_.end())
+      return resource_status_v2::accepted;
+    if (contexts_.size() >= max_contexts_)
+      return resource_status_v2::context_cache_full;
+    contexts_.push_back(context);
+    return resource_status_v2::accepted;
+  }
+
+  size_t admission_context_cache_v2::size() const { return contexts_.size(); }
+
+  resource_status_v2 validate_rpc_page_v2(
+      uint64_t offset, uint64_t limit, uint64_t max_limit, uint64_t available_records,
+      uint64_t max_scan, uint64_t &end_offset)
+  {
+    end_offset = 0;
+    if (limit == 0 || max_limit == 0 || limit > max_limit || offset > available_records)
+      return resource_status_v2::invalid_page;
+    if (offset > max_scan || limit > max_scan - offset)
+      return resource_status_v2::scan_limit_exceeded;
+    end_offset = std::min(available_records, offset + limit);
+    return resource_status_v2::accepted;
+  }
+} // namespace epose
+} // namespace qwertycoin

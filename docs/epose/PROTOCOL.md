@@ -677,6 +677,22 @@ replay remains the correctness oracle. The journal is non-activating and still
 requires LMDB tables updated in the same write transaction as block state,
 startup tip checks, payload/object reconstruction, and pruning integration.
 See `review/ADR-0005-PERSISTENT-STATE.md`.
+
+## CO-09 endpoint and resource policy
+
+`src/epose/resource_policy_v2.*` defines signed, typed endpoint descriptors,
+canonical host rules, public-address filtering, bounded DNS answer validation,
+probe concurrency/byte/time budgets, admission-context cache admission, and
+paginated RPC scan limits.
+
+DNS answers and live probes remain local policy and are rechecked at connection
+time; block validation performs no DNS or network I/O. Unknown admission
+contexts are rejected before any cache or RandomX VM allocation. Local overload
+may shed probe/relay work but cannot alter complete-block validity.
+
+These primitives remain non-activating pending handler integration, streaming
+limits, no-redirect enforcement, credential isolation, fuzzing, and sustained
+malicious-load benchmarks. See `review/ADR-0006-RESOURCE-POLICY.md`.
 No implementation may guess missing fields or accept an opaque payload merely
 because its outer envelope parses.
 

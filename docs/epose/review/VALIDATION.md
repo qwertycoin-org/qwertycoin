@@ -349,3 +349,32 @@ Results reproduced on 2026-09-06:
 This is not durable-LMDB or crash-injection evidence. The same-transaction LMDB
 adapter, reconstruction of full state objects, schema migration, process-kill
 testing, and pruned/full-node compatibility remain activation gates.
+
+## CO-09 resource-policy validation
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_resource_policy_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- resource-policy tests: **8/8 passed**;
+- complete focused EPoSE binary after integration: **143/143 passed**;
+- daemon target rebuilt successfully with the resource-policy object linked;
+- signed descriptors are chain-context-bound and canonical DNS/IP forms pass;
+- uppercase/single-label/malformed DNS, invalid transport, and wrong IP family
+  fail closed;
+- loopback, RFC1918, link-local metadata, ULA, and IPv4-mapped loopback are
+  rejected while public IPv4/IPv6 fixtures pass;
+- empty/oversized DNS result sets and any prohibited answer fail;
+- request/response bytes, timeout, global concurrency, tracked-peer, and
+  per-peer limits are enforced and released deterministically;
+- unknown admission contexts allocate no cache entry;
+- RPC page/scan arithmetic rejects oversize and wraparound boundaries.
+
+This is not handler or load-test evidence. P2P/RPC/probe integration,
+streaming/no-redirect socket enforcement, DNS race fixtures, RandomX VM hooks,
+fuzzing, and sustained malicious-load benchmarks remain open.
