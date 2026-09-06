@@ -157,20 +157,5 @@ namespace epose
         receipt.verifier_signature);
   }
 
-  bool make_prevalidated_receipt_slot_v2(
-      const authenticated_service_receipt_v2 &receipt,
-      const receipt_context_v2 &context,
-      prevalidated_receipt_slot_v2 &slot)
-  {
-    if (!validate_authenticated_service_receipt_v2(receipt, context))
-      return false;
-    slot.epoch = receipt.challenge.epoch;
-    slot.round = receipt.challenge.round;
-    slot.service_kind = receipt.challenge.service_kind;
-    slot.subject_public_key = receipt.challenge.subject_public_key;
-    slot.verifier_public_key = receipt.challenge.verifier_public_key;
-    slot.receipt_hash = hash_authenticated_service_receipt_v2(receipt, context);
-    return true;
-  }
 } // namespace epose
 } // namespace qwertycoin

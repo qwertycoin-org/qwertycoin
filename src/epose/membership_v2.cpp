@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/membership_v2.h"
+#include "epose/service_receipt_v2.h"
 
 #include <algorithm>
 #include <cstring>
@@ -14,7 +15,6 @@ namespace
 {
   using qwertycoin::epose::admission_lease_v2;
   using qwertycoin::epose::frozen_member_v2;
-  using qwertycoin::epose::prevalidated_receipt_slot_v2;
 
   bool checked_add(uint64_t left, uint64_t right, uint64_t &out)
   {
@@ -117,20 +117,6 @@ namespace
     append_u64_le(blob, member.sequence);
   }
 
-  bool same_receipt_slot(const prevalidated_receipt_slot_v2 &left, const prevalidated_receipt_slot_v2 &right)
-  {
-    return left.epoch == right.epoch
-        && left.round == right.round
-        && left.service_kind == right.service_kind
-        && bytes_equal(left.subject_public_key, right.subject_public_key)
-        && bytes_equal(left.verifier_public_key, right.verifier_public_key);
-  }
-
-  bool same_receipt(const prevalidated_receipt_slot_v2 &left, const prevalidated_receipt_slot_v2 &right)
-  {
-    return same_receipt_slot(left, right) && bytes_equal(left.receipt_hash, right.receipt_hash);
-  }
-
   bool contains_member(const qwertycoin::epose::membership_snapshot_v2 &snapshot, const crypto::public_key &key)
   {
     return std::binary_search(snapshot.members.begin(), snapshot.members.end(), frozen_member_v2{key}, [](const frozen_member_v2 &member, const frozen_member_v2 &needle) {
@@ -220,7 +206,12 @@ namespace epose
         && round_count > 0
         && rounds_required > 0
         && rounds_required <= round_count
-        && service_kind != 0;
+        && service_kind != 0
+        && round_offsets.size() == round_count
+        && !round_offsets.empty()
+        && round_offsets.front() == 0
+        && std::adjacent_find(round_offsets.begin(), round_offsets.end(),
+            [](uint64_t left, uint64_t right) { return left >= right; }) == round_offsets.end();
   }
 
   membership_pipeline_v2::membership_pipeline_v2(
@@ -236,6 +227,7 @@ namespace epose
       policy_(policy),
       valid_(timing.valid()
           && policy.valid()
+          && policy.round_offsets.back() < timing.epoch_length - timing.anchor_depth
           && genesis_hash != crypto::null_hash
           && parameter_set_hash != crypto::null_hash)
   {
@@ -333,11 +325,15 @@ namespace epose
   std::vector<verifier_assignment_v2> membership_pipeline_v2::committee(
       uint64_t epoch,
       uint64_t round,
-      const crypto::public_key &subject_public_key) const
+      const crypto::public_key &subject_public_key,
+      const crypto::hash &round_anchor_hash) const
   {
     std::vector<verifier_assignment_v2> result;
     const membership_snapshot_v2 *frozen = snapshot(epoch);
-    if (!valid_ || frozen == nullptr || round >= policy_.round_count || !contains_member(*frozen, subject_public_key))
+    if (!valid_ || frozen == nullptr || round >= policy_.round_count
+        || round_anchor_hash == crypto::null_hash
+        || (round == 0 && round_anchor_hash != frozen->anchor_hash)
+        || !contains_member(*frozen, subject_public_key))
       return result;
     if (frozen->members.size() <= policy_.committee_size)
       return result;
@@ -353,7 +349,7 @@ namespace epose
       append_bytes(blob, frozen->snapshot_hash);
       append_u64_le(blob, epoch);
       append_u64_le(blob, round);
-      append_bytes(blob, frozen->anchor_hash);
+      append_bytes(blob, round_anchor_hash);
       append_bytes(blob, subject_public_key);
       append_bytes(blob, candidate.service_public_key);
       result.push_back({candidate.service_public_key, hash_blob(blob)});
@@ -370,52 +366,84 @@ namespace epose
     return result;
   }
 
-  pipeline_status_v2 membership_pipeline_v2::apply_prevalidated_receipt(
-      const prevalidated_receipt_slot_v2 &receipt,
+  pipeline_status_v2 membership_pipeline_v2::apply_authenticated_receipt(
+      const authenticated_service_receipt_v2 &receipt,
+      const receipt_context_v2 &context,
       uint64_t inclusion_height,
-      bool cryptographically_verified)
+      const crypto::hash &canonical_round_anchor_hash)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
-    if (!cryptographically_verified)
+    if (context.nettype != nettype_ || context.genesis_hash != genesis_hash_
+        || context.parameter_set_hash != parameter_set_hash_
+        || !validate_authenticated_service_receipt_v2(receipt, context))
       return pipeline_status_v2::receipt_not_prevalidated;
-    if (receipt.service_kind != policy_.service_kind)
+    const service_challenge_v2 &challenge = receipt.challenge;
+    if (challenge.service_kind != policy_.service_kind)
       return pipeline_status_v2::invalid_service_kind;
-    if (qualifications_.count(receipt.epoch) != 0)
+    if (qualifications_.count(challenge.epoch) != 0)
       return pipeline_status_v2::qualification_already_closed;
-    const membership_snapshot_v2 *frozen = snapshot(receipt.epoch);
+    const membership_snapshot_v2 *frozen = snapshot(challenge.epoch);
     if (frozen == nullptr)
       return pipeline_status_v2::snapshot_missing;
+    if (challenge.snapshot_hash != frozen->snapshot_hash
+        || canonical_round_anchor_hash == crypto::null_hash
+        || challenge.anchor_hash != canonical_round_anchor_hash
+        || (challenge.round == 0 && challenge.anchor_hash != frozen->anchor_hash))
+      return pipeline_status_v2::receipt_not_prevalidated;
     uint64_t start = 0;
     uint64_t deadline = 0;
-    if (!timing_.epoch_start(receipt.epoch, start)
-        || !timing_.evidence_deadline(receipt.epoch, deadline)
-        || receipt.round >= policy_.round_count)
+    if (!timing_.epoch_start(challenge.epoch, start)
+        || !timing_.evidence_deadline(challenge.epoch, deadline)
+        || challenge.round >= policy_.round_count)
       return pipeline_status_v2::invalid_epoch;
-    if (inclusion_height < start)
+    uint64_t round_start = 0;
+    if (!checked_add(start, policy_.round_offsets[challenge.round], round_start))
       return pipeline_status_v2::invalid_epoch;
-    if (inclusion_height > deadline)
+    uint64_t round_end = deadline;
+    if (challenge.round + 1 < policy_.round_count)
+    {
+      uint64_t next_round_start = 0;
+      if (!checked_add(start, policy_.round_offsets[challenge.round + 1], next_round_start)
+          || next_round_start == 0)
+        return pipeline_status_v2::invalid_epoch;
+      round_end = next_round_start - 1;
+    }
+    if (inclusion_height < round_start)
+      return pipeline_status_v2::invalid_epoch;
+    if (inclusion_height > round_end)
       return pipeline_status_v2::too_late;
-    if (!contains_member(*frozen, receipt.subject_public_key))
+    const auto subject = std::find_if(frozen->members.begin(), frozen->members.end(), [&](const frozen_member_v2 &member) {
+      return bytes_equal(member.service_public_key, challenge.subject_public_key);
+    });
+    if (subject == frozen->members.end())
       return pipeline_status_v2::subject_not_in_snapshot;
-    if (!contains_member(*frozen, receipt.verifier_public_key))
+    if (challenge.endpoint_descriptor_hash != subject->endpoint_descriptor_hash)
+      return pipeline_status_v2::receipt_not_prevalidated;
+    if (!contains_member(*frozen, challenge.verifier_public_key))
       return pipeline_status_v2::verifier_not_in_snapshot;
 
-    const std::vector<verifier_assignment_v2> selected = committee(receipt.epoch, receipt.round, receipt.subject_public_key);
+    const std::vector<verifier_assignment_v2> selected = committee(
+        challenge.epoch, challenge.round, challenge.subject_public_key, challenge.anchor_hash);
     if (std::find_if(selected.begin(), selected.end(), [&](const verifier_assignment_v2 &assignment) {
-          return bytes_equal(assignment.verifier_public_key, receipt.verifier_public_key);
+          return bytes_equal(assignment.verifier_public_key, challenge.verifier_public_key);
         }) == selected.end())
       return pipeline_status_v2::verifier_not_selected;
 
+    const crypto::hash receipt_hash = hash_authenticated_service_receipt_v2(receipt, context);
     for (const stored_receipt &stored : receipts_)
     {
-      if (!same_receipt_slot(stored.receipt, receipt))
+      if (stored.epoch != challenge.epoch || stored.round != challenge.round
+          || stored.service_kind != challenge.service_kind
+          || !bytes_equal(stored.subject_public_key, challenge.subject_public_key)
+          || !bytes_equal(stored.verifier_public_key, challenge.verifier_public_key))
         continue;
-      if (same_receipt(stored.receipt, receipt))
+      if (bytes_equal(stored.receipt_hash, receipt_hash))
         return pipeline_status_v2::idempotent_duplicate;
       return pipeline_status_v2::receipt_slot_conflict;
     }
-    receipts_.push_back({receipt, inclusion_height});
+    receipts_.push_back({challenge.epoch, challenge.round, challenge.service_kind,
+        challenge.subject_public_key, challenge.verifier_public_key, receipt_hash, inclusion_height});
     return pipeline_status_v2::accepted;
   }
 
@@ -449,11 +477,10 @@ namespace epose
           std::set<std::string> voters;
           for (const stored_receipt &stored : receipts_)
           {
-            const prevalidated_receipt_slot_v2 &receipt = stored.receipt;
-            if (receipt.epoch == epoch
-                && receipt.round == round
-                && bytes_equal(receipt.subject_public_key, subject.service_public_key))
-              voters.emplace(reinterpret_cast<const char *>(&receipt.verifier_public_key), sizeof(receipt.verifier_public_key));
+            if (stored.epoch == epoch
+                && stored.round == round
+                && bytes_equal(stored.subject_public_key, subject.service_public_key))
+              voters.emplace(reinterpret_cast<const char *>(&stored.verifier_public_key), sizeof(stored.verifier_public_key));
           }
           if (voters.size() >= policy_.threshold)
             ++passing_rounds;
@@ -504,6 +531,9 @@ namespace epose
     append_u64_le(blob, policy_.round_count);
     append_u64_le(blob, policy_.rounds_required);
     append_u8(blob, policy_.service_kind);
+    append_u64_le(blob, policy_.round_offsets.size());
+    for (const uint64_t offset : policy_.round_offsets)
+      append_u64_le(blob, offset);
     std::vector<stored_lease> leases = leases_;
     std::sort(leases.begin(), leases.end(), [](const stored_lease &left, const stored_lease &right) {
       if (left.lease.target_epoch != right.lease.target_epoch)
@@ -523,8 +553,8 @@ namespace epose
       append_bytes(blob, entry.second.snapshot_hash);
     std::vector<stored_receipt> receipts = receipts_;
     std::sort(receipts.begin(), receipts.end(), [](const stored_receipt &left, const stored_receipt &right) {
-      const auto &a = left.receipt;
-      const auto &b = right.receipt;
+      const auto &a = left;
+      const auto &b = right;
       if (a.epoch != b.epoch)
         return a.epoch < b.epoch;
       if (a.round != b.round)
@@ -538,12 +568,12 @@ namespace epose
     append_u64_le(blob, receipts.size());
     for (const stored_receipt &stored : receipts)
     {
-      append_u64_le(blob, stored.receipt.epoch);
-      append_u64_le(blob, stored.receipt.round);
-      append_u8(blob, stored.receipt.service_kind);
-      append_bytes(blob, stored.receipt.subject_public_key);
-      append_bytes(blob, stored.receipt.verifier_public_key);
-      append_bytes(blob, stored.receipt.receipt_hash);
+      append_u64_le(blob, stored.epoch);
+      append_u64_le(blob, stored.round);
+      append_u8(blob, stored.service_kind);
+      append_bytes(blob, stored.subject_public_key);
+      append_bytes(blob, stored.verifier_public_key);
+      append_bytes(blob, stored.receipt_hash);
       append_u64_le(blob, stored.inclusion_height);
     }
     append_u64_le(blob, qualifications_.size());

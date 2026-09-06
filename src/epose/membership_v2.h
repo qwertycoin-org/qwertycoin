@@ -16,6 +16,9 @@ namespace qwertycoin
 {
 namespace epose
 {
+  struct authenticated_service_receipt_v2;
+  struct receipt_context_v2;
+
   constexpr uint8_t EPOSE_PROTOCOL_VERSION_V2 = 2;
 
   struct epoch_timing_v2
@@ -42,6 +45,7 @@ namespace epose
     uint64_t round_count = 0;
     uint64_t rounds_required = 0;
     uint8_t service_kind = 0;
+    std::vector<uint64_t> round_offsets;
 
     bool valid() const;
   };
@@ -78,18 +82,6 @@ namespace epose
   {
     crypto::public_key verifier_public_key{};
     crypto::hash selection_score{};
-  };
-
-  // CO-04 will own receipt parsing and cryptographic validation. CO-02 accepts
-  // only slots explicitly marked as already verified by that future layer.
-  struct prevalidated_receipt_slot_v2
-  {
-    uint64_t epoch = 0;
-    uint64_t round = 0;
-    uint8_t service_kind = 0;
-    crypto::public_key subject_public_key{};
-    crypto::public_key verifier_public_key{};
-    crypto::hash receipt_hash{};
   };
 
   struct qualification_set_v2
@@ -144,10 +136,11 @@ namespace epose
         uint64_t height,
         const crypto::hash &anchor_hash);
 
-    pipeline_status_v2 apply_prevalidated_receipt(
-        const prevalidated_receipt_slot_v2 &receipt,
+    pipeline_status_v2 apply_authenticated_receipt(
+        const authenticated_service_receipt_v2 &receipt,
+        const receipt_context_v2 &context,
         uint64_t inclusion_height,
-        bool cryptographically_verified);
+        const crypto::hash &canonical_round_anchor_hash);
 
     pipeline_status_v2 close_qualification(uint64_t epoch, uint64_t height);
 
@@ -157,7 +150,8 @@ namespace epose
     std::vector<verifier_assignment_v2> committee(
         uint64_t epoch,
         uint64_t round,
-        const crypto::public_key &subject_public_key) const;
+        const crypto::public_key &subject_public_key,
+        const crypto::hash &round_anchor_hash) const;
 
     crypto::hash state_hash() const;
 
@@ -170,7 +164,12 @@ namespace epose
 
     struct stored_receipt
     {
-      prevalidated_receipt_slot_v2 receipt;
+      uint64_t epoch = 0;
+      uint64_t round = 0;
+      uint8_t service_kind = 0;
+      crypto::public_key subject_public_key{};
+      crypto::public_key verifier_public_key{};
+      crypto::hash receipt_hash{};
       uint64_t inclusion_height = 0;
     };
 

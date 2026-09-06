@@ -54,6 +54,7 @@ namespace epose
     invalid_context,
     invalid_action,
     invalid_descriptor,
+    nonseparated_authorities,
     identity_not_found,
     identity_already_exists,
     wrong_previous_descriptor,

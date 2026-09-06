@@ -78,9 +78,5 @@ namespace epose
       const authenticated_service_receipt_v2 &receipt,
       const receipt_context_v2 &context);
 
-  bool make_prevalidated_receipt_slot_v2(
-      const authenticated_service_receipt_v2 &receipt,
-      const receipt_context_v2 &context,
-      prevalidated_receipt_slot_v2 &slot);
 } // namespace epose
 } // namespace qwertycoin

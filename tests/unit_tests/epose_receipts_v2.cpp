@@ -72,19 +72,13 @@ namespace
   }
 }
 
-TEST(epose_receipts_v2, valid_two_party_receipt_converts_to_prevalidated_slot)
+TEST(epose_receipts_v2, valid_two_party_receipt_has_a_context_bound_identity)
 {
   key_pair subject = make_key_pair();
   key_pair verifier = make_key_pair();
   const auto receipt = make_receipt(subject, verifier);
   ASSERT_TRUE(validate_authenticated_service_receipt_v2(receipt, make_context()));
-  prevalidated_receipt_slot_v2 slot{};
-  ASSERT_TRUE(make_prevalidated_receipt_slot_v2(receipt, make_context(), slot));
-  EXPECT_EQ(receipt.challenge.epoch, slot.epoch);
-  EXPECT_EQ(receipt.challenge.round, slot.round);
-  EXPECT_EQ(receipt.challenge.subject_public_key, slot.subject_public_key);
-  EXPECT_EQ(receipt.challenge.verifier_public_key, slot.verifier_public_key);
-  EXPECT_NE(crypto::null_hash, slot.receipt_hash);
+  EXPECT_NE(crypto::null_hash, hash_authenticated_service_receipt_v2(receipt, make_context()));
 }
 
 TEST(epose_receipts_v2, verifier_cannot_fabricate_missing_subject_participation)
@@ -197,7 +191,7 @@ TEST(epose_receipts_v2, authenticated_receipt_is_accepted_by_frozen_membership_p
       make_context().genesis_hash,
       make_context().parameter_set_hash,
       epoch_timing_v2{1440, 720, 60},
-      committee_policy_v2{2, 2, 1, 1, static_cast<uint8_t>(service_kind_v2::canonical_object)}};
+      committee_policy_v2{2, 2, 1, 1, static_cast<uint8_t>(service_kind_v2::canonical_object), {0}}};
   std::vector<frozen_member_v2> members;
   for (size_t index = 0; index < keys.size(); ++index)
   {
@@ -210,7 +204,7 @@ TEST(epose_receipts_v2, authenticated_receipt_is_accepted_by_frozen_membership_p
   }
   const crypto::hash anchor = hash_text("anchor");
   ASSERT_EQ(pipeline_status_v2::accepted, pipeline.freeze_membership(3, 2100, anchor));
-  const auto selected = pipeline.committee(3, 0, keys[0].public_key);
+  const auto selected = pipeline.committee(3, 0, keys[0].public_key, anchor);
   ASSERT_EQ(2u, selected.size());
   const auto verifier = std::find_if(keys.begin(), keys.end(), [&](const key_pair &candidate) {
     return candidate.public_key == selected.front().verifier_public_key;
@@ -223,7 +217,6 @@ TEST(epose_receipts_v2, authenticated_receipt_is_accepted_by_frozen_membership_p
   receipt.challenge.anchor_hash = anchor;
   receipt.challenge.endpoint_descriptor_hash = members[0].endpoint_descriptor_hash;
   resign(receipt, keys[0], *verifier);
-  prevalidated_receipt_slot_v2 slot{};
-  ASSERT_TRUE(make_prevalidated_receipt_slot_v2(receipt, make_context(), slot));
-  EXPECT_EQ(pipeline_status_v2::accepted, pipeline.apply_prevalidated_receipt(slot, 2200, true));
+  EXPECT_EQ(pipeline_status_v2::accepted,
+      pipeline.apply_authenticated_receipt(receipt, make_context(), 2200, anchor));
 }

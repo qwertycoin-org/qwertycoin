@@ -200,6 +200,8 @@ namespace epose
         || next.identity_id != derive_identity_id_v2(nettype_, genesis_hash_, parameter_set_hash_,
             next.operator_authorization_public_key))
       return lifecycle_status_v2::invalid_descriptor;
+    if (next.service_public_key == next.operator_authorization_public_key)
+      return lifecycle_status_v2::nonseparated_authorities;
     if (next.effective_epoch < minimum_effective_epoch || next.effective_epoch < inclusion_epoch)
       return lifecycle_status_v2::retroactive_change;
 
@@ -241,6 +243,8 @@ namespace epose
       if (next.effective_epoch <= current.effective_epoch)
         return lifecycle_status_v2::overlapping_change;
       if (next.operator_authorization_public_key != current.operator_authorization_public_key)
+        return lifecycle_status_v2::invalid_transition;
+      if (history_it->records.back().action == lifecycle_action_v2::deregister_identity)
         return lifecycle_status_v2::invalid_transition;
 
       switch (record.action)
@@ -295,20 +299,19 @@ namespace epose
     });
     if (found == histories_.end())
       return nullptr;
-    const identity_descriptor_v2 *selected = nullptr;
+    const lifecycle_record_v2 *selected = nullptr;
     for (const auto &record : found->records)
     {
       const identity_descriptor_v2 &descriptor = record.next_descriptor;
       if (descriptor.effective_epoch <= epoch)
-        selected = &descriptor;
+        selected = &record;
       else
         break;
     }
-    if (!selected || epoch > selected->expiry_epoch
-        || (found->records.back().action == lifecycle_action_v2::deregister_identity
-            && epoch >= found->records.back().next_descriptor.effective_epoch))
+    if (!selected || epoch > selected->next_descriptor.expiry_epoch
+        || selected->action == lifecycle_action_v2::deregister_identity)
       return nullptr;
-    return selected;
+    return &selected->next_descriptor;
   }
 
   crypto::hash lifecycle_registry_v2::state_hash() const

@@ -198,6 +198,40 @@ TEST(epose_lifecycle_v2, deregistration_is_delayed_and_does_not_erase_history)
   EXPECT_NE(crypto::null_hash, registry.state_hash());
 }
 
+TEST(epose_lifecycle_v2, deregistration_is_terminal_and_later_records_cannot_rewrite_history)
+{
+  fixture f;
+  lifecycle_registry_v2 registry(f.nettype, f.genesis, f.parameters);
+  const auto initial = registration(f, 2, 20);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(initial, 1, 2));
+
+  auto stopped = descriptor(f, 1, 5, 5);
+  const auto deregister = signed_record(f, lifecycle_action_v2::deregister_identity,
+      hash_identity_descriptor_v2(f.nettype, f.genesis, f.parameters, initial.next_descriptor),
+      stopped, f.service.secret_key);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(deregister, 4, 5));
+
+  auto renewal_descriptor = descriptor(f, 2, 7, 12);
+  const auto renewal = signed_record(f, lifecycle_action_v2::renew_lease,
+      hash_identity_descriptor_v2(f.nettype, f.genesis, f.parameters, stopped),
+      renewal_descriptor, f.service.secret_key);
+  EXPECT_EQ(lifecycle_status_v2::invalid_transition, registry.apply(renewal, 6, 7));
+  EXPECT_NE(nullptr, registry.descriptor_for_epoch(stopped.identity_id, 4));
+  EXPECT_EQ(nullptr, registry.descriptor_for_epoch(stopped.identity_id, 5));
+  EXPECT_EQ(nullptr, registry.descriptor_for_epoch(stopped.identity_id, 6));
+  EXPECT_EQ(nullptr, registry.descriptor_for_epoch(stopped.identity_id, 7));
+}
+
+TEST(epose_lifecycle_v2, online_and_offline_authorities_must_be_distinct)
+{
+  fixture f;
+  f.operator_auth = f.service;
+  lifecycle_registry_v2 registry(f.nettype, f.genesis, f.parameters);
+  const auto record = registration(f);
+  ASSERT_EQ(lifecycle_status_v2::nonseparated_authorities, registry.apply(record, 1, 2));
+  EXPECT_EQ(nullptr, registry.latest(record.next_descriptor.identity_id));
+}
+
 TEST(epose_lifecycle_v2, state_hash_is_independent_of_identity_arrival_order)
 {
   fixture a;
