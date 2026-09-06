@@ -46,6 +46,7 @@ and recovery UI are required before activation.
 
 ## Compatibility and activation
 
-HF17 registration and key files are unchanged. V2 record serialization,
-envelope integration, durable storage, and migration from any disclosed HF17
-reward wallet remain open. This state machine does not activate HF18.
+HF17 registration and key files on the disposable development chain are
+unchanged. The public chain imports none of them. V2 record serialization,
+envelope integration, durable storage, and fresh dedicated reward-wallet
+operational guidance remain open. This state machine does not activate HF18.

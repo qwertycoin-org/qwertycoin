@@ -121,6 +121,11 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
         require_hex(genesis_hash, "network.genesis_hash", 64)
 
     activation_height = get_path(manifest, "activation.height")
+    activation_mode = require_enum(
+        get_path(manifest, "activation.mode"),
+        "activation.mode",
+        {"fresh-genesis"},
+    )
     epoch_length = require_int(get_path(manifest, "epoch.length_blocks"), "epoch.length_blocks", 2)
     alignment = require_int(get_path(manifest, "activation.required_epoch_alignment"), "activation.required_epoch_alignment", 2)
     anchor_depth = require_int(get_path(manifest, "epoch.anchor_depth_blocks"), "epoch.anchor_depth_blocks", 1, epoch_length - 1)
@@ -131,9 +136,11 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
     ):
         raise ManifestError("epoch zero cannot have v2 rewards")
     if activation_height is not None:
-        activation_height = require_int(activation_height, "activation.height", alignment)
+        activation_height = require_int(activation_height, "activation.height", 0)
         if activation_height % alignment or activation_height % epoch_length:
             raise ManifestError("activation.height must satisfy epoch alignment")
+        if activation_mode == "fresh-genesis" and activation_height != 0:
+            raise ManifestError("fresh-genesis activation.height must be zero")
 
     source_revision = get_path(manifest, "release.source_revision")
     if source_revision is not None:

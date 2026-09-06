@@ -17,38 +17,33 @@ SPEC.loader.exec_module(MODEL)
 
 class TimingTests(unittest.TestCase):
     def setUp(self):
-        self.timing = MODEL.Timing(activation_height=1440)
+        self.timing = MODEL.Timing(activation_height=0)
 
     def test_activation_must_be_epoch_aligned(self):
         with self.assertRaisesRegex(MODEL.ModelError, "not epoch aligned"):
             MODEL.Timing(activation_height=1441)
 
     def test_two_epoch_warmup(self):
-        self.assertEqual(3, self.timing.first_service_epoch)
-        self.assertEqual(2880, self.timing.first_payout_height)
+        self.assertEqual(1, self.timing.first_service_epoch)
+        self.assertEqual(1440, self.timing.first_payout_height)
 
     def test_cutoff_and_anchor_are_adjacent(self):
-        self.assertEqual(2099, self.timing.enrollment_cutoff(3))
-        self.assertEqual(2100, self.timing.committee_anchor(3))
+        self.assertEqual(659, self.timing.enrollment_cutoff(1))
+        self.assertEqual(660, self.timing.committee_anchor(1))
 
     def test_deadline_and_payout_seed_are_adjacent(self):
-        self.assertEqual(2819, self.timing.evidence_deadline(3))
-        self.assertEqual(2820, self.timing.payout_seed_height(3))
+        self.assertEqual(1379, self.timing.evidence_deadline(1))
+        self.assertEqual(1380, self.timing.payout_seed_height(1))
 
-    def test_activation_boundary_rejects_cross_version_blocks(self):
-        self.assertTrue(self.timing.block_version_allowed(1439, 17))
-        self.assertFalse(self.timing.block_version_allowed(1439, 18))
-        for version in (0, 1, 16, 19, 255):
-            self.assertFalse(self.timing.block_version_allowed(1439, version))
-        self.assertFalse(self.timing.block_version_allowed(1440, 17))
-        self.assertTrue(self.timing.block_version_allowed(1440, 18))
-        for version in (0, 1, 16, 19, 255):
-            self.assertFalse(self.timing.block_version_allowed(1440, version))
+    def test_genesis_boundary_accepts_only_v18(self):
+        self.assertTrue(self.timing.block_version_allowed(0, 18))
+        for version in (0, 1, 16, 17, 19, 255):
+            self.assertFalse(self.timing.block_version_allowed(0, version))
 
     def test_payout_source_is_exactly_previous_epoch(self):
-        self.assertTrue(self.timing.payout_allowed(2880, 3))
-        self.assertTrue(self.timing.payout_allowed(3599, 3))
-        self.assertFalse(self.timing.payout_allowed(3600, 3))
+        self.assertTrue(self.timing.payout_allowed(1440, 1))
+        self.assertTrue(self.timing.payout_allowed(2159, 1))
+        self.assertFalse(self.timing.payout_allowed(2160, 1))
 
     def test_maximum_representable_epoch_boundary(self):
         maximum = (MODEL.UINT64_MAX - 719) // 720
@@ -98,7 +93,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual("not-activatable", self.manifest["status"])
         MODEL.validate_manifest(self.manifest)
         missing = MODEL.missing_activation_fields(self.manifest)
-        self.assertIn("activation.height", missing)
+        self.assertNotIn("activation.height", missing)
         self.assertNotIn("activation.block_hash", missing)
         self.assertIn("network.genesis_hash", missing)
         self.assertIn("reward.fee_policy", missing)

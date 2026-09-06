@@ -1,6 +1,7 @@
 {
   "activation": {
-    "height": null,
+    "height": 0,
+    "mode": "fresh-genesis",
     "required_epoch_alignment": 720
   },
   "admission": {

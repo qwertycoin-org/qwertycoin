@@ -26,11 +26,11 @@
     },
     {
       "expected": {
-        "error": "records_size mismatch",
+        "error": "empty envelope",
         "valid": false
       },
       "hex": "050c514550320100000001000000",
-      "name": "records-size-mismatch"
+      "name": "empty-envelope-with-nonzero-size"
     },
     {
       "expected": {
@@ -51,145 +51,125 @@
   ],
   "height_cases": [
     {
-      "expected": true,
-      "height": 1439,
-      "major_version": 17,
-      "name": "legacy-version-before-activation",
-      "operation": "block_version_allowed"
-    },
-    {
       "expected": false,
-      "height": 1439,
-      "major_version": 18,
-      "name": "future-version-before-activation",
-      "operation": "block_version_allowed"
-    },
-    {
-      "expected": false,
-      "height": 1440,
+      "height": 0,
       "major_version": 17,
-      "name": "legacy-version-at-activation",
+      "name": "legacy-version-at-genesis",
       "operation": "block_version_allowed"
     },
     {
       "expected": true,
-      "height": 1440,
+      "height": 0,
       "major_version": 18,
-      "name": "hardened-version-at-activation",
+      "name": "hardened-version-at-genesis",
       "operation": "block_version_allowed"
     },
     {
       "expected": false,
-      "height": 1439,
+      "height": 0,
       "major_version": 16,
-      "name": "unscheduled-old-version-before-activation",
+      "name": "unscheduled-old-version-at-genesis",
       "operation": "block_version_allowed"
     },
     {
       "expected": false,
-      "height": 1440,
+      "height": 0,
       "major_version": 19,
-      "name": "unscheduled-future-version-at-activation",
+      "name": "unscheduled-future-version-at-genesis",
       "operation": "block_version_allowed"
-    },
-    {
-      "expected": "legacy-v1",
-      "height": 1439,
-      "name": "activation-minus-one",
-      "operation": "phase"
     },
     {
       "expected": "v2-enrollment-warmup",
-      "height": 1440,
-      "name": "activation",
+      "height": 0,
+      "name": "genesis",
       "operation": "phase"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": true,
-      "height": 2098,
+      "height": 658,
       "name": "enrollment-cutoff-minus-one",
       "operation": "lease_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": true,
-      "height": 2099,
+      "height": 659,
       "name": "enrollment-cutoff",
       "operation": "lease_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": false,
-      "height": 2100,
+      "height": 660,
       "name": "committee-anchor-rejects-late-enrollment",
       "operation": "lease_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": false,
-      "height": 2159,
+      "height": 719,
       "name": "service-start-minus-one",
       "operation": "receipt_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": true,
-      "height": 2160,
+      "height": 720,
       "name": "service-start",
       "operation": "receipt_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": true,
-      "height": 2819,
+      "height": 1379,
       "name": "evidence-deadline",
       "operation": "receipt_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": false,
-      "height": 2820,
+      "height": 1380,
       "name": "evidence-deadline-plus-one",
       "operation": "receipt_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": false,
-      "height": 2879,
+      "height": 1439,
       "name": "first-payout-minus-one",
       "operation": "payout_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": true,
-      "height": 2880,
+      "height": 1440,
       "name": "first-payout",
       "operation": "payout_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": true,
-      "height": 3599,
+      "height": 2159,
       "name": "last-payout-from-source-epoch",
       "operation": "payout_allowed"
     },
     {
-      "epoch": 3,
+      "epoch": 1,
       "expected": false,
-      "height": 3600,
+      "height": 2160,
       "name": "stale-source-epoch-after-payout-epoch",
       "operation": "payout_allowed"
     },
     {
       "expected": "v2-service-and-payout",
-      "height": 2880,
+      "height": 1440,
       "name": "payout-phase",
       "operation": "phase"
     }
   ],
   "timing": {
-    "activation_height": 1440,
+    "activation_height": 0,
     "anchor_depth": 60,
     "epoch_length": 720
   },

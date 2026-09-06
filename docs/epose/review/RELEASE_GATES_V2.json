@@ -88,7 +88,7 @@
       "evidence": [],
       "id": "signed_activation_manifest",
       "state": "blocked",
-      "summary": "Genesis, activation height, final limits, parameters, state schema, and release binaries remain unset; the observed activation block is postactivation evidence.",
+      "summary": "Activation height is fixed at genesis zero; final genesis identity, limits, parameters, state schema, and release binaries remain unset.",
       "references": null
     }
   ],

@@ -1,11 +1,16 @@
 # ADR-0001: EPoSE Hardened Activation Status
 
-- **Status:** Accepted baseline decision
+- **Status:** Superseded by ADR-0007
 - **Date:** 2026-09-06
 - **Scope:** Planning and compatibility; no consensus change
 - **Baseline:** `1c4c1bf10c387887a42243dc690a65abb6c6e786`
 
 ## Context
+
+> Historical decision record. The chain-preserving assumption in this ADR was
+> superseded after the owner confirmed that the pre-publication network is
+> disposable and no balances or historical chain state must be retained. See
+> `ADR-0007-FRESH-GENESIS-ACTIVATION.md`.
 
 QWC code schedules HF17 and EPoSE v1 from height 0. Read-only deployment
 inspection found a live HF17 chain with nonzero height and EPoSE registrations,

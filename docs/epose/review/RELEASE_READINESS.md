@@ -75,10 +75,9 @@ the component is connected to the canonical block transition and tested there.
 ## CO-10 execution preconditions
 
 The four-host test may start only when all six items above are closed and the
-candidate manifest is complete except for a future activation height that is
-deliberately assigned at release freeze. A future activation-block hash is not
-a preactivation prerequisite; the observed activation block is recorded after
-activation. Before any reset:
+candidate manifest contains the final fresh-genesis identity, parameters, and
+source revision. Activation height is already fixed at zero; there is no future
+activation-block observation or migration boundary. Before any reset:
 
 - inventory every container, volume, wallet, chain directory, and persistent
   service identity on the target host;

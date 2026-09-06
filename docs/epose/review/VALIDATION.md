@@ -119,12 +119,13 @@ Results:
 
 - reservation manifest parses as JSON;
 - canonical reservation manifest SHA-256 is
-  `3cc33c916af6cd377485e163dd41006a9ea6ff8899ae4e31205cd01f104fe5f1`;
+  `6377b1eb1eca7b44165cf64f66b1d686ec657e99ca057a0041ba4990c83e8699`;
 - reference-model unit tests: **13/13 passed**;
 - activation, cutoff, anchor, deadline, payout, envelope, malformed-length,
   unknown-record, noncanonical-varint, and uint64-overflow vectors passed;
-- the manifest test proves required activation fields remain unset and status
-  remains `not-activatable`.
+- the manifest test proves `fresh-genesis` activation is fixed at height 0
+  while required release fields remain unset and status remains
+  `not-activatable`.
 
 The vector-only limits in `co01_transition_v2.json` test parser boundaries and
 are not proposed mainnet constants. Final limits remain owned by CO-03/CO-05.
@@ -589,3 +590,45 @@ Results reproduced on 2026-09-06:
 The adapter is not yet an activated block handler. Exact required-payment
 enforcement, block-level LMDB atomicity, disconnect/replay and sustained carrier
 fuzzing remain open gates.
+
+## Fresh-genesis target and cumulative PR validation
+
+The intended public-chain topology was changed from a later chain-preserving
+transition to a new version-18 genesis. This changes the target specification,
+manifest, and boundary vectors only; it does not schedule the incomplete v2
+runtime path in `hardforks.cpp`.
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j2
+<build-dir>/tests/unit_tests/epose_unit_tests
+python3 -m unittest discover -s tests/epose -p 'test_*.py'
+python3 tests/epose/reference_model_v2.py \
+  tests/epose/vectors/co01_transition_v2.json
+python3 tests/epose/release_gate_v2.py \
+  --manifest docs/epose/PARAMETER_MANIFEST_V2.json \
+  --gates docs/epose/review/RELEASE_GATES_V2.json \
+  --policy docs/epose/review/RELEASE_GATE_POLICY_V2.json \
+  --evidence-root . --expect no-go
+git diff --check
+```
+
+Results reproduced on 2026-09-06:
+
+- complete focused EPoSE C++ suite: **186/186 passed**;
+- complete EPoSE Python model/manifest/gate suite: **38/38 passed**;
+- fresh-genesis reference vectors passed;
+- protocol version 18 is the only accepted version at model height 0;
+- epoch 0 is enrollment-only, epoch 1 is the first service epoch, and the first
+  possible v2 payout is height 1440;
+- release evaluation remains **NO-GO**, with **0/13** gates satisfied and
+  **29** unresolved manifest values;
+- canonical reservation manifest SHA-256 is
+  `6377b1eb1eca7b44165cf64f66b1d686ec657e99ca057a0041ba4990c83e8699`;
+- documentation parsing, Python byte-compilation, whitespace, and credential
+  pattern checks passed.
+
+The cumulative PR targets `main` and retains the signed commit history from the
+superseded stacked review PRs. This evidence does not authorize merge,
+deployment, genesis generation, or economic activation.

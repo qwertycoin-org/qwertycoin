@@ -330,7 +330,7 @@ The hardened protocol reserves these identifiers:
 
 | Identifier | Reserved value | Activation status |
 |---|---:|---|
-| QWC hardfork version | `18` | Reserved; no activation height assigned |
+| QWC hardfork version | `18` | Intended public-genesis version; runtime activation still gated |
 | EPoSE protocol version | `2` | Reserved; parser/transition not implemented |
 | `tx_extra` envelope tag | `0x05` | Reserved in the pinned QWC/Monero tag space |
 | Envelope format version | `1` | Reserved for the first v2 envelope |
@@ -339,28 +339,23 @@ Reservation prevents two QWC features from choosing the same identifiers. It
 does not make any v2 byte sequence valid. Before the activation manifest is
 complete, every block is validated exactly as HF17/v1 validates it today.
 
-An activation proposal MUST set an activation height `A` such that:
+The public-genesis activation profile MUST satisfy:
 
 ```text
-A > observed_mainnet_tip_at_release_freeze
-A mod 720 = 0
-block.major_version = scheduled_version(H) for every height H
-block.major_version = 17 immediately before A
-block.major_version = 18 from A until the next scheduled fork
+A = 0
+activation.mode = fresh-genesis
+block.major_version = 18 for every height H until the next scheduled fork
+epoch_zero_has_v2_rewards = false
 ```
 
-Historical HF17 blocks and v1 payloads retain their original meaning. At and
-after `A`, new v1 registration and attestation payloads are rejected; historical
-v1 state is read-only and cannot supply a v2 committee or payee. There is no
-implicit migration of an identity, descriptor, admission lease, receipt, or
-reward destination from v1 to v2.
+The disposable HF17 development chain is not part of the public chain. No v1
+identity, descriptor, admission lease, receipt, qualification, reward
+destination, balance, or database state is migrated into the new genesis.
 
-The activation height, a known earlier reference height/hash, parameter-set
-hash, reward-policy identifier, and final resource limits remain deliberately
-unassigned.  The hash of the future activation block is not a preactivation
-input: it is recorded only as a postactivation observation.  A binary MUST
-refuse to advertise v2 activation while any required manifest field is
-unassigned.
+The activation height is fixed at zero. The final genesis hash, parameter-set
+hash, reward-policy identifier, source revision, and final resource limits
+remain deliberately unassigned. A binary MUST refuse to advertise v2 activation
+while any required manifest field or release gate is unresolved.
 
 ### Consensus inputs and processing order
 
@@ -415,12 +410,12 @@ All arithmetic is unsigned 64-bit checked arithmetic. A value that overflows or
 an epoch whose `start(E)` cannot be represented is invalid. `E = 0` has no v2
 service, qualification, or payout semantics.
 
-If activation occurs at `A = start(U)`:
+For fresh-genesis activation, `A = start(U) = 0` and `U = 0`:
 
 - epoch `U` is enrollment-only;
 - epoch `U + 1` is the first measurable service epoch;
 - epoch `U + 2` is the first possible payout epoch;
-- the first possible v2 payout height is `A + 2 * B`.
+- the first possible v2 payout height is `2 * B = 1440`.
 
 ```text
 epoch U                  epoch U+1                    epoch U+2

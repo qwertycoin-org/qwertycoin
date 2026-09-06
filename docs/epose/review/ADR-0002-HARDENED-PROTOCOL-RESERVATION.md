@@ -3,18 +3,18 @@
 - **Status:** Accepted design reservation; not activated
 - **Date:** 2026-09-06
 - **Scope:** CO-01 protocol namespace and transition contract
-- **Depends on:** ADR-0001
+- **Depends on:** ADR-0007
 - **Baseline:** `1c4c1bf10c387887a42243dc690a65abb6c6e786`
 - **Reservation manifest canonical SHA-256:**
-  `3cc33c916af6cd377485e163dd41006a9ea6ff8899ae4e31205cd01f104fe5f1`
+  `6377b1eb1eca7b44165cf64f66b1d686ec657e99ca057a0041ba4990c83e8699`
 
 ## Context
 
-HF17/EPoSE v1 is active from genesis and has accepted history. The hardened
-design needs different epoch ordering, immutable snapshots, subject-authenticated
-receipts, a carrier larger than the legacy 255-byte nonce, and separately
-reviewed reward semantics. Reusing v1 encodings or changing their interpretation
-would create a validation split.
+The disposable development chain starts with HF17/EPoSE v1, but the intended
+public mainnet has no history to preserve. The hardened design needs immutable
+snapshots, subject-authenticated receipts, a carrier larger than the legacy
+255-byte nonce, and separately reviewed reward semantics. Protocol version 18
+remains the explicit namespace for those start rules.
 
 The pinned transaction-extra registry uses tags `0x00` through `0x04` plus the
 historical `0xDE` tag. Hardfork 17 is the highest version in the QWC schedule.
@@ -28,13 +28,10 @@ machine-readable reservation manifest are the allocation record.
 3. Reserve transaction-extra tag `0x05` for the dedicated EPoSE envelope.
 4. Reserve envelope version `1` and record types `0x01` through `0x05` as listed
    in `PROTOCOL.md`.
-5. Require a future activation height aligned to 720 blocks and strictly above
-   the release-freeze mainnet tip.
-   The preactivation commitment may use a known earlier reference height/hash,
-   but MUST NOT require the unknowable future activation-block hash.  The latter
-   is a postactivation observation only.
-6. Preserve every pre-activation HF17/v1 rule byte-for-byte. No v1 object is
-   implicitly promoted into v2.
+5. Require `fresh-genesis` activation at height 0. The final genesis hash is a
+   candidate-bound manifest and release input, not a future activation-block
+   observation.
+6. Import no HF17/v1 chain state or protocol objects into the public chain.
 7. Use a two-epoch v2 warm-up: enrollment, then measured service, then payouts.
 8. Freeze membership before the committee anchor and close qualification before
    the payout seed.
@@ -48,7 +45,7 @@ machine-readable reservation manifest are the allocation record.
 - Current binaries continue to reject/ignore the reserved format according to
   existing HF17 parsing; this PR adds no runtime support.
 - CO-02 through CO-09 can implement against stable namespaces and boundary rules
-  without guessing the activation height or tokenomics.
+  with a fixed height-zero target while tokenomics and final limits remain gated.
 - A later feature that needs HF18 or tx-extra tag `0x05` must coordinate with
   this reservation instead of silently reusing it.
 - Activation remains impossible until CO-03, CO-05, CO-06, CO-08, CO-10, and
@@ -56,10 +53,11 @@ machine-readable reservation manifest are the allocation record.
 
 ## Rejected alternatives
 
-### Reuse HF17
+### Use HF17 as the public genesis protocol
 
-Rejected because old and new nodes could assign different meaning to the same
-historical bytes.
+Rejected because the hardened records and state machine require an explicit
+version boundary. Version 18 preserves inherited threshold ordering without
+requiring a later chain transition.
 
 ### Extend `tx_extra_nonce`
 
@@ -71,7 +69,7 @@ a subject signature alone exceeds the remaining capacity.
 Rejected because the required capacity, attacker-cost, emission, payment-proof,
 and funds-safety evidence does not yet exist. Reservation is not approval.
 
-### Activate at the next arbitrary height
+### Activate after genesis
 
-Rejected because the pipeline depends on explicit epoch boundaries and a
-two-epoch warm-up. Activation requires a release-specific, signed manifest.
+Rejected because there is no public history to preserve. The pipeline instead
+uses epoch 0 for enrollment, epoch 1 for service, and epoch 2 for first payout.

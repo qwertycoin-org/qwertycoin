@@ -53,9 +53,9 @@
 These invariants are normative design requirements but are not implemented or
 activated by CO-01.
 
-46. Every pre-activation block is interpreted exactly by its historical HF17/v1 rules.
+46. The intended public chain has no pre-activation blocks: protocol version 18 is the only valid genesis version.
 47. No v1 registration, attestation, qualification, or descriptor is implicitly promoted into v2.
-48. A v2 activation height is strictly above the release-freeze tip and aligned to 720 blocks.
+48. The fresh-genesis v2 activation height is exactly 0; epoch 0 remains reward-ineligible.
 49. A reservation manifest containing any required `null` value cannot activate.
 50. Epoch 0 and both activation warm-up epochs produce no v2 service payout.
 51. Membership and every selection-relevant descriptor field are frozen before the committee anchor is known.

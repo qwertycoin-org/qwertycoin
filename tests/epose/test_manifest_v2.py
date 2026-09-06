@@ -21,7 +21,7 @@ class ManifestV2Tests(unittest.TestCase):
         manifest = copy.deepcopy(self.manifest)
         manifest["manifest_kind"] = "test-fixture"
         manifest["status"] = "activatable"
-        manifest["activation"]["height"] = 1440
+        manifest["activation"]["height"] = 0
         manifest["network"]["genesis_hash"] = "11" * 32
         manifest["release"]["source_revision"] = "22" * 20
         manifest["admission"].update({"lease_epochs": 1, "leading_zero_bits": 20})
@@ -129,6 +129,8 @@ class ManifestV2Tests(unittest.TestCase):
     def test_every_consensus_field_rejects_unsupported_values(self):
         mutations = (
             ("admission.algorithm", "anything"),
+            ("activation.mode", "chain-preserving"),
+            ("activation.height", 720),
             ("admission.leading_zero_bits", 0),
             ("admission.leading_zero_bits", True),
             ("admission.leading_zero_bits", "twenty"),

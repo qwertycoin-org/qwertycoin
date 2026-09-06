@@ -204,19 +204,19 @@ namespace
 
 TEST(epose_v2, timing_boundaries_are_checked_and_match_co01)
 {
-  epoch_timing_v2 timing{1440, 720, 60};
+  epoch_timing_v2 timing{0, 720, 60};
   ASSERT_TRUE(timing.valid());
   uint64_t value = 0;
   ASSERT_TRUE(timing.first_service_epoch(value));
-  EXPECT_EQ(3u, value);
+  EXPECT_EQ(1u, value);
   ASSERT_TRUE(timing.first_payout_height(value));
-  EXPECT_EQ(2880u, value);
-  ASSERT_TRUE(timing.enrollment_cutoff(3, value));
-  EXPECT_EQ(2099u, value);
-  ASSERT_TRUE(timing.committee_anchor(3, value));
-  EXPECT_EQ(2100u, value);
-  ASSERT_TRUE(timing.evidence_deadline(3, value));
-  EXPECT_EQ(2819u, value);
+  EXPECT_EQ(1440u, value);
+  ASSERT_TRUE(timing.enrollment_cutoff(1, value));
+  EXPECT_EQ(659u, value);
+  ASSERT_TRUE(timing.committee_anchor(1, value));
+  EXPECT_EQ(660u, value);
+  ASSERT_TRUE(timing.evidence_deadline(1, value));
+  EXPECT_EQ(1379u, value);
 
   epoch_timing_v2 unaligned{1441, 720, 60};
   EXPECT_FALSE(unaligned.valid());

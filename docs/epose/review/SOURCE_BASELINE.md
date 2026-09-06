@@ -188,8 +188,10 @@ relabeled as EPoSE successes.
 ## 8. Baseline conclusion
 
 The public code and the observed deployment are not yet one reproducible release
-identity. EPoSE v1 has valuable deterministic and funds-separation foundations,
+identity. The observed HF17 chain is disposable and is not a migration source
+for the intended public genesis. EPoSE v1 has valuable deterministic and
+funds-separation foundations,
 but its automatic positive attestation does not prove service. The hardened
 economic protocol is therefore **not approved for activation or public
-production claims**. Work proceeds in the CO-00 through CO-11 order, with
-chain-preserving activation and separately reviewed consensus changes.
+production claims**. Work proceeds in the CO-00 through CO-11 order, with a
+fresh-genesis version-18 target and separately reviewed consensus changes.

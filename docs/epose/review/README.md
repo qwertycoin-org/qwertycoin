@@ -13,9 +13,11 @@ authorize a node to reinterpret an already accepted block.
 - [`FINDINGS.md`](FINDINGS.md) maps security-review findings F01 through F21 to
   concrete code and tests. `Open` means work is required; it does not by itself
   claim an exploitable vulnerability.
-- [`ADR-0001-ACTIVATION-STATUS.md`](ADR-0001-ACTIVATION-STATUS.md) records the
-  chain-preserving activation decision and the current no-go status for a new
-  economic protocol.
+- [`ADR-0001-ACTIVATION-STATUS.md`](ADR-0001-ACTIVATION-STATUS.md) preserves the
+  superseded chain-preserving decision for audit history.
+- [`ADR-0007-FRESH-GENESIS-ACTIVATION.md`](ADR-0007-FRESH-GENESIS-ACTIVATION.md)
+  records the accepted public-mainnet target: protocol version 18 from a new
+  genesis, with runtime activation still blocked by the release gates.
 - [`ADR-0002-HARDENED-PROTOCOL-RESERVATION.md`](ADR-0002-HARDENED-PROTOCOL-RESERVATION.md)
   reserves HF18, EPoSE v2, transaction-extra tag `0x05`, epoch ordering, and
   fail-closed activation rules.
@@ -35,9 +37,10 @@ selection. EPoSE is consensus-critical because its state affects coinbase
 validity, but it is not a finality or chain-selection protocol.
 
 Numerical proposals from a review are research candidates until separately
-benchmarked, specified, tested, reviewed, and approved. In particular, this
-baseline does not change the 1,000-BPS service allocation, admission target,
-committee size, quorum, reward fallback, or activation height.
+benchmarked, specified, tested, reviewed, and approved. The fresh-genesis
+activation height is fixed at zero, but this baseline does not activate the
+runtime path or choose the admission target, committee size, quorum, reward
+fallback, or final resource limits.
 
 CO-01 adds a normative transition, reservation manifest, and independent
 boundary/envelope vectors without making reserved records valid. Runtime
