@@ -71,9 +71,13 @@ TEST(epose_resource_policy_v2, private_metadata_and_mapped_addresses_are_prohibi
   EXPECT_FALSE(public_probe_address_v2("10.0.0.1"));
   EXPECT_FALSE(public_probe_address_v2("169.254.169.254"));
   EXPECT_FALSE(public_probe_address_v2("192.168.1.1"));
+  EXPECT_FALSE(public_probe_address_v2("192.0.0.1"));
+  EXPECT_TRUE(public_probe_address_v2("192.0.1.1"));
   EXPECT_FALSE(public_probe_address_v2("::1"));
   EXPECT_FALSE(public_probe_address_v2("fc00::1"));
   EXPECT_FALSE(public_probe_address_v2("::ffff:127.0.0.1"));
+  EXPECT_FALSE(public_probe_address_v2("100::1"));
+  EXPECT_FALSE(public_probe_address_v2("2001:2::1"));
   EXPECT_TRUE(public_probe_address_v2("8.8.8.8"));
   EXPECT_TRUE(public_probe_address_v2("2606:4700:4700::1111"));
 }
@@ -119,6 +123,18 @@ TEST(epose_resource_policy_v2, unknown_admission_context_never_allocates_cache)
   EXPECT_EQ(1u, cache.size());
   EXPECT_EQ(resource_status_v2::context_cache_full,
       cache.admit(hash_text("second"), {allowed, hash_text("second")}));
+}
+
+TEST(epose_resource_policy_v2, obsolete_admission_context_is_evicted_before_capacity_check)
+{
+  admission_context_cache_v2 cache(1);
+  const crypto::hash context_a = hash_text("context-a");
+  const crypto::hash context_b = hash_text("context-b");
+  ASSERT_EQ(resource_status_v2::accepted, cache.admit(context_a, {context_a}));
+  ASSERT_EQ(1u, cache.size());
+  EXPECT_EQ(resource_status_v2::accepted, cache.admit(context_b, {context_b}));
+  EXPECT_EQ(1u, cache.size());
+  EXPECT_EQ(resource_status_v2::unknown_admission_context, cache.admit(context_a, {context_b}));
 }
 
 TEST(epose_resource_policy_v2, rpc_pages_are_bounded_without_integer_wrap)

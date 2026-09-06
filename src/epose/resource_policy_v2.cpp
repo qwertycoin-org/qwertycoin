@@ -4,7 +4,6 @@
 #include "epose/resource_policy_v2.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cstring>
 #include <limits>
 
@@ -53,7 +52,9 @@ namespace
       }
       else
       {
-        if (!(std::islower(byte) || std::isdigit(byte) || byte == '-'))
+        const bool ascii_lower = byte >= 'a' && byte <= 'z';
+        const bool ascii_digit = byte >= '0' && byte <= '9';
+        if (!(ascii_lower || ascii_digit || byte == '-'))
           return false;
         if ((label == 0 && byte == '-') || label >= 63)
           return false;
@@ -72,7 +73,8 @@ namespace
         || (b[0] == 100 && b[1] >= 64 && b[1] <= 127)
         || (b[0] == 169 && b[1] == 254)
         || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-        || (b[0] == 192 && b[1] == 0) || (b[0] == 192 && b[1] == 88 && b[2] == 99)
+        || (b[0] == 192 && b[1] == 0 && b[2] == 0)
+        || (b[0] == 192 && b[1] == 88 && b[2] == 99)
         || (b[0] == 192 && b[1] == 168)
         || (b[0] == 198 && (b[1] == 18 || b[1] == 19))
         || (b[0] == 198 && b[1] == 51 && b[2] == 100)
@@ -89,10 +91,15 @@ namespace
       return prohibited_v4(boost::asio::ip::address_v4(v4));
     }
     const auto b = address.to_bytes();
+    const bool discard_only = b[0] == 0x01 && b[1] == 0x00
+        && std::all_of(b.begin() + 2, b.begin() + 8, [](uint8_t byte) { return byte == 0; });
+    const bool benchmarking = b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x00
+        && b[3] == 0x02 && b[4] == 0x00 && b[5] == 0x00;
     return address.is_unspecified() || address.is_loopback() || address.is_multicast()
         || address.is_link_local() || address.is_site_local()
         || (b[0] & 0xfe) == 0xfc
-        || (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x0d && b[3] == 0xb8);
+        || (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x0d && b[3] == 0xb8)
+        || discard_only || benchmarking;
   }
 }
 
@@ -261,6 +268,9 @@ namespace epose
       return resource_status_v2::invalid_configuration;
     if (std::find(currently_allowed.begin(), currently_allowed.end(), context) == currently_allowed.end())
       return resource_status_v2::unknown_admission_context;
+    contexts_.erase(std::remove_if(contexts_.begin(), contexts_.end(), [&](const crypto::hash &cached) {
+      return std::find(currently_allowed.begin(), currently_allowed.end(), cached) == currently_allowed.end();
+    }), contexts_.end());
     if (std::find(contexts_.begin(), contexts_.end(), context) != contexts_.end())
       return resource_status_v2::accepted;
     if (contexts_.size() >= max_contexts_)

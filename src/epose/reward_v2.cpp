@@ -174,9 +174,8 @@ namespace epose
         return reward_status_v2::unresolved_empty_policy;
     }
 
-    uint64_t issued_subsidy = 0;
-    if (!checked_add(next.miner_subsidy, next.service_reward, issued_subsidy)
-        || !checked_add(issued_subsidy, transaction_fees, next.issued_total))
+    if (!checked_add(next.miner_subsidy, next.service_reward, next.issued_subsidy)
+        || !checked_add(next.issued_subsidy, transaction_fees, next.coinbase_total))
       return reward_status_v2::arithmetic_overflow;
     allocation = next;
     return reward_status_v2::accepted;
@@ -187,22 +186,28 @@ namespace epose
       const crypto::hash &payout_seed,
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
+      const epoch_timing_v2 &timing,
       uint64_t payout_epoch,
-      uint64_t payout_epoch_start,
       uint64_t height,
       crypto::public_key &selected)
   {
     selected = {};
-    if (height < payout_epoch_start)
-      return reward_status_v2::invalid_height;
     if (qualification.qualified_nodes.empty())
       return reward_status_v2::empty_qualification;
     uint64_t expected_payout_epoch = 0;
+    uint64_t payout_epoch_start = 0;
+    uint64_t payout_epoch_end = 0;
     if (!checked_add(qualification.epoch, 1, expected_payout_epoch)
         || payout_epoch != expected_payout_epoch
+        || !timing.valid()
+        || !timing.epoch_start(payout_epoch, payout_epoch_start)
+        || !timing.epoch_end(payout_epoch, payout_epoch_end)
         || payout_seed == crypto::null_hash || genesis_hash == crypto::null_hash
-        || parameter_set_hash == crypto::null_hash || qualification.qualification_hash == crypto::null_hash)
+        || parameter_set_hash == crypto::null_hash || qualification.snapshot_hash == crypto::null_hash
+        || qualification.qualification_hash == crypto::null_hash || qualification.closed_height == 0)
       return reward_status_v2::invalid_context;
+    if (height < payout_epoch_start || height > payout_epoch_end)
+      return reward_status_v2::invalid_height;
 
     struct ranked
     {

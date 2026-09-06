@@ -78,7 +78,8 @@ TEST(epose_reward_v2, subsidy_only_split_never_shares_fees)
   EXPECT_EQ(250u, allocation.miner_fees);
   EXPECT_EQ(100u, allocation.service_reward);
   EXPECT_EQ(0u, allocation.permanently_unissued);
-  EXPECT_EQ(1250u, allocation.issued_total);
+  EXPECT_EQ(1000u, allocation.issued_subsidy);
+  EXPECT_EQ(1250u, allocation.coinbase_total);
   EXPECT_EQ(1000u, allocation.emission_advance);
 }
 
@@ -93,13 +94,15 @@ TEST(epose_reward_v2, empty_set_policy_is_explicit_and_models_both_decisions)
       calculate_reward_allocation_v2(1000, 250, false, empty_qualification_policy_v2::miner_fallback, allocation));
   EXPECT_EQ(1000u, allocation.miner_subsidy);
   EXPECT_EQ(0u, allocation.permanently_unissued);
-  EXPECT_EQ(1250u, allocation.issued_total);
+  EXPECT_EQ(1000u, allocation.issued_subsidy);
+  EXPECT_EQ(1250u, allocation.coinbase_total);
 
   ASSERT_EQ(reward_status_v2::accepted,
       calculate_reward_allocation_v2(1000, 250, false, empty_qualification_policy_v2::permanent_nonissuance, allocation));
   EXPECT_EQ(900u, allocation.miner_subsidy);
   EXPECT_EQ(100u, allocation.permanently_unissued);
-  EXPECT_EQ(1150u, allocation.issued_total);
+  EXPECT_EQ(900u, allocation.issued_subsidy);
+  EXPECT_EQ(1150u, allocation.coinbase_total);
   EXPECT_EQ(1000u, allocation.emission_advance);
 }
 
@@ -121,17 +124,20 @@ TEST(epose_reward_v2, payout_rotation_is_epoch_relative_and_context_bound)
 {
   qualification_set_v2 qualification{};
   qualification.epoch = 2;
+  qualification.closed_height = 2099;
+  qualification.snapshot_hash = hash_text("snapshot");
   qualification.qualification_hash = hash_text("closed-set");
   qualification.qualified_nodes = {make_public_key(), make_public_key(), make_public_key()};
   const crypto::hash seed = hash_text("payout-seed");
   const crypto::hash genesis = hash_text("genesis");
   const crypto::hash parameters = hash_text("parameters");
+  const epoch_timing_v2 timing{0, 720, 60};
   std::vector<crypto::public_key> selected;
   for (uint64_t height = 2160; height < 2163; ++height)
   {
     crypto::public_key key{};
     ASSERT_EQ(reward_status_v2::accepted,
-        select_service_payee_v2(qualification, seed, genesis, parameters, 3, 2160, height, key));
+        select_service_payee_v2(qualification, seed, genesis, parameters, timing, 3, height, key));
     selected.push_back(key);
   }
   std::sort(selected.begin(), selected.end(), [](const crypto::public_key &left, const crypto::public_key &right) {
@@ -140,26 +146,55 @@ TEST(epose_reward_v2, payout_rotation_is_epoch_relative_and_context_bound)
   EXPECT_EQ(selected.end(), std::unique(selected.begin(), selected.end()));
   crypto::public_key ignored{};
   EXPECT_EQ(reward_status_v2::invalid_height,
-      select_service_payee_v2(qualification, seed, genesis, parameters, 3, 2160, 2159, ignored));
+      select_service_payee_v2(qualification, seed, genesis, parameters, timing, 3, 2159, ignored));
+  EXPECT_EQ(reward_status_v2::invalid_height,
+      select_service_payee_v2(qualification, seed, genesis, parameters, timing, 3, 2880, ignored));
   qualification.qualified_nodes.clear();
   EXPECT_EQ(reward_status_v2::empty_qualification,
-      select_service_payee_v2(qualification, seed, genesis, parameters, 3, 2160, 2160, ignored));
+      select_service_payee_v2(qualification, seed, genesis, parameters, timing, 3, 2160, ignored));
 }
 
 TEST(epose_reward_v2, payout_rejects_wrong_source_epoch_and_duplicate_members)
 {
   qualification_set_v2 qualification{};
   qualification.epoch = 2;
+  qualification.closed_height = 2099;
+  qualification.snapshot_hash = hash_text("snapshot");
   qualification.qualification_hash = hash_text("closed-set");
   qualification.qualified_nodes = {make_public_key()};
   crypto::public_key selected{};
+  const epoch_timing_v2 timing{0, 720, 60};
   EXPECT_EQ(reward_status_v2::invalid_context,
       select_service_payee_v2(qualification, hash_text("seed"), hash_text("genesis"),
-          hash_text("parameters"), 4, 2160, 2160, selected));
+          hash_text("parameters"), timing, 4, 2160, selected));
   qualification.qualified_nodes.push_back(qualification.qualified_nodes.front());
   EXPECT_EQ(reward_status_v2::invalid_context,
       select_service_payee_v2(qualification, hash_text("seed"), hash_text("genesis"),
-          hash_text("parameters"), 3, 2160, 2160, selected));
+          hash_text("parameters"), timing, 3, 2160, selected));
+}
+
+TEST(epose_reward_v2, payout_epoch_bounds_are_derived_from_canonical_timing)
+{
+  qualification_set_v2 qualification{};
+  qualification.epoch = 3;
+  qualification.closed_height = 2819;
+  qualification.snapshot_hash = hash_text("snapshot");
+  qualification.qualification_hash = hash_text("closed-set");
+  qualification.qualified_nodes = {make_public_key()};
+  const epoch_timing_v2 timing{0, 720, 60};
+  crypto::public_key selected{};
+  EXPECT_EQ(reward_status_v2::invalid_height,
+      select_service_payee_v2(qualification, hash_text("seed"), hash_text("genesis"),
+          hash_text("parameters"), timing, 4, 2879, selected));
+  EXPECT_EQ(reward_status_v2::accepted,
+      select_service_payee_v2(qualification, hash_text("seed"), hash_text("genesis"),
+          hash_text("parameters"), timing, 4, 2880, selected));
+  EXPECT_EQ(reward_status_v2::accepted,
+      select_service_payee_v2(qualification, hash_text("seed"), hash_text("genesis"),
+          hash_text("parameters"), timing, 4, 3599, selected));
+  EXPECT_EQ(reward_status_v2::invalid_height,
+      select_service_payee_v2(qualification, hash_text("seed"), hash_text("genesis"),
+          hash_text("parameters"), timing, 4, 3600, selected));
 }
 
 TEST(epose_reward_v2, scoped_payment_proof_uses_no_private_view_key)

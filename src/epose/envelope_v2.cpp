@@ -174,10 +174,11 @@ namespace epose
     if (records.size() > limits.max_records || records.size() > std::numeric_limits<uint16_t>::max())
       return envelope_status_v2::record_count_exceeded;
 
+    envelope_budget_v2 next_budget{};
     size_t records_size = 0;
     for (const envelope_record_v2 &record : records)
     {
-      const envelope_status_v2 status = validate_record(record, limits, budget);
+      const envelope_status_v2 status = validate_record(record, limits, next_budget);
       if (status != envelope_status_v2::accepted)
         return status;
       size_t record_size = 0;
@@ -191,21 +192,24 @@ namespace epose
         || total_size > limits.max_envelope_bytes)
       return envelope_status_v2::oversized_envelope;
 
-    encoded.append("QEP2", 4);
-    encoded.push_back(static_cast<char>(EPOSE_ENVELOPE_VERSION_V2));
-    encoded.push_back(0);
-    append_u16_le(encoded, static_cast<uint16_t>(records.size()));
-    append_u32_le(encoded, static_cast<uint32_t>(records_size));
+    std::string next_encoded;
+    next_encoded.append("QEP2", 4);
+    next_encoded.push_back(static_cast<char>(EPOSE_ENVELOPE_VERSION_V2));
+    next_encoded.push_back(0);
+    append_u16_le(next_encoded, static_cast<uint16_t>(records.size()));
+    append_u32_le(next_encoded, static_cast<uint32_t>(records_size));
     for (const envelope_record_v2 &record : records)
     {
-      encoded.push_back(static_cast<char>(record.type));
-      encoded.push_back(static_cast<char>(record.version));
-      append_u16_le(encoded, 0);
-      append_u32_le(encoded, static_cast<uint32_t>(record.payload.size()));
-      encoded.append(record.payload);
+      next_encoded.push_back(static_cast<char>(record.type));
+      next_encoded.push_back(static_cast<char>(record.version));
+      append_u16_le(next_encoded, 0);
+      append_u32_le(next_encoded, static_cast<uint32_t>(record.payload.size()));
+      next_encoded.append(record.payload);
     }
-    budget.bytes = encoded.size();
-    budget.records = records.size();
+    next_budget.bytes = next_encoded.size();
+    next_budget.records = records.size();
+    encoded.swap(next_encoded);
+    budget = next_budget;
     return envelope_status_v2::accepted;
   }
 
@@ -244,7 +248,9 @@ namespace epose
     if (record_count > records_size / RECORD_HEADER_SIZE)
       return envelope_status_v2::record_count_mismatch;
 
-    records.reserve(record_count);
+    std::vector<envelope_record_v2> next_records;
+    envelope_budget_v2 next_budget{};
+    next_records.reserve(record_count);
     for (uint16_t index = 0; index < record_count; ++index)
     {
       if (offset > encoded.size() || encoded.size() - offset < RECORD_HEADER_SIZE)
@@ -264,17 +270,19 @@ namespace epose
         return envelope_status_v2::truncated_record;
       record.payload.assign(encoded.data() + offset, payload_size);
       offset += payload_size;
-      const envelope_status_v2 status = validate_record(record, limits, budget);
+      const envelope_status_v2 status = validate_record(record, limits, next_budget);
       if (status != envelope_status_v2::accepted)
         return status;
-      records.push_back(std::move(record));
+      next_records.push_back(std::move(record));
     }
-    if (records.size() != record_count)
+    if (next_records.size() != record_count)
       return envelope_status_v2::record_count_mismatch;
     if (offset != encoded.size())
       return envelope_status_v2::trailing_bytes;
-    budget.bytes = encoded.size();
-    budget.records = records.size();
+    next_budget.bytes = encoded.size();
+    next_budget.records = next_records.size();
+    records.swap(next_records);
+    budget = next_budget;
     return envelope_status_v2::accepted;
   }
 
@@ -284,15 +292,20 @@ namespace epose
       std::string &field,
       envelope_budget_v2 &budget)
   {
+    field.clear();
+    budget = {};
     std::string envelope;
-    const envelope_status_v2 status = encode_envelope_v2(records, limits, envelope, budget);
+    envelope_budget_v2 next_budget{};
+    const envelope_status_v2 status = encode_envelope_v2(records, limits, envelope, next_budget);
     if (status != envelope_status_v2::accepted)
       return status;
-    field.clear();
-    append_varint(field, EPOSE_TX_EXTRA_TAG_V2);
-    append_varint(field, envelope.size());
-    field.append(envelope);
-    budget.bytes = field.size();
+    std::string next_field;
+    append_varint(next_field, EPOSE_TX_EXTRA_TAG_V2);
+    append_varint(next_field, envelope.size());
+    next_field.append(envelope);
+    next_budget.bytes = next_field.size();
+    field.swap(next_field);
+    budget = next_budget;
     return envelope_status_v2::accepted;
   }
 
@@ -324,10 +337,15 @@ namespace epose
       return envelope_status_v2::oversized_envelope;
     if (envelope_size != field.size() - offset)
       return envelope_status_v2::malformed_outer_field;
-    const envelope_status_v2 status = parse_envelope_v2(field.substr(offset), limits, records, budget);
-    if (status == envelope_status_v2::accepted)
-      budget.bytes = field.size();
-    return status;
+    std::vector<envelope_record_v2> next_records;
+    envelope_budget_v2 next_budget{};
+    const envelope_status_v2 status = parse_envelope_v2(field.substr(offset), limits, next_records, next_budget);
+    if (status != envelope_status_v2::accepted)
+      return status;
+    next_budget.bytes = field.size();
+    records.swap(next_records);
+    budget = next_budget;
+    return envelope_status_v2::accepted;
   }
 
   envelope_status_v2 parse_transaction_envelope_fields_v2(
@@ -343,6 +361,8 @@ namespace epose
       return envelope_status_v2::invalid_limits;
     if (fields.size() > max_envelopes_per_transaction)
       return envelope_status_v2::envelope_count_exceeded;
+    std::vector<envelope_record_v2> next_records;
+    envelope_budget_v2 next_budget{};
     for (const std::string &field : fields)
     {
       std::vector<envelope_record_v2> parsed;
@@ -350,16 +370,18 @@ namespace epose
       const envelope_status_v2 status = parse_tx_extra_envelope_field_v2(field, limits, parsed, field_budget);
       if (status != envelope_status_v2::accepted)
         return status;
-      records.insert(records.end(), parsed.begin(), parsed.end());
-      if (!checked_add(budget.bytes, field_budget.bytes, budget.bytes))
+      next_records.insert(next_records.end(), parsed.begin(), parsed.end());
+      if (!checked_add(next_budget.bytes, field_budget.bytes, next_budget.bytes))
         return envelope_status_v2::oversized_envelope;
-      if (!checked_add(budget.records, field_budget.records, budget.records))
+      if (!checked_add(next_budget.records, field_budget.records, next_budget.records))
         return envelope_status_v2::record_count_exceeded;
-      if (!checked_add(budget.signature_verifications, field_budget.signature_verifications, budget.signature_verifications))
+      if (!checked_add(next_budget.signature_verifications, field_budget.signature_verifications, next_budget.signature_verifications))
         return envelope_status_v2::signature_budget_exceeded;
-      if (!checked_add(budget.admission_verifications, field_budget.admission_verifications, budget.admission_verifications))
+      if (!checked_add(next_budget.admission_verifications, field_budget.admission_verifications, next_budget.admission_verifications))
         return envelope_status_v2::admission_budget_exceeded;
     }
+    records.swap(next_records);
+    budget = next_budget;
     return envelope_status_v2::accepted;
   }
 

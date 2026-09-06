@@ -208,3 +208,48 @@ TEST(epose_envelope_v2, transaction_and_block_wide_budgets_fail_before_state_app
       charge_block_budget_v2(transaction_budget, block_limits, block_budget));
   EXPECT_EQ(2u, block_budget.records);
 }
+
+TEST(epose_envelope_v2, failed_operations_clear_all_outputs_atomically)
+{
+  auto bounded = limits();
+  std::string encoded = "stale";
+  envelope_budget_v2 budget{9, 9, 9, 9};
+  bounded.max_signature_verifications = 1;
+  EXPECT_EQ(envelope_status_v2::signature_budget_exceeded,
+      encode_envelope_v2({record(record_type_v2::service_receipt, "x")}, bounded, encoded, budget));
+  EXPECT_TRUE(encoded.empty());
+  EXPECT_EQ(0u, budget.bytes);
+  EXPECT_EQ(0u, budget.records);
+  EXPECT_EQ(0u, budget.signature_verifications);
+
+  bounded = limits();
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_envelope_v2({record(record_type_v2::service_receipt, "x")}, bounded, encoded, budget));
+  std::string first;
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_envelope_v2({record(record_type_v2::identity_descriptor, "first")}, bounded, first, budget));
+  encoded.append(1, 'x');
+  std::vector<envelope_record_v2> records{{1, 1, "stale"}};
+  budget = {9, 9, 9, 9};
+  EXPECT_EQ(envelope_status_v2::record_size_mismatch,
+      parse_envelope_v2(encoded, bounded, records, budget));
+  EXPECT_TRUE(records.empty());
+  EXPECT_EQ(0u, budget.bytes);
+
+  std::string valid_field;
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_tx_extra_envelope_field_v2({record(record_type_v2::service_receipt, "x")}, bounded, valid_field, budget));
+  records = {{1, 1, "stale"}};
+  budget = {9, 9, 9, 9};
+  EXPECT_EQ(envelope_status_v2::wrong_tag,
+      parse_transaction_envelope_fields_v2({valid_field, std::string("\x06", 1)}, 2, bounded, records, budget));
+  EXPECT_TRUE(records.empty());
+  EXPECT_EQ(0u, budget.records);
+
+  std::string stale_field = "stale";
+  budget = {9, 9, 9, 9};
+  EXPECT_EQ(envelope_status_v2::empty_envelope,
+      encode_tx_extra_envelope_field_v2({}, bounded, stale_field, budget));
+  EXPECT_TRUE(stale_field.empty());
+  EXPECT_EQ(0u, budget.bytes);
+}

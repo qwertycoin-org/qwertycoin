@@ -47,7 +47,8 @@ namespace epose
     uint64_t miner_fees = 0;
     uint64_t service_reward = 0;
     uint64_t permanently_unissued = 0;
-    uint64_t issued_total = 0;
+    uint64_t issued_subsidy = 0;
+    uint64_t coinbase_total = 0;
     // This advances by the scheduled subsidy even when an approved policy
     // permanently leaves part of it unissued.
     uint64_t emission_advance = 0;
@@ -66,8 +67,8 @@ namespace epose
       const crypto::hash &payout_seed,
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
+      const epoch_timing_v2 &timing,
       uint64_t payout_epoch,
-      uint64_t payout_epoch_start,
       uint64_t height,
       crypto::public_key &selected);
 

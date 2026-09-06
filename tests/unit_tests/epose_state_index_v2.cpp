@@ -156,3 +156,33 @@ TEST(epose_state_index_v2, wrong_parameter_set_cannot_load_valid_image)
   state_index_v2 target(hash_text("other-parameters"), 4);
   EXPECT_EQ(state_index_status_v2::wrong_parameter_set, target.restore(source.serialize()));
 }
+
+TEST(epose_state_index_v2, invalid_configuration_rejects_empty_rebuild_and_restore)
+{
+  state_index_v2 valid(hash_text("parameters"), 4);
+  ASSERT_EQ(state_index_status_v2::accepted, valid.rebuild({}));
+  const std::string empty_image = valid.serialize();
+
+  state_index_v2 null_parameters(crypto::null_hash, 4);
+  EXPECT_EQ(state_index_status_v2::invalid_configuration, null_parameters.rebuild({}));
+  EXPECT_EQ(state_index_status_v2::invalid_configuration, null_parameters.restore(empty_image));
+
+  state_index_v2 zero_horizon(hash_text("parameters"), 0);
+  EXPECT_EQ(state_index_status_v2::invalid_configuration, zero_horizon.rebuild({}));
+  EXPECT_EQ(state_index_status_v2::invalid_configuration, zero_horizon.restore(empty_image));
+}
+
+TEST(epose_state_index_v2, canonical_image_rejects_duplicate_checkpoint_with_valid_checksum)
+{
+  state_index_v2 source(hash_text("parameters"), 4);
+  ASSERT_EQ(state_index_status_v2::accepted, source.rebuild(chain(2)));
+  std::string image = source.serialize();
+  constexpr size_t header_size = 4 + 4 + sizeof(crypto::hash) + 8 + 8;
+  constexpr size_t checkpoint_size = 8 + 4 * sizeof(crypto::hash);
+  std::memcpy(&image[header_size + checkpoint_size], &image[header_size], checkpoint_size);
+  rewrite_checksum(image);
+
+  state_index_v2 target(hash_text("parameters"), 4);
+  EXPECT_EQ(state_index_status_v2::duplicate_conflict, target.restore(image));
+  EXPECT_EQ(nullptr, target.tip());
+}

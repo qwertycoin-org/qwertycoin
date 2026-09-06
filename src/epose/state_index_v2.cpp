@@ -132,6 +132,8 @@ namespace epose
 
   state_index_status_v2 state_index_v2::rebuild(const std::vector<state_checkpoint_v2> &canonical_history)
   {
+    if (!valid())
+      return state_index_status_v2::invalid_configuration;
     state_index_v2 rebuilt(parameter_set_hash_, undo_horizon_);
     for (const state_checkpoint_v2 &checkpoint : canonical_history)
     {
@@ -191,6 +193,8 @@ namespace epose
 
   state_index_status_v2 state_index_v2::restore(const std::string &image)
   {
+    if (!valid())
+      return state_index_status_v2::invalid_configuration;
     constexpr size_t fixed_header = 4 + 4 + sizeof(crypto::hash) + 8 + 8;
     if (image.size() < fixed_header + sizeof(crypto::hash) || image.compare(0, 4, "QEI2") != 0)
       return state_index_status_v2::corrupt_image;
@@ -240,11 +244,21 @@ namespace epose
         return state_index_status_v2::invalid_checkpoint;
       for (size_t i = 1; i < parsed.size(); ++i)
       {
-        const state_index_status_v2 status = validated.connect(parsed[i]);
-        if (status != state_index_status_v2::accepted)
-          return status;
+        if (!checkpoint_valid(parsed[i]))
+          return state_index_status_v2::invalid_checkpoint;
+        const state_checkpoint_v2 &previous = parsed[i - 1];
+        if (parsed[i].height == previous.height)
+          return state_index_status_v2::duplicate_conflict;
+        if (previous.height == std::numeric_limits<uint64_t>::max()
+            || parsed[i].height != previous.height + 1)
+          return state_index_status_v2::height_gap;
+        if (parsed[i].parent_hash != previous.block_hash)
+          return state_index_status_v2::parent_mismatch;
+        validated.checkpoints_.push_back(parsed[i]);
       }
     }
+    if (validated.serialize() != image)
+      return state_index_status_v2::corrupt_image;
     checkpoints_.swap(validated.checkpoints_);
     return state_index_status_v2::accepted;
   }
