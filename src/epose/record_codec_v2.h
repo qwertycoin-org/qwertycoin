@@ -90,5 +90,12 @@ namespace epose
       const envelope_record_v2 &record,
       const service_payment_context_v2 &context,
       scoped_payment_proof_v2 &proof);
+
+  // Parses the fixed-size proof payload without treating it as authorized.
+  // Consensus callers use this only to derive the canonical Coinbase context,
+  // then call the validating decoder exactly once with that context.
+  record_codec_status_v2 decode_payment_proof_record_structure_v2(
+      const envelope_record_v2 &record,
+      scoped_payment_proof_v2 &proof);
 } // namespace epose
 } // namespace qwertycoin

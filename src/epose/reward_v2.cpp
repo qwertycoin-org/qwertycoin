@@ -3,6 +3,10 @@
 
 #include "epose/reward_v2.h"
 
+#include "cryptonote_basic/cryptonote_format_utils.h"
+#include "epose/envelope_v2.h"
+#include "epose/record_codec_v2.h"
+
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -339,6 +343,225 @@ namespace epose
           || expected != output.output_public_key)
         return reward_status_v2::invalid_output_allocation;
     }
+    return reward_status_v2::accepted;
+  }
+
+  reward_status_v2 canonical_coinbase_commitment_v2(
+      const cryptonote::transaction &coinbase,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      crypto::hash &commitment,
+      size_t &removed_proofs)
+  {
+    commitment = {};
+    removed_proofs = 0;
+    if (!cryptonote::is_coinbase(coinbase))
+      return reward_status_v2::invalid_context;
+
+    std::vector<uint8_t> stripped_extra;
+    size_t removed = 0;
+    if (strip_transaction_record_type_v2(
+            coinbase.extra, major_version, max_envelopes_per_transaction,
+            limits, record_type_v2::service_payment_proof,
+            stripped_extra, removed) != envelope_status_v2::accepted)
+      return reward_status_v2::invalid_context;
+
+    cryptonote::transaction canonical = coinbase;
+    canonical.extra = std::move(stripped_extra);
+    canonical.invalidate_hashes();
+    const cryptonote::blobdata bytes = cryptonote::tx_to_blob(canonical);
+    if (bytes.empty())
+      return reward_status_v2::invalid_context;
+    commitment = crypto::cn_fast_hash(bytes.data(), bytes.size());
+    removed_proofs = removed;
+    return commitment == crypto::null_hash
+        ? reward_status_v2::invalid_context
+        : reward_status_v2::accepted;
+  }
+
+  reward_status_v2 verify_coinbase_service_payment_v2(
+      const cryptonote::transaction &coinbase,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      const service_payment_expectation_v2 &expected,
+      service_payment_context_v2 &context)
+  {
+    context = {};
+    if (!cryptonote::is_coinbase(coinbase)
+        || expected.nettype == cryptonote::UNDEFINED
+        || expected.genesis_hash == crypto::null_hash
+        || expected.parameter_set_hash == crypto::null_hash
+        || expected.parent_hash == crypto::null_hash
+        || expected.qualification_hash == crypto::null_hash
+        || expected.service_reward == 0
+        || !valid_nonnull_key(expected.payee_service_public_key)
+        || !valid_nonnull_key(expected.reward_address.m_view_public_key)
+        || !valid_nonnull_key(expected.reward_address.m_spend_public_key))
+      return reward_status_v2::invalid_context;
+
+    std::vector<envelope_record_v2> records;
+    envelope_budget_v2 budget{};
+    if (parse_transaction_extra_v2(
+            coinbase.extra, major_version, max_envelopes_per_transaction,
+            limits, records, budget) != envelope_status_v2::accepted)
+      return reward_status_v2::invalid_context;
+
+    scoped_payment_proof_v2 proof{};
+    size_t proof_records = 0;
+    for (const envelope_record_v2 &record : records)
+    {
+      if (record.type != static_cast<uint8_t>(record_type_v2::service_payment_proof))
+        continue;
+      if (++proof_records != 1
+          || decode_payment_proof_record_structure_v2(record, proof)
+              != record_codec_status_v2::accepted)
+        return reward_status_v2::invalid_payment_proof;
+    }
+    if (proof_records != 1 || !valid_nonnull_key(proof.derivation))
+      return reward_status_v2::invalid_payment_proof;
+
+    service_payment_context_v2 next{};
+    next.nettype = expected.nettype;
+    next.genesis_hash = expected.genesis_hash;
+    next.parameter_set_hash = expected.parameter_set_hash;
+    next.height = expected.height;
+    next.parent_hash = expected.parent_hash;
+    next.payout_epoch = expected.payout_epoch;
+    next.qualification_hash = expected.qualification_hash;
+    next.payee_service_public_key = expected.payee_service_public_key;
+    next.reward_address = expected.reward_address;
+    next.service_reward = expected.service_reward;
+    next.transaction_public_key = cryptonote::get_tx_pub_key_from_extra(coinbase);
+    if (!valid_nonnull_key(next.transaction_public_key))
+      return reward_status_v2::invalid_transaction_key;
+
+    size_t removed = 0;
+    if (canonical_coinbase_commitment_v2(
+            coinbase, major_version, max_envelopes_per_transaction, limits,
+            next.coinbase_commitment, removed) != reward_status_v2::accepted
+        || removed != 1)
+      return reward_status_v2::invalid_payment_proof;
+
+    const crypto::key_derivation derivation = public_key_as_derivation(proof.derivation);
+    for (size_t output_index = 0; output_index < coinbase.vout.size(); ++output_index)
+    {
+      if (output_index > std::numeric_limits<uint32_t>::max())
+        return reward_status_v2::invalid_output_allocation;
+      crypto::public_key output_public_key{};
+      if (!cryptonote::get_output_public_key(coinbase.vout[output_index], output_public_key))
+        return reward_status_v2::invalid_output_allocation;
+      crypto::public_key expected_output_key{};
+      if (!crypto::derive_public_key(
+              derivation, output_index,
+              expected.reward_address.m_spend_public_key,
+              expected_output_key))
+        return reward_status_v2::invalid_derivation;
+      if (output_public_key == expected_output_key)
+      {
+        if (coinbase.vout[output_index].amount == 0)
+          return reward_status_v2::invalid_output_allocation;
+        next.outputs.push_back({
+            static_cast<uint32_t>(output_index),
+            coinbase.vout[output_index].amount,
+            output_public_key});
+      }
+    }
+
+    if (verify_scoped_payment_proof_v2(next, proof) != reward_status_v2::accepted)
+      return reward_status_v2::invalid_payment_proof;
+    context = std::move(next);
+    return reward_status_v2::accepted;
+  }
+
+  reward_status_v2 append_coinbase_service_payment_proof_v2(
+      cryptonote::transaction &coinbase,
+      const crypto::secret_key &transaction_secret_key,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      const service_payment_expectation_v2 &expected,
+      service_payment_context_v2 &context)
+  {
+    context = {};
+    if (!cryptonote::is_coinbase(coinbase))
+      return reward_status_v2::invalid_context;
+    crypto::public_key transaction_public_key{};
+    if (!crypto::secret_key_to_public_key(
+            transaction_secret_key, transaction_public_key)
+        || transaction_public_key != cryptonote::get_tx_pub_key_from_extra(coinbase))
+      return reward_status_v2::invalid_transaction_key;
+
+    cryptonote::transaction candidate = coinbase;
+    service_payment_context_v2 signing{};
+    signing.nettype = expected.nettype;
+    signing.genesis_hash = expected.genesis_hash;
+    signing.parameter_set_hash = expected.parameter_set_hash;
+    signing.height = expected.height;
+    signing.parent_hash = expected.parent_hash;
+    signing.payout_epoch = expected.payout_epoch;
+    signing.qualification_hash = expected.qualification_hash;
+    signing.payee_service_public_key = expected.payee_service_public_key;
+    signing.reward_address = expected.reward_address;
+    signing.service_reward = expected.service_reward;
+    signing.transaction_public_key = transaction_public_key;
+    size_t existing_proofs = 0;
+    if (canonical_coinbase_commitment_v2(
+            candidate, major_version, max_envelopes_per_transaction, limits,
+            signing.coinbase_commitment, existing_proofs) != reward_status_v2::accepted
+        || existing_proofs != 0)
+      return reward_status_v2::invalid_payment_proof;
+
+    crypto::key_derivation derivation{};
+    if (!crypto::generate_key_derivation(
+            expected.reward_address.m_view_public_key,
+            transaction_secret_key, derivation))
+      return reward_status_v2::invalid_derivation;
+    for (size_t output_index = 0; output_index < candidate.vout.size(); ++output_index)
+    {
+      if (output_index > std::numeric_limits<uint32_t>::max())
+        return reward_status_v2::invalid_output_allocation;
+      crypto::public_key output_public_key{};
+      if (!cryptonote::get_output_public_key(candidate.vout[output_index], output_public_key))
+        return reward_status_v2::invalid_output_allocation;
+      crypto::public_key expected_output_key{};
+      if (!crypto::derive_public_key(
+              derivation, output_index,
+              expected.reward_address.m_spend_public_key,
+              expected_output_key))
+        return reward_status_v2::invalid_derivation;
+      if (output_public_key == expected_output_key)
+        signing.outputs.push_back({
+            static_cast<uint32_t>(output_index),
+            candidate.vout[output_index].amount,
+            output_public_key});
+    }
+
+    scoped_payment_proof_v2 proof{};
+    const reward_status_v2 generated = generate_scoped_payment_proof_v2(
+        signing, transaction_secret_key, proof);
+    if (generated != reward_status_v2::accepted)
+      return generated;
+    envelope_record_v2 record{};
+    if (encode_payment_proof_record_v2(proof, signing, record)
+        != record_codec_status_v2::accepted)
+      return reward_status_v2::invalid_payment_proof;
+    envelope_budget_v2 budget{};
+    if (append_transaction_envelope_v2(
+            {record}, major_version, max_envelopes_per_transaction,
+            limits, candidate.extra, budget) != envelope_status_v2::accepted)
+      return reward_status_v2::invalid_payment_proof;
+
+    service_payment_context_v2 verified{};
+    const reward_status_v2 verified_status = verify_coinbase_service_payment_v2(
+        candidate, major_version, max_envelopes_per_transaction,
+        limits, expected, verified);
+    if (verified_status != reward_status_v2::accepted)
+      return verified_status;
+    coinbase = std::move(candidate);
+    coinbase.invalidate_hashes();
+    context = std::move(verified);
     return reward_status_v2::accepted;
   }
 } // namespace epose

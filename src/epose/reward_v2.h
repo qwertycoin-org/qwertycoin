@@ -15,6 +15,7 @@ namespace qwertycoin
 {
 namespace epose
 {
+  struct envelope_limits_v2;
   constexpr uint64_t EPOSE_SERVICE_REWARD_BPS_V2 = 1000;
 
   enum class empty_qualification_policy_v2 : uint8_t
@@ -104,6 +105,20 @@ namespace epose
     crypto::signature proof{};
   };
 
+  struct service_payment_expectation_v2
+  {
+    cryptonote::network_type nettype = cryptonote::UNDEFINED;
+    crypto::hash genesis_hash{};
+    crypto::hash parameter_set_hash{};
+    uint64_t height = 0;
+    crypto::hash parent_hash{};
+    uint64_t payout_epoch = 0;
+    crypto::hash qualification_hash{};
+    crypto::public_key payee_service_public_key{};
+    cryptonote::account_public_address reward_address{};
+    uint64_t service_reward = 0;
+  };
+
   crypto::hash hash_service_payment_context_v2(
       const service_payment_context_v2 &context,
       const crypto::public_key &derivation);
@@ -116,5 +131,40 @@ namespace epose
   reward_status_v2 verify_scoped_payment_proof_v2(
       const service_payment_context_v2 &context,
       const scoped_payment_proof_v2 &proof);
+
+  // Hashes canonical Coinbase bytes after removing only v2 payment-proof
+  // records. The caller checks removed_proofs against whether a payout is due.
+  // This is the shared non-circular commitment used by proof construction and
+  // validation; unrelated EPoSE and wallet metadata remain committed.
+  reward_status_v2 canonical_coinbase_commitment_v2(
+      const cryptonote::transaction &coinbase,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      crypto::hash &commitment,
+      size_t &removed_proofs);
+
+  // Builds and verifies the payment context from the actual canonical
+  // Coinbase. Exactly one proof record is required and every output claimed
+  // for the service reward is derived from that proof's scoped derivation.
+  reward_status_v2 verify_coinbase_service_payment_v2(
+      const cryptonote::transaction &coinbase,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      const service_payment_expectation_v2 &expected,
+      service_payment_context_v2 &context);
+
+  // Appends the one scoped proof required for a prescribed service payout.
+  // The Coinbase is changed only after the complete proof-bearing candidate
+  // validates against the same production verifier used by block acceptance.
+  reward_status_v2 append_coinbase_service_payment_proof_v2(
+      cryptonote::transaction &coinbase,
+      const crypto::secret_key &transaction_secret_key,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      const service_payment_expectation_v2 &expected,
+      service_payment_context_v2 &context);
 } // namespace epose
 } // namespace qwertycoin

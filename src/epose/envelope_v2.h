@@ -150,5 +150,18 @@ namespace epose
       const envelope_limits_v2 &limits,
       std::vector<envelope_record_v2> &records,
       envelope_budget_v2 &budget);
+
+  // Canonically removes every record of one type while preserving unrelated
+  // tx_extra fields and the order/envelope grouping of all remaining records.
+  // Used to derive non-circular Coinbase commitments with payment proofs
+  // omitted. The destination is changed only on complete success.
+  envelope_status_v2 strip_transaction_record_type_v2(
+      const std::vector<uint8_t> &tx_extra,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      record_type_v2 type,
+      std::vector<uint8_t> &stripped_extra,
+      size_t &removed_records);
 } // namespace epose
 } // namespace qwertycoin

@@ -671,3 +671,29 @@ Results reproduced on 2026-09-06:
 The cumulative PR targets `main` and retains the signed commit history from the
 superseded stacked review PRs. This evidence does not authorize merge,
 deployment, genesis generation, or economic activation.
+
+## Canonical Coinbase payment context
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_envelope_v2.*:epose_reward_v2.*'
+```
+
+Results reproduced on 2026-09-07:
+
+- envelope and reward subset: **28/28 passed**;
+- noncanonical generic outer `tx_extra` lengths fail closed;
+- payment-proof stripping is atomic and preserves unrelated record grouping
+  and wallet metadata;
+- proof-excluded commitments are identical before and after adding the proof,
+  but change when any other Coinbase field changes;
+- validation derives the paid output indices, amounts, and one-time keys from
+  the actual Coinbase plus scoped derivation;
+- wrong amounts and duplicate proof records fail with no returned context.
+
+The final payout schedule, empty-set/emission policy, and manifest resource
+limits remain unset. These tests prove the non-circular construction and
+validator boundary, not an activated producer or economic policy.

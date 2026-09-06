@@ -267,6 +267,27 @@ namespace epose
       const service_payment_context_v2 &context,
       scoped_payment_proof_v2 &proof)
   {
+    scoped_payment_proof_v2 next{};
+    const record_codec_status_v2 structure =
+        decode_payment_proof_record_structure_v2(record, next);
+    if (structure != record_codec_status_v2::accepted)
+    {
+      proof = {};
+      return structure;
+    }
+    if (verify_scoped_payment_proof_v2(context, next) != reward_status_v2::accepted)
+    {
+      proof = {};
+      return record_codec_status_v2::invalid_record;
+    }
+    proof = next;
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 decode_payment_proof_record_structure_v2(
+      const envelope_record_v2 &record,
+      scoped_payment_proof_v2 &proof)
+  {
     proof = {};
     if (record.type != static_cast<uint8_t>(record_type_v2::service_payment_proof))
       return record_codec_status_v2::wrong_type;
@@ -280,8 +301,6 @@ namespace epose
         || !read_bytes(record.payload, offset, next.proof)
         || offset != record.payload.size())
       return record_codec_status_v2::wrong_size;
-    if (verify_scoped_payment_proof_v2(context, next) != reward_status_v2::accepted)
-      return record_codec_status_v2::invalid_record;
     proof = next;
     return record_codec_status_v2::accepted;
   }

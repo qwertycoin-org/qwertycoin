@@ -146,3 +146,6 @@ activated by CO-01.
 133. Unknown admission contexts are rejected before allocating a RandomX VM, dataset, cache, or pending verification entry.
 134. EPoSE RPC list/scan operations require pagination and checked page/scan ceilings.
 135. Local overload may reject relay/probe work but cannot change deterministic validation of the same complete block.
+136. The proof-excluded Coinbase commitment removes only typed v2 payment-proof records; every unrelated wallet and EPoSE field, output, amount, unlock height, and transaction byte remains committed.
+137. A required v2 service payout contains exactly one scoped payment-proof record, and its output set is reconstructed from the actual Coinbase outputs before proof verification.
+138. Generic outer `tx_extra` encoding and every embedded v2 envelope are canonical before any record can authorize a state transition or payment.

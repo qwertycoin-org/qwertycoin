@@ -9,6 +9,8 @@
 #include <limits>
 #include <vector>
 
+#include "cryptonote_basic/cryptonote_format_utils.h"
+#include "epose/envelope_v2.h"
 #include "epose/reward_v2.h"
 #include "epose/record_codec_v2.h"
 
@@ -67,6 +69,18 @@ namespace
       context.outputs.push_back(output);
     }
     return context;
+  }
+
+  envelope_limits_v2 envelope_limits()
+  {
+    envelope_limits_v2 limits{};
+    limits.max_envelope_bytes = 4096;
+    limits.max_records = 8;
+    limits.max_record_payload_bytes = 2048;
+    limits.max_signature_verifications = 16;
+    limits.max_admission_verifications = 4;
+    limits.supported_record_versions = {0, 1, 1, 1, 1, 1};
+    return limits;
   }
 }
 
@@ -317,4 +331,202 @@ TEST(epose_reward_v2, typed_payment_proof_codec_is_context_bound_and_atomic)
   EXPECT_EQ(record_codec_status_v2::wrong_size,
       decode_payment_proof_record_v2(encoded, context, actual));
   EXPECT_EQ(crypto::null_pkey, actual.derivation);
+}
+
+TEST(epose_reward_v2, coinbase_commitment_omits_only_payment_proof_records)
+{
+  cryptonote::transaction coinbase{};
+  coinbase.version = 2;
+  coinbase.unlock_time = 60;
+  cryptonote::txin_gen input{};
+  input.height = 0;
+  coinbase.vin.push_back(input);
+  ASSERT_TRUE(cryptonote::add_tx_pub_key_to_extra(coinbase, make_public_key()));
+
+  envelope_record_v2 receipt{};
+  receipt.type = static_cast<uint8_t>(record_type_v2::service_receipt);
+  receipt.version = 1;
+  receipt.payload = "receipt";
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2(
+          {receipt}, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), coinbase.extra, budget));
+
+  crypto::hash before_proof{};
+  size_t removed = 9;
+  ASSERT_EQ(reward_status_v2::accepted,
+      canonical_coinbase_commitment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), before_proof, removed));
+  EXPECT_EQ(0u, removed);
+
+  envelope_record_v2 proof{};
+  proof.type = static_cast<uint8_t>(record_type_v2::service_payment_proof);
+  proof.version = 1;
+  proof.payload = "proof";
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2(
+          {proof}, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), coinbase.extra, budget));
+
+  crypto::hash after_proof{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      canonical_coinbase_commitment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), after_proof, removed));
+  EXPECT_EQ(1u, removed);
+  EXPECT_EQ(before_proof, after_proof);
+
+  ++coinbase.unlock_time;
+  crypto::hash changed{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      canonical_coinbase_commitment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), changed, removed));
+  EXPECT_NE(before_proof, changed);
+
+  cryptonote::transaction ordinary{};
+  crypto::hash stale = before_proof;
+  removed = 9;
+  EXPECT_EQ(reward_status_v2::invalid_context,
+      canonical_coinbase_commitment_v2(
+          ordinary, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), stale, removed));
+  EXPECT_EQ(crypto::null_hash, stale);
+  EXPECT_EQ(0u, removed);
+}
+
+TEST(epose_reward_v2, coinbase_payment_proof_is_derived_from_actual_outputs)
+{
+  crypto::secret_key transaction_secret{};
+  crypto::public_key transaction_public{};
+  crypto::generate_keys(transaction_public, transaction_secret);
+  const cryptonote::account_public_address reward_address = make_address();
+
+  cryptonote::transaction coinbase{};
+  coinbase.version = 2;
+  coinbase.unlock_time = 60;
+  cryptonote::txin_gen input{};
+  input.height = 1440;
+  coinbase.vin.push_back(input);
+  ASSERT_TRUE(cryptonote::add_tx_pub_key_to_extra(coinbase, transaction_public));
+
+  cryptonote::tx_out miner_output{};
+  miner_output.amount = 900;
+  cryptonote::txout_to_key miner_target{};
+  miner_target.key = make_public_key();
+  miner_output.target = miner_target;
+  coinbase.vout.push_back(miner_output);
+
+  crypto::key_derivation derivation{};
+  ASSERT_TRUE(crypto::generate_key_derivation(
+      reward_address.m_view_public_key, transaction_secret, derivation));
+  service_payment_context_v2 signing_context{};
+  signing_context.nettype = cryptonote::TESTNET;
+  signing_context.genesis_hash = hash_text("genesis");
+  signing_context.parameter_set_hash = hash_text("parameters");
+  signing_context.height = 1440;
+  signing_context.parent_hash = hash_text("parent");
+  signing_context.payout_epoch = 2;
+  signing_context.qualification_hash = hash_text("qualification");
+  signing_context.payee_service_public_key = make_public_key();
+  signing_context.reward_address = reward_address;
+  signing_context.service_reward = 100;
+  signing_context.transaction_public_key = transaction_public;
+
+  for (const uint64_t amount : {40u, 60u})
+  {
+    const uint32_t output_index = static_cast<uint32_t>(coinbase.vout.size());
+    cryptonote::txout_to_key service_target{};
+    ASSERT_TRUE(crypto::derive_public_key(
+        derivation, output_index, reward_address.m_spend_public_key,
+        service_target.key));
+    cryptonote::tx_out service_output{};
+    service_output.amount = amount;
+    service_output.target = service_target;
+    coinbase.vout.push_back(service_output);
+    signing_context.outputs.push_back({output_index, amount, service_target.key});
+  }
+  const cryptonote::transaction proofless_coinbase = coinbase;
+
+  size_t removed = 9;
+  ASSERT_EQ(reward_status_v2::accepted,
+      canonical_coinbase_commitment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), signing_context.coinbase_commitment, removed));
+  ASSERT_EQ(0u, removed);
+  scoped_payment_proof_v2 proof{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      generate_scoped_payment_proof_v2(signing_context, transaction_secret, proof));
+  envelope_record_v2 proof_record{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_payment_proof_record_v2(proof, signing_context, proof_record));
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2(
+          {proof_record}, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), coinbase.extra, budget));
+
+  const service_payment_expectation_v2 expected{
+      signing_context.nettype,
+      signing_context.genesis_hash,
+      signing_context.parameter_set_hash,
+      signing_context.height,
+      signing_context.parent_hash,
+      signing_context.payout_epoch,
+      signing_context.qualification_hash,
+      signing_context.payee_service_public_key,
+      signing_context.reward_address,
+      signing_context.service_reward};
+  service_payment_context_v2 actual{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      verify_coinbase_service_payment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), expected, actual));
+  EXPECT_EQ(signing_context.coinbase_commitment, actual.coinbase_commitment);
+  EXPECT_EQ(signing_context.outputs.size(), actual.outputs.size());
+
+  cryptonote::transaction produced = proofless_coinbase;
+  service_payment_context_v2 produced_context{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      append_coinbase_service_payment_proof_v2(
+          produced, transaction_secret, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), expected, produced_context));
+  EXPECT_EQ(signing_context.coinbase_commitment, produced_context.coinbase_commitment);
+  ASSERT_EQ(reward_status_v2::accepted,
+      verify_coinbase_service_payment_v2(
+          produced, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), expected, actual));
+
+  crypto::public_key wrong_public{};
+  crypto::secret_key wrong_secret{};
+  crypto::generate_keys(wrong_public, wrong_secret);
+  produced = proofless_coinbase;
+  const cryptonote::transaction unchanged = produced;
+  EXPECT_EQ(reward_status_v2::invalid_transaction_key,
+      append_coinbase_service_payment_proof_v2(
+          produced, wrong_secret, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), expected, produced_context));
+  EXPECT_EQ(cryptonote::tx_to_blob(unchanged), cryptonote::tx_to_blob(produced));
+  EXPECT_TRUE(produced_context.outputs.empty());
+
+  cryptonote::transaction wrong_amount = coinbase;
+  ++wrong_amount.vout.back().amount;
+  EXPECT_EQ(reward_status_v2::invalid_payment_proof,
+      verify_coinbase_service_payment_v2(
+          wrong_amount, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), expected, actual));
+  EXPECT_TRUE(actual.outputs.empty());
+
+  cryptonote::transaction duplicate_proof = coinbase;
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2(
+          {proof_record}, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), duplicate_proof.extra, budget));
+  EXPECT_EQ(reward_status_v2::invalid_payment_proof,
+      verify_coinbase_service_payment_v2(
+          duplicate_proof, HF_VERSION_QWC_EPOSE, 2,
+          envelope_limits(), expected, actual));
+  EXPECT_TRUE(actual.outputs.empty());
 }

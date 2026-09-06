@@ -332,3 +332,69 @@ TEST(epose_envelope_v2, carrier_append_preserves_unrelated_fields_and_fails_atom
           HF_VERSION_MONERO_CURRENT_CONSENSUS, 1, limits(), legacy, budget));
   EXPECT_EQ(original, legacy);
 }
+
+TEST(epose_envelope_v2, transaction_carrier_rejects_noncanonical_outer_length)
+{
+  std::string field;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_tx_extra_envelope_field_v2(
+          {record(record_type_v2::service_receipt, "receipt")},
+          limits(), field, budget));
+  ASSERT_GE(field.size(), 3u);
+  ASSERT_LT(static_cast<uint8_t>(field[1]), 0x80u);
+  field[1] = static_cast<char>(static_cast<uint8_t>(field[1]) | 0x80u);
+  field.insert(field.begin() + 2, 0);
+  const std::vector<uint8_t> extra(field.begin(), field.end());
+
+  std::vector<envelope_record_v2> parsed{{1, 1, "stale"}};
+  budget = {9, 9, 9, 9};
+  EXPECT_EQ(envelope_status_v2::malformed_transaction_extra,
+      parse_transaction_extra_v2(
+          extra, HF_VERSION_QWC_EPOSE, 1, limits(), parsed, budget));
+  EXPECT_TRUE(parsed.empty());
+  EXPECT_EQ(0u, budget.bytes);
+}
+
+TEST(epose_envelope_v2, payment_proof_stripping_is_canonical_and_atomic)
+{
+  std::vector<uint8_t> extra;
+  ASSERT_TRUE(cryptonote::add_extra_nonce_to_tx_extra(extra, "unrelated"));
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2(
+          {record(record_type_v2::service_receipt, "receipt"),
+           record(record_type_v2::service_payment_proof, "proof")},
+          HF_VERSION_QWC_EPOSE, 1, limits(), extra, budget));
+  const std::vector<uint8_t> original = extra;
+
+  std::vector<uint8_t> stripped{0xff};
+  size_t removed = 9;
+  ASSERT_EQ(envelope_status_v2::accepted,
+      strip_transaction_record_type_v2(
+          extra, HF_VERSION_QWC_EPOSE, 1, limits(),
+          record_type_v2::service_payment_proof, stripped, removed));
+  EXPECT_EQ(1u, removed);
+  EXPECT_EQ(original, extra);
+
+  std::vector<envelope_record_v2> remaining;
+  envelope_budget_v2 remaining_budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      parse_transaction_extra_v2(
+          stripped, HF_VERSION_QWC_EPOSE, 1,
+          limits(), remaining, remaining_budget));
+  ASSERT_EQ(1u, remaining.size());
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_receipt), remaining.front().type);
+
+  std::vector<uint8_t> invalid = original;
+  invalid.pop_back();
+  const std::vector<uint8_t> stale{1, 2, 3};
+  stripped = stale;
+  removed = 9;
+  EXPECT_NE(envelope_status_v2::accepted,
+      strip_transaction_record_type_v2(
+          invalid, HF_VERSION_QWC_EPOSE, 1, limits(),
+          record_type_v2::service_payment_proof, stripped, removed));
+  EXPECT_EQ(stale, stripped);
+  EXPECT_EQ(0u, removed);
+}

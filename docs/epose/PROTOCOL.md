@@ -777,6 +777,15 @@ service outputs, transaction public key, and a coinbase commitment calculated
 with the proof record omitted. Validators can recompute the prescribed
 one-time output keys without a private view key.
 
+The canonical Coinbase commitment is computed after removing only typed v2
+payment-proof records from otherwise canonical `tx_extra`. Unrelated wallet
+metadata, other EPoSE records, all outputs, amounts, the unlock height, and all
+remaining transaction bytes stay committed. Validation requires exactly one
+payment-proof record when a service payment is prescribed, reconstructs the
+claimed service outputs from the proof derivation and the actual Coinbase
+output indices, requires their sum to equal the prescribed allocation, and
+then verifies the scoped proof. A caller-supplied output list is never trusted.
+
 This payment-proof construction supports primary standard reward addresses
 only and remains non-activating until independent cryptographic review. See
 `review/ADR-0003-REWARD-SEMANTICS.md`.

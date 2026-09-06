@@ -5,9 +5,11 @@
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_config.h"
+#include "serialization/string.h"
 
 #include <algorithm>
 #include <limits>
+#include <sstream>
 #include <utility>
 
 namespace
@@ -128,6 +130,22 @@ namespace
         return true;
     }
     return false;
+  }
+
+  bool serialize_extra_fields(
+      const std::vector<cryptonote::tx_extra_field> &fields,
+      std::vector<uint8_t> &bytes)
+  {
+    std::ostringstream stream;
+    binary_archive<true> archive(stream);
+    for (cryptonote::tx_extra_field field : fields)
+    {
+      if (!::do_serialize(archive, field))
+        return false;
+    }
+    const std::string encoded = stream.str();
+    bytes.assign(encoded.begin(), encoded.end());
+    return true;
   }
 
   envelope_status_v2 validate_record(
@@ -441,6 +459,9 @@ namespace epose
     std::vector<cryptonote::tx_extra_field> fields;
     if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true))
       return envelope_status_v2::malformed_transaction_extra;
+    std::vector<uint8_t> canonical_extra;
+    if (!serialize_extra_fields(fields, canonical_extra) || canonical_extra != tx_extra)
+      return envelope_status_v2::noncanonical_varint;
 
     std::vector<std::string> envelope_fields;
     for (const cryptonote::tx_extra_field &field : fields)
@@ -505,6 +526,82 @@ namespace epose
     next_budget.bytes += 1 + varint_size(envelope.size());
     tx_extra.swap(next_extra);
     budget = next_budget;
+    return envelope_status_v2::accepted;
+  }
+
+  envelope_status_v2 strip_transaction_record_type_v2(
+      const std::vector<uint8_t> &tx_extra,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      record_type_v2 type,
+      std::vector<uint8_t> &stripped_extra,
+      size_t &removed_records)
+  {
+    removed_records = 0;
+    if (major_version != HF_VERSION_QWC_EPOSE)
+      return envelope_status_v2::inactive_protocol;
+    if (!limits.valid() || max_envelopes_per_transaction == 0)
+      return envelope_status_v2::invalid_limits;
+
+    std::vector<envelope_record_v2> checked_records;
+    envelope_budget_v2 checked_budget{};
+    const envelope_status_v2 checked = parse_transaction_extra_v2(
+        tx_extra, major_version, max_envelopes_per_transaction, limits,
+        checked_records, checked_budget);
+    if (checked != envelope_status_v2::accepted)
+      return checked;
+
+    std::vector<cryptonote::tx_extra_field> fields;
+    if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true))
+      return envelope_status_v2::malformed_transaction_extra;
+
+    size_t envelopes = 0;
+    size_t removed = 0;
+    std::vector<cryptonote::tx_extra_field> next_fields;
+    next_fields.reserve(fields.size());
+    for (cryptonote::tx_extra_field field : fields)
+    {
+      if (field.type() != typeid(cryptonote::tx_extra_epose_v2))
+      {
+        next_fields.push_back(std::move(field));
+        continue;
+      }
+      if (++envelopes > max_envelopes_per_transaction)
+        return envelope_status_v2::envelope_count_exceeded;
+
+      const auto &epose = boost::get<cryptonote::tx_extra_epose_v2>(field);
+      std::vector<envelope_record_v2> records;
+      envelope_budget_v2 parsed_budget{};
+      const envelope_status_v2 parsed = parse_envelope_v2(
+          epose.data, limits, records, parsed_budget);
+      if (parsed != envelope_status_v2::accepted)
+        return parsed;
+      const size_t before = records.size();
+      records.erase(std::remove_if(records.begin(), records.end(), [type](const envelope_record_v2 &record) {
+        return record.type == static_cast<uint8_t>(type);
+      }), records.end());
+      if (removed > std::numeric_limits<size_t>::max() - (before - records.size()))
+        return envelope_status_v2::record_count_exceeded;
+      removed += before - records.size();
+      if (records.empty())
+        continue;
+
+      std::string encoded;
+      envelope_budget_v2 encoded_budget{};
+      const envelope_status_v2 encoded_status = encode_envelope_v2(
+          records, limits, encoded, encoded_budget);
+      if (encoded_status != envelope_status_v2::accepted)
+        return encoded_status;
+      boost::get<cryptonote::tx_extra_epose_v2>(field).data = std::move(encoded);
+      next_fields.push_back(std::move(field));
+    }
+
+    std::vector<uint8_t> next_extra;
+    if (!serialize_extra_fields(next_fields, next_extra))
+      return envelope_status_v2::malformed_transaction_extra;
+    stripped_extra.swap(next_extra);
+    removed_records = removed;
     return envelope_status_v2::accepted;
   }
 } // namespace epose
