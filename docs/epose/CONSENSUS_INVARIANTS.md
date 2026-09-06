@@ -149,3 +149,6 @@ activated by CO-01.
 136. The proof-excluded Coinbase commitment removes only typed v2 payment-proof records; every unrelated wallet and EPoSE field, output, amount, unlock height, and transaction byte remains committed.
 137. A required v2 service payout contains exactly one scoped payment-proof record, and its output set is reconstructed from the actual Coinbase outputs before proof verification.
 138. Generic outer `tx_extra` encoding and every embedded v2 envelope are canonical before any record can authorize a state transition or payment.
+139. The v2 coordinator derives a payout only from the prior epoch's already-closed qualification set and its frozen historical descriptor; current-block records cannot alter the current payee.
+140. Before the first eligible payout height, no service allocation or payment proof exists; afterward the configured empty-set policy is applied explicitly and never inferred from missing state.
+141. The actual Coinbase output sum must equal the coordinator's overflow-checked subsidy-plus-fee allocation before any semantic state is committed.

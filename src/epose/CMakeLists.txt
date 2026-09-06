@@ -5,6 +5,7 @@ set(epose_sources
   block_transition_v2.cpp
   replay_v2.cpp
   canonical_service_v2.cpp
+  coordinator_v2.cpp
   chain_state.cpp
   envelope_v2.cpp
   lifecycle_v2.cpp
@@ -24,6 +25,7 @@ set(epose_headers
   attestation_pool.h
   block_transition_v2.h
   canonical_service_v2.h
+  coordinator_v2.h
   chain_state.h
   envelope_v2.h
   lifecycle_v2.h

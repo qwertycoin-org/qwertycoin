@@ -790,6 +790,15 @@ This payment-proof construction supports primary standard reward addresses
 only and remains non-activating until independent cryptographic review. See
 `review/ADR-0003-REWARD-SEMANTICS.md`.
 
+`consensus_coordinator_v2` combines this reward boundary with the canonical
+block transition. It derives a payee only from the previous epoch's already
+closed qualification set, verifies the selected frozen member against the
+historical lifecycle descriptor, applies the configured subsidy-only and
+empty-set policy, checks the exact Coinbase output sum, and only then advances
+the copied semantic state. Before the first payout height, the bootstrap has no
+service allocation or payment proof. The coordinator has no legacy-v1 fallback
+and is invalid when any consensus parameter or reward policy is unset.
+
 ## CO-07 identity lifecycle candidate
 
 `src/epose/lifecycle_v2.*` implements a future-effective lifecycle state

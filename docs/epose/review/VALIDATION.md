@@ -697,3 +697,32 @@ Results reproduced on 2026-09-07:
 The final payout schedule, empty-set/emission policy, and manifest resource
 limits remain unset. These tests prove the non-circular construction and
 validator boundary, not an activated producer or economic policy.
+
+## Fail-closed consensus coordinator
+
+Command:
+
+```text
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_coordinator_v2.*'
+```
+
+Results reproduced on 2026-09-07:
+
+- coordinator subset: **4/4 passed**;
+- incomplete parameters and block versions 16/18 fail before state mutation;
+- genesis through height 1439 has no service allocation or payment proof;
+- height 1440 consumes the closed epoch-1 qualification set;
+- both modeled empty-set policies produce deterministic allocations;
+- a real lifecycle/admission set freezes at height 660, two authenticated
+  receipts qualify one subject in epoch 1, and the resulting frozen descriptor
+  controls the actual proof-bearing Coinbase at height 1440;
+- an invalid Coinbase amount leaves the pre-block state unchanged and the
+  corrected candidate can be retried at the same height;
+- the returned state root and parameter hash are ready for the same-transaction
+  LMDB commitment written by the production `Blockchain` owner.
+
+These tests use explicit private fixture parameters. The checked-in production
+manifest remains incomplete and cannot construct this coordinator. Wiring its
+outputs into `Blockchain::add_new_block`, miner templates, disconnect, and
+startup replay remains the active integration gate.

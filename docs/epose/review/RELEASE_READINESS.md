@@ -45,7 +45,7 @@ ignore the default failure.
 ## Current result
 
 - 0 of 13 top-level release gates are satisfied by candidate-bound evidence.
-- 30 required manifest values remain unset.
+- 29 required manifest values remain unset.
 - 13 gates remain blocked or not run.
 - The security-parameter study independently reports
   `no_go_for_economic_activation`.
