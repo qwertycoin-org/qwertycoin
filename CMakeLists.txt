@@ -1083,7 +1083,9 @@ if(STATIC)
 endif()
 
 # Find Boost headers
-set(BOOST_MIN_VER 1.62)
+# boost::asio::ip::make_address is used in daemon/RPC/common and EPoSE input
+# validation. It is the non-deprecated API available from Boost 1.66 onward.
+set(BOOST_MIN_VER 1.66)
 find_package(Boost ${BOOST_MIN_VER} QUIET REQUIRED)
 
 if(NOT Boost_FOUND)

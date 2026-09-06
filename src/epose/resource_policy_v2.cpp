@@ -163,7 +163,7 @@ namespace epose
       return resource_status_v2::invalid_descriptor;
 
     boost::system::error_code error;
-    const auto parsed = boost::asio::ip::address::from_string(descriptor.host, error);
+    const auto parsed = boost::asio::ip::make_address(descriptor.host, error);
     if (descriptor.transport == endpoint_transport_v2::dns)
     {
       if (!error || !canonical_dns(descriptor.host))
@@ -187,7 +187,7 @@ namespace epose
   bool public_probe_address_v2(const std::string &text)
   {
     boost::system::error_code error;
-    const auto address = boost::asio::ip::address::from_string(text, error);
+    const auto address = boost::asio::ip::make_address(text, error);
     if (error)
       return false;
     return address.is_v4() ? !prohibited_v4(address.to_v4()) : !prohibited_v6(address.to_v6());
