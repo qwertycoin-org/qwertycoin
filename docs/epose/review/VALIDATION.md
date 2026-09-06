@@ -129,9 +129,11 @@ Results:
 - missing, wrong-state, wrong-parameter and wrong-schema commitments fail;
 - LMDB accepts only commitment schema version 1.
 
-This evidence does not claim that the production `Blockchain` coordinator has
-retired the legacy v1 state. Connecting it to this adapter and commitment index,
-including canonical Coinbase payment contexts, remains a launch blocker.
+This earlier evidence established the storage primitive. The later production
+integration below retires legacy-v1 authorization from HF17 block acceptance,
+connects the coordinator and canonical Coinbase context, and verifies stored
+commitments during startup/deep replay. Public activation remains blocked by
+the incomplete compiled parameter set.
 
 ## CO-01 design and vector validation
 
@@ -723,6 +725,44 @@ Results reproduced on 2026-09-07:
   LMDB commitment written by the production `Blockchain` owner.
 
 These tests use explicit private fixture parameters. The checked-in production
-manifest remains incomplete and cannot construct this coordinator. Wiring its
-outputs into `Blockchain::add_new_block`, miner templates, disconnect, and
-startup replay remains the active integration gate.
+manifest remains incomplete and cannot construct this coordinator. The
+coordinator is now wired into `Blockchain::add_new_block`, miner templates,
+same-transaction LMDB commitments, bounded disconnect, and full canonical
+startup/deep replay; therefore an incomplete public manifest stops daemon
+initialization before genesis rather than selecting legacy behavior.
+
+## Production HF17 coordinator, template, and replay integration
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests unit_tests daemon \
+  qwertycoin-wallet-cli qwertycoin-wallet-rpc -j1
+<build-dir>/tests/unit_tests/epose_unit_tests
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_reward_v2.*:epose_coordinator_v2.*:epose_v2.later_rounds_have_distinct_windows_and_fresh_canonical_anchors'
+python3 -m unittest discover -s tests/epose -p 'test_*.py'
+```
+
+Candidate behavior:
+
+- exact HF17 block acceptance invokes only the hardened v2 coordinator;
+- public mainnet/testnet/stagenet initialization fails before genesis while the
+  compiled manifest factory is incomplete; fixture injection is FAKECHAIN-only;
+- miner construction consumes the same reward plan used by validation and
+  emits a scoped proof from the actual Coinbase transaction secret;
+- the proof validator performs one real transaction-proof verification and
+  passes a complete-record-bound capability to semantic application;
+- later receipt rounds start one height after their in-epoch anchor;
+- connect stores the state commitment atomically with the block; disconnect
+  removes it atomically; restart/deep replay recomputes reward inputs and every
+  state root from canonical chain data before installing reconstructed state;
+- an aborted multi-block LMDB batch rebuilds the coordinator from the reverted
+  canonical chain, and alternative-parent templates fail closed until
+  branch-specific state replay exists;
+- fee and miner/service output sums are overflow-checked;
+- legacy post-proof Coinbase padding is forbidden because it would change the
+  committed proofless bytes.
+
+Final numeric limits, empty-set/emission policy, genesis hash, native macOS
+arm64 evidence, and network/wallet end-to-end evidence remain launch gates.

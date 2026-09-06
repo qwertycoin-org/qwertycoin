@@ -764,10 +764,12 @@ epoch-relative payee rotation, and a scoped payment-proof candidate. V2 service
 rewards are calculated from scheduled subsidy only; fees remain entirely with
 the miner. The service share remains 1,000 BPS.
 
-The empty-qualified-set policy has no default. The reference implementation
-models both miner fallback and permanent non-issuance, but returns
-`unresolved_empty_policy` when the caller supplies `unset`. Neither option is
-wired to block construction or validation pending an explicit economic ADR.
+The empty-qualified-set policy has no default. The implementation models both
+miner fallback and permanent non-issuance, but returns
+`unresolved_empty_policy` when the caller supplies `unset`. The production
+coordinator, block validator, replay path, and miner constructor share this
+explicit allocation. Public initialization remains impossible until the
+economic ADR and compiled parameter set select one policy.
 
 The scoped proof publishes a recipient-specific key derivation and uses the
 inherited transaction-proof primitive to bind it to the coinbase transaction
@@ -787,8 +789,9 @@ output indices, requires their sum to equal the prescribed allocation, and
 then verifies the scoped proof. A caller-supplied output list is never trusted.
 
 This payment-proof construction supports primary standard reward addresses
-only and remains non-activating until independent cryptographic review. See
-`review/ADR-0003-REWARD-SEMANTICS.md`.
+only. It is connected to the gated HF17 producer and validator, but public
+initialization remains fail-closed until the parameter manifest and independent
+cryptographic review are complete. See `review/ADR-0003-REWARD-SEMANTICS.md`.
 
 `consensus_coordinator_v2` combines this reward boundary with the canonical
 block transition. It derives a payee only from the previous epoch's already
@@ -797,7 +800,11 @@ historical lifecycle descriptor, applies the configured subsidy-only and
 empty-set policy, checks the exact Coinbase output sum, and only then advances
 the copied semantic state. Before the first payout height, the bootstrap has no
 service allocation or payment proof. The coordinator has no legacy-v1 fallback
-and is invalid when any consensus parameter or reward policy is unset.
+It exposes the same immutable reward plan to miner-template construction and
+block acceptance. A proof-bearing template is rebuilt when its computed weight
+changes; legacy post-construction zero padding cannot invalidate the committed
+Coinbase bytes. Block acceptance produces the state root stored atomically with
+the canonical block.
 
 ## CO-07 identity lifecycle candidate
 
@@ -829,7 +836,8 @@ and admission validation in canonical transaction order. Deregistration alone
 does not remove an existing pending admission reservation. Freeze publishes
 only unique, currently authorized identities and service keys. This primitive
 remains non-activating pending record serialization, envelope and
-persistent-index integration. See
+public manifest activation. The canonical block adapter, LMDB commitment, and
+replay paths consume this lifecycle state directly. See
 `review/ADR-0004-IDENTITY-LIFECYCLE.md`.
 
 ## CO-08 state-index and replay boundary
@@ -842,9 +850,14 @@ returns `rebuild_required` rather than substituting empty state.
 
 Serialized state validates schema, parameter-set identity, checksum, exact
 lengths, and parent links before replacing committed memory. Canonical block
-replay remains the correctness oracle. The journal is non-activating and still
-requires LMDB tables updated in the same write transaction as block state,
-startup tip checks, payload/object reconstruction, and pruning integration.
+replay remains the correctness oracle. LMDB stores the schema-, block-, state-,
+and parameter-bound commitment in the same write transaction as each block and
+removes it in the same transaction as disconnect. Startup and deep rollback
+stream canonical transactions, reconstruct historical fees and reward medians,
+recalculate scheduled subsidy, apply the coordinator from genesis, and compare
+every reconstructed state root with the stored commitment before replacing the
+live state. Pruned v2 validation remains unsupported until the necessary
+history contract is proved.
 See `review/ADR-0005-PERSISTENT-STATE.md`.
 
 ## CO-09 endpoint and resource policy

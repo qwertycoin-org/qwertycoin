@@ -18,7 +18,7 @@
       "evidence": [],
       "id": "consensus_handler_integration",
       "state": "blocked",
-      "summary": "QWC HF17 selects the hardened v2 carrier, but the primitives are not yet integrated with canonical block connect/disconnect, templates, persistent state, or coinbase validation.",
+      "summary": "QWC HF17 now routes canonical block connect/disconnect, miner templates, Coinbase proof validation and state commitments through the hardened v2 coordinator; final integrated chain, adversarial and parameter-bound evidence is still missing.",
       "references": null
     },
     {
@@ -46,7 +46,7 @@
       "evidence": [],
       "id": "atomic_lmdb_and_pruning",
       "state": "blocked",
-      "summary": "The journal primitive is not connected to same-transaction LMDB state, crash recovery, migration, or pruned validation.",
+      "summary": "Same-transaction LMDB commitments, bounded disconnect and canonical startup/deep replay are implemented; process-crash fault injection, full reorg integration and the declared pruning mode remain unproved.",
       "references": null
     },
     {

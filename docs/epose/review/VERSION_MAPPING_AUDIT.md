@@ -35,14 +35,18 @@ forbidden because it permits conflicting legacy and hardened dispatch. Source
 and tests use one block-version constant and retain `_v2` names only for the
 separate EPoSE protocol/format generation.
 
-The legacy-v1 state machine remains source material until the canonical block,
-storage, and wallet integration is replaced. It must not supply eligibility,
-receipts, qualification, or payouts for the public fresh-genesis candidate.
+The legacy-v1 state machine remains historical source/test material only. The
+production `Blockchain` block, reward, Coinbase, LMDB commitment, disconnect
+and startup/deep-replay paths select the hardened coordinator at exact HF17.
+The inherited service-node CLI, extra-nonce template producer and fixed-size
+P2P registration/attestation command fail closed and cannot supply eligibility,
+receipts, qualification, or payouts for the fresh-genesis candidate.
 
 ## Required launch evidence
 
 This mapping is necessary but not sufficient for release. Candidate-bound
-evidence must still prove the canonical v2 block transition, Coinbase and
-emission behavior, atomic LMDB connect/disconnect and replay, bounded network
-transport, wallet construction/scanning and matured spend, pinned distinct
-network genesis hashes, and reproducible supported-platform binaries.
+evidence must still prove the integrated transition under multi-node,
+process-crash, partition and reorg workloads; bounded typed-v2 network
+transport; wallet-funded record construction/scanning and matured spend;
+pinned distinct network genesis hashes; and reproducible supported-platform
+binaries.

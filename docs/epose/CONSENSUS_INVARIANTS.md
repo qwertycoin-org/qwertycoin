@@ -152,3 +152,12 @@ activated by CO-01.
 139. The v2 coordinator derives a payout only from the prior epoch's already-closed qualification set and its frozen historical descriptor; current-block records cannot alter the current payee.
 140. Before the first eligible payout height, no service allocation or payment proof exists; afterward the configured empty-set policy is applied explicitly and never inferred from missing state.
 141. The actual Coinbase output sum must equal the coordinator's overflow-checked subsidy-plus-fee allocation before any semantic state is committed.
+142. Public HF17 initialization requires one complete, compiled, network- and genesis-bound parameter set; an incomplete reservation manifest fails before genesis and cannot fall back to fixture or legacy values.
+143. Miner templates and block validation derive the service allocation, payee, empty-set result, and expected Coinbase total from the same coordinator reward plan.
+144. A validated payment capability is bound to the complete typed proof record and actual Coinbase; consensus verifies the transaction proof exactly once and charges that real verification against the parsed block budget.
+145. A later-round receipt can be included only after its in-epoch anchor block; the anchor block cannot contain evidence whose challenge depends on its own hash.
+146. Startup and deep-reorg recovery reconstruct fees, subsidy inputs, canonical transactions, and every semantic transition from the chain, then compare every height with the same-transaction LMDB commitment before replacing live state.
+147. A proof-bearing Coinbase cannot receive post-construction padding or metadata changes; template weight convergence rebuilds the proof against the final proofless Coinbase bytes.
+148. Aborting a multi-block database batch rebuilds the in-memory v2 coordinator from the post-abort canonical LMDB state; transitions from earlier blocks in the aborted batch cannot survive only in memory.
+149. A v2 miner template for an alternative parent is rejected until that branch's EPoSE state has been reconstructed; template reward planning never reuses the main-chain coordinator for another branch.
+150. Fee addition and miner/service output accumulation use checked unsigned arithmetic before a Coinbase is accepted or returned to a miner.
