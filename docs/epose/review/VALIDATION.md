@@ -232,3 +232,32 @@ The live bounded probe transport, v2 serialization/carrier, endpoint descriptor
 discovery, and multi-host offline-subject test remain open dependencies in
 CO-05/CO-07/CO-10. This evidence does not claim that dual signatures prove
 operator independence or prevent a colluding committee/shared proxy.
+
+## CO-05 bounded-envelope validation
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_envelope_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- envelope tests: **10/10 passed**;
+- complete focused EPoSE binary after integration: **110/110 passed**;
+- daemon target rebuilt successfully with the envelope object linked;
+- canonical envelope and outer-field round trips passed;
+- noncanonical/overflowing varints, wrong tag, bad magic/version, nonzero flags,
+  unknown/disabled records, count/size mismatch, truncation, trailing data,
+  empty envelope, oversized payload, and invalid limits fail closed;
+- duplicate opaque records consume record and signature budget before later
+  semantic handling;
+- per-envelope and block-wide byte, record, signature, and admission budgets
+  fail without committing a partial block budget;
+- miner and fee-funded field fixtures produce identical parse results and cost.
+
+This is not HF18 activation evidence. The historical generic `tx_extra` parser
+does not yet recognize tag `0x05`; payload codecs, actual template batching,
+wallet funding, queue fairness, worst-valid-block timing, synchronization cost,
+and approved manifest limits remain open.

@@ -593,6 +593,31 @@ validity, but this software no longer originates automatic positive HF17
 attestations. The eventual live probe transport depends on the bounded carrier
 and endpoint/lifecycle work in CO-05/CO-07; until then automation fails closed
 instead of fabricating service.
+
+## CO-05 bounded envelope primitive
+
+`src/epose/envelope_v2.*` implements the dedicated `0x05` field and `QEP2`
+envelope format specified above without adding `0x05` to the historical HF17
+generic `tx_extra` variant. This preserves pre-activation parser behavior.
+
+The parser accepts constructor-supplied limits only; no fallback mainnet values
+exist. It validates canonical outer varints, magic, versions, zero flags, exact
+record count and byte lengths, per-record payload size, per-envelope byte and
+record counts, and signature/RandomX operation budgets. Empty envelopes and
+reserved record versions are invalid. Costs are charged by record type before
+payload semantics or duplicate handling.
+
+`parse_transaction_envelope_fields_v2` is intentionally carrier-neutral: a
+version-aware caller supplies exact `0x05` fields from either the miner
+transaction or an ordinary fee-funded transaction and receives the same
+records and budget. `charge_block_budget_v2` accumulates byte, record,
+signature, and admission costs transaction by transaction without mutating the
+committed budget on failure.
+
+The primitive is non-activating. Version-aware integration into generic
+`tx_extra`, actual record payload codecs, miner template batching, wallet-funded
+submission, queue fairness, and measured manifest limits remain required before
+HF18 can recognize tag `0x05` in a block.
 No implementation may guess missing fields or accept an opaque payload merely
 because its outer envelope parses.
 

@@ -101,3 +101,11 @@ activated by CO-01.
 91. A valid receipt for one network, genesis, parameter set, snapshot, anchor, round, endpoint, role assignment, or nonce is invalid after transplant to another.
 92. Only a fully authenticated v2 receipt may become a CO-02 prevalidated receipt slot.
 93. Subject participation does not prove an independent operator, dedicated machine, continuous uptime, or resistance to a colluding committee.
+94. Pre-HF18 generic transaction-extra parsing does not recognize the reserved EPoSE tag `0x05`.
+95. V2 outer tag and size varints are canonical; overlong or overflowing encodings fail closed.
+96. Envelope magic, version, flags, record count, record lengths, and remaining bytes match exactly.
+97. Empty envelopes, unknown record types, disabled record versions, and nonzero envelope or record flags are invalid.
+98. Record byte and cryptographic costs are charged before semantic validation or duplicate elimination.
+99. A failed block-budget charge leaves the previously accumulated budget unchanged.
+100. Coinbase and ordinary fee-funded envelope fields use the same structural parser and operation accounting.
+101. No default limit makes the envelope activatable; all transaction and block limits come from an approved parameter manifest.
