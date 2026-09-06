@@ -28,7 +28,7 @@ The closed QWCP public-address prototype is excluded from the launch baseline.
    `deploy/mainnet/build-rc-image.sh`.
 2. Run EPoSE unit, fuzz, ASan, and deployment-config validation.
 3. Push the RC image to each seed host or to the chosen registry.
-4. Start `seed-00`, `seed-01`, and `seed-02` with preserved service identity
+4. Start `seed-00`, `seed-01`, `seed-02`, and `seed-03` with preserved service identity
    volumes and fresh chain volumes for the coordinated launch chain.
 5. Confirm all seeds share genesis hash, top hash, height, network type, and
    EPoSE state hash.
@@ -49,6 +49,9 @@ The closed QWCP public-address prototype is excluded from the launch baseline.
   old `epose-pr*` images are not valid for public launch.
 - Repair or replace red GitHub Actions with recorded local validation.
 - Complete DNS-only bootstrap from an independent host.
+- Keep DNS checkpoints fail-closed until the trust model, tooling, independent
+  zones, authentication, and operational procedures in
+  `docs/epose/DNS_RECORDS.md` pass review.
 - Complete matured EPoSE reward spend and recipient receipt.
 - Record public mining from a non-seed miner.
 - Publish real release artifacts and hashes.

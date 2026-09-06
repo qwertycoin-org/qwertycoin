@@ -46,6 +46,11 @@ using namespace epee;
 
 namespace cryptonote
 {
+  bool dns_checkpoints_available()
+  {
+    return false;
+  }
+
   /**
    * @brief struct for loading a checkpoint from json
    */
@@ -240,7 +245,7 @@ namespace cryptonote
   bool checkpoints::load_checkpoints_from_dns(network_type nettype)
   {
     (void)nettype;
-    MINFO("Qwertycoin DNS checkpoints are disabled until QWC-owned signed checkpoint metadata is configured");
+    MDEBUG("Qwertycoin DNS checkpoints are unavailable until QWC-owned checkpoint metadata and trust policy are configured");
     return true;
   }
 

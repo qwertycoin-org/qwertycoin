@@ -44,6 +44,14 @@
 namespace cryptonote
 {
   /**
+   * @brief whether QWC-owned DNS checkpoint metadata is configured
+   *
+   * DNS checkpoints remain unavailable until the trust model, independent
+   * QWC-owned records, generation tooling, and release procedure are reviewed.
+   */
+  bool dns_checkpoints_available();
+
+  /**
    * @brief A container for blockchain checkpoints
    *
    * A checkpoint is a pre-defined hash for the block at a given height.
@@ -192,7 +200,7 @@ namespace cryptonote
      *
      * @param nettype network type
      *
-     * @return true if loading successful and no conflicts
+     * @return true if loading is disabled or succeeds without conflicts
      */
     bool load_checkpoints_from_dns(network_type nettype = MAINNET);
 

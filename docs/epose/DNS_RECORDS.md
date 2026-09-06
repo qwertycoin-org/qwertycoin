@@ -1,7 +1,36 @@
 # Qwertycoin DNS Records
 
-This document records the DNS records expected by the current QWC v2 / EPoSE
-testnet branch and separates safe placeholders from release-gated metadata.
+This document records the DNS records expected by QWC v2 and separates safe
+operational records from release-gated metadata.
+
+## DNS Checkpoint Decision
+
+DNS checkpoints are **not available** in the current daemon. This is an
+intentional fail-closed release state:
+
+- the daemon does not query checkpoint records periodically;
+- `--disable-dns-checkpoints` remains accepted for operator compatibility;
+- `--enforce-dns-checkpointing` is rejected instead of silently enforcing an
+  empty checkpoint set;
+- local JSON checkpoints and hardcoded QWC checkpoints remain independent of
+  the DNS setting.
+
+Do not publish checkpoint TXT records yet. DNS checkpoint activation requires
+its own reviewed PR and all of these gates:
+
+1. QWC-owned checkpoint generation tooling with reproducible input/output;
+2. a documented signer and key-rotation/revocation procedure;
+3. multiple independently administered DNS zones and a defined quorum rule;
+4. authenticated DNS responses, including validated DNSSEC behavior and a
+   documented resolver/failure policy;
+5. monotonic height and conflict/reorg handling with positive and negative
+   tests;
+6. operator runbooks for publication, rollback, outage, compromise, and audit;
+7. live validation proving that unavailable or conflicting DNS cannot split
+   honest nodes or silently disable JSON/hardcoded checkpoints.
+
+DNS is bootstrap/hardening metadata, never an EPoSE oracle and never a
+replacement for RandomX chain selection.
 
 ## Update Metadata
 
@@ -83,6 +112,7 @@ hostnames:
 seed-00.qwertycoin.org
 seed-01.qwertycoin.org
 seed-02.qwertycoin.org
+seed-03.qwertycoin.org
 ```
 
 Each seed hostname should publish `A` and, where available, `AAAA` records for
@@ -97,6 +127,5 @@ Current P2P default:
 ```
 
 DNS checkpoints, DNS blocklists, and segregation-height records must remain
-disabled or unpublished until QWC-owned signing keys, generation tooling, and
-operational procedures are defined. These records must not be copied from
-Monero infrastructure.
+disabled or unpublished until the gates above are implemented and reviewed.
+These records must not be copied from Monero infrastructure.

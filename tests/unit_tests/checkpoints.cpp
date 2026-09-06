@@ -34,6 +34,16 @@
 
 using namespace cryptonote;
 
+TEST(checkpoints_dns, remains_fail_closed_without_qwc_metadata)
+{
+  ASSERT_FALSE(dns_checkpoints_available());
+
+  checkpoints cp;
+  ASSERT_TRUE(cp.load_checkpoints_from_dns(MAINNET));
+  ASSERT_TRUE(cp.get_points().empty());
+  ASSERT_TRUE(cp.get_difficulty_points().empty());
+}
+
 
 TEST(checkpoints_is_alternative_block_allowed, handles_empty_checkpoints)
 {
