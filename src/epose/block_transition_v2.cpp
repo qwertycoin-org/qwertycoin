@@ -38,7 +38,8 @@ namespace epose
 {
   bool block_transition_limits_v2::valid() const
   {
-    return max_envelopes_per_transaction > 0 && envelope.valid() && block.valid();
+    return max_envelopes_per_transaction > 0 && max_recent_undo_blocks > 0
+        && envelope.valid() && block.valid();
   }
 
   block_transition_v2::block_transition_v2(
@@ -179,6 +180,9 @@ namespace epose
       }
     }
 
+    undo_.push_back({height, state_, have_tip_, tip_height_});
+    while (undo_.size() > limits_.max_recent_undo_blocks)
+      undo_.pop_front();
     state_ = std::move(next);
     have_tip_ = true;
     tip_height_ = height;
@@ -187,5 +191,21 @@ namespace epose
   }
 
   const semantic_state_v2 &block_transition_v2::state() const { return state_; }
+
+  block_transition_status_v2 block_transition_v2::disconnect_tip(uint64_t height)
+  {
+    if (!valid_)
+      return block_transition_status_v2::invalid_configuration;
+    if (!have_tip_ || height != tip_height_)
+      return block_transition_status_v2::nonsequential_height;
+    if (undo_.empty() || undo_.back().height != height)
+      return block_transition_status_v2::deep_replay_required;
+    undo_entry prior = std::move(undo_.back());
+    undo_.pop_back();
+    state_ = std::move(prior.prior_state);
+    have_tip_ = prior.prior_have_tip;
+    tip_height_ = prior.prior_tip_height;
+    return block_transition_status_v2::accepted;
+  }
 } // namespace epose
 } // namespace qwertycoin

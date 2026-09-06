@@ -68,6 +68,7 @@ namespace
     out.envelope.max_admission_verifications = 4;
     out.envelope.supported_record_versions = {0, 1, 1, 1, 1, 1};
     out.block = {16384, 32, 32, 8};
+    out.max_recent_undo_blocks = 4;
     return out;
   }
 
@@ -274,4 +275,23 @@ TEST(epose_block_transition_v2, cumulative_budget_rejects_before_state_commit)
           {{&miner, true, nullptr}, {&first_tx, false, nullptr},
               {&second_tx, false, nullptr}}, source, summary));
   EXPECT_EQ(before, state.state().state_hash());
+}
+
+TEST(epose_block_transition_v2, bounded_disconnect_restores_state_and_requires_deep_replay)
+{
+  block_transition_limits_v2 bounded = limits();
+  bounded.max_recent_undo_blocks = 2;
+  auto state = transition(bounded);
+  contexts source{};
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(state, source, 0));
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(state, source, 1));
+  const crypto::hash at_one = state.state().state_hash();
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(state, source, 2));
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(state, source, 3));
+
+  EXPECT_EQ(block_transition_status_v2::accepted, state.disconnect_tip(3));
+  EXPECT_EQ(block_transition_status_v2::accepted, state.disconnect_tip(2));
+  EXPECT_EQ(at_one, state.state().state_hash());
+  EXPECT_EQ(block_transition_status_v2::deep_replay_required, state.disconnect_tip(1));
+  EXPECT_EQ(block_transition_status_v2::nonsequential_height, state.disconnect_tip(0));
 }

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <vector>
 
 #include "cryptonote_basic/cryptonote_basic.h"
@@ -19,6 +20,7 @@ namespace epose
     size_t max_envelopes_per_transaction = 0;
     envelope_limits_v2 envelope{};
     block_budget_limits_v2 block{};
+    size_t max_recent_undo_blocks = 0;
 
     bool valid() const;
   };
@@ -50,6 +52,7 @@ namespace epose
     qualification_close_failed,
     verification_budget_mismatch,
     nonsequential_height,
+    deep_replay_required,
     arithmetic_overflow
   };
 
@@ -77,6 +80,7 @@ namespace epose
         const std::vector<block_transaction_context_v2> &transactions,
         const canonical_context_source_v2 &contexts,
         block_apply_summary_v2 &summary);
+    block_transition_status_v2 disconnect_tip(uint64_t height);
 
     const semantic_state_v2 &state() const;
 
@@ -87,6 +91,14 @@ namespace epose
     bool valid_ = false;
     bool have_tip_ = false;
     uint64_t tip_height_ = 0;
+    struct undo_entry
+    {
+      uint64_t height = 0;
+      semantic_state_v2 prior_state;
+      bool prior_have_tip = false;
+      uint64_t prior_tip_height = 0;
+    };
+    std::deque<undo_entry> undo_;
   };
 } // namespace epose
 } // namespace qwertycoin
