@@ -124,7 +124,7 @@ namespace cryptonote
   };
   const command_line::arg_descriptor<bool> arg_disable_dns_checkpoints = {
     "disable-dns-checkpoints"
-  , "Do not retrieve checkpoints from DNS"
+  , "Do not retrieve checkpoints from DNS (currently the default because QWC DNS checkpoints are unavailable)"
   };
   const command_line::arg_descriptor<size_t> arg_block_download_max_size  = {
     "block-download-max-size"
@@ -177,7 +177,7 @@ namespace cryptonote
   };
   static const command_line::arg_descriptor<bool> arg_dns_checkpoints  = {
     "enforce-dns-checkpointing"
-  , "checkpoints from DNS server will be enforced"
+  , "Enforce QWC DNS checkpoints (unavailable until QWC-owned checkpoint infrastructure is activated)"
   , false
   };
   static const command_line::arg_descriptor<uint64_t> arg_fast_block_sync = {
@@ -300,12 +300,14 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::update_checkpoints(const bool skip_dns /* = false */)
   {
-    if (m_nettype != MAINNET || m_disable_dns_checkpoints) return true;
+    if (m_nettype != MAINNET) return true;
 
     if (m_checkpoints_updating.test_and_set()) return true;
 
     bool res = true;
-    if (!skip_dns && time(NULL) - m_last_dns_checkpoints_update >= 3600)
+    const bool dns_due = !skip_dns && !m_disable_dns_checkpoints && dns_checkpoints_available()
+      && time(NULL) - m_last_dns_checkpoints_update >= 3600;
+    if (dns_due)
     {
       res = m_blockchain_storage.update_checkpoints(m_checkpoints_path, true);
       m_last_dns_checkpoints_update = time(NULL);
@@ -419,10 +421,16 @@ namespace cryptonote
     }
 
 
-    set_enforce_dns_checkpoints(command_line::get_arg(vm, arg_dns_checkpoints));
+    const bool enforce_dns_checkpoints = command_line::get_arg(vm, arg_dns_checkpoints);
+    if (enforce_dns_checkpoints && !dns_checkpoints_available())
+    {
+      MERROR("--enforce-dns-checkpointing requested, but QWC DNS checkpoints are unavailable");
+      return false;
+    }
+    set_enforce_dns_checkpoints(enforce_dns_checkpoints);
     test_drop_download_height(command_line::get_arg(vm, arg_test_drop_download_height));
     m_offline = get_arg(vm, arg_offline);
-    m_disable_dns_checkpoints = get_arg(vm, arg_disable_dns_checkpoints);
+    m_disable_dns_checkpoints = get_arg(vm, arg_disable_dns_checkpoints) || !dns_checkpoints_available();
 
     if (!init_epose_service_node_config(vm))
       return false;
