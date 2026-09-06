@@ -52,6 +52,7 @@ set(unit_tests_sources
   epee_serialization.cpp
   epose.cpp
   epose_canonical_service_v2.cpp
+  epose_block_transition_v2.cpp
   epee_utils.cpp
   expect.cpp
   fee.cpp
@@ -156,6 +157,7 @@ add_test(
 
 monero_add_minimal_executable(epose_unit_tests
   epose.cpp
+  epose_block_transition_v2.cpp
   epose_canonical_service_v2.cpp
   epose_envelope_v2.cpp
   epose_lifecycle_v2.cpp

@@ -2,6 +2,7 @@
 
 set(epose_sources
   attestation_pool.cpp
+  block_transition_v2.cpp
   canonical_service_v2.cpp
   chain_state.cpp
   envelope_v2.cpp
@@ -20,6 +21,7 @@ set(epose_sources
 
 set(epose_headers
   attestation_pool.h
+  block_transition_v2.h
   canonical_service_v2.h
   chain_state.h
   envelope_v2.h
