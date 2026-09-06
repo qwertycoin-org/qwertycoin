@@ -504,3 +504,31 @@ Results reproduced on 2026-09-06:
 This is still not handler, persistent-state, optimized-solver or parameter
 approval evidence. HF18 remains unscheduled and the manifest target remains
 unset.
+
+## Remaining typed-record codecs
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_envelope_v2.*:epose_lifecycle_v2.*:epose_reward_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- envelope/lifecycle/reward subsets: **35/35 passed**;
+- complete focused EPoSE C++ binary: **163/163 passed**;
+- corrected Python model/manifest/gate suites: **35/35 passed**;
+- broad `unit_tests` target and daemon target rebuilt successfully;
+- registration and later lifecycle actions share a fixed 378-byte codec while
+  the outer record type must agree with the signed action;
+- malformed, relabelled and signature-tampered lifecycle records fail without
+  exposing a decoded value;
+- the fixed 96-byte scoped-payment-proof codec accepts only a proof valid for
+  the reconstructed payment context and clears reused outputs on failure;
+- envelope accounting charges the two lifecycle signatures and the payment
+  proof operation before semantic duplicate handling.
+
+This does not yet prove the generic semantic batch adapter, queue fairness,
+wallet submission, sustained fuzzing or worst-valid-block cost.

@@ -25,6 +25,8 @@ namespace
     out.supported_record_versions[static_cast<size_t>(record_type_v2::identity_descriptor)] = 1;
     out.supported_record_versions[static_cast<size_t>(record_type_v2::admission_lease)] = 1;
     out.supported_record_versions[static_cast<size_t>(record_type_v2::service_receipt)] = 1;
+    out.supported_record_versions[static_cast<size_t>(record_type_v2::descriptor_lifecycle)] = 1;
+    out.supported_record_versions[static_cast<size_t>(record_type_v2::service_payment_proof)] = 1;
     return out;
   }
 
@@ -49,7 +51,7 @@ TEST(epose_envelope_v2, canonical_envelope_and_outer_field_roundtrip)
   ASSERT_EQ(expected.size(), actual.size());
   EXPECT_EQ(expected[0].payload, actual[0].payload);
   EXPECT_EQ(expected[1].payload, actual[1].payload);
-  EXPECT_EQ(3u, parsed_budget.signature_verifications);
+  EXPECT_EQ(4u, parsed_budget.signature_verifications);
   EXPECT_EQ(encoded_budget.bytes, parsed_budget.bytes);
 }
 
@@ -141,14 +143,17 @@ TEST(epose_envelope_v2, byte_record_and_crypto_budgets_are_charged_before_semant
   EXPECT_EQ(4u, budget.signature_verifications);
 }
 
-TEST(epose_envelope_v2, reserved_record_types_remain_disabled_until_payload_specs_exist)
+TEST(epose_envelope_v2, explicitly_disabled_record_versions_fail_closed)
 {
   envelope_budget_v2 budget{};
   std::string encoded;
+  auto disabled = limits();
+  disabled.supported_record_versions[static_cast<size_t>(record_type_v2::descriptor_lifecycle)] = 0;
+  disabled.supported_record_versions[static_cast<size_t>(record_type_v2::service_payment_proof)] = 0;
   EXPECT_EQ(envelope_status_v2::unsupported_record_version,
-      encode_envelope_v2({record(record_type_v2::descriptor_lifecycle, "reserved")}, limits(), encoded, budget));
+      encode_envelope_v2({record(record_type_v2::descriptor_lifecycle, "disabled")}, disabled, encoded, budget));
   EXPECT_EQ(envelope_status_v2::unsupported_record_version,
-      encode_envelope_v2({record(record_type_v2::service_payment_proof, "reserved")}, limits(), encoded, budget));
+      encode_envelope_v2({record(record_type_v2::service_payment_proof, "disabled")}, disabled, encoded, budget));
 }
 
 TEST(epose_envelope_v2, invalid_limits_fail_closed)

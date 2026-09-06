@@ -92,6 +92,12 @@ namespace epose
       const crypto::secret_key &operator_authorization_secret_key,
       const crypto::secret_key &service_secret_key);
 
+  lifecycle_status_v2 validate_lifecycle_record_authorization_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const lifecycle_record_v2 &record);
+
   class lifecycle_registry_v2
   {
   public:

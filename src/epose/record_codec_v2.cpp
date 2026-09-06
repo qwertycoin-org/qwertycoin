@@ -125,6 +125,131 @@ namespace epose
     return record_codec_status_v2::accepted;
   }
 
+  record_codec_status_v2 encode_lifecycle_record_v2(
+      const lifecycle_record_v2 &lifecycle,
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      envelope_record_v2 &record)
+  {
+    record = {};
+    if (validate_lifecycle_record_authorization_v2(
+            nettype, genesis_hash, parameter_set_hash, lifecycle) != lifecycle_status_v2::accepted)
+      return record_codec_status_v2::invalid_record;
+    std::string payload;
+    payload.reserve(EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2);
+    append_u8(payload, static_cast<uint8_t>(lifecycle.action));
+    append_bytes(payload, lifecycle.previous_descriptor_hash);
+    append_u8(payload, lifecycle.next_descriptor.version);
+    append_bytes(payload, lifecycle.next_descriptor.identity_id);
+    append_bytes(payload, lifecycle.next_descriptor.service_public_key);
+    append_bytes(payload, lifecycle.next_descriptor.operator_authorization_public_key);
+    append_bytes(payload, lifecycle.next_descriptor.reward_address.m_view_public_key);
+    append_bytes(payload, lifecycle.next_descriptor.reward_address.m_spend_public_key);
+    append_bytes(payload, lifecycle.next_descriptor.endpoint_descriptor_hash);
+    append_u64_le(payload, lifecycle.next_descriptor.sequence);
+    append_u64_le(payload, lifecycle.next_descriptor.effective_epoch);
+    append_u64_le(payload, lifecycle.next_descriptor.expiry_epoch);
+    append_bytes(payload, lifecycle.operator_signature);
+    append_bytes(payload, lifecycle.service_signature);
+    if (payload.size() != EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2)
+      return record_codec_status_v2::wrong_size;
+    record.type = static_cast<uint8_t>(lifecycle.action == lifecycle_action_v2::register_identity
+        ? record_type_v2::identity_descriptor : record_type_v2::descriptor_lifecycle);
+    record.version = EPOSE_LIFECYCLE_RECORD_VERSION_V2;
+    record.payload.swap(payload);
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 decode_lifecycle_record_v2(
+      const envelope_record_v2 &record,
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      lifecycle_record_v2 &lifecycle)
+  {
+    lifecycle = {};
+    if (record.type != static_cast<uint8_t>(record_type_v2::identity_descriptor)
+        && record.type != static_cast<uint8_t>(record_type_v2::descriptor_lifecycle))
+      return record_codec_status_v2::wrong_type;
+    if (record.version != EPOSE_LIFECYCLE_RECORD_VERSION_V2)
+      return record_codec_status_v2::wrong_version;
+    if (record.payload.size() != EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2)
+      return record_codec_status_v2::wrong_size;
+    lifecycle_record_v2 next{};
+    uint8_t action = 0;
+    size_t offset = 0;
+    if (!read_u8(record.payload, offset, action)
+        || !read_bytes(record.payload, offset, next.previous_descriptor_hash)
+        || !read_u8(record.payload, offset, next.next_descriptor.version)
+        || !read_bytes(record.payload, offset, next.next_descriptor.identity_id)
+        || !read_bytes(record.payload, offset, next.next_descriptor.service_public_key)
+        || !read_bytes(record.payload, offset, next.next_descriptor.operator_authorization_public_key)
+        || !read_bytes(record.payload, offset, next.next_descriptor.reward_address.m_view_public_key)
+        || !read_bytes(record.payload, offset, next.next_descriptor.reward_address.m_spend_public_key)
+        || !read_bytes(record.payload, offset, next.next_descriptor.endpoint_descriptor_hash)
+        || !read_u64_le(record.payload, offset, next.next_descriptor.sequence)
+        || !read_u64_le(record.payload, offset, next.next_descriptor.effective_epoch)
+        || !read_u64_le(record.payload, offset, next.next_descriptor.expiry_epoch)
+        || !read_bytes(record.payload, offset, next.operator_signature)
+        || !read_bytes(record.payload, offset, next.service_signature)
+        || offset != record.payload.size())
+      return record_codec_status_v2::wrong_size;
+    next.action = static_cast<lifecycle_action_v2>(action);
+    const bool registration_type = record.type == static_cast<uint8_t>(record_type_v2::identity_descriptor);
+    if (registration_type != (next.action == lifecycle_action_v2::register_identity))
+      return record_codec_status_v2::wrong_type;
+    if (validate_lifecycle_record_authorization_v2(
+            nettype, genesis_hash, parameter_set_hash, next) != lifecycle_status_v2::accepted)
+      return record_codec_status_v2::invalid_record;
+    lifecycle = next;
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 encode_payment_proof_record_v2(
+      const scoped_payment_proof_v2 &proof,
+      const service_payment_context_v2 &context,
+      envelope_record_v2 &record)
+  {
+    record = {};
+    if (verify_scoped_payment_proof_v2(context, proof) != reward_status_v2::accepted)
+      return record_codec_status_v2::invalid_record;
+    std::string payload;
+    payload.reserve(EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2);
+    append_bytes(payload, proof.derivation);
+    append_bytes(payload, proof.proof);
+    if (payload.size() != EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2)
+      return record_codec_status_v2::wrong_size;
+    record.type = static_cast<uint8_t>(record_type_v2::service_payment_proof);
+    record.version = EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2;
+    record.payload.swap(payload);
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 decode_payment_proof_record_v2(
+      const envelope_record_v2 &record,
+      const service_payment_context_v2 &context,
+      scoped_payment_proof_v2 &proof)
+  {
+    proof = {};
+    if (record.type != static_cast<uint8_t>(record_type_v2::service_payment_proof))
+      return record_codec_status_v2::wrong_type;
+    if (record.version != EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2)
+      return record_codec_status_v2::wrong_version;
+    if (record.payload.size() != EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2)
+      return record_codec_status_v2::wrong_size;
+    scoped_payment_proof_v2 next{};
+    size_t offset = 0;
+    if (!read_bytes(record.payload, offset, next.derivation)
+        || !read_bytes(record.payload, offset, next.proof)
+        || offset != record.payload.size())
+      return record_codec_status_v2::wrong_size;
+    if (verify_scoped_payment_proof_v2(context, next) != reward_status_v2::accepted)
+      return record_codec_status_v2::invalid_record;
+    proof = next;
+    return record_codec_status_v2::accepted;
+  }
+
   record_codec_status_v2 encode_service_receipt_record_v2(
       const authenticated_service_receipt_v2 &receipt,
       const receipt_context_v2 &context,

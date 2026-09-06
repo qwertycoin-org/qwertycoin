@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "epose/lifecycle_v2.h"
+#include "epose/record_codec_v2.h"
 
 namespace
 {
@@ -245,4 +246,45 @@ TEST(epose_lifecycle_v2, state_hash_is_independent_of_identity_arrival_order)
   ASSERT_EQ(lifecycle_status_v2::accepted, second.apply(record_b, 1, 2));
   ASSERT_EQ(lifecycle_status_v2::accepted, second.apply(record_a, 1, 2));
   EXPECT_EQ(first.state_hash(), second.state_hash());
+}
+
+TEST(epose_lifecycle_v2, typed_registration_and_lifecycle_codecs_are_authorized_and_atomic)
+{
+  fixture f;
+  const auto initial = registration(f);
+  envelope_record_v2 encoded{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_lifecycle_record_v2(initial, f.nettype, f.genesis, f.parameters, encoded));
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::identity_descriptor), encoded.type);
+  EXPECT_EQ(EPOSE_LIFECYCLE_RECORD_VERSION_V2, encoded.version);
+  EXPECT_EQ(EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2, encoded.payload.size());
+
+  lifecycle_record_v2 decoded{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      decode_lifecycle_record_v2(encoded, f.nettype, f.genesis, f.parameters, decoded));
+  EXPECT_EQ(hash_lifecycle_record_v2(f.nettype, f.genesis, f.parameters, initial),
+      hash_lifecycle_record_v2(f.nettype, f.genesis, f.parameters, decoded));
+
+  auto next = descriptor(f, 1, 4, 12);
+  const auto update = signed_record(f, lifecycle_action_v2::update_descriptor,
+      hash_identity_descriptor_v2(f.nettype, f.genesis, f.parameters, initial.next_descriptor),
+      next, f.service.secret_key);
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_lifecycle_record_v2(update, f.nettype, f.genesis, f.parameters, encoded));
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::descriptor_lifecycle), encoded.type);
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      decode_lifecycle_record_v2(encoded, f.nettype, f.genesis, f.parameters, decoded));
+
+  encoded.type = static_cast<uint8_t>(record_type_v2::identity_descriptor);
+  decoded = update;
+  EXPECT_EQ(record_codec_status_v2::wrong_type,
+      decode_lifecycle_record_v2(encoded, f.nettype, f.genesis, f.parameters, decoded));
+  EXPECT_EQ(crypto::null_hash, decoded.next_descriptor.identity_id);
+
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_lifecycle_record_v2(update, f.nettype, f.genesis, f.parameters, encoded));
+  encoded.payload.back() ^= 1;
+  EXPECT_EQ(record_codec_status_v2::invalid_record,
+      decode_lifecycle_record_v2(encoded, f.nettype, f.genesis, f.parameters, decoded));
+  EXPECT_EQ(crypto::null_hash, decoded.next_descriptor.identity_id);
 }

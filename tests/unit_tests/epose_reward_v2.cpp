@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "epose/reward_v2.h"
+#include "epose/record_codec_v2.h"
 
 namespace
 {
@@ -282,4 +283,38 @@ TEST(epose_reward_v2, wrong_transaction_secret_and_repeat_payments_do_not_collid
   EXPECT_NE(first.outputs[0].output_public_key, second.outputs[0].output_public_key);
   EXPECT_NE(first_proof.derivation, second_proof.derivation);
   EXPECT_EQ(reward_status_v2::accepted, verify_scoped_payment_proof_v2(second, second_proof));
+}
+
+TEST(epose_reward_v2, typed_payment_proof_codec_is_context_bound_and_atomic)
+{
+  crypto::secret_key transaction_secret{};
+  const service_payment_context_v2 context = make_payment_context(transaction_secret);
+  scoped_payment_proof_v2 expected{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      generate_scoped_payment_proof_v2(context, transaction_secret, expected));
+  envelope_record_v2 encoded{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_payment_proof_record_v2(expected, context, encoded));
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof), encoded.type);
+  EXPECT_EQ(EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2, encoded.version);
+  EXPECT_EQ(EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2, encoded.payload.size());
+
+  scoped_payment_proof_v2 actual{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      decode_payment_proof_record_v2(encoded, context, actual));
+  EXPECT_EQ(expected.derivation, actual.derivation);
+  EXPECT_EQ(0, std::memcmp(&expected.proof, &actual.proof, sizeof(expected.proof)));
+
+  auto wrong_context = context;
+  ++wrong_context.height;
+  actual = expected;
+  EXPECT_EQ(record_codec_status_v2::invalid_record,
+      decode_payment_proof_record_v2(encoded, wrong_context, actual));
+  EXPECT_EQ(crypto::null_pkey, actual.derivation);
+
+  encoded.payload.pop_back();
+  actual = expected;
+  EXPECT_EQ(record_codec_status_v2::wrong_size,
+      decode_payment_proof_record_v2(encoded, context, actual));
+  EXPECT_EQ(crypto::null_pkey, actual.derivation);
 }

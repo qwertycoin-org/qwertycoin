@@ -170,6 +170,33 @@ namespace epose
     return true;
   }
 
+  lifecycle_status_v2 validate_lifecycle_record_authorization_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const lifecycle_record_v2 &record)
+  {
+    if (nettype == cryptonote::UNDEFINED || genesis_hash == crypto::null_hash
+        || parameter_set_hash == crypto::null_hash)
+      return lifecycle_status_v2::invalid_context;
+    if (!valid_action(record.action))
+      return lifecycle_status_v2::invalid_action;
+    const identity_descriptor_v2 &next = record.next_descriptor;
+    if (!descriptor_shape_valid(next)
+        || next.identity_id != derive_identity_id_v2(
+            nettype, genesis_hash, parameter_set_hash, next.operator_authorization_public_key))
+      return lifecycle_status_v2::invalid_descriptor;
+    if (next.service_public_key == next.operator_authorization_public_key)
+      return lifecycle_status_v2::nonseparated_authorities;
+    const crypto::hash message = hash_lifecycle_record_v2(
+        nettype, genesis_hash, parameter_set_hash, record);
+    if (!crypto::check_signature(message, next.operator_authorization_public_key, record.operator_signature))
+      return lifecycle_status_v2::invalid_operator_signature;
+    if (!crypto::check_signature(message, next.service_public_key, record.service_signature))
+      return lifecycle_status_v2::invalid_service_signature;
+    return lifecycle_status_v2::accepted;
+  }
+
   lifecycle_registry_v2::lifecycle_registry_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
@@ -193,23 +220,15 @@ namespace epose
   {
     if (!valid_)
       return lifecycle_status_v2::invalid_context;
-    if (!valid_action(record.action))
-      return lifecycle_status_v2::invalid_action;
+    const lifecycle_status_v2 authorization = validate_lifecycle_record_authorization_v2(
+        nettype_, genesis_hash_, parameter_set_hash_, record);
+    if (authorization != lifecycle_status_v2::accepted)
+      return authorization;
     const identity_descriptor_v2 &next = record.next_descriptor;
-    if (!descriptor_shape_valid(next)
-        || next.identity_id != derive_identity_id_v2(nettype_, genesis_hash_, parameter_set_hash_,
-            next.operator_authorization_public_key))
-      return lifecycle_status_v2::invalid_descriptor;
-    if (next.service_public_key == next.operator_authorization_public_key)
-      return lifecycle_status_v2::nonseparated_authorities;
     if (next.effective_epoch < minimum_effective_epoch || next.effective_epoch < inclusion_epoch)
       return lifecycle_status_v2::retroactive_change;
 
     const crypto::hash message = hash_lifecycle_record_v2(nettype_, genesis_hash_, parameter_set_hash_, record);
-    if (!crypto::check_signature(message, next.operator_authorization_public_key, record.operator_signature))
-      return lifecycle_status_v2::invalid_operator_signature;
-    if (!crypto::check_signature(message, next.service_public_key, record.service_signature))
-      return lifecycle_status_v2::invalid_service_signature;
 
     auto history_it = std::find_if(histories_.begin(), histories_.end(), [&](const identity_history &history) {
       return hash_equal(history.identity_id, next.identity_id);

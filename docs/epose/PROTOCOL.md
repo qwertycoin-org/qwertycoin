@@ -498,9 +498,19 @@ The reserved record-type registry is:
 | `0x04` | descriptor lifecycle authorization | `1` |
 | `0x05` | scoped service-payment proof | `1` |
 
-The service-receipt and admission-lease payloads have canonical codecs below.
-The remaining record types stay reserved and invalid until their typed codecs,
-transcript vectors, and state adapters are implemented and reviewed.
+All five registered record types now have canonical codecs. A type `0x01`
+record is the dual-authorized `register_identity` lifecycle action; type `0x04`
+carries every later lifecycle action. Both use the same 378-byte payload and
+cannot be relabelled because the outer type must agree with the encoded action.
+The 96-byte type `0x05` payload contains only the scoped derivation and proof;
+all payee, amount, output, Coinbase, height and parent context is reconstructed
+from the candidate miner transaction before verification.
+
+Structural envelope parsing and typed semantic decoding are separate atomic
+steps. A structurally valid record with an invalid signature, RandomX proof,
+context, or outer-type/action combination invalidates the semantic batch; no
+decoded prefix may be applied. Which record versions are enabled comes only
+from the active manifest, not from a peer or transaction.
 
 ### CO-02 frozen membership implementation
 
@@ -550,6 +560,39 @@ network/genesis/parameter/context and member bindings, target epoch, algorithm,
 target, and nonce, using the admission-context block hash as the RandomX seed.
 `lease_hash` is the fast hash of domain `QWC_EPOSE_ADMISSION_LEASE_V2`, the same
 bound lease fields and the verified work hash.
+
+The lifecycle payload is exactly:
+
+```text
+uint8   action
+bytes32 previous_descriptor_hash
+uint8   descriptor_version
+bytes32 identity_id
+bytes32 service_public_key
+bytes32 operator_authorization_public_key
+bytes32 reward_view_public_key
+bytes32 reward_spend_public_key
+bytes32 endpoint_descriptor_hash
+uint64  sequence
+uint64  effective_epoch
+uint64  expiry_epoch
+bytes64 operator_signature
+bytes64 service_signature
+```
+
+The two signatures cover the domain-separated lifecycle hash and are checked
+before a decoded record is exposed. Registry application then enforces the
+history-dependent predecessor, sequence, timing and action transition.
+
+The payment-proof payload is exactly:
+
+```text
+bytes32 derivation
+bytes64 proof
+```
+
+It is exposed only when the scoped proof verifies against the fully derived
+Coinbase context.
 
 At `committee_anchor(E)`, the module builds `snapshot(E)` only from leases for
 `E` included at or before `enrollment_cutoff(E)`. Members are sorted by service

@@ -112,10 +112,9 @@ namespace
     switch (static_cast<record_type_v2>(type))
     {
       case record_type_v2::identity_descriptor:
-        ++budget.signature_verifications;
+        budget.signature_verifications += 2;
         return true;
       case record_type_v2::admission_lease:
-        ++budget.signature_verifications;
         ++budget.admission_verifications;
         return true;
       case record_type_v2::service_receipt:
