@@ -159,3 +159,48 @@ and anchor replacement plus A -> B -> A replay equivalence.
 These tests do not claim authenticated service evidence, calibrated committee
 or admission parameters, a valid v2 wire encoding, persistent state, payout
 safety, or activation readiness. Those remain assigned to later COs.
+
+## CO-03 security-parameter model validation
+
+Commands:
+
+```text
+python3 -m py_compile tests/epose/security_parameter_model.py tests/epose/test_security_parameter_model.py
+PYTHONPATH=tests/epose python3 tests/epose/test_security_parameter_model.py
+python3 tests/epose/security_parameter_model.py --output docs/epose/review/results/security_parameters_v1.json
+jq -e '.status == "no_go_for_economic_activation"' docs/epose/review/results/security_parameters_v1.json
+sha256sum docs/epose/review/results/security_parameters_v1.json
+```
+
+Results reproduced on 2026-09-06:
+
+- security-model unit tests: **8/8 passed**;
+- deterministic result SHA-256:
+  `ccc672f70cf3f984331a01be70f69d08af52989168ae441838244f8d09d2835d`;
+- exact finite-population capture, exact independent-seat liveness, grinding
+  estimate/union bound, admission sensitivity, capacity, and verifier-duty
+  matrices generated;
+- deterministic correlated-operator simulations ran with 50,000 trials per
+  scenario and store their RNG seeds and intervals in the result;
+- result status remains `no_go_for_economic_activation` and lists every open
+  hardware, risk-budget, capacity, concentration, and PoW-cost gate.
+
+Illustrative hash rates in this model are not hardware measurements. No
+optimized x86-64/ARM64 solver matrix, energy/rental-cost study, or owner-approved
+numeric risk budget is claimed by this result.
+
+The extended inherited-helper smoke benchmark was also built and run locally:
+
+```text
+cmake --build <build-dir> --target epose_admission_bench epose_sybil_sim -j1
+<build-dir>/tests/unit_tests/epose_admission_bench 8 1 1 64 32
+<build-dir>/tests/unit_tests/epose_sybil_sim 100 20 64 7 9
+```
+
+Environment: Debian 12 x86-64, 4 visible CPUs, AMD EPYC-Genoa Processor,
+GCC 12.2.0, CMake 3.25.1. The admission smoke result reported a 746,460 us
+first hash and 26.5961 H/s over 32 same-seed hashes. It is a short container
+smoke test of the inherited helper, not an optimized solver or hardware-class
+benchmark. The 64-epoch simulator reported zero controlled 7-of-9 thresholds;
+that small zero-event result is not used as a probability claim and is
+superseded by the exact finite-population calculation for parameter analysis.

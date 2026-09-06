@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -39,11 +40,34 @@ int main(int argc, char **argv)
 {
   try
   {
-    const uint8_t leading_zero_bits = argc > 1 ? static_cast<uint8_t>(parse_u64(argv[1], "leading-zero bits")) : qwertycoin::epose::EPOSE_ADMISSION_LEADING_ZERO_BITS;
+    const uint64_t parsed_leading_zero_bits = argc > 1 ? parse_u64(argv[1], "leading-zero bits") : qwertycoin::epose::EPOSE_ADMISSION_LEADING_ZERO_BITS;
+    if (parsed_leading_zero_bits > std::numeric_limits<uint8_t>::max())
+      throw std::invalid_argument("leading-zero bits exceed uint8 range");
+    const uint8_t leading_zero_bits = static_cast<uint8_t>(parsed_leading_zero_bits);
     const uint64_t identities = argc > 2 ? parse_u64(argv[2], "identity count") : 10;
     const uint64_t epoch = argc > 3 ? parse_u64(argv[3], "epoch") : 1;
     const uint64_t max_hashes_per_identity = argc > 4 ? parse_u64(argv[4], "maximum hashes per identity") : 0;
+    const uint64_t steady_hashes = argc > 5 ? parse_u64(argv[5], "steady-state hash count") : 128;
     const crypto::hash previous_epoch_hash = crypto::cn_fast_hash("qwc-epose-admission-benchmark-seed", 34);
+
+    qwertycoin::epose::service_node_identity probe{};
+    crypto::secret_key probe_secret;
+    crypto::generate_keys(probe.service_public_key, probe_secret);
+    probe.reward_address = make_reward_address();
+    probe.endpoint_commitment = qwertycoin::epose::make_endpoint_commitment("bench-steady.example:8196");
+    probe.registration_epoch = epoch;
+    probe.expiry_epoch = epoch + qwertycoin::epose::EPOSE_REGISTRATION_TTL_EPOCHS;
+
+    const auto setup_started = std::chrono::steady_clock::now();
+    probe.admission_hash = qwertycoin::epose::calculate_admission_hash(probe, cryptonote::TESTNET, previous_epoch_hash);
+    const auto setup_time = std::chrono::steady_clock::now() - setup_started;
+    const auto steady_started = std::chrono::steady_clock::now();
+    for (uint64_t nonce = 0; nonce < steady_hashes; ++nonce)
+    {
+      probe.admission_nonce = nonce + 1;
+      probe.admission_hash = qwertycoin::epose::calculate_admission_hash(probe, cryptonote::TESTNET, previous_epoch_hash);
+    }
+    const auto steady_time = std::chrono::steady_clock::now() - steady_started;
 
     uint64_t total_hashes = 0;
     uint64_t verified = 0;
@@ -88,12 +112,20 @@ int main(int argc, char **argv)
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
     const auto verify_ms = std::chrono::duration_cast<std::chrono::milliseconds>(verify_time);
+    const auto setup_us = std::chrono::duration_cast<std::chrono::microseconds>(setup_time);
+    const auto steady_us = std::chrono::duration_cast<std::chrono::microseconds>(steady_time);
     const double seconds = elapsed.count() / 1000.0;
     const double hashes_per_second = seconds > 0.0 ? total_hashes / seconds : 0.0;
+    const double steady_seconds = steady_us.count() / 1000000.0;
+    const double steady_hashes_per_second = steady_seconds > 0.0 ? steady_hashes / steady_seconds : 0.0;
 
     std::cout << "leading_zero_bits=" << static_cast<unsigned int>(leading_zero_bits) << '\n';
     std::cout << "identities=" << identities << '\n';
     std::cout << "max_hashes_per_identity=" << max_hashes_per_identity << '\n';
+    std::cout << "setup_first_hash_us=" << setup_us.count() << '\n';
+    std::cout << "steady_hashes=" << steady_hashes << '\n';
+    std::cout << "steady_elapsed_us=" << steady_us.count() << '\n';
+    std::cout << "steady_hashes_per_second=" << steady_hashes_per_second << '\n';
     std::cout << "total_hashes=" << total_hashes << '\n';
     std::cout << "solved=" << solved << '\n';
     std::cout << "verified=" << verified << '\n';
@@ -102,8 +134,8 @@ int main(int argc, char **argv)
     std::cout << "avg_create_ms=" << (identities ? static_cast<double>(elapsed.count()) / identities : 0.0) << '\n';
     std::cout << "avg_verify_ms=" << (identities ? static_cast<double>(verify_ms.count()) / identities : 0.0) << '\n';
     std::cout << "hashes_per_second=" << hashes_per_second << '\n';
-    if (hashes_per_second > 0.0 && leading_zero_bits < 64)
-      std::cout << "expected_create_ms=" << (std::ldexp(1.0, leading_zero_bits) / hashes_per_second * 1000.0) << '\n';
+    if (steady_hashes_per_second > 0.0 && leading_zero_bits < 64)
+      std::cout << "expected_create_ms_from_steady_rate=" << (std::ldexp(1.0, leading_zero_bits) / steady_hashes_per_second * 1000.0) << '\n';
     return max_hashes_per_identity ? 0 : (verified == identities ? 0 : 1);
   }
   catch (const std::exception &e)
