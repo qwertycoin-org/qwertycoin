@@ -470,3 +470,37 @@ Reproduced on 2026-09-06:
 These corrections do not connect HF18 to block validation, LMDB, live probing,
 wallet construction or release publication. They close concrete primitive
 defects while leaving their integration gates explicit.
+
+## Canonical RandomX admission validation
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_v2.admission_*:epose_v2.snapshot_is_canonical_across_admission_arrival_order:epose_v2.duplicate_admission_is_idempotent_but_conflict_is_rejected:epose_receipts_v2.authenticated_receipt_is_accepted_by_frozen_membership_pipeline'
+```
+
+The corrective branch replaces the caller-trusted lease hash with a typed
+322-byte lease whose RandomX work and canonical lease hash are recomputed before
+membership state can change. The proof binds network, genesis, parameter set,
+separate service/operator keys, derived identity, descriptor/reward/endpoint
+commitments, sequence, target epoch, algorithm, target, canonical context and
+nonce. Output decoding is atomic.
+
+The one permitted context for target epoch `E` is fixed at `start(E-1)`. A
+fully recomputed valid RandomX proof using height `start(E-1)-1` is rejected by
+the pipeline, as are wrong-network proofs, same-height contexts, claimed work
+hashes, caller-selected lease hashes, redirected endpoints and identical
+online/offline authority keys.
+
+Results reproduced on 2026-09-06:
+
+- admission/snapshot/receipt integration subset: **6/6 passed**;
+- complete focused EPoSE C++ binary: **161/161 passed**;
+- corrected Python model/manifest/gate suites: **35/35 passed**;
+- broad `unit_tests` target and daemon target rebuilt successfully.
+
+This is still not handler, persistent-state, optimized-solver or parameter
+approval evidence. HF18 remains unscheduled and the manifest target remains
+unset.

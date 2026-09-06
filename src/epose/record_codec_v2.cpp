@@ -53,6 +53,78 @@ namespace qwertycoin
 {
 namespace epose
 {
+  record_codec_status_v2 encode_admission_lease_record_v2(
+      const admission_lease_v2 &lease,
+      const admission_context_v2 &context,
+      const admission_policy_v2 &policy,
+      envelope_record_v2 &record)
+  {
+    record = {};
+    if (!validate_admission_lease_v2(lease, context, policy))
+      return record_codec_status_v2::invalid_record;
+    std::string payload;
+    payload.reserve(EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2);
+    append_bytes(payload, lease.member.service_public_key);
+    append_bytes(payload, lease.member.identity_id);
+    append_bytes(payload, lease.member.operator_authorization_public_key);
+    append_bytes(payload, lease.member.descriptor_hash);
+    append_bytes(payload, lease.member.reward_binding_hash);
+    append_bytes(payload, lease.member.endpoint_descriptor_hash);
+    append_u64_le(payload, lease.member.sequence);
+    append_u64_le(payload, lease.target_epoch);
+    append_u8(payload, lease.work_algorithm);
+    append_u8(payload, lease.leading_zero_bits);
+    append_u64_le(payload, lease.admission_context_height);
+    append_bytes(payload, lease.admission_context_hash);
+    append_u64_le(payload, lease.nonce);
+    append_bytes(payload, lease.work_hash);
+    append_bytes(payload, lease.lease_hash);
+    if (payload.size() != EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2)
+      return record_codec_status_v2::wrong_size;
+    record.type = static_cast<uint8_t>(record_type_v2::admission_lease);
+    record.version = EPOSE_ADMISSION_LEASE_RECORD_VERSION_V2;
+    record.payload.swap(payload);
+    return record_codec_status_v2::accepted;
+  }
+
+  record_codec_status_v2 decode_admission_lease_record_v2(
+      const envelope_record_v2 &record,
+      const admission_context_v2 &context,
+      const admission_policy_v2 &policy,
+      admission_lease_v2 &lease)
+  {
+    lease = {};
+    if (record.type != static_cast<uint8_t>(record_type_v2::admission_lease))
+      return record_codec_status_v2::wrong_type;
+    if (record.version != EPOSE_ADMISSION_LEASE_RECORD_VERSION_V2)
+      return record_codec_status_v2::wrong_version;
+    if (record.payload.size() != EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2)
+      return record_codec_status_v2::wrong_size;
+    admission_lease_v2 next{};
+    size_t offset = 0;
+    if (!read_bytes(record.payload, offset, next.member.service_public_key)
+        || !read_bytes(record.payload, offset, next.member.identity_id)
+        || !read_bytes(record.payload, offset, next.member.operator_authorization_public_key)
+        || !read_bytes(record.payload, offset, next.member.descriptor_hash)
+        || !read_bytes(record.payload, offset, next.member.reward_binding_hash)
+        || !read_bytes(record.payload, offset, next.member.endpoint_descriptor_hash)
+        || !read_u64_le(record.payload, offset, next.member.sequence)
+        || !read_u64_le(record.payload, offset, next.target_epoch)
+        || !read_u8(record.payload, offset, next.work_algorithm)
+        || !read_u8(record.payload, offset, next.leading_zero_bits)
+        || !read_u64_le(record.payload, offset, next.admission_context_height)
+        || !read_bytes(record.payload, offset, next.admission_context_hash)
+        || !read_u64_le(record.payload, offset, next.nonce)
+        || !read_bytes(record.payload, offset, next.work_hash)
+        || !read_bytes(record.payload, offset, next.lease_hash)
+        || offset != record.payload.size())
+      return record_codec_status_v2::wrong_size;
+    if (!validate_admission_lease_v2(next, context, policy))
+      return record_codec_status_v2::invalid_record;
+    lease = next;
+    return record_codec_status_v2::accepted;
+  }
+
   record_codec_status_v2 encode_service_receipt_record_v2(
       const authenticated_service_receipt_v2 &receipt,
       const receipt_context_v2 &context,

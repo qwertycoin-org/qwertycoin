@@ -498,38 +498,58 @@ The reserved record-type registry is:
 | `0x04` | descriptor lifecycle authorization | `1` |
 | `0x05` | scoped service-payment proof | `1` |
 
-The service-receipt payload has a first canonical codec below. The remaining
-record types stay reserved and invalid until their typed codecs, transcript
-vectors, and state adapters are implemented and reviewed.
+The service-receipt and admission-lease payloads have canonical codecs below.
+The remaining record types stay reserved and invalid until their typed codecs,
+transcript vectors, and state adapters are implemented and reviewed.
 
 ### CO-02 frozen membership implementation
 
 `src/epose/membership_v2.*` implements the deterministic, non-activating v2
-membership pipeline. It does not parse a v2 record and is not called by HF17
-block validation. Its purpose is to make the cutoff, snapshot, committee, and
-qualification transition executable before later change orders finalize the
-wire records and cryptographic proofs.
+membership pipeline. It is not called by HF17 block validation. The typed
+admission codec parses the complete lease, then recomputes its RandomX work and
+lease commitment before the pipeline can mutate membership state. The pipeline
+also ingests complete dual-signed receipts and validates their canonical
+context; no public caller-supplied “verified” Boolean or hash-only admission
+boundary remains.
 
-The module accepts only explicitly **prevalidated** admission leases and
-receipt slots. This boundary is intentional: CO-03 supplies calibrated
-admission parameters and proof validation; CO-04 supplies authenticated receipt
-parsing and signatures; CO-05 supplies the bounded transaction-extra envelope
-and carriers; CO-06 supplies payout and payment-proof semantics; and CO-07
-supplies descriptor lifecycle authorization. Until those layers exist, no
-network input can reach this module and no v2 state can affect a block reward.
+For target service epoch `E`, the only valid admission context is the canonical
+block at `start(E - 1)`. The fixed v2 manifest value
+`admission.context_epoch_offset = 1` is part of the rule, not a tunable security
+parameter. A different earlier block is invalid even if its RandomX work and
+lease hash are recomputed. This prevents an applicant from choosing among old
+contexts while keeping the work seed independent of the later
+`committee_anchor(E)`. The lease must still be included no later than
+`enrollment_cutoff(E)`.
 
 An admitted member freezes these selection-relevant commitments:
 
 ```text
 service_public_key
+identity_id
+operator_authorization_public_key
 descriptor_hash
 reward_binding_hash
 endpoint_descriptor_hash
 sequence
 target_epoch
+work_algorithm
+leading_zero_bits
+admission_context_height
+admission_context_hash
+nonce
+work_hash
 lease_hash
 inclusion_height
 ```
+
+The admission record payload is exactly 322 bytes in the order above, excluding
+`inclusion_height` (which is derived from its containing block). Integer fields
+are little-endian and all keys and hashes use their fixed canonical byte forms.
+`work_hash` is RandomX over domain `QWC_EPOSE_ADMISSION_WORK_V2`, the complete
+network/genesis/parameter/context and member bindings, target epoch, algorithm,
+target, and nonce, using the admission-context block hash as the RandomX seed.
+`lease_hash` is the fast hash of domain `QWC_EPOSE_ADMISSION_LEASE_V2`, the same
+bound lease fields and the verified work hash.
 
 At `committee_anchor(E)`, the module builds `snapshot(E)` only from leases for
 `E` included at or before `enrollment_cutoff(E)`. Members are sorted by service
@@ -783,7 +803,8 @@ Reserved domains are:
 
 ```text
 QWC_EPOSE_DESCRIPTOR_V2
-QWC_EPOSE_ADMISSION_V2
+QWC_EPOSE_ADMISSION_WORK_V2
+QWC_EPOSE_ADMISSION_LEASE_V2
 QWC_EPOSE_SNAPSHOT_V2
 QWC_EPOSE_SELECT_V2
 QWC_EPOSE_CHALLENGE_V2

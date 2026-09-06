@@ -137,6 +137,7 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
     require_bool(get_path(manifest, "carrier.fee_funded_envelope_allowed"), "carrier.fee_funded_envelope_allowed")
     require_bool(get_path(manifest, "carrier.legacy_nonce_allowed_after_activation"), "carrier.legacy_nonce_allowed_after_activation")
     require_bool(get_path(manifest, "admission.target_epoch_required"), "admission.target_epoch_required")
+    require_int(get_path(manifest, "admission.context_epoch_offset"), "admission.context_epoch_offset", 1, 1)
     require_int(get_path(manifest, "reward.basis_points"), "reward.basis_points", 1000, 1000)
 
     committee_size = get_path(manifest, "committee.size")

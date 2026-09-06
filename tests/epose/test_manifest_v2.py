@@ -56,6 +56,14 @@ class ManifestV2Tests(unittest.TestCase):
         with self.assertRaises(ManifestError):
             validate_manifest(broken)
 
+    def test_admission_context_is_the_immediately_preceding_epoch(self):
+        for invalid in (True, 0, 2):
+            with self.subTest(value=invalid):
+                broken = json.loads(json.dumps(self.manifest))
+                broken["admission"]["context_epoch_offset"] = invalid
+                with self.assertRaises(ManifestError):
+                    validate_manifest(broken)
+
 
 if __name__ == "__main__":
     unittest.main()

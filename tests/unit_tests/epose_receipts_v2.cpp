@@ -9,6 +9,7 @@
 
 #include "epose/service_receipt_v2.h"
 #include "epose/record_codec_v2.h"
+#include "epose/lifecycle_v2.h"
 
 namespace
 {
@@ -65,11 +66,45 @@ namespace
   {
     frozen_member_v2 member{};
     member.service_public_key = keys.public_key;
+    crypto::secret_key operator_secret{};
+    crypto::generate_keys(member.operator_authorization_public_key, operator_secret);
+    member.identity_id = derive_identity_id_v2(cryptonote::TESTNET, make_context().genesis_hash,
+        make_context().parameter_set_hash, member.operator_authorization_public_key);
     member.descriptor_hash = hash_text("descriptor:" + std::to_string(sequence));
     member.reward_binding_hash = hash_text("reward:" + std::to_string(sequence));
     member.endpoint_descriptor_hash = hash_text("endpoint:" + std::to_string(sequence));
     member.sequence = sequence;
     return member;
+  }
+
+  admission_context_v2 admission_context()
+  {
+    return {cryptonote::TESTNET, make_context().genesis_hash, make_context().parameter_set_hash,
+        1440, hash_text("admission-context")};
+  }
+
+  admission_policy_v2 admission_policy()
+  {
+    return {admission_work_algorithm_v2::randomx, 1};
+  }
+
+  admission_lease_v2 make_admission(const frozen_member_v2 &member, uint64_t target_epoch)
+  {
+    admission_lease_v2 lease{};
+    lease.member = member;
+    lease.target_epoch = target_epoch;
+    lease.work_algorithm = static_cast<uint8_t>(admission_policy().algorithm);
+    lease.leading_zero_bits = admission_policy().leading_zero_bits;
+    lease.admission_context_height = admission_context().height;
+    lease.admission_context_hash = admission_context().block_hash;
+    do
+    {
+      lease.work_hash = calculate_admission_work_v2(lease, admission_context());
+      ++lease.nonce;
+    } while (!admission_work_meets_target_v2(lease.work_hash, admission_policy().leading_zero_bits));
+    --lease.nonce;
+    lease.lease_hash = calculate_admission_lease_hash_v2(lease, admission_context());
+    return lease;
   }
 }
 
@@ -227,16 +262,15 @@ TEST(epose_receipts_v2, authenticated_receipt_is_accepted_by_frozen_membership_p
       make_context().genesis_hash,
       make_context().parameter_set_hash,
       epoch_timing_v2{1440, 720, 60},
+      admission_policy(),
       committee_policy_v2{2, 2, 1, 1, static_cast<uint8_t>(service_kind_v2::canonical_object), {0}}};
   std::vector<frozen_member_v2> members;
   for (size_t index = 0; index < keys.size(); ++index)
   {
     members.push_back(make_member(keys[index], index + 1));
-    admission_lease_v2 lease{};
-    lease.member = members.back();
-    lease.target_epoch = 3;
-    lease.lease_hash = hash_text("lease:" + std::to_string(index));
-    ASSERT_EQ(pipeline_status_v2::accepted, pipeline.apply_prevalidated_admission(lease, 2000 + index));
+    const admission_lease_v2 lease = make_admission(members.back(), 3);
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        pipeline.apply_admission(lease, admission_context(), 2000 + index));
   }
   const crypto::hash anchor = hash_text("anchor");
   ASSERT_EQ(pipeline_status_v2::accepted, pipeline.freeze_membership(3, 2100, anchor));

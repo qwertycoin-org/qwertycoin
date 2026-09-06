@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "epose/membership_v2.h"
+#include "epose/lifecycle_v2.h"
+#include "epose/record_codec_v2.h"
 #include "epose/service_receipt_v2.h"
 
 namespace
@@ -27,6 +29,11 @@ namespace
     frozen_member_v2 member{};
     crypto::secret_key secret{};
     crypto::generate_keys(member.service_public_key, secret);
+    crypto::public_key operator_key{};
+    crypto::generate_keys(operator_key, secret);
+    member.operator_authorization_public_key = operator_key;
+    member.identity_id = derive_identity_id_v2(cryptonote::TESTNET, hash_text("qwc-v2-genesis"),
+        hash_text("parameter-set"), member.operator_authorization_public_key);
     member.descriptor_hash = hash_text("descriptor:" + std::to_string(id));
     member.reward_binding_hash = hash_text("reward:" + std::to_string(id));
     member.endpoint_descriptor_hash = hash_text("endpoint:" + std::to_string(id));
@@ -34,13 +41,53 @@ namespace
     return member;
   }
 
-  admission_lease_v2 make_lease(const frozen_member_v2 &member, uint64_t epoch, const std::string &suffix = "")
+  admission_context_v2 admission_context()
+  {
+    return {cryptonote::TESTNET, hash_text("qwc-v2-genesis"), hash_text("parameter-set"),
+        1440, hash_text("admission-context")};
+  }
+
+  admission_policy_v2 admission_policy()
+  {
+    return {admission_work_algorithm_v2::randomx, 1};
+  }
+
+  admission_lease_v2 make_lease_for(
+      const frozen_member_v2 &member,
+      uint64_t epoch,
+      const admission_context_v2 &context,
+      const admission_policy_v2 &policy,
+      const std::string &suffix = "")
   {
     admission_lease_v2 lease{};
     lease.member = member;
     lease.target_epoch = epoch;
-    lease.lease_hash = hash_text("lease:" + std::to_string(epoch) + ":" + std::to_string(member.sequence) + suffix);
+    lease.work_algorithm = static_cast<uint8_t>(policy.algorithm);
+    lease.leading_zero_bits = policy.leading_zero_bits;
+    lease.admission_context_height = context.height;
+    lease.admission_context_hash = context.block_hash;
+    lease.nonce = suffix.empty() ? 0 : 1000;
+    do
+    {
+      lease.work_hash = calculate_admission_work_v2(lease, context);
+      ++lease.nonce;
+    } while (!admission_work_meets_target_v2(lease.work_hash, policy.leading_zero_bits));
+    --lease.nonce;
+    lease.lease_hash = calculate_admission_lease_hash_v2(lease, context);
     return lease;
+  }
+
+  admission_lease_v2 make_lease(const frozen_member_v2 &member, uint64_t epoch, const std::string &suffix = "")
+  {
+    return make_lease_for(member, epoch, admission_context(), admission_policy(), suffix);
+  }
+
+  pipeline_status_v2 apply_lease(
+      membership_pipeline_v2 &pipeline,
+      const admission_lease_v2 &lease,
+      uint64_t inclusion_height)
+  {
+    return pipeline.apply_admission(lease, admission_context(), inclusion_height);
   }
 
   membership_pipeline_v2 make_pipeline(committee_policy_v2 policy = {2, 2, 1, 1, 1, {0}})
@@ -50,6 +97,7 @@ namespace
         hash_text("qwc-v2-genesis"),
         hash_text("parameter-set"),
         epoch_timing_v2{1440, 720, 60},
+        admission_policy(),
         policy};
   }
 
@@ -63,7 +111,7 @@ namespace
     {
       members.push_back(make_member(i + 1));
       EXPECT_EQ(pipeline_status_v2::accepted,
-          pipeline.apply_prevalidated_admission(make_lease(members.back(), target_epoch), 2000 + i));
+          apply_lease(pipeline, make_lease(members.back(), target_epoch), 2000 + i));
     }
     EXPECT_EQ(pipeline_status_v2::accepted,
         pipeline.freeze_membership(target_epoch, 2100, hash_text("committee-anchor")));
@@ -80,6 +128,10 @@ namespace
   {
     keyed_member out{};
     crypto::generate_keys(out.member.service_public_key, out.secret);
+    crypto::secret_key operator_secret{};
+    crypto::generate_keys(out.member.operator_authorization_public_key, operator_secret);
+    out.member.identity_id = derive_identity_id_v2(cryptonote::TESTNET, hash_text("qwc-v2-genesis"),
+        hash_text("parameter-set"), out.member.operator_authorization_public_key);
     out.member.descriptor_hash = hash_text("descriptor:" + std::to_string(id));
     out.member.reward_binding_hash = hash_text("reward:" + std::to_string(id));
     out.member.endpoint_descriptor_hash = hash_text("endpoint:" + std::to_string(id));
@@ -94,7 +146,7 @@ namespace
     {
       members.push_back(make_keyed_member(i + 1));
       EXPECT_EQ(pipeline_status_v2::accepted,
-          pipeline.apply_prevalidated_admission(make_lease(members.back().member, 3), 2000 + i));
+          apply_lease(pipeline, make_lease(members.back().member, 3), 2000 + i));
     }
     EXPECT_EQ(pipeline_status_v2::accepted,
         pipeline.freeze_membership(3, 2100, hash_text("committee-anchor")));
@@ -179,22 +231,35 @@ TEST(epose_v2, invalid_configuration_and_pre_service_epoch_fail_closed)
       crypto::null_hash,
       hash_text("parameter-set"),
       epoch_timing_v2{1440, 720, 60},
+      admission_policy(),
       committee_policy_v2{2, 2, 1, 1, 1, {0}}};
   EXPECT_FALSE(null_genesis.valid());
   EXPECT_EQ(pipeline_status_v2::invalid_configuration,
-      null_genesis.apply_prevalidated_admission(make_lease(make_member(1), 3), 2000));
+      apply_lease(null_genesis, make_lease(make_member(1), 3), 2000));
 
   membership_pipeline_v2 invalid_policy{
       cryptonote::TESTNET,
       hash_text("qwc-v2-genesis"),
       hash_text("parameter-set"),
       epoch_timing_v2{1440, 720, 60},
+      admission_policy(),
       committee_policy_v2{2, 0, 1, 1, 1, {0}}};
   EXPECT_FALSE(invalid_policy.valid());
 
+  auto selectable_context_policy = admission_policy();
+  selectable_context_policy.context_epoch_offset = 2;
+  membership_pipeline_v2 invalid_admission_policy{
+      cryptonote::TESTNET,
+      hash_text("qwc-v2-genesis"),
+      hash_text("parameter-set"),
+      epoch_timing_v2{1440, 720, 60},
+      selectable_context_policy,
+      committee_policy_v2{2, 2, 1, 1, 1, {0}}};
+  EXPECT_FALSE(invalid_admission_policy.valid());
+
   auto pipeline = make_pipeline();
   EXPECT_EQ(pipeline_status_v2::invalid_epoch,
-      pipeline.apply_prevalidated_admission(make_lease(make_member(2), 2), 1500));
+      apply_lease(pipeline, make_lease(make_member(2), 2), 1500));
   EXPECT_EQ(pipeline_status_v2::invalid_epoch,
       pipeline.freeze_membership(2, 1380, hash_text("pre-service-anchor")));
 }
@@ -205,16 +270,103 @@ TEST(epose_v2, admission_cutoff_is_inclusive_and_post_seed_grinding_is_rejected)
   const frozen_member_v2 before = make_member(1);
   const frozen_member_v2 after = make_member(2);
   EXPECT_EQ(pipeline_status_v2::accepted,
-      pipeline.apply_prevalidated_admission(make_lease(before, 3), 2099));
+      apply_lease(pipeline, make_lease(before, 3), 2099));
   EXPECT_EQ(pipeline_status_v2::too_late,
-      pipeline.apply_prevalidated_admission(make_lease(after, 3), 2100));
+      apply_lease(pipeline, make_lease(after, 3), 2100));
   EXPECT_EQ(pipeline_status_v2::accepted,
       pipeline.freeze_membership(3, 2100, hash_text("anchor")));
   ASSERT_NE(nullptr, pipeline.snapshot(3));
   ASSERT_EQ(1u, pipeline.snapshot(3)->members.size());
   EXPECT_TRUE(key_equal(before.service_public_key, pipeline.snapshot(3)->members.front().service_public_key));
   EXPECT_EQ(pipeline_status_v2::too_late,
-      pipeline.apply_prevalidated_admission(make_lease(after, 3), 2090));
+      apply_lease(pipeline, make_lease(after, 3), 2090));
+}
+
+TEST(epose_v2, admission_recomputes_randomx_and_binds_every_canonical_context)
+{
+  const frozen_member_v2 member = make_member(1);
+  const admission_lease_v2 original = make_lease(member, 3);
+  ASSERT_TRUE(validate_admission_lease_v2(original, admission_context(), admission_policy()));
+
+  auto pipeline = make_pipeline();
+  auto changed = original;
+  changed.work_hash = hash_text("claimed-prefix-only");
+  EXPECT_EQ(pipeline_status_v2::invalid_member, apply_lease(pipeline, changed, 2000));
+  changed = original;
+  changed.lease_hash = hash_text("caller-selected-lease-hash");
+  EXPECT_EQ(pipeline_status_v2::invalid_member, apply_lease(pipeline, changed, 2000));
+  changed = original;
+  changed.member.endpoint_descriptor_hash = hash_text("redirected-endpoint");
+  EXPECT_EQ(pipeline_status_v2::invalid_member, apply_lease(pipeline, changed, 2000));
+  changed = original;
+  ++changed.target_epoch;
+  EXPECT_EQ(pipeline_status_v2::invalid_epoch, apply_lease(pipeline, changed, 2000));
+
+  auto one_key_member = member;
+  one_key_member.operator_authorization_public_key = one_key_member.service_public_key;
+  one_key_member.identity_id = derive_identity_id_v2(admission_context().nettype,
+      admission_context().genesis_hash, admission_context().parameter_set_hash,
+      one_key_member.operator_authorization_public_key);
+  const admission_lease_v2 one_key = make_lease_for(one_key_member, 3, admission_context(), admission_policy());
+  EXPECT_FALSE(validate_admission_lease_v2(one_key, admission_context(), admission_policy()));
+
+  auto other_network = admission_context();
+  other_network.nettype = cryptonote::STAGENET;
+  auto other_network_member = member;
+  other_network_member.identity_id = derive_identity_id_v2(other_network.nettype,
+      other_network.genesis_hash, other_network.parameter_set_hash,
+      other_network_member.operator_authorization_public_key);
+  const admission_lease_v2 recomputed = make_lease_for(other_network_member, 3, other_network, admission_policy());
+  EXPECT_TRUE(validate_admission_lease_v2(recomputed, other_network, admission_policy()));
+  EXPECT_EQ(pipeline_status_v2::invalid_member,
+      pipeline.apply_admission(recomputed, other_network, 2000));
+
+  auto late_context = admission_context();
+  late_context.height = 2000;
+  late_context.block_hash = hash_text("same-height-context");
+  const admission_lease_v2 late = make_lease_for(member, 3, late_context, admission_policy());
+  EXPECT_EQ(pipeline_status_v2::invalid_member,
+      pipeline.apply_admission(late, late_context, 2000));
+
+  auto selectable_earlier_context = admission_context();
+  --selectable_earlier_context.height;
+  selectable_earlier_context.block_hash = hash_text("caller-selected-earlier-context");
+  const admission_lease_v2 rerolled = make_lease_for(
+      member, 3, selectable_earlier_context, admission_policy());
+  ASSERT_TRUE(validate_admission_lease_v2(
+      rerolled, selectable_earlier_context, admission_policy()));
+  EXPECT_EQ(pipeline_status_v2::invalid_epoch,
+      pipeline.apply_admission(rerolled, selectable_earlier_context, 2000));
+}
+
+TEST(epose_v2, admission_record_codec_is_canonical_validated_and_atomic)
+{
+  const admission_lease_v2 expected = make_lease(make_member(9), 3);
+  envelope_record_v2 record{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_admission_lease_record_v2(expected, admission_context(), admission_policy(), record));
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::admission_lease), record.type);
+  EXPECT_EQ(EPOSE_ADMISSION_LEASE_RECORD_VERSION_V2, record.version);
+  EXPECT_EQ(EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2, record.payload.size());
+
+  admission_lease_v2 actual{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      decode_admission_lease_record_v2(record, admission_context(), admission_policy(), actual));
+  EXPECT_EQ(expected.lease_hash, actual.lease_hash);
+  EXPECT_EQ(expected.work_hash, actual.work_hash);
+
+  auto malformed = record;
+  malformed.payload.pop_back();
+  actual = expected;
+  EXPECT_EQ(record_codec_status_v2::wrong_size,
+      decode_admission_lease_record_v2(malformed, admission_context(), admission_policy(), actual));
+  EXPECT_EQ(crypto::null_hash, actual.lease_hash);
+
+  malformed = record;
+  malformed.payload[200] ^= 1;
+  EXPECT_EQ(record_codec_status_v2::invalid_record,
+      decode_admission_lease_record_v2(malformed, admission_context(), admission_policy(), actual));
+  EXPECT_EQ(crypto::null_hash, actual.lease_hash);
 }
 
 TEST(epose_v2, snapshot_is_canonical_across_admission_arrival_order)
@@ -223,9 +375,9 @@ TEST(epose_v2, snapshot_is_canonical_across_admission_arrival_order)
   auto second = make_pipeline();
   std::vector<frozen_member_v2> members{make_member(1), make_member(2), make_member(3), make_member(4)};
   for (size_t i = 0; i < members.size(); ++i)
-    ASSERT_EQ(pipeline_status_v2::accepted, first.apply_prevalidated_admission(make_lease(members[i], 3), 2000 + i));
+    ASSERT_EQ(pipeline_status_v2::accepted, apply_lease(first, make_lease(members[i], 3), 2000 + i));
   for (size_t i = members.size(); i > 0; --i)
-    ASSERT_EQ(pipeline_status_v2::accepted, second.apply_prevalidated_admission(make_lease(members[i - 1], 3), 2000 + i - 1));
+    ASSERT_EQ(pipeline_status_v2::accepted, apply_lease(second, make_lease(members[i - 1], 3), 2000 + i - 1));
   const crypto::hash anchor = hash_text("same-anchor");
   ASSERT_EQ(pipeline_status_v2::accepted, first.freeze_membership(3, 2100, anchor));
   ASSERT_EQ(pipeline_status_v2::accepted, second.freeze_membership(3, 2100, anchor));
@@ -238,10 +390,10 @@ TEST(epose_v2, duplicate_admission_is_idempotent_but_conflict_is_rejected)
   auto pipeline = make_pipeline();
   const frozen_member_v2 member = make_member(1);
   const admission_lease_v2 lease = make_lease(member, 3);
-  EXPECT_EQ(pipeline_status_v2::accepted, pipeline.apply_prevalidated_admission(lease, 2000));
-  EXPECT_EQ(pipeline_status_v2::idempotent_duplicate, pipeline.apply_prevalidated_admission(lease, 2000));
+  EXPECT_EQ(pipeline_status_v2::accepted, apply_lease(pipeline, lease, 2000));
+  EXPECT_EQ(pipeline_status_v2::idempotent_duplicate, apply_lease(pipeline, lease, 2000));
   EXPECT_EQ(pipeline_status_v2::conflicting_record,
-      pipeline.apply_prevalidated_admission(make_lease(member, 3, ":conflict"), 2000));
+      apply_lease(pipeline, make_lease(member, 3, ":conflict"), 2000));
 }
 
 TEST(epose_v2, receipt_membership_and_committee_use_only_frozen_snapshot)
@@ -255,7 +407,7 @@ TEST(epose_v2, receipt_membership_and_committee_use_only_frozen_snapshot)
 
   const keyed_member late = make_keyed_member(99);
   EXPECT_EQ(pipeline_status_v2::too_late,
-      pipeline.apply_prevalidated_admission(make_lease(late.member, 3), 2090));
+      apply_lease(pipeline, make_lease(late.member, 3), 2090));
   EXPECT_EQ(pipeline_status_v2::verifier_not_in_snapshot,
       pipeline.apply_authenticated_receipt(
           make_receipt(3, 0, members[0], late, *pipeline.snapshot(3), 1), receipt_context(), 2200,
@@ -363,7 +515,7 @@ TEST(epose_v2, snapshot_anchor_changes_committee_context_and_state_hash)
   {
     members.push_back(make_member(i + 1));
     ASSERT_EQ(pipeline_status_v2::accepted,
-        parent.apply_prevalidated_admission(make_lease(members.back(), 3), 2000 + i));
+        apply_lease(parent, make_lease(members.back(), 3), 2000 + i));
   }
   auto branch_a = parent;
   auto branch_b = parent;

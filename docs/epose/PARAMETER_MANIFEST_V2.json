@@ -5,6 +5,7 @@
   },
   "admission": {
     "algorithm": "RandomX",
+    "context_epoch_offset": 1,
     "lease_epochs": null,
     "leading_zero_bits": null,
     "target_epoch_required": true

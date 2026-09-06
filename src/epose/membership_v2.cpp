@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/membership_v2.h"
+#include "epose/lifecycle_v2.h"
 #include "epose/service_receipt_v2.h"
 
 #include <algorithm>
@@ -86,6 +87,8 @@ namespace
   bool same_member(const frozen_member_v2 &left, const frozen_member_v2 &right)
   {
     return same_member_key(left, right)
+        && bytes_equal(left.identity_id, right.identity_id)
+        && bytes_equal(left.operator_authorization_public_key, right.operator_authorization_public_key)
         && bytes_equal(left.descriptor_hash, right.descriptor_hash)
         && bytes_equal(left.reward_binding_hash, right.reward_binding_hash)
         && bytes_equal(left.endpoint_descriptor_hash, right.endpoint_descriptor_hash)
@@ -111,10 +114,29 @@ namespace
   void append_member(std::string &blob, const frozen_member_v2 &member)
   {
     append_bytes(blob, member.service_public_key);
+    append_bytes(blob, member.identity_id);
+    append_bytes(blob, member.operator_authorization_public_key);
     append_bytes(blob, member.descriptor_hash);
     append_bytes(blob, member.reward_binding_hash);
     append_bytes(blob, member.endpoint_descriptor_hash);
     append_u64_le(blob, member.sequence);
+  }
+
+  int leading_zero_bits(const crypto::hash &hash)
+  {
+    int count = 0;
+    const auto *bytes = reinterpret_cast<const unsigned char *>(&hash);
+    for (size_t index = 0; index < sizeof(hash); ++index)
+    {
+      const unsigned char byte = bytes[index];
+      for (int bit = 7; bit >= 0; --bit)
+      {
+        if ((byte & (1u << bit)) != 0)
+          return count;
+        ++count;
+      }
+    }
+    return count;
   }
 
   bool contains_member(const qwertycoin::epose::membership_snapshot_v2 &snapshot, const crypto::public_key &key)
@@ -129,6 +151,91 @@ namespace qwertycoin
 {
 namespace epose
 {
+  bool admission_policy_v2::valid() const
+  {
+    return algorithm == admission_work_algorithm_v2::randomx
+        && leading_zero_bits > 0
+        && context_epoch_offset == 1;
+  }
+
+  crypto::hash calculate_admission_work_v2(
+      const admission_lease_v2 &lease,
+      const admission_context_v2 &context)
+  {
+    std::string blob("QWC_EPOSE_ADMISSION_WORK_V2");
+    append_network(blob, context.nettype);
+    append_bytes(blob, context.genesis_hash);
+    append_bytes(blob, context.parameter_set_hash);
+    append_u64_le(blob, context.height);
+    append_bytes(blob, context.block_hash);
+    append_member(blob, lease.member);
+    append_u64_le(blob, lease.target_epoch);
+    append_u8(blob, lease.work_algorithm);
+    append_u8(blob, lease.leading_zero_bits);
+    append_u64_le(blob, lease.admission_context_height);
+    append_bytes(blob, lease.admission_context_hash);
+    append_u64_le(blob, lease.nonce);
+    crypto::hash work_hash{};
+    if (context.nettype == cryptonote::UNDEFINED || context.block_hash == crypto::null_hash)
+      return work_hash;
+    crypto::rx_slow_hash(context.block_hash.data, blob.data(), blob.size(), work_hash.data);
+    return work_hash;
+  }
+
+  crypto::hash calculate_admission_lease_hash_v2(
+      const admission_lease_v2 &lease,
+      const admission_context_v2 &context)
+  {
+    std::string blob("QWC_EPOSE_ADMISSION_LEASE_V2");
+    append_network(blob, context.nettype);
+    append_bytes(blob, context.genesis_hash);
+    append_bytes(blob, context.parameter_set_hash);
+    append_member(blob, lease.member);
+    append_u64_le(blob, lease.target_epoch);
+    append_u8(blob, lease.work_algorithm);
+    append_u8(blob, lease.leading_zero_bits);
+    append_u64_le(blob, lease.admission_context_height);
+    append_bytes(blob, lease.admission_context_hash);
+    append_u64_le(blob, lease.nonce);
+    append_bytes(blob, lease.work_hash);
+    return hash_blob(blob);
+  }
+
+  bool admission_work_meets_target_v2(const crypto::hash &work_hash, uint8_t required_bits)
+  {
+    return required_bits > 0 && leading_zero_bits(work_hash) >= required_bits;
+  }
+
+  bool validate_admission_lease_v2(
+      const admission_lease_v2 &lease,
+      const admission_context_v2 &context,
+      const admission_policy_v2 &policy)
+  {
+    if (!policy.valid() || context.nettype == cryptonote::UNDEFINED
+        || context.genesis_hash == crypto::null_hash
+        || context.parameter_set_hash == crypto::null_hash
+        || context.block_hash == crypto::null_hash
+        || !valid_public_key(lease.member.service_public_key)
+        || lease.member.identity_id == crypto::null_hash
+        || !valid_public_key(lease.member.operator_authorization_public_key)
+        || bytes_equal(lease.member.service_public_key, lease.member.operator_authorization_public_key)
+        || derive_identity_id_v2(context.nettype, context.genesis_hash, context.parameter_set_hash,
+              lease.member.operator_authorization_public_key) != lease.member.identity_id
+        || lease.member.descriptor_hash == crypto::null_hash
+        || lease.member.reward_binding_hash == crypto::null_hash
+        || lease.member.endpoint_descriptor_hash == crypto::null_hash
+        || lease.target_epoch == 0
+        || lease.work_algorithm != static_cast<uint8_t>(policy.algorithm)
+        || lease.leading_zero_bits != policy.leading_zero_bits
+        || lease.admission_context_height != context.height
+        || lease.admission_context_hash != context.block_hash)
+      return false;
+    const crypto::hash expected_work = calculate_admission_work_v2(lease, context);
+    return expected_work == lease.work_hash
+        && admission_work_meets_target_v2(expected_work, policy.leading_zero_bits)
+        && calculate_admission_lease_hash_v2(lease, context) == lease.lease_hash;
+  }
+
   bool epoch_timing_v2::valid() const
   {
     return epoch_length > 0
@@ -219,13 +326,16 @@ namespace epose
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
       const epoch_timing_v2 &timing,
+      const admission_policy_v2 &admission_policy,
       const committee_policy_v2 &policy)
     : nettype_(nettype),
       genesis_hash_(genesis_hash),
       parameter_set_hash_(parameter_set_hash),
       timing_(timing),
+      admission_policy_(admission_policy),
       policy_(policy),
       valid_(timing.valid()
+          && admission_policy.valid()
           && policy.valid()
           && policy.round_offsets.back() < timing.epoch_length - timing.anchor_depth
           && genesis_hash != crypto::null_hash
@@ -238,23 +348,38 @@ namespace epose
     return valid_;
   }
 
-  pipeline_status_v2 membership_pipeline_v2::apply_prevalidated_admission(
+  pipeline_status_v2 membership_pipeline_v2::apply_admission(
       const admission_lease_v2 &lease,
+      const admission_context_v2 &context,
       uint64_t inclusion_height)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
+    if (context.nettype != nettype_ || context.genesis_hash != genesis_hash_
+        || context.parameter_set_hash != parameter_set_hash_
+        || context.height >= inclusion_height)
+      return pipeline_status_v2::invalid_member;
     if (inclusion_height < timing_.activation_height)
       return pipeline_status_v2::before_activation;
     uint64_t first_service = 0;
     uint64_t cutoff = 0;
+    uint64_t expected_context_height = 0;
     if (!timing_.first_service_epoch(first_service)
         || lease.target_epoch < first_service
+        || lease.target_epoch < admission_policy_.context_epoch_offset
+        || !timing_.epoch_start(lease.target_epoch - admission_policy_.context_epoch_offset,
+              expected_context_height)
+        || context.height != expected_context_height
         || !timing_.enrollment_cutoff(lease.target_epoch, cutoff))
       return pipeline_status_v2::invalid_epoch;
+    if (!validate_admission_lease_v2(lease, context, admission_policy_))
+      return pipeline_status_v2::invalid_member;
     if (inclusion_height > cutoff)
       return pipeline_status_v2::too_late;
-    if (!valid_public_key(lease.member.service_public_key))
+    if (!valid_public_key(lease.member.service_public_key)
+        || !valid_public_key(lease.member.operator_authorization_public_key)
+        || bytes_equal(lease.member.service_public_key, lease.member.operator_authorization_public_key)
+        || lease.member.identity_id == crypto::null_hash)
       return pipeline_status_v2::invalid_member;
     if (snapshots_.count(lease.target_epoch) != 0)
       return pipeline_status_v2::too_late;

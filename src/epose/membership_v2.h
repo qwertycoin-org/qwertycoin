@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "crypto/crypto.h"
+#include "crypto/hash.h"
 #include "cryptonote_config.h"
 
 namespace qwertycoin
@@ -55,6 +56,8 @@ namespace epose
   struct frozen_member_v2
   {
     crypto::public_key service_public_key{};
+    crypto::hash identity_id{};
+    crypto::public_key operator_authorization_public_key{};
     crypto::hash descriptor_hash{};
     crypto::hash reward_binding_hash{};
     crypto::hash endpoint_descriptor_hash{};
@@ -65,8 +68,53 @@ namespace epose
   {
     frozen_member_v2 member{};
     uint64_t target_epoch = 0;
+    uint8_t work_algorithm = 1;
+    uint8_t leading_zero_bits = 0;
+    uint64_t admission_context_height = 0;
+    crypto::hash admission_context_hash{};
+    uint64_t nonce = 0;
+    crypto::hash work_hash{};
     crypto::hash lease_hash{};
   };
+
+  enum class admission_work_algorithm_v2 : uint8_t
+  {
+    randomx = 1
+  };
+
+  struct admission_context_v2
+  {
+    cryptonote::network_type nettype = cryptonote::UNDEFINED;
+    crypto::hash genesis_hash{};
+    crypto::hash parameter_set_hash{};
+    uint64_t height = 0;
+    crypto::hash block_hash{};
+  };
+
+  struct admission_policy_v2
+  {
+    admission_work_algorithm_v2 algorithm = admission_work_algorithm_v2::randomx;
+    uint8_t leading_zero_bits = 0;
+    // EPoSE v2 fixes the work context at start(target_epoch - 1). This keeps
+    // admission work independent of the later committee-selection anchor.
+    uint64_t context_epoch_offset = 1;
+
+    bool valid() const;
+  };
+
+  crypto::hash calculate_admission_work_v2(
+      const admission_lease_v2 &lease,
+      const admission_context_v2 &context);
+  crypto::hash calculate_admission_lease_hash_v2(
+      const admission_lease_v2 &lease,
+      const admission_context_v2 &context);
+  bool admission_work_meets_target_v2(
+      const crypto::hash &work_hash,
+      uint8_t leading_zero_bits);
+  bool validate_admission_lease_v2(
+      const admission_lease_v2 &lease,
+      const admission_context_v2 &context,
+      const admission_policy_v2 &policy);
 
   struct membership_snapshot_v2
   {
@@ -123,12 +171,14 @@ namespace epose
         const crypto::hash &genesis_hash,
         const crypto::hash &parameter_set_hash,
         const epoch_timing_v2 &timing,
+        const admission_policy_v2 &admission_policy,
         const committee_policy_v2 &policy);
 
     bool valid() const;
 
-    pipeline_status_v2 apply_prevalidated_admission(
+    pipeline_status_v2 apply_admission(
         const admission_lease_v2 &lease,
+        const admission_context_v2 &context,
         uint64_t inclusion_height);
 
     pipeline_status_v2 freeze_membership(
@@ -177,6 +227,7 @@ namespace epose
     crypto::hash genesis_hash_{};
     crypto::hash parameter_set_hash_{};
     epoch_timing_v2 timing_{};
+    admission_policy_v2 admission_policy_{};
     committee_policy_v2 policy_{};
     bool valid_ = false;
     std::vector<stored_lease> leases_;
