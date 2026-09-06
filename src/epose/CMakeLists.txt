@@ -5,6 +5,7 @@ set(epose_sources
   chain_state.cpp
   envelope_v2.cpp
   membership_v2.cpp
+  reward_v2.cpp
   service_receipt_v2.cpp
   service_epoch.cpp
   service_registry.cpp
@@ -16,6 +17,7 @@ set(epose_headers
   chain_state.h
   envelope_v2.h
   membership_v2.h
+  reward_v2.h
   service_receipt_v2.h
   service_epoch.h
   service_registry.h

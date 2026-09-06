@@ -618,6 +618,30 @@ The primitive is non-activating. Version-aware integration into generic
 `tx_extra`, actual record payload codecs, miner template batching, wallet-funded
 submission, queue fairness, and measured manifest limits remain required before
 HF18 can recognize tag `0x05` in a block.
+
+## CO-06 reward and payment-proof candidate
+
+`src/epose/reward_v2.*` implements non-activating v2 reward arithmetic,
+epoch-relative payee rotation, and a scoped payment-proof candidate. V2 service
+rewards are calculated from scheduled subsidy only; fees remain entirely with
+the miner. The service share remains 1,000 BPS.
+
+The empty-qualified-set policy has no default. The reference implementation
+models both miner fallback and permanent non-issuance, but returns
+`unresolved_empty_policy` when the caller supplies `unset`. Neither option is
+wired to block construction or validation pending an explicit economic ADR.
+
+The scoped proof publishes a recipient-specific key derivation and uses the
+inherited transaction-proof primitive to bind it to the coinbase transaction
+secret. Its non-circular transcript commits to the network/genesis, parameter
+set, height, parent, payout/qualification context, public reward keys, exact
+service outputs, transaction public key, and a coinbase commitment calculated
+with the proof record omitted. Validators can recompute the prescribed
+one-time output keys without a private view key.
+
+This payment-proof construction supports primary standard reward addresses
+only and remains non-activating until independent cryptographic review. See
+`review/ADR-0003-REWARD-SEMANTICS.md`.
 No implementation may guess missing fields or accept an opaque payload merely
 because its outer envelope parses.
 

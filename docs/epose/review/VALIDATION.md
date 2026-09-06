@@ -261,3 +261,34 @@ This is not HF18 activation evidence. The historical generic `tx_extra` parser
 does not yet recognize tag `0x05`; payload codecs, actual template batching,
 wallet funding, queue fairness, worst-valid-block timing, synchronization cost,
 and approved manifest limits remain open.
+
+## CO-06 reward and scoped-proof validation
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_reward_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- reward/payment tests: **9/9 passed**;
+- complete focused EPoSE binary after integration: **119/119 passed**;
+- daemon target rebuilt successfully with the v2 reward object linked;
+- subsidy-only arithmetic keeps all fees with the miner;
+- 1,000-BPS rounding, overflow, invalid BPS, and fail-atomic rejection passed;
+- both empty-set policies are modeled and an unset policy fails closed;
+- payout selection rejects a wrong source epoch, duplicate member, missing
+  context, empty set, and pre-epoch height;
+- scoped payment proof generation/verification passed without a private view
+  key;
+- height, parent, payee, coinbase commitment, derivation, signature, output
+  index/key, and transaction-secret substitutions fail closed;
+- repeated rewards to the same public reward address use distinct derivations
+  and one-time output keys.
+
+This is not funds-spendability or activation evidence. The implementation is
+not connected to coinbase construction/validation, its envelope record codec is
+not finalized, the empty-set policy is unresolved, inherited emission
+integration is unproved, and independent cryptographic review remains required.

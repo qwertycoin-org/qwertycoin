@@ -109,3 +109,12 @@ activated by CO-01.
 99. A failed block-budget charge leaves the previously accumulated budget unchanged.
 100. Coinbase and ordinary fee-funded envelope fields use the same structural parser and operation accounting.
 101. No default limit makes the envelope activatable; all transaction and block limits come from an approved parameter manifest.
+102. V2 service allocation is calculated from scheduled subsidy only; transaction fees are never shared with service nodes.
+103. The v2 service share remains exactly 1,000 BPS unless a separately approved tokenomics change says otherwise.
+104. An empty v2 qualification set has no implicit fallback; an unset policy fails closed.
+105. Permanent non-issuance, if approved, advances scheduled emission without adding the withheld allocation to issued supply.
+106. V2 payout rotation uses `(height - payout_epoch_start) mod qualified_count` and only the immediately preceding closed qualification set.
+107. A scoped payment proof binds the complete payment context and a proof-excluded coinbase commitment; it cannot be transplanted across height, parent, payee, output, or coinbase.
+108. New v2 payment verification does not require or serialize a private reward view key.
+109. A zero service allocation due to integer rounding requires no service output or payment proof.
+110. HF17 reward and payment validation are unchanged by the non-activating CO-06 primitive.
