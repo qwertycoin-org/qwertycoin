@@ -396,6 +396,53 @@ TEST(epose_v2, duplicate_admission_is_idempotent_but_conflict_is_rejected)
       apply_lease(pipeline, make_lease(member, 3, ":conflict"), 2000));
 }
 
+TEST(epose_v2, admission_reserves_service_key_for_one_identity_per_target_epoch)
+{
+  auto pipeline = make_pipeline({1, 1, 1, 1, 1, {0}});
+  keyed_member first = make_keyed_member(1);
+  keyed_member second = make_keyed_member(2);
+  second.member.service_public_key = first.member.service_public_key;
+
+  const admission_lease_v2 first_lease = make_lease(first.member, 3, "first");
+  const admission_lease_v2 second_lease = make_lease(second.member, 3, "second");
+  const keyed_member verifier = make_keyed_member(3);
+  ASSERT_EQ(pipeline_status_v2::accepted, apply_lease(pipeline, first_lease, 2000));
+  EXPECT_EQ(pipeline_status_v2::conflicting_record, apply_lease(pipeline, second_lease, 2001));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      apply_lease(pipeline, make_lease(verifier.member, 3), 2002));
+
+  auto reverse = make_pipeline({1, 1, 1, 1, 1, {0}});
+  ASSERT_EQ(pipeline_status_v2::accepted, apply_lease(reverse, second_lease, 2000));
+  EXPECT_EQ(pipeline_status_v2::conflicting_record, apply_lease(reverse, first_lease, 2001));
+
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      pipeline.freeze_membership(3, 2100, hash_text("committee-anchor")));
+  const membership_snapshot_v2 *snapshot = pipeline.snapshot(3);
+  ASSERT_NE(nullptr, snapshot);
+  ASSERT_EQ(2u, snapshot->members.size());
+  const auto first_member = std::find_if(
+      snapshot->members.begin(), snapshot->members.end(), [&](const frozen_member_v2 &member) {
+        return member.identity_id == first.member.identity_id;
+      });
+  ASSERT_NE(snapshot->members.end(), first_member);
+  EXPECT_EQ(first.member.service_public_key, first_member->service_public_key);
+  EXPECT_NE(snapshot->members[0].service_public_key, snapshot->members[1].service_public_key);
+
+  const auto selected = pipeline.committee(
+      3, 0, first.member.service_public_key, snapshot->anchor_hash);
+  ASSERT_EQ(1u, selected.size());
+  ASSERT_EQ(verifier.member.service_public_key, selected.front().verifier_public_key);
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      pipeline.apply_authenticated_receipt(
+          make_receipt(3, 0, first, verifier, *snapshot, 1), receipt_context(), 2200,
+          snapshot->anchor_hash));
+  ASSERT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  const qualification_set_v2 *qualification = pipeline.qualification(3);
+  ASSERT_NE(nullptr, qualification);
+  ASSERT_EQ(1u, qualification->qualified_nodes.size());
+  EXPECT_EQ(first.member.service_public_key, qualification->qualified_nodes.front());
+}
+
 TEST(epose_v2, receipt_membership_and_committee_use_only_frozen_snapshot)
 {
   auto pipeline = make_pipeline();

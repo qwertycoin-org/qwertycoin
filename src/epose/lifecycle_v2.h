@@ -58,6 +58,7 @@ namespace epose
     nonseparated_authorities,
     identity_not_found,
     identity_already_exists,
+    service_key_in_use,
     wrong_previous_descriptor,
     wrong_sequence,
     retroactive_change,

@@ -483,6 +483,206 @@ TEST(epose_semantic_batch_v2, authenticated_receipt_uses_canonical_round_anchor)
   EXPECT_EQ(before, state.state_hash());
 }
 
+TEST(epose_semantic_batch_v2, receipt_duplicates_are_authenticated_before_success)
+{
+  contexts source;
+  identity subject = make_identity("subject-endpoint");
+  identity verifier = make_identity("verifier-endpoint");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted, enroll(state, subject, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted, enroll(state, verifier, source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted, state.freeze_membership(3, 2100, source.round));
+
+  const membership_snapshot_v2 *snapshot = state.membership().snapshot(3);
+  ASSERT_NE(nullptr, snapshot);
+  authenticated_service_receipt_v2 receipt{};
+  receipt.challenge.epoch = 3;
+  receipt.challenge.snapshot_hash = snapshot->snapshot_hash;
+  receipt.challenge.anchor_hash = source.round;
+  receipt.challenge.subject_public_key = subject.service.public_key;
+  receipt.challenge.verifier_public_key = verifier.service.public_key;
+  receipt.challenge.endpoint_descriptor_hash = subject.descriptor.endpoint_descriptor_hash;
+  receipt.challenge.nonce = hash_text("duplicate-nonce");
+  receipt.challenge.requested_object_hash = hash_text("duplicate-object");
+  receipt.response_object_hash = receipt.challenge.requested_object_hash;
+  const receipt_context_v2 receipt_context{cryptonote::TESTNET, genesis, parameters};
+  sign_subject_response_v2(receipt, subject.service.secret_key, receipt_context);
+  sign_verifier_receipt_v2(receipt, verifier.service.secret_key, receipt_context);
+  envelope_record_v2 valid{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      encode_service_receipt_record_v2(receipt, receipt_context, valid));
+
+  envelope_record_v2 bad_verifier = valid;
+  ASSERT_FALSE(bad_verifier.payload.empty());
+  bad_verifier.payload.back() ^= 1;
+  authenticated_service_receipt_v2 decoded_bad{};
+  ASSERT_EQ(record_codec_status_v2::accepted,
+      decode_service_receipt_record_structure_v2(bad_verifier, decoded_bad));
+  EXPECT_FALSE(validate_authenticated_service_receipt_v2(decoded_bad, receipt_context));
+
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {valid}, semantic_transaction_context_v2{2160, false, nullptr}, source, summary));
+  EXPECT_EQ(2u, summary.verifications.signatures);
+  const crypto::hash accepted_state = state.state_hash();
+  EXPECT_EQ(semantic_status_v2::invalid_receipt,
+      state.apply_transaction(
+          {bad_verifier}, semantic_transaction_context_v2{2160, false, nullptr}, source, summary));
+  EXPECT_EQ(2u, summary.verifications.signatures);
+  EXPECT_EQ(accepted_state, state.state_hash());
+
+  semantic_state_v2 batch = make_state();
+  ASSERT_EQ(semantic_status_v2::accepted, enroll(batch, subject, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted, enroll(batch, verifier, source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted, batch.freeze_membership(3, 2100, source.round));
+  const crypto::hash before_batch = batch.state_hash();
+  EXPECT_EQ(semantic_status_v2::invalid_receipt,
+      batch.apply_transaction(
+          {valid, bad_verifier}, semantic_transaction_context_v2{2160, false, nullptr}, source, summary));
+  EXPECT_EQ(4u, summary.verifications.signatures);
+  EXPECT_EQ(before_batch, batch.state_hash());
+
+  ASSERT_EQ(semantic_status_v2::accepted,
+      batch.apply_transaction(
+          {valid, valid}, semantic_transaction_context_v2{2160, false, nullptr}, source, summary));
+  EXPECT_EQ(2u, summary.receipt_records);
+  EXPECT_EQ(4u, summary.verifications.signatures);
+  EXPECT_EQ(accepted_state, batch.state_hash());
+
+  envelope_record_v2 bad_subject = valid;
+  bad_subject.payload[bad_subject.payload.size() - sizeof(crypto::signature) * 2] ^= 1;
+  EXPECT_EQ(semantic_status_v2::invalid_receipt,
+      batch.apply_transaction(
+          {bad_subject}, semantic_transaction_context_v2{2160, false, nullptr}, source, summary));
+  EXPECT_EQ(accepted_state, batch.state_hash());
+}
+
+TEST(epose_semantic_batch_v2, service_keys_are_unique_across_active_identities)
+{
+  contexts source;
+  identity first = make_identity("first-endpoint");
+  identity second = make_identity("second-endpoint");
+  second.service = first.service;
+  second.descriptor.service_public_key = first.service.public_key;
+
+  semantic_apply_summary_v2 summary{};
+  semantic_state_v2 state = make_state();
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(first)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  const crypto::hash after_first = state.state_hash();
+  EXPECT_EQ(semantic_status_v2::invalid_lifecycle,
+      state.apply_transaction(
+          {registration_record(second)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  EXPECT_EQ(after_first, state.state_hash());
+
+  semantic_state_v2 reverse = make_state();
+  ASSERT_EQ(semantic_status_v2::accepted,
+      reverse.apply_transaction(
+          {registration_record(second)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  EXPECT_EQ(semantic_status_v2::invalid_lifecycle,
+      reverse.apply_transaction(
+          {registration_record(first)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+
+  semantic_state_v2 mixed = make_state();
+  const crypto::hash before_mixed = mixed.state_hash();
+  EXPECT_EQ(semantic_status_v2::invalid_lifecycle,
+      mixed.apply_transaction(
+          {registration_record(first), registration_record(second)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  EXPECT_EQ(before_mixed, mixed.state_hash());
+  EXPECT_EQ(nullptr, mixed.lifecycle().descriptor_for_epoch(first.descriptor.identity_id, 3));
+}
+
+TEST(epose_semantic_batch_v2, recovery_cannot_claim_another_active_identity_service_key)
+{
+  contexts source;
+  identity first = make_identity("first-endpoint");
+  identity second = make_identity("second-endpoint");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(first), registration_record(second)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {admission_record(first, source, 4, 2160), admission_record(second, source, 4, 2160)},
+          semantic_transaction_context_v2{2200, false, nullptr}, source, summary));
+
+  identity recovered = second;
+  recovered.service = first.service;
+  recovered.descriptor.service_public_key = first.service.public_key;
+  recovered.descriptor.sequence = 1;
+  recovered.descriptor.effective_epoch = 4;
+  const crypto::hash before = state.state_hash();
+  EXPECT_EQ(semantic_status_v2::invalid_lifecycle,
+      state.apply_transaction(
+          {lifecycle_record(
+              lifecycle_action_v2::recover_service_key, second.descriptor, recovered)},
+          semantic_transaction_context_v2{2201, false, nullptr}, source, summary));
+  EXPECT_EQ(before, state.state_hash());
+
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+  const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
+  ASSERT_NE(nullptr, snapshot);
+  ASSERT_EQ(2u, snapshot->members.size());
+  EXPECT_NE(snapshot->members[0].identity_id, snapshot->members[1].identity_id);
+  EXPECT_NE(snapshot->members[0].service_public_key, snapshot->members[1].service_public_key);
+  for (const frozen_member_v2 &member : snapshot->members)
+  {
+    const auto committee = state.membership().committee(
+        4, 0, member.service_public_key, snapshot->anchor_hash);
+    ASSERT_EQ(1u, committee.size());
+    EXPECT_NE(member.service_public_key, committee.front().verifier_public_key);
+  }
+}
+
+TEST(epose_semantic_batch_v2, admission_key_collision_rolls_back_valid_lifecycle_prefix)
+{
+  contexts source;
+  identity first = make_identity("first-endpoint");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(first)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {admission_record(first, source, 4, 2160)},
+          semantic_transaction_context_v2{2200, false, nullptr}, source, summary));
+
+  identity deregistered = first;
+  deregistered.descriptor.sequence = 1;
+  deregistered.descriptor.effective_epoch = 4;
+  deregistered.descriptor.expiry_epoch = 4;
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {lifecycle_record(
+              lifecycle_action_v2::deregister_identity, first.descriptor, deregistered)},
+          semantic_transaction_context_v2{2201, false, nullptr}, source, summary));
+
+  identity successor = make_identity("successor-endpoint");
+  successor.service = first.service;
+  successor.descriptor.service_public_key = first.service.public_key;
+  successor.descriptor.effective_epoch = 4;
+  const crypto::hash before = state.state_hash();
+  EXPECT_EQ(semantic_status_v2::invalid_admission,
+      state.apply_transaction(
+          {registration_record(successor), admission_record(successor, source, 4, 2160)},
+          semantic_transaction_context_v2{2202, false, nullptr}, source, summary));
+  EXPECT_EQ(before, state.state_hash());
+  EXPECT_EQ(nullptr,
+      state.lifecycle().descriptor_for_epoch(successor.descriptor.identity_id, 4));
+}
+
 TEST(epose_semantic_batch_v2, payment_proof_is_coinbase_only)
 {
   contexts source;

@@ -388,6 +388,16 @@ namespace epose
     if (!validate_admission_lease_v2(lease, context, admission_policy_, counters))
       return pipeline_status_v2::invalid_member;
 
+    for (const stored_lease &stored : leases_)
+    {
+      if (stored.lease.target_epoch == lease.target_epoch
+          && stored.lease.member.identity_id != lease.member.identity_id
+          && bytes_equal(
+              stored.lease.member.service_public_key,
+              lease.member.service_public_key))
+        return pipeline_status_v2::conflicting_record;
+    }
+
     for (stored_lease &stored : leases_)
     {
       if (stored.lease.target_epoch != lease.target_epoch
@@ -466,6 +476,16 @@ namespace epose
             || !same_member(*authorized, stored.lease.member))
           continue;
       }
+      const auto duplicate_identity_or_key = std::find_if(
+          frozen.members.begin(), frozen.members.end(),
+          [&](const frozen_member_v2 &member) {
+            return member.identity_id == stored.lease.member.identity_id
+                || bytes_equal(
+                    member.service_public_key,
+                    stored.lease.member.service_public_key);
+          });
+      if (duplicate_identity_or_key != frozen.members.end())
+        return pipeline_status_v2::conflicting_record;
       frozen.members.push_back(stored.lease.member);
     }
     std::sort(frozen.members.begin(), frozen.members.end(), member_less);
@@ -602,9 +622,14 @@ namespace epose
           || !bytes_equal(stored.subject_public_key, challenge.subject_public_key)
           || !bytes_equal(stored.verifier_public_key, challenge.verifier_public_key))
         continue;
-      if (bytes_equal(stored.receipt_hash, receipt_hash))
-        return pipeline_status_v2::idempotent_duplicate;
-      return pipeline_status_v2::receipt_slot_conflict;
+      if (!bytes_equal(stored.receipt_hash, receipt_hash))
+        return pipeline_status_v2::receipt_slot_conflict;
+      // receipt_hash is the verifier's signing message. It intentionally does
+      // not contain verifier_signature, so an equal hash alone cannot make a
+      // wire record an authenticated idempotent duplicate.
+      if (!validate_authenticated_service_receipt_v2(receipt, context, counters))
+        return pipeline_status_v2::receipt_not_prevalidated;
+      return pipeline_status_v2::idempotent_duplicate;
     }
     if (!validate_authenticated_service_receipt_v2(receipt, context, counters))
       return pipeline_status_v2::receipt_not_prevalidated;

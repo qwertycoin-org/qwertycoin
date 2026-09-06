@@ -800,8 +800,17 @@ and cannot be retroactive.
 
 Epoch lookup returns the descriptor valid for that epoch, so later records do
 not mutate a descriptor already frozen into a membership/reward snapshot. This
-primitive remains non-activating pending record serialization, envelope and
-persistent-index integration. See `review/ADR-0004-IDENTITY-LIFECYCLE.md`.
+lookup also enforces one active service public key per stable identity and one
+stable identity per active service public key in an epoch. A key becomes
+reusable by another identity only after the prior descriptor is inactive for
+that epoch. Consensus transaction order is explicit: a replacement or
+deregistration must be accepted before a later registration can reuse the key.
+An admission reserves its service key for one identity for its complete target
+epoch enrollment window; a cross-identity collision cannot displace the first
+valid lease. Freeze rechecks both identity and service-key uniqueness before
+publishing a snapshot. This primitive remains non-activating pending record
+serialization, envelope and persistent-index integration. See
+`review/ADR-0004-IDENTITY-LIFECYCLE.md`.
 
 ## CO-08 state-index and replay boundary
 

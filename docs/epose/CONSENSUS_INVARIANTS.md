@@ -126,18 +126,20 @@ activated by CO-01.
 116. A later lifecycle record cannot change a descriptor already selected for an earlier epoch or settled reward.
 117. Duplicate lifecycle records are signature-checked before idempotent handling; an invalid record cannot become acceptable because its message matches stored state.
 118. Operator-authority rotation is unsupported until a separate recovery design is approved.
-119. Canonical blocks, not the EPoSE index, are the replay oracle and consensus source of truth.
-120. Every persisted checkpoint binds height, block hash, parent hash, state root, canonical payload hash, schema, and parameter set.
-121. A failed checkpoint connect, image restore, checksum, schema, or context validation leaves committed index state unchanged.
-122. Undo is bounded; a reorg beyond retained undo explicitly rebuilds and never silently starts from empty EPoSE state.
-123. A → B → A reorg recovery produces the same index root as fresh canonical replay at A.
-124. Activation requires EPoSE index updates in the same LMDB write transaction as block connect/disconnect.
-125. A missing/corrupt index is recoverable derived data, not grounds for a different block-validity result.
-126. Pruned validation remains unsupported until required EPoSE history retention/reconstruction is proved.
-127. Endpoint descriptors bind network/genesis, parameter set, service identity, typed transport, canonical host/port, service version, sequence, and expiry.
-128. DNS answers, live probes, redirects, elapsed wall time, and external APIs never participate in block validation.
-129. Public-internet probes reject local/private/link-local/multicast/unspecified/metadata and IPv4-mapped private destinations and recheck DNS answers at connection time.
-130. Probe work is bounded by request/response bytes, timeout, global concurrency, peer count, and per-peer concurrency.
-131. Unknown admission contexts are rejected before allocating a RandomX VM, dataset, cache, or pending verification entry.
-132. EPoSE RPC list/scan operations require pagination and checked page/scan ceilings.
-133. Local overload may reject relay/probe work but cannot change deterministic validation of the same complete block.
+119. An active service public key belongs to at most one stable identity in any target epoch; admission and freeze enforce the same uniqueness independently.
+120. Exact receipt duplicates are subject- and verifier-signature checked before idempotent handling; the verifier signing-message hash alone is not a complete-record authentication cache key.
+121. Canonical blocks, not the EPoSE index, are the replay oracle and consensus source of truth.
+122. Every persisted checkpoint binds height, block hash, parent hash, state root, canonical payload hash, schema, and parameter set.
+123. A failed checkpoint connect, image restore, checksum, schema, or context validation leaves committed index state unchanged.
+124. Undo is bounded; a reorg beyond retained undo explicitly rebuilds and never silently starts from empty EPoSE state.
+125. A → B → A reorg recovery produces the same index root as fresh canonical replay at A.
+126. Activation requires EPoSE index updates in the same LMDB write transaction as block connect/disconnect.
+127. A missing/corrupt index is recoverable derived data, not grounds for a different block-validity result.
+128. Pruned validation remains unsupported until required EPoSE history retention/reconstruction is proved.
+129. Endpoint descriptors bind network/genesis, parameter set, service identity, typed transport, canonical host/port, service version, sequence, and expiry.
+130. DNS answers, live probes, redirects, elapsed wall time, and external APIs never participate in block validation.
+131. Public-internet probes reject local/private/link-local/multicast/unspecified/metadata and IPv4-mapped private destinations and recheck DNS answers at connection time.
+132. Probe work is bounded by request/response bytes, timeout, global concurrency, peer count, and per-peer concurrency.
+133. Unknown admission contexts are rejected before allocating a RandomX VM, dataset, cache, or pending verification entry.
+134. EPoSE RPC list/scan operations require pagination and checked page/scan ceilings.
+135. Local overload may reject relay/probe work but cannot change deterministic validation of the same complete block.

@@ -329,6 +329,36 @@ namespace epose
       }
     }
 
+    if (!idempotent_duplicate && record.action != lifecycle_action_v2::deregister_identity)
+    {
+      const uint64_t proposed_start = next.effective_epoch;
+      const uint64_t proposed_end = next.expiry_epoch;
+      for (const identity_history &history : histories_)
+      {
+        if (hash_equal(history.identity_id, next.identity_id))
+          continue;
+        for (size_t index = 0; index < history.records.size(); ++index)
+        {
+          const lifecycle_record_v2 &existing_record = history.records[index];
+          if (existing_record.action == lifecycle_action_v2::deregister_identity)
+            continue;
+          const identity_descriptor_v2 &existing = existing_record.next_descriptor;
+          if (existing.service_public_key != next.service_public_key)
+            continue;
+          uint64_t existing_end = existing.expiry_epoch;
+          if (index + 1 < history.records.size())
+          {
+            const uint64_t next_start = history.records[index + 1].next_descriptor.effective_epoch;
+            if (next_start == 0)
+              return lifecycle_status_v2::invalid_transition;
+            existing_end = std::min(existing_end, next_start - 1);
+          }
+          if (proposed_start <= existing_end && existing.effective_epoch <= proposed_end)
+            return lifecycle_status_v2::service_key_in_use;
+        }
+      }
+    }
+
     const lifecycle_status_v2 authorization = validate_lifecycle_record_authorization_v2(
         nettype_, genesis_hash_, parameter_set_hash_, record, counters);
     if (authorization != lifecycle_status_v2::accepted)

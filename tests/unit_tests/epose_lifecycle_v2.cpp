@@ -161,6 +161,75 @@ TEST(epose_lifecycle_v2, service_key_recovery_needs_offline_authority_and_new_ke
   EXPECT_EQ(replacement.public_key, registry.descriptor_for_epoch(next.identity_id, 4)->service_public_key);
 }
 
+TEST(epose_lifecycle_v2, active_service_key_is_unique_across_identities)
+{
+  fixture first;
+  fixture second;
+  second.genesis = first.genesis;
+  second.parameters = first.parameters;
+  second.service = first.service;
+  lifecycle_registry_v2 registry(first.nettype, first.genesis, first.parameters);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(registration(first), 1, 2));
+  EXPECT_EQ(lifecycle_status_v2::service_key_in_use,
+      registry.apply(registration(second), 1, 2));
+  EXPECT_EQ(nullptr, registry.descriptor_for_epoch(
+      derive_identity_id_v2(second.nettype, second.genesis, second.parameters,
+          second.operator_auth.public_key), 2));
+}
+
+TEST(epose_lifecycle_v2, recovery_rejects_another_active_identity_key)
+{
+  fixture first;
+  fixture second;
+  second.genesis = first.genesis;
+  second.parameters = first.parameters;
+  lifecycle_registry_v2 registry(first.nettype, first.genesis, first.parameters);
+  const lifecycle_record_v2 first_registration = registration(first);
+  const lifecycle_record_v2 second_registration = registration(second);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(first_registration, 1, 2));
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(second_registration, 1, 2));
+
+  identity_descriptor_v2 recovered = descriptor(second, 1, 4, 12);
+  recovered.service_public_key = first.service.public_key;
+  const lifecycle_record_v2 recovery = signed_record(
+      second, lifecycle_action_v2::recover_service_key,
+      hash_identity_descriptor_v2(
+          second.nettype, second.genesis, second.parameters,
+          second_registration.next_descriptor),
+      recovered, first.service.secret_key);
+  EXPECT_EQ(lifecycle_status_v2::service_key_in_use, registry.apply(recovery, 3, 4));
+  ASSERT_NE(nullptr, registry.descriptor_for_epoch(recovered.identity_id, 4));
+  EXPECT_EQ(second.service.public_key,
+      registry.descriptor_for_epoch(recovered.identity_id, 4)->service_public_key);
+}
+
+TEST(epose_lifecycle_v2, replaced_service_key_can_be_reused_after_it_is_inactive)
+{
+  fixture first;
+  fixture successor;
+  successor.genesis = first.genesis;
+  successor.parameters = first.parameters;
+  successor.service = first.service;
+  lifecycle_registry_v2 registry(first.nettype, first.genesis, first.parameters);
+  const lifecycle_record_v2 initial = registration(first, 2, 10);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(initial, 1, 2));
+
+  const keys replacement = make_keys();
+  identity_descriptor_v2 recovered = descriptor(first, 1, 4, 12);
+  recovered.service_public_key = replacement.public_key;
+  const lifecycle_record_v2 recovery = signed_record(
+      first, lifecycle_action_v2::recover_service_key,
+      hash_identity_descriptor_v2(first.nettype, first.genesis, first.parameters,
+          initial.next_descriptor),
+      recovered, replacement.secret_key);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(recovery, 3, 4));
+
+  const lifecycle_record_v2 reused = registration(successor, 4, 10);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(reused, 3, 4));
+  EXPECT_EQ(first.service.public_key,
+      registry.descriptor_for_epoch(reused.next_descriptor.identity_id, 4)->service_public_key);
+}
+
 TEST(epose_lifecycle_v2, wrong_sequence_previous_hash_and_illegal_key_change_fail)
 {
   fixture f;
