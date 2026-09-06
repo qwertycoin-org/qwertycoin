@@ -273,7 +273,8 @@ TEST(epose_envelope_v2, dedicated_tx_extra_carrier_is_exactly_version_gated)
 
   std::vector<cryptonote::tx_extra_field> generic_fields;
   EXPECT_FALSE(cryptonote::parse_tx_extra(extra, generic_fields));
-  EXPECT_TRUE(generic_fields.empty());
+  ASSERT_EQ(1u, generic_fields.size());
+  EXPECT_EQ(typeid(cryptonote::tx_extra_pub_key), generic_fields[0].type());
   ASSERT_TRUE(cryptonote::parse_tx_extra(extra, generic_fields, true));
   ASSERT_EQ(2u, generic_fields.size());
   EXPECT_EQ(typeid(cryptonote::tx_extra_pub_key), generic_fields[0].type());

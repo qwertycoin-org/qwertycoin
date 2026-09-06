@@ -72,6 +72,10 @@ namespace cryptonote
   }
 
   bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2 = false);
+  // Consensus callers use the atomic variant. The historical parser above is
+  // intentionally tolerant and preserves a successfully decoded metadata
+  // prefix for wallet refresh/rescan compatibility.
+  bool parse_tx_extra_strict(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2 = false);
   bool sort_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<uint8_t> &sorted_tx_extra, bool allow_partial = false, bool allow_epose_v2 = false);
   crypto::public_key get_tx_pub_key_from_extra(const std::vector<uint8_t>& tx_extra, size_t pk_index = 0);
   crypto::public_key get_tx_pub_key_from_extra(const transaction_prefix& tx, size_t pk_index = 0);

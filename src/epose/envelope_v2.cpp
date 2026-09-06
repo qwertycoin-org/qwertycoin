@@ -439,7 +439,7 @@ namespace epose
       return envelope_status_v2::invalid_limits;
 
     std::vector<cryptonote::tx_extra_field> fields;
-    if (!cryptonote::parse_tx_extra(tx_extra, fields, true))
+    if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true))
       return envelope_status_v2::malformed_transaction_extra;
 
     std::vector<std::string> envelope_fields;
@@ -485,7 +485,7 @@ namespace epose
       return existing_status;
 
     std::vector<cryptonote::tx_extra_field> fields;
-    if (!cryptonote::parse_tx_extra(tx_extra, fields, true))
+    if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true))
       return envelope_status_v2::malformed_transaction_extra;
     const size_t existing_envelopes = std::count_if(fields.begin(), fields.end(), [](const cryptonote::tx_extra_field &field) {
       return field.type() == typeid(cryptonote::tx_extra_epose_v2);

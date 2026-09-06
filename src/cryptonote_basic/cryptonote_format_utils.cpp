@@ -565,29 +565,47 @@ namespace cryptonote
     return r;
   }
   //---------------------------------------------------------------
+  namespace
+  {
+    bool parse_tx_extra_impl(
+        const std::vector<uint8_t>& tx_extra,
+        std::vector<tx_extra_field>& tx_extra_fields,
+        bool allow_epose_v2,
+        bool atomic)
+    {
+      tx_extra_fields.clear();
+
+      if(tx_extra.empty())
+        return true;
+
+      binary_archive<false> ar{epee::to_span(tx_extra)};
+      std::vector<tx_extra_field> parsed_fields;
+      std::vector<tx_extra_field>& destination = atomic ? parsed_fields : tx_extra_fields;
+      do
+      {
+        tx_extra_field field;
+        const bool r = ::do_serialize(ar, field);
+        CHECK_AND_NO_ASSERT_MES_L1(r, false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
+        if (!allow_epose_v2 && field.type() == typeid(tx_extra_epose_v2))
+          return false;
+        destination.push_back(std::move(field));
+      } while (!ar.eof());
+      CHECK_AND_NO_ASSERT_MES_L1(::serialization::check_stream_state(ar), false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
+
+      if (atomic)
+        tx_extra_fields.swap(parsed_fields);
+      return true;
+    }
+  }
+  //---------------------------------------------------------------
   bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2)
   {
-    tx_extra_fields.clear();
-
-    if(tx_extra.empty())
-      return true;
-
-    binary_archive<false> ar{epee::to_span(tx_extra)};
-
-    std::vector<tx_extra_field> parsed_fields;
-    do
-    {
-      tx_extra_field field;
-      bool r = ::do_serialize(ar, field);
-      CHECK_AND_NO_ASSERT_MES_L1(r, false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
-      if (!allow_epose_v2 && field.type() == typeid(tx_extra_epose_v2))
-        return false;
-      parsed_fields.push_back(std::move(field));
-    } while (!ar.eof());
-    CHECK_AND_NO_ASSERT_MES_L1(::serialization::check_stream_state(ar), false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
-
-    tx_extra_fields.swap(parsed_fields);
-    return true;
+    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, false);
+  }
+  //---------------------------------------------------------------
+  bool parse_tx_extra_strict(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2)
+  {
+    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, true);
   }
   //---------------------------------------------------------------
   template<typename T>
