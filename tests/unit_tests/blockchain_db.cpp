@@ -329,6 +329,14 @@ TYPED_TEST(BlockchainDBTest, EPoSEStateCommitmentSharesCanonicalBlockTransaction
   EXPECT_EQ(expected.state_hash, actual.state_hash);
   EXPECT_EQ(expected.parameter_set_hash, actual.parameter_set_hash);
 
+  ASSERT_NO_THROW(this->m_db->close());
+  ASSERT_NO_THROW(this->m_db->open(dirPath));
+  this->m_db->set_hard_fork(&this->m_hardfork);
+  actual = {};
+  ASSERT_TRUE(this->m_db->get_epose_state_commitment_v2(0, actual));
+  EXPECT_EQ(expected.state_hash, actual.state_hash);
+  EXPECT_EQ(expected.block_hash, actual.block_hash);
+
   block popped{};
   std::vector<transaction> transactions;
   ASSERT_NO_THROW(this->m_db->pop_block(popped, transactions));
