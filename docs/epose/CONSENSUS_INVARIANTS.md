@@ -1,5 +1,7 @@
 # Consensus Invariants
 
+## Implemented HF17 / EPoSE v1 invariants
+
 1. Two honest nodes with the same chain data compute the same EPoSE state.
 2. External APIs never influence block validity.
 3. A service reward cannot be paid twice for the same block.
@@ -45,3 +47,39 @@
 43. The service reward amount must be decomposed into the exact standard denomination set expected by validation.
 44. A block with a qualified payee must not underpay or overpay the EPoSE service reward denomination set.
 45. Explorer/UI grouping of denominated service reward outputs must not change consensus interpretation of raw outputs.
+
+## Reserved HF18 / EPoSE v2 invariants
+
+These invariants are normative design requirements but are not implemented or
+activated by CO-01.
+
+46. Every pre-activation block is interpreted exactly by its historical HF17/v1 rules.
+47. No v1 registration, attestation, qualification, or descriptor is implicitly promoted into v2.
+48. A v2 activation height is strictly above the release-freeze tip and aligned to 720 blocks.
+49. A reservation manifest containing any required `null` value cannot activate.
+50. Epoch 0 and both activation warm-up epochs produce no v2 service payout.
+51. Membership and every selection-relevant descriptor field are frozen before the committee anchor is known.
+52. Receipt membership, threshold, and qualification read the same immutable snapshot.
+53. Qualification closes before the payout seed is known.
+54. A receipt at the evidence deadline is eligible; one block later is invalid.
+55. A lease at the enrollment cutoff is eligible; one block later is invalid for that target epoch.
+56. V2 records use the dedicated envelope and never extend the legacy 255-byte nonce limit.
+57. Unknown envelope/record versions, nonzero reserved flags, malformed lengths, trailing bytes, and noncanonical outer varints fail closed.
+58. Structural and cryptographic budgets are charged before duplicate elimination.
+59. A byte-identical valid duplicate is idempotent but still consumes resource budget.
+60. A conflicting record with the same semantic key is invalid unless an activated lifecycle rule defines a unique ordering.
+61. An invalid duplicate cannot be ignored because a valid record with the same key appeared first.
+62. Every v2 transcript binds network ID, genesis hash, protocol version, parameter-set hash, and epoch.
+63. Reward validation reads only a qualification set closed before the candidate block.
+64. Miner transaction, transactions, tx-extra fields, envelopes, and records are processed in canonical serialized order.
+65. One invalid EPoSE record leaves no partial transition from its transaction batch.
+66. Coinbase and fee-funded carriers use the same parser, budgets, and state transition.
+67. Local relay/template policy never changes validity of a complete block.
+68. Disconnect restores descriptors, leases, snapshots, receipts, qualification, payouts, and accounting to the exact parent state.
+69. Reorg across any cutoff or anchor rebuilds all dependent objects from replacement canonical blocks.
+70. Index/cache loss never turns a required service allocation into an empty-set fallback.
+71. All epoch arithmetic is checked unsigned 64-bit arithmetic; overflow fails closed.
+72. A reserved but not fully specified record type is invalid in consensus.
+73. RandomX remains the sole chain-selection and block-production mechanism after v2 activation.
+74. Block validation performs no DNS lookup, live probe, remote RPC, or external API request.
+75. Final activation requires approved resource, committee, admission, reward, emission, payment-proof, state-schema, and pruning parameters.

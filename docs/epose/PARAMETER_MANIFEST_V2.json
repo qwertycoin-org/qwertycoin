@@ -1,0 +1,86 @@
+{
+  "activation": {
+    "block_hash": null,
+    "height": null,
+    "required_epoch_alignment": 720
+  },
+  "admission": {
+    "algorithm": "RandomX",
+    "lease_epochs": null,
+    "leading_zero_bits": null,
+    "target_epoch_required": true
+  },
+  "carrier": {
+    "coinbase_envelope_allowed": true,
+    "fee_funded_envelope_allowed": true,
+    "legacy_nonce_allowed_after_activation": false,
+    "tx_extra_tag": 5
+  },
+  "committee": {
+    "round_offsets": null,
+    "rounds_required": null,
+    "size": null,
+    "threshold": null
+  },
+  "dependencies": {
+    "core_source_commit": "1c4c1bf10c387887a42243dc690a65abb6c6e786",
+    "monero_upstream_commit": "4f92268d7c16741cfb41e5bbe2aa46cc260a9ea5",
+    "submodules": {
+      "external/miniupnp": "b1f546b0662beea5a1ecbe98a8d54da0f9bde4dc",
+      "external/rapidjson": "129d19ba7f496df5e33658527a7158c79b99c21c",
+      "external/randomx": "02e11b8a1e4b1f4aa4487835f8f2029b7c82c96a",
+      "external/trezor-common": "18ae7c92154e4c58455ecbea84d114bab3035b20"
+    }
+  },
+  "encoding": {
+    "envelope_magic_ascii": "QEP2",
+    "envelope_version": 1,
+    "epose_protocol_version": 2,
+    "hardfork_version": 18,
+    "integer_byte_order": "little-endian",
+    "record_versions": {
+      "admission_lease": 1,
+      "descriptor": 1,
+      "lifecycle_authorization": 1,
+      "payment_proof": 1,
+      "service_receipt": 1
+    }
+  },
+  "epoch": {
+    "anchor_depth_blocks": 60,
+    "epoch_zero_has_v2_rewards": false,
+    "length_blocks": 720,
+    "warmup_epochs": 2
+  },
+  "manifest_kind": "reservation",
+  "network": {
+    "genesis_hash": null,
+    "network_id": "515743324d41494e32303236504f4301",
+    "type": "mainnet"
+  },
+  "resource_limits": {
+    "max_active_population": null,
+    "max_admission_verifications_per_block": null,
+    "max_envelope_bytes_per_transaction": null,
+    "max_envelopes_per_transaction": null,
+    "max_epose_bytes_per_block": null,
+    "max_records_per_block": null,
+    "max_records_per_envelope": null,
+    "max_signature_verifications_per_block": null,
+    "minimum_undo_blocks": null
+  },
+  "reward": {
+    "basis_points": 1000,
+    "empty_set_policy": null,
+    "emission_accounting": null,
+    "fee_policy": null,
+    "payment_proof_scheme": null,
+    "schedule": "epoch-relative-index"
+  },
+  "schema_version": 1,
+  "state": {
+    "index_schema": null,
+    "pruned_validation_mode": null
+  },
+  "status": "not-activatable"
+}

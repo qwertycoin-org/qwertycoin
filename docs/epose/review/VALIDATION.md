@@ -99,3 +99,32 @@ documentation-only PR. They remain release-hardening inputs.
 
 These gaps are explicit gates for later change orders. Passing this CO-00
 baseline validates the inventory process, not economic production readiness.
+
+## CO-01 design and vector validation
+
+CO-01 adds documentation and an independent Python standard-library reference
+model only. It does not add a C++ parser or change current consensus behavior.
+
+Commands:
+
+```text
+jq empty docs/epose/PARAMETER_MANIFEST_V2.json
+jq -S -c . docs/epose/PARAMETER_MANIFEST_V2.json | sha256sum
+python3 -m py_compile tests/epose/reference_model_v2.py tests/epose/test_reference_model_v2.py
+python3 tests/epose/test_reference_model_v2.py
+python3 tests/epose/reference_model_v2.py tests/epose/vectors/co01_transition_v2.json
+```
+
+Results:
+
+- reservation manifest parses as JSON;
+- canonical reservation manifest SHA-256 is
+  `3cc33c916af6cd377485e163dd41006a9ea6ff8899ae4e31205cd01f104fe5f1`;
+- reference-model unit tests: **13/13 passed**;
+- activation, cutoff, anchor, deadline, payout, envelope, malformed-length,
+  unknown-record, noncanonical-varint, and uint64-overflow vectors passed;
+- the manifest test proves required activation fields remain unset and status
+  remains `not-activatable`.
+
+The vector-only limits in `co01_transition_v2.json` test parser boundaries and
+are not proposed mainnet constants. Final limits remain owned by CO-03/CO-05.

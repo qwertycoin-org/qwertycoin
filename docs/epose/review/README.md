@@ -16,6 +16,9 @@ authorize a node to reinterpret an already accepted block.
 - [`ADR-0001-ACTIVATION-STATUS.md`](ADR-0001-ACTIVATION-STATUS.md) records the
   chain-preserving activation decision and the current no-go status for a new
   economic protocol.
+- [`ADR-0002-HARDENED-PROTOCOL-RESERVATION.md`](ADR-0002-HARDENED-PROTOCOL-RESERVATION.md)
+  reserves HF18, EPoSE v2, transaction-extra tag `0x05`, epoch ordering, and
+  fail-closed activation rules.
 - [`VALIDATION.md`](VALIDATION.md) records the baseline build and test commands,
   results, and explicit gaps.
 
@@ -29,3 +32,7 @@ Numerical proposals from a review are research candidates until separately
 benchmarked, specified, tested, reviewed, and approved. In particular, this
 baseline does not change the 1,000-BPS service allocation, admission target,
 committee size, quorum, reward fallback, or activation height.
+
+CO-01 adds a normative transition, reservation manifest, and independent
+boundary/envelope vectors without making reserved records valid. Runtime
+implementation remains owned by CO-02 onward.

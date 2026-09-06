@@ -1,4 +1,10 @@
-# EPoSE v2 Protocol
+# EPoSE Protocol
+
+> **Status:** EPoSE protocol version 1 is the only implemented consensus
+> protocol. The hardened protocol described in "Reserved hardened protocol"
+> below is a normative design reservation for CO-01. It is not activated and
+> must not be accepted, relayed as consensus evidence, or paid by current
+> binaries.
 
 ## Constants
 
@@ -18,16 +24,15 @@ Defined in `src/epose/service_node.h`:
 - `EPOSE_TX_EXTRA_NONCE_ATTESTATION = 0x71`
 - `EPOSE_ATTESTATION_POOL_MAX_ENTRIES = 4096`
 - `EPOSE_ATTESTATION_RELAY_MAX_BATCH = 32`
-- `EPOSE_VERIFIER_COMMITTEE_SIZE = 5`
 
 EPoSE consensus is active from genesis for `HF_VERSION_QWC_EPOSE_V1 = 17`.
 
 Mainnet, testnet, and stagenet start directly at QWC protocol v17 from height 0. QWC v17 inherits Monero's current v16 consensus rules and adds EPoSE; historical Monero hardforks are not scheduled as later QWC activations. Low-height activation for deterministic regression tests uses local `HardFork` test fixtures.
 
-`EPOSE_MIN_ATTESTATIONS = 2`, verifier committee size `5`, and admission target
-`8` leading zero bits are the current bootstrap parameters in `main`. They are
-not final long-term values; the next hardening PR evaluates a dynamic 2/3 quorum,
-larger committees, and a benchmarked admission target.
+The current v1 parameters are committee target `9`, dynamic
+`ceil(actual_committee_size * 2 / 3)` quorum, and `16` admission leading-zero
+bits. Older documents that state `5`, `2`, or `8` describe superseded PoC
+revisions and are not authoritative.
 
 ## Service Node Identity
 
@@ -314,3 +319,299 @@ P_expected = derive_public_key(derivation, output_index, B)
 All matching EPoSE output amounts, sorted ascending, must equal the denomination
 decomposition of the expected service reward. Coinbase validation also rejects
 duplicate output public keys anywhere in the miner transaction.
+
+---
+
+## Reserved hardened protocol (CO-01)
+
+### Status and compatibility boundary
+
+The hardened protocol reserves these identifiers:
+
+| Identifier | Reserved value | Activation status |
+|---|---:|---|
+| QWC hardfork version | `18` | Reserved; no activation height assigned |
+| EPoSE protocol version | `2` | Reserved; parser/transition not implemented |
+| `tx_extra` envelope tag | `0x05` | Reserved in the pinned QWC/Monero tag space |
+| Envelope format version | `1` | Reserved for the first v2 envelope |
+
+Reservation prevents two QWC features from choosing the same identifiers. It
+does not make any v2 byte sequence valid. Before the activation manifest is
+complete, every block is validated exactly as HF17/v1 validates it today.
+
+An activation proposal MUST set an activation height `A` such that:
+
+```text
+A > observed_mainnet_tip_at_release_freeze
+A mod 720 = 0
+block.major_version < 18 for heights < A
+block.major_version >= 18 for heights >= A
+```
+
+Historical HF17 blocks and v1 payloads retain their original meaning. At and
+after `A`, new v1 registration and attestation payloads are rejected; historical
+v1 state is read-only and cannot supply a v2 committee or payee. There is no
+implicit migration of an identity, descriptor, admission lease, receipt, or
+reward destination from v1 to v2.
+
+The activation height, activation block hash, parameter-set hash, reward-policy
+identifier, and final resource limits remain deliberately unassigned. A binary
+MUST refuse to advertise v2 activation while any required manifest field is
+unassigned.
+
+### Consensus inputs and processing order
+
+The v2 transition is a pure function of:
+
+```text
+transition(parent_state, canonical_block_bytes, active_parameter_manifest)
+    -> new_state | invalid_block
+```
+
+No DNS result, wall clock, live probe, RPC response, relay pool, explorer,
+database iteration order, or local cache is an input. For a candidate block at
+height `H`, validation proceeds in this exact order:
+
+1. Determine the active hardfork and parameter-set hash from the parent state.
+2. Derive all reward expectations from qualification sets closed before `H`.
+3. Validate the miner transaction, including any required service allocation.
+4. Parse every transaction in canonical block order: miner transaction first,
+   then ordinary transactions in the serialized order in the block.
+5. Within one transaction, parse `tx_extra` fields in serialized order.
+6. Within one EPoSE envelope, parse records in serialized order while charging
+   resource budgets before semantic duplicate elimination.
+7. Validate every record against the immutable snapshot and height window that
+   its context names.
+8. Apply the transaction batch atomically. One malformed or invalid EPoSE record
+   invalidates the transaction's EPoSE transition; no prefix is retained.
+9. Close any cutoff reached at `H` only after all valid records in block `H`
+   have been applied.
+10. Commit EPoSE state in the same chain database transaction as the block.
+
+Reward validation therefore never reads registrations or receipts introduced
+by the candidate block. Implementations may cache derived data, but cache loss
+or iteration order cannot change the result.
+
+### Epoch pipeline
+
+Let:
+
+```text
+B = 720 blocks
+D = 60 blocks
+start(E) = E * B
+end(E) = start(E) + B - 1
+enrollment_cutoff(E) = start(E) - D - 1
+committee_anchor(E) = start(E) - D
+evidence_deadline(E) = end(E) - D
+payout_seed_height(E) = start(E + 1) - D
+first_payout_height(E) = start(E + 1)
+```
+
+All arithmetic is unsigned 64-bit checked arithmetic. A value that overflows or
+an epoch whose `start(E)` cannot be represented is invalid. `E = 0` has no v2
+service, qualification, or payout semantics.
+
+If activation occurs at `A = start(U)`:
+
+- epoch `U` is enrollment-only;
+- epoch `U + 1` is the first measurable service epoch;
+- epoch `U + 2` is the first possible payout epoch;
+- the first possible v2 payout height is `A + 2 * B`.
+
+```text
+epoch U                  epoch U+1                    epoch U+2
+activation/enrollment -> measured service/settle -> first v2 payout
+          | cutoff ----> anchor ---- receipts ----> deadline | payout seed
+          |                immutable snapshot(E)              |
+          +---------------------------------------------------> Q(E) only
+```
+
+For service epoch `E >= U + 1`:
+
+1. leases and descriptor versions targeting `E` are accepted no later than
+   `enrollment_cutoff(E)`;
+2. after that block, the admitted identity set and descriptor versions are
+   frozen into `snapshot(E)`;
+3. `committee_anchor(E)` supplies the committee seed only after membership is
+   frozen;
+4. receipts are accepted only in their specified round window and no later
+   than `evidence_deadline(E)`;
+5. after the deadline block, `qualification(E)` is immutable;
+6. the payout seed is read from `payout_seed_height(E)` after qualification is
+   closed;
+7. payout epoch `E + 1` uses only qualification set `E`; the entitlement is
+   valid from `start(E + 1)` through `end(E + 1)` and is stale afterward.
+
+The terms **anchor** and **settled** describe depth and closed state only. They
+do not assert finality. A higher-work reorg replaces every dependent snapshot,
+committee, receipt set, qualification set, payout schedule, and state root.
+
+### Dedicated envelope
+
+V2 MUST NOT use `tx_extra_nonce` for protocol records. The reserved outer field
+uses normal `tx_extra` framing:
+
+```text
+varint tag = 0x05
+varint envelope_size
+bytes[envelope_size] envelope
+```
+
+The envelope byte order is little-endian and has this canonical form:
+
+```text
+bytes4 magic = "QEP2"
+uint8  envelope_version = 1
+uint8  flags = 0
+uint16 record_count
+uint32 records_size
+record records[record_count]
+```
+
+`records_size` MUST equal the exact remaining byte count. A record is:
+
+```text
+uint8  record_type
+uint8  record_version
+uint16 flags = 0
+uint32 payload_size
+bytes[payload_size] payload
+```
+
+Integers are fixed-width little-endian; varints are used only by the inherited
+outer `tx_extra` framing and MUST use its canonical encoding. Unknown envelope
+versions, unknown record types, unsupported active record versions, nonzero
+flags, truncated fields, trailing bytes, count mismatches, noncanonical outer
+varints, or any manifest limit violation invalidate the transaction.
+
+The reserved record-type registry is:
+
+| Type | Name | First record version |
+|---:|---|---:|
+| `0x01` | identity descriptor | `1` |
+| `0x02` | admission lease | `1` |
+| `0x03` | service receipt | `1` |
+| `0x04` | descriptor lifecycle authorization | `1` |
+| `0x05` | scoped service-payment proof | `1` |
+
+CO-02, CO-04, CO-06, and CO-07 finalize the payload fields and cryptographic
+transcripts for these records. Until the relevant specification and executable
+vectors are merged, their versions remain reserved and invalid in consensus.
+No implementation may guess missing fields or accept an opaque payload merely
+because its outer envelope parses.
+
+### Duplicate and conflict semantics
+
+Every record has a protocol-defined semantic key. At minimum the key contains
+network/genesis identity, protocol version, parameter-set hash, target epoch,
+record type, service identity, and sequence or receipt slot as applicable.
+
+- A byte-identical repeat of an already valid record is idempotent and does not
+  add influence, but it still consumes all block parsing and verification
+  budgets.
+- A different byte sequence with the same semantic key is a conflict and is
+  invalid unless a later lifecycle specification explicitly defines a unique
+  sequence ordering before activation.
+- An invalid record is never ignored because a valid record with the same key
+  appeared earlier.
+- Receipt retries map to one slot `(snapshot, epoch, round, subject, verifier,
+  service_kind)` and can contribute at most one positive vote.
+- Canonical block order resolves only operations that the protocol explicitly
+  declares independent. Hash-map or mempool arrival order never resolves a
+  conflict.
+
+### Domain separation and context
+
+Every v2 hash or signature transcript begins with an ASCII domain string ending
+in `_V2`, followed by the fixed context below:
+
+```text
+bytes16 network_id
+bytes32 genesis_hash
+uint8   epose_protocol_version = 2
+bytes32 parameter_set_hash
+uint64  epoch
+```
+
+Reserved domains are:
+
+```text
+QWC_EPOSE_DESCRIPTOR_V2
+QWC_EPOSE_ADMISSION_V2
+QWC_EPOSE_SNAPSHOT_V2
+QWC_EPOSE_SELECT_V2
+QWC_EPOSE_CHALLENGE_V2
+QWC_EPOSE_SUBJECT_RESPONSE_V2
+QWC_EPOSE_RECEIPT_V2
+QWC_EPOSE_QUALIFICATION_V2
+QWC_EPOSE_PAYOUT_V2
+QWC_EPOSE_STATE_V2
+QWC_EPOSE_PAYMENT_PROOF_V2
+```
+
+Strings are encoded as their exact ASCII bytes without a NUL terminator.
+Variable-length fields are prefixed by an unsigned 32-bit little-endian length.
+Public keys, hashes, signatures, and fixed identifiers use their canonical
+fixed-size byte representation. No host-endian serialization is permitted.
+
+### Resource accounting
+
+The activation manifest MUST assign all limits below. A `null` value means the
+protocol is intentionally not activatable:
+
+- maximum envelope bytes per transaction;
+- maximum envelopes per transaction;
+- maximum EPoSE bytes per block;
+- maximum records per envelope and per block;
+- maximum descriptor, admission, receipt, lifecycle, and payment-proof records
+  per block;
+- maximum signature verifications and RandomX admission verifications per block;
+- maximum descriptor and proof payload sizes;
+- maximum active population and lease interval;
+- retained state/undo requirements needed to validate and reorganize the chain.
+
+Budget charges occur after structural length checks but before signature,
+RandomX, duplicate, or semantic checks. Both miner-transaction batches and
+fee-funded transaction carriers consume the same block-wide budgets and produce
+the same canonical transition.
+
+### Activation manifest and parameter-set hash
+
+The canonical activation manifest is JSON for review and release tooling, but
+consensus embeds the SHA-256 of its canonical UTF-8 representation. Canonical
+JSON uses sorted object keys, no insignificant whitespace, UTF-8, integer
+numbers only, and a single trailing line feed. Arrays retain order.
+
+The manifest MUST bind at least:
+
+- network ID and genesis hash;
+- source commit and dependency/submodule commits;
+- activation hardfork and height;
+- EPoSE/envelope/record versions and tag assignments;
+- epoch timing and all cutoff formulas;
+- all resource budgets;
+- committee, threshold, rounds, and admission parameters;
+- reward BPS, fee policy, empty-set policy, emission accounting, payout schedule;
+- state schema and minimum validating/pruning requirements.
+
+The checked-in CO-01 manifest is a reservation manifest, not an activation
+manifest. Its `null` fields make accidental activation a specification error.
+
+### Relay and template policy boundary
+
+Nodes may apply stricter local relay and template limits than consensus permits,
+prioritize deadlines, or omit all EPoSE records from locally produced blocks.
+Those policies cannot make a complete block invalid. A miner requires no
+service key, and a service node requires no mining role. Both coinbase and
+fee-funded carriers must use the same envelope parser and state transition.
+
+### Reorg behavior
+
+Disconnecting a block restores the exact parent EPoSE state, including active
+descriptor sequences, leases, frozen snapshots, accepted receipt slots, closed
+qualification sets, payout schedules, and any scheduled-emission accounting.
+Reorg `A -> B -> A` MUST reproduce the original state root byte-for-byte. If a
+reorg crosses a cutoff or anchor, all dependent objects are discarded and
+derived again from the replacement canonical blocks. A cache or index failure
+must trigger explicit rebuild or failure, never an empty qualification shortcut.

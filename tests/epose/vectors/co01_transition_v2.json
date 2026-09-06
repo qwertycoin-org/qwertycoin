@@ -1,0 +1,186 @@
+{
+  "envelope_cases": [
+    {
+      "expected": {
+        "record_count": 0,
+        "valid": true
+      },
+      "hex": "050c514550320100000000000000",
+      "name": "empty-envelope"
+    },
+    {
+      "expected": {
+        "record_count": 1,
+        "valid": true
+      },
+      "hex": "051751455032010001000b0000000101000003000000010203",
+      "name": "one-reserved-descriptor-record"
+    },
+    {
+      "expected": {
+        "error": "unknown record type",
+        "valid": false
+      },
+      "hex": "05155145503201000100090000007f0100000100000000",
+      "name": "unknown-record-type"
+    },
+    {
+      "expected": {
+        "error": "records_size mismatch",
+        "valid": false
+      },
+      "hex": "050c514550320100000001000000",
+      "name": "records-size-mismatch"
+    },
+    {
+      "expected": {
+        "error": "noncanonical varint",
+        "valid": false
+      },
+      "hex": "058c00514550320100000000000000",
+      "name": "noncanonical-outer-length"
+    },
+    {
+      "expected": {
+        "error": "outer envelope size mismatch",
+        "valid": false
+      },
+      "hex": "050d514550320100000000000000",
+      "name": "outer-size-mismatch"
+    }
+  ],
+  "height_cases": [
+    {
+      "expected": true,
+      "height": 1439,
+      "major_version": 17,
+      "name": "legacy-version-before-activation",
+      "operation": "block_version_allowed"
+    },
+    {
+      "expected": false,
+      "height": 1439,
+      "major_version": 18,
+      "name": "future-version-before-activation",
+      "operation": "block_version_allowed"
+    },
+    {
+      "expected": false,
+      "height": 1440,
+      "major_version": 17,
+      "name": "legacy-version-at-activation",
+      "operation": "block_version_allowed"
+    },
+    {
+      "expected": true,
+      "height": 1440,
+      "major_version": 18,
+      "name": "hardened-version-at-activation",
+      "operation": "block_version_allowed"
+    },
+    {
+      "expected": "legacy-v1",
+      "height": 1439,
+      "name": "activation-minus-one",
+      "operation": "phase"
+    },
+    {
+      "expected": "v2-enrollment-warmup",
+      "height": 1440,
+      "name": "activation",
+      "operation": "phase"
+    },
+    {
+      "epoch": 3,
+      "expected": true,
+      "height": 2098,
+      "name": "enrollment-cutoff-minus-one",
+      "operation": "lease_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": true,
+      "height": 2099,
+      "name": "enrollment-cutoff",
+      "operation": "lease_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": false,
+      "height": 2100,
+      "name": "committee-anchor-rejects-late-enrollment",
+      "operation": "lease_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": false,
+      "height": 2159,
+      "name": "service-start-minus-one",
+      "operation": "receipt_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": true,
+      "height": 2160,
+      "name": "service-start",
+      "operation": "receipt_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": true,
+      "height": 2819,
+      "name": "evidence-deadline",
+      "operation": "receipt_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": false,
+      "height": 2820,
+      "name": "evidence-deadline-plus-one",
+      "operation": "receipt_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": false,
+      "height": 2879,
+      "name": "first-payout-minus-one",
+      "operation": "payout_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": true,
+      "height": 2880,
+      "name": "first-payout",
+      "operation": "payout_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": true,
+      "height": 3599,
+      "name": "last-payout-from-source-epoch",
+      "operation": "payout_allowed"
+    },
+    {
+      "epoch": 3,
+      "expected": false,
+      "height": 3600,
+      "name": "stale-source-epoch-after-payout-epoch",
+      "operation": "payout_allowed"
+    },
+    {
+      "expected": "v2-service-and-payout",
+      "height": 2880,
+      "name": "payout-phase",
+      "operation": "phase"
+    }
+  ],
+  "timing": {
+    "activation_height": 1440,
+    "anchor_depth": 60,
+    "epoch_length": 720
+  },
+  "vector_only_limits": {
+    "max_envelope_bytes": 64,
+    "max_records": 4
+  }
+}
