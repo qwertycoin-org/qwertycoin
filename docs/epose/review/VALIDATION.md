@@ -292,3 +292,32 @@ This is not funds-spendability or activation evidence. The implementation is
 not connected to coinbase construction/validation, its envelope record codec is
 not finalized, the empty-set policy is unresolved, inherited emission
 integration is unproved, and independent cryptographic review remains required.
+
+## CO-07 lifecycle validation
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_lifecycle_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- lifecycle tests: **8/8 passed**;
+- complete focused EPoSE binary after integration: **127/127 passed**;
+- daemon target rebuilt successfully with the lifecycle object linked;
+- future-effective registration and exact idempotent duplicate passed;
+- invalid-signature duplicates, post-cutoff/retroactive changes, wrong
+  predecessor, wrong sequence, and illegal key changes fail closed;
+- reward/endpoint updates require both operator and service signatures;
+- online service-key recovery succeeds with offline operator authority plus the
+  replacement key and leaves earlier epoch views unchanged;
+- renewal extends expiry without mutating prior descriptors;
+- delayed deregistration preserves history and takes effect at its declared
+  epoch;
+- state hash is independent of identity arrival order.
+
+This is not activation evidence. Record serialization, persistent storage,
+key-file atomicity/backup tests, migration, and operator-authority rotation are
+not implemented.

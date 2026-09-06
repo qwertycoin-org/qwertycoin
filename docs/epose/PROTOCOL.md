@@ -642,6 +642,26 @@ one-time output keys without a private view key.
 This payment-proof construction supports primary standard reward addresses
 only and remains non-activating until independent cryptographic review. See
 `review/ADR-0003-REWARD-SEMANTICS.md`.
+
+## CO-07 identity lifecycle candidate
+
+`src/epose/lifecycle_v2.*` implements a future-effective lifecycle state
+machine for registration, renewal, descriptor update, deregistration, and
+online service-key recovery. A stable identity ID is derived from the
+network/genesis, parameter set, and an offline operator-authorization public
+key. The online service key and public reward address remain separate.
+
+Every transition commits its predecessor hash and exact next sequence. Both
+the offline operator authority and the service key named by the next descriptor
+must sign. Consequently, an online-key compromise alone cannot redirect future
+rewards or rewrite the endpoint, while recovery does not depend on the old
+compromised key. Effective epochs are supplied with the cutoff-derived minimum
+and cannot be retroactive.
+
+Epoch lookup returns the descriptor valid for that epoch, so later records do
+not mutate a descriptor already frozen into a membership/reward snapshot. This
+primitive remains non-activating pending record serialization, envelope and
+persistent-index integration. See `review/ADR-0004-IDENTITY-LIFECYCLE.md`.
 No implementation may guess missing fields or accept an opaque payload merely
 because its outer envelope parses.
 

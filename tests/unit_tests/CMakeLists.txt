@@ -156,6 +156,7 @@ add_test(
 monero_add_minimal_executable(epose_unit_tests
   epose.cpp
   epose_envelope_v2.cpp
+  epose_lifecycle_v2.cpp
   epose_reward_v2.cpp
   epose_v2.cpp
   epose_receipts_v2.cpp

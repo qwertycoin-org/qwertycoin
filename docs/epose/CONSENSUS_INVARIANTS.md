@@ -118,3 +118,11 @@ activated by CO-01.
 108. New v2 payment verification does not require or serialize a private reward view key.
 109. A zero service allocation due to integer rounding requires no service output or payment proof.
 110. HF17 reward and payment validation are unchanged by the non-activating CO-06 primitive.
+111. A v2 identity ID is stable across online service-key recovery and derives from network/genesis, parameter set, and offline operator authority.
+112. Wallet spend secrets and operator-authorization secrets never enter a lifecycle descriptor or daemon signing path.
+113. Every lifecycle transition is predecessor- and sequence-bound and takes effect only in a permitted future epoch.
+114. Reward-address, endpoint, renewal, deregistration, and service-key changes require offline operator authorization.
+115. Service-key recovery requires proof of the replacement key but not the compromised or unavailable old online key.
+116. A later lifecycle record cannot change a descriptor already selected for an earlier epoch or settled reward.
+117. Duplicate lifecycle records are signature-checked before idempotent handling; an invalid record cannot become acceptable because its message matches stored state.
+118. Operator-authority rotation is unsupported until a separate recovery design is approved.

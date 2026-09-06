@@ -4,6 +4,7 @@ set(epose_sources
   attestation_pool.cpp
   chain_state.cpp
   envelope_v2.cpp
+  lifecycle_v2.cpp
   membership_v2.cpp
   reward_v2.cpp
   service_receipt_v2.cpp
@@ -16,6 +17,7 @@ set(epose_headers
   attestation_pool.h
   chain_state.h
   envelope_v2.h
+  lifecycle_v2.h
   membership_v2.h
   reward_v2.h
   service_receipt_v2.h
