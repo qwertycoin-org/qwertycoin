@@ -321,3 +321,31 @@ Results reproduced on 2026-09-06:
 This is not activation evidence. Record serialization, persistent storage,
 key-file atomicity/backup tests, migration, and operator-authority rotation are
 not implemented.
+
+## CO-08 state-index validation
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_state_index_v2.*'
+```
+
+Results reproduced on 2026-09-06:
+
+- state-index tests: **8/8 passed**;
+- complete focused EPoSE binary after integration: **135/135 passed**;
+- daemon target rebuilt successfully with the state-index object linked;
+- contiguous connect, exact idempotency, bounded retention, and fail-atomic
+  invalid-connect behavior passed;
+- same-height conflict, gap, wrong parent, wrong tip, schema, parameter set,
+  checksum, and trailing data fail closed;
+- canonical image roundtrip preserves tip and index root;
+- disconnect beyond undo returns `rebuild_required` and canonical rebuild
+  succeeds;
+- A → B → A produces the same root as fresh A replay;
+- corrupt restore leaves the committed state unchanged.
+
+This is not durable-LMDB or crash-injection evidence. The same-transaction LMDB
+adapter, reconstruction of full state objects, schema migration, process-kill
+testing, and pruned/full-node compatibility remain activation gates.

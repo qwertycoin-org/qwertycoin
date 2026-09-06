@@ -126,3 +126,11 @@ activated by CO-01.
 116. A later lifecycle record cannot change a descriptor already selected for an earlier epoch or settled reward.
 117. Duplicate lifecycle records are signature-checked before idempotent handling; an invalid record cannot become acceptable because its message matches stored state.
 118. Operator-authority rotation is unsupported until a separate recovery design is approved.
+119. Canonical blocks, not the EPoSE index, are the replay oracle and consensus source of truth.
+120. Every persisted checkpoint binds height, block hash, parent hash, state root, canonical payload hash, schema, and parameter set.
+121. A failed checkpoint connect, image restore, checksum, schema, or context validation leaves committed index state unchanged.
+122. Undo is bounded; a reorg beyond retained undo explicitly rebuilds and never silently starts from empty EPoSE state.
+123. A → B → A reorg recovery produces the same index root as fresh canonical replay at A.
+124. Activation requires EPoSE index updates in the same LMDB write transaction as block connect/disconnect.
+125. A missing/corrupt index is recoverable derived data, not grounds for a different block-validity result.
+126. Pruned validation remains unsupported until required EPoSE history retention/reconstruction is proved.

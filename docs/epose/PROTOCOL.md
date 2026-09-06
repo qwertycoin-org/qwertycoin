@@ -662,6 +662,21 @@ Epoch lookup returns the descriptor valid for that epoch, so later records do
 not mutate a descriptor already frozen into a membership/reward snapshot. This
 primitive remains non-activating pending record serialization, envelope and
 persistent-index integration. See `review/ADR-0004-IDENTITY-LIFECYCLE.md`.
+
+## CO-08 state-index and replay boundary
+
+`src/epose/state_index_v2.*` defines a schema-versioned, checksummed checkpoint
+journal. Checkpoints bind the block/parent, state root, and canonical EPoSE
+payload hash. Connect is contiguous and fail-atomic; exact tip duplicates are
+idempotent; same-height conflicts fail. Undo is bounded and a deeper disconnect
+returns `rebuild_required` rather than substituting empty state.
+
+Serialized state validates schema, parameter-set identity, checksum, exact
+lengths, and parent links before replacing committed memory. Canonical block
+replay remains the correctness oracle. The journal is non-activating and still
+requires LMDB tables updated in the same write transaction as block state,
+startup tip checks, payload/object reconstruction, and pruning integration.
+See `review/ADR-0005-PERSISTENT-STATE.md`.
 No implementation may guess missing fields or accept an opaque payload merely
 because its outer envelope parses.
 
