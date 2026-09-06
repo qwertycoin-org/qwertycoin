@@ -241,6 +241,7 @@ const char* const LMDB_HF_STARTING_HEIGHTS = "hf_starting_heights";
 const char* const LMDB_HF_VERSIONS = "hf_versions";
 
 const char* const LMDB_PROPERTIES = "properties";
+const char* const LMDB_EPOSE_STATE_V2 = "epose_state_v2";
 
 const char zerokey[8] = {0};
 const MDB_val zerokval = { sizeof(zerokey), (void *)zerokey };
@@ -1515,6 +1516,8 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   lmdb_db_open(txn, LMDB_HF_VERSIONS, MDB_INTEGERKEY | MDB_CREATE, m_hf_versions, "Failed to open db handle for m_hf_versions");
 
   lmdb_db_open(txn, LMDB_PROPERTIES, MDB_CREATE, m_properties, "Failed to open db handle for m_properties");
+  lmdb_db_open(txn, LMDB_EPOSE_STATE_V2, MDB_INTEGERKEY | MDB_CREATE,
+      m_epose_state_v2, "Failed to open db handle for m_epose_state_v2");
 
   mdb_set_dupsort(txn, m_spent_keys, compare_hash32);
   mdb_set_dupsort(txn, m_block_heights, compare_hash32);
@@ -1702,6 +1705,8 @@ void BlockchainLMDB::reset()
     throw0(DB_ERROR(lmdb_error("Failed to drop m_hf_versions: ", result).c_str()));
   if (auto result = mdb_drop(txn, m_properties, 0))
     throw0(DB_ERROR(lmdb_error("Failed to drop m_properties: ", result).c_str()));
+  if (auto result = mdb_drop(txn, m_epose_state_v2, 0))
+    throw0(DB_ERROR(lmdb_error("Failed to drop m_epose_state_v2: ", result).c_str()));
 
   // init with current version
   MDB_val_str(k, "version");
@@ -4081,7 +4086,8 @@ void BlockchainLMDB::block_rtxn_abort() const
 }
 
 uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
-    const std::vector<std::pair<transaction, blobdata>>& txs)
+    const std::vector<std::pair<transaction, blobdata>>& txs,
+    const epose_state_commitment_v2 *epose_commitment)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -4099,7 +4105,8 @@ uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t
 
   try
   {
-    BlockchainDB::add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, txs);
+    BlockchainDB::add_block(blk, block_weight, long_term_block_weight,
+        cumulative_difficulty, coins_generated, txs, epose_commitment);
   }
   catch (const DB_ERROR_TXN_START& e)
   {
@@ -4107,6 +4114,61 @@ uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t
   }
 
   return ++m_height;
+}
+
+void BlockchainLMDB::add_epose_state_commitment_v2(
+    uint64_t height, const epose_state_commitment_v2 &commitment)
+{
+  check_open();
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("EPoSE v2 state commitment requires the canonical block write transaction"));
+
+  std::string value;
+  value.reserve(1 + 3 * sizeof(crypto::hash));
+  value.push_back(static_cast<char>(commitment.schema_version));
+  value.append(reinterpret_cast<const char *>(&commitment.block_hash), sizeof(commitment.block_hash));
+  value.append(reinterpret_cast<const char *>(&commitment.state_hash), sizeof(commitment.state_hash));
+  value.append(reinterpret_cast<const char *>(&commitment.parameter_set_hash), sizeof(commitment.parameter_set_hash));
+  MDB_val key{sizeof(height), &height};
+  MDB_val data{value.size(), const_cast<char *>(value.data())};
+  const int result = mdb_put(*m_write_txn, m_epose_state_v2, &key, &data, MDB_NOOVERWRITE);
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to add EPoSE v2 state commitment: ", result).c_str()));
+}
+
+void BlockchainLMDB::remove_epose_state_commitment_v2(uint64_t height)
+{
+  check_open();
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("EPoSE v2 state commitment removal requires the canonical block write transaction"));
+  MDB_val key{sizeof(height), &height};
+  const int result = mdb_del(*m_write_txn, m_epose_state_v2, &key, nullptr);
+  if (result != 0 && result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to remove EPoSE v2 state commitment: ", result).c_str()));
+}
+
+bool BlockchainLMDB::get_epose_state_commitment_v2(
+    uint64_t height, epose_state_commitment_v2 &commitment) const
+{
+  check_open();
+  commitment = {};
+  TXN_PREFIX_RDONLY();
+  MDB_val key{sizeof(height), &height};
+  MDB_val data{};
+  const int result = mdb_get(m_txn, m_epose_state_v2, &key, &data);
+  if (result == MDB_NOTFOUND)
+    return false;
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to read EPoSE v2 state commitment: ", result).c_str()));
+  if (data.mv_size != 1 + 3 * sizeof(crypto::hash))
+    throw0(DB_ERROR("Invalid EPoSE v2 state commitment size"));
+  const auto *bytes = static_cast<const uint8_t *>(data.mv_data);
+  commitment.schema_version = bytes[0];
+  std::memcpy(&commitment.block_hash, bytes + 1, sizeof(commitment.block_hash));
+  std::memcpy(&commitment.state_hash, bytes + 1 + sizeof(crypto::hash), sizeof(commitment.state_hash));
+  std::memcpy(&commitment.parameter_set_hash,
+      bytes + 1 + 2 * sizeof(crypto::hash), sizeof(commitment.parameter_set_hash));
+  return true;
 }
 
 void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)

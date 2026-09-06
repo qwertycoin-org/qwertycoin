@@ -318,7 +318,11 @@ public:
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
                             , const std::vector<std::pair<transaction, blobdata>>& txs
+                            , const epose_state_commitment_v2 *epose_commitment = nullptr
                             );
+
+  virtual bool get_epose_state_commitment_v2(
+      uint64_t height, epose_state_commitment_v2 &commitment) const;
 
   virtual void set_batch_transactions(bool batch_transactions);
   virtual bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0);
@@ -375,6 +379,10 @@ private:
                 );
 
   virtual void remove_block();
+
+  virtual void add_epose_state_commitment_v2(
+      uint64_t height, const epose_state_commitment_v2 &commitment);
+  virtual void remove_epose_state_commitment_v2(uint64_t height);
 
   virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash);
 
@@ -474,6 +482,7 @@ private:
   MDB_dbi m_hf_versions;
 
   MDB_dbi m_properties;
+  MDB_dbi m_epose_state_v2;
 
   mutable uint64_t m_cum_size;	// used in batch size estimation
   mutable unsigned int m_cum_count;

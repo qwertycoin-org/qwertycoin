@@ -300,6 +300,53 @@ TYPED_TEST(BlockchainDBTest, AddBlock)
   }
 }
 
+TYPED_TEST(BlockchainDBTest, EPoSEStateCommitmentSharesCanonicalBlockTransaction)
+{
+  boost::filesystem::path tempPath = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  const std::string dirPath = tempPath.string();
+  this->set_prefix(dirPath);
+
+  ASSERT_NO_THROW(this->m_db->open(dirPath));
+  this->get_filenames();
+  this->init_hard_fork();
+
+  epose_state_commitment_v2 expected{};
+  expected.schema_version = 1;
+  expected.block_hash = get_block_hash(this->m_blocks[0].first);
+  expected.state_hash = crypto::cn_fast_hash("state", 5);
+  expected.parameter_set_hash = crypto::cn_fast_hash("parameters", 10);
+  {
+    db_wtxn_guard guard(this->m_db);
+    ASSERT_NO_THROW(this->m_db->add_block(
+        this->m_blocks[0], t_sizes[0], t_sizes[0], t_diffs[0], t_coins[0],
+        this->m_txs[0], &expected));
+  }
+
+  epose_state_commitment_v2 actual{};
+  ASSERT_TRUE(this->m_db->get_epose_state_commitment_v2(0, actual));
+  EXPECT_EQ(expected.schema_version, actual.schema_version);
+  EXPECT_EQ(expected.block_hash, actual.block_hash);
+  EXPECT_EQ(expected.state_hash, actual.state_hash);
+  EXPECT_EQ(expected.parameter_set_hash, actual.parameter_set_hash);
+
+  block popped{};
+  std::vector<transaction> transactions;
+  ASSERT_NO_THROW(this->m_db->pop_block(popped, transactions));
+  EXPECT_FALSE(this->m_db->get_epose_state_commitment_v2(0, actual));
+  EXPECT_EQ(0u, this->m_db->height());
+
+  epose_state_commitment_v2 mismatched = expected;
+  mismatched.block_hash = crypto::null_hash;
+  {
+    db_wtxn_guard guard(this->m_db);
+    EXPECT_THROW(this->m_db->add_block(
+        this->m_blocks[0], t_sizes[0], t_sizes[0], t_diffs[0], t_coins[0],
+        this->m_txs[0], &mismatched), std::runtime_error);
+  }
+  EXPECT_EQ(0u, this->m_db->height());
+  EXPECT_FALSE(this->m_db->get_epose_state_commitment_v2(0, actual));
+}
+
 TYPED_TEST(BlockchainDBTest, RetrieveBlockData)
 {
   boost::filesystem::path tempPath = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
