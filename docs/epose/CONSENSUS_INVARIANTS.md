@@ -23,7 +23,7 @@
 19. Late attestations for a finalized source epoch cannot be accepted in the next epoch to alter that source epoch's reward set.
 20. Every EPoSE service reward output must be a unique spendable one-time output.
 21. Reorg A -> B -> A must restore the original EPoSE state hash and qualified set.
-22. Automatically generated miner attestations must use the same response-hash construction that block validation enforces.
+22. Automatic positive HF17 attestations remain disabled because the legacy path did not contact or authenticate the subject.
 23. Reward RPC views must report the finalized reward source epoch, not the mutable current epoch, at and after epoch boundaries.
 24. Malformed EPoSE tx-extra payloads must fail closed and roll back any earlier EPoSE state changes from the same transaction batch.
 25. Omitting an otherwise valid current-epoch attestation can change future qualification only after epoch finalization; it cannot change the current reward source.
@@ -93,3 +93,11 @@ activated by CO-01.
 83. Qualification closes exactly once and only at the evidence deadline.
 84. Arrival order of otherwise independent admission leases cannot change the snapshot hash, committee, or qualification result.
 85. Replacing the committee anchor changes the dependent snapshot context; replaying the original anchor restores the original state hash.
+86. A v2 positive receipt requires both a valid subject signature and a valid selected-verifier signature.
+87. The challenge signature binds network, genesis, parameter set, snapshot, anchor, epoch, round, service kind, both identities, frozen endpoint, nonce, and requested object.
+88. The verifier signature binds the subject signature and response digest without a circular transaction or receipt hash.
+89. A canonical-object receipt is invalid unless the response-object hash equals the requested-object hash.
+90. Receipt cryptographic validation performs no live network operation or wall-clock comparison.
+91. A valid receipt for one network, genesis, parameter set, snapshot, anchor, round, endpoint, role assignment, or nonce is invalid after transplant to another.
+92. Only a fully authenticated v2 receipt may become a CO-02 prevalidated receipt slot.
+93. Subject participation does not prove an independent operator, dedicated machine, continuous uptime, or resistance to a colluding committee.

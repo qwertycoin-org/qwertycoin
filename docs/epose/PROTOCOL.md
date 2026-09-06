@@ -557,6 +557,42 @@ The complete pipeline state hash commits to admitted leases, snapshots,
 accepted receipt slots, and closed qualification sets. Copy/replay tests use it
 as the current in-memory reorg oracle. Persistent LMDB/undo integration remains
 CO-08.
+
+## CO-04 authenticated receipt core
+
+`src/epose/service_receipt_v2.*` implements the bounded cryptographic transcript
+between CO-02's frozen membership layer and the future probe/carrier layers. It
+does not perform DNS, socket, HTTP, RPC, or wall-clock operations.
+
+The currently supported service kind is `canonical_object = 1`. A verifier
+requests an object by its canonical cryptographic hash. The live probe layer
+must retrieve bounded canonical bytes from the frozen endpoint descriptor and
+verify that their hash equals `requested_object_hash` before signing. The
+on-chain receipt carries the digest, not the returned bytes. Consequently the
+chain verifies a dual-signed claim about successful retrieval; colluding keys
+can still synthesize that claim and remain covered by the CO-03 threat model.
+
+The challenge commits to version 2, service kind, epoch, round, snapshot and
+anchor hashes, both service public keys, the frozen endpoint-descriptor hash, a
+fresh 32-byte nonce, and the requested canonical-object hash.
+
+`QWC_EPOSE_CHALLENGE_V2` additionally binds network ID, genesis hash, and
+parameter-set hash. `QWC_EPOSE_SUBJECT_RESPONSE_V2` binds that challenge hash
+and the returned object hash; the subject signs it. `QWC_EPOSE_RECEIPT_V2`
+binds the subject-response hash and subject signature; the verifier signs it.
+There is no circular transcript.
+
+Validation rejects a missing or bad subject signature, bad verifier signature,
+self-vote, role swap, unsupported service kind, null context/commitment, wrong
+object, or any context transplant. Only a fully valid receipt can be converted
+to CO-02's `prevalidated_receipt_slot_v2`.
+
+The legacy HF17 automation that fabricated its response locally and set
+`service_ok = true` is disabled. Historical HF17 blocks retain their original
+validity, but this software no longer originates automatic positive HF17
+attestations. The eventual live probe transport depends on the bounded carrier
+and endpoint/lifecycle work in CO-05/CO-07; until then automation fails closed
+instead of fabricating service.
 No implementation may guess missing fields or accept an opaque payload merely
 because its outer envelope parses.
 

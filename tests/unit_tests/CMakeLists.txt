@@ -156,6 +156,7 @@ add_test(
 monero_add_minimal_executable(epose_unit_tests
   epose.cpp
   epose_v2.cpp
+  epose_receipts_v2.cpp
   epose_main.cpp)
 target_link_libraries(epose_unit_tests
   PRIVATE

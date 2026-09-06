@@ -204,3 +204,31 @@ smoke test of the inherited helper, not an optimized solver or hardware-class
 benchmark. The 64-epoch simulator reported zero controlled 7-of-9 thresholds;
 that small zero-event result is not used as a probability claim and is
 superseded by the exact finite-population calculation for parameter analysis.
+
+## CO-04 authenticated-receipt validation
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests --gtest_filter='epose_receipts_v2.*'
+rg -n 'service_ok = true' src
+```
+
+Results reproduced on 2026-09-06:
+
+- authenticated receipt tests: **8/8 passed**;
+- complete focused EPoSE binary after integration: **100/100 passed**;
+- daemon target rebuilt successfully after disabling the HF17 originator;
+- a valid dual-signed receipt converts to a prevalidated CO-02 slot and is
+  accepted by the frozen membership pipeline;
+- verifier-only fabrication, wrong network/genesis/parameter set, changed
+  epoch/round/snapshot/anchor/endpoint/nonce, role swap, self-vote, unsupported
+  service kind, null context, wrong object, and signature tampering fail closed;
+- no `service_ok = true` assignment remains under `src/`;
+- cryptographic receipt validation contains no network or wall-clock call.
+
+The live bounded probe transport, v2 serialization/carrier, endpoint descriptor
+discovery, and multi-host offline-subject test remain open dependencies in
+CO-05/CO-07/CO-10. This evidence does not claim that dual signatures prove
+operator independence or prevent a colluding committee/shared proxy.

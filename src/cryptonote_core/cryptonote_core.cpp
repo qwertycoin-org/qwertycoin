@@ -33,6 +33,7 @@
 #include <boost/uuid/nil_generator.hpp>
 
 #include <algorithm>
+#include <atomic>
 
 #include "string_tools.h"
 using namespace epee;
@@ -669,7 +670,6 @@ namespace cryptonote
 
     const std::vector<qwertycoin::epose::service_node_identity> service_nodes = m_blockchain_storage.get_epose_service_nodes();
     const crypto::hash epoch_context_hash = m_blockchain_storage.get_epose_epoch_context_hash(current_epoch);
-    const std::vector<qwertycoin::epose::service_attestation> chain_attestations = m_blockchain_storage.get_epose_attestations();
     bool local_registered = false;
     for (const auto &identity : service_nodes)
     {
@@ -715,83 +715,9 @@ namespace cryptonote
       return true;
     }
 
-    const crypto::hash epoch_seed = qwertycoin::epose::calculate_epoch_seed(m_nettype, current_epoch, epoch_context_hash);
-    const crypto::hash observed_tip_hash = m_blockchain_storage.get_tail_id();
-    std::vector<blobdata> accepted_blobs;
-
-    for (const auto &subject : service_nodes)
-    {
-      if (subject.service_public_key == config.service_public_key
-          || !qwertycoin::epose::identity_active_in_epoch(subject, current_epoch))
-      {
-        continue;
-      }
-
-      const auto duplicate_vote = std::find_if(chain_attestations.begin(), chain_attestations.end(), [&](const qwertycoin::epose::service_attestation &attestation) {
-        return attestation.epoch == current_epoch
-            && attestation.verifier_public_key == config.service_public_key
-            && attestation.subject_public_key == subject.service_public_key;
-      });
-      if (duplicate_vote != chain_attestations.end())
-        continue;
-
-      const auto assignments = qwertycoin::epose::select_verifiers(
-          service_nodes,
-          subject.service_public_key,
-          m_nettype,
-          current_epoch,
-          epoch_seed);
-      const auto selected = std::find_if(assignments.begin(), assignments.end(), [&](const qwertycoin::epose::verifier_assignment &assignment) {
-        return assignment.verifier_public_key == config.service_public_key;
-      });
-      if (selected == assignments.end())
-        continue;
-
-      qwertycoin::epose::service_attestation attestation{};
-      attestation.verifier_public_key = config.service_public_key;
-      attestation.subject_public_key = subject.service_public_key;
-      attestation.epoch = current_epoch;
-      attestation.challenge_hash = qwertycoin::epose::calculate_challenge_hash(
-          epoch_seed,
-          attestation.subject_public_key,
-          attestation.verifier_public_key,
-          attestation.epoch,
-          0);
-      attestation.observed_tip_hash = observed_tip_hash;
-      attestation.response_hash = qwertycoin::epose::calculate_response_hash(
-          attestation.challenge_hash,
-          attestation.observed_tip_hash,
-          attestation.subject_public_key,
-          attestation.verifier_public_key,
-          attestation.epoch);
-      attestation.service_ok = true;
-      qwertycoin::epose::sign_attestation(attestation, config.service_secret_key, m_nettype);
-
-      const qwertycoin::epose::attestation_pool_result result = m_epose_attestation_pool.add(
-          attestation,
-          service_nodes,
-          chain_attestations,
-          current_epoch,
-          m_nettype,
-          epoch_context_hash);
-      if (result == qwertycoin::epose::attestation_pool_result::accepted
-          || result == qwertycoin::epose::attestation_pool_result::duplicate)
-      {
-        accepted_blobs.push_back(qwertycoin::epose::serialize_attestation(attestation));
-        if (result == qwertycoin::epose::attestation_pool_result::accepted)
-          MINFO("EPoSE service-node attestation created for epoch " << current_epoch
-              << " subject " << epee::string_tools::pod_to_hex(subject.service_public_key));
-      }
-    }
-
-    if (!accepted_blobs.empty())
-    {
-      NOTIFY_NEW_EPOSE_PAYLOADS::request req{};
-      req.attestations = std::move(accepted_blobs);
-      const boost::uuids::uuid source = boost::uuids::nil_uuid();
-      get_protocol()->relay_epose_payloads(req, source, epee::net_utils::zone::public_);
-    }
-
+    static std::atomic_flag warned = ATOMIC_FLAG_INIT;
+    if (!warned.test_and_set())
+      MWARNING("Automatic HF17 EPoSE attestations are disabled because the legacy path did not contact or authenticate the subject; hardened receipts require the future EPoSE v2 probe transport");
     return true;
   }
   //-----------------------------------------------------------------------------------------------
