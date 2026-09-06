@@ -125,7 +125,11 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
     alignment = require_int(get_path(manifest, "activation.required_epoch_alignment"), "activation.required_epoch_alignment", 2)
     anchor_depth = require_int(get_path(manifest, "epoch.anchor_depth_blocks"), "epoch.anchor_depth_blocks", 1, epoch_length - 1)
     require_int(get_path(manifest, "epoch.warmup_epochs"), "epoch.warmup_epochs", 2, 2)
-    require_bool(get_path(manifest, "epoch.epoch_zero_has_v2_rewards"), "epoch.epoch_zero_has_v2_rewards")
+    if require_bool(
+        get_path(manifest, "epoch.epoch_zero_has_v2_rewards"),
+        "epoch.epoch_zero_has_v2_rewards",
+    ):
+        raise ManifestError("epoch zero cannot have v2 rewards")
     if activation_height is not None:
         activation_height = require_int(activation_height, "activation.height", alignment)
         if activation_height % alignment or activation_height % epoch_length:
@@ -137,14 +141,41 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
 
     if require_int(get_path(manifest, "encoding.hardfork_version"), "encoding.hardfork_version", 18, 18) != 18:
         raise ManifestError("hardfork version reservation changed")
+    require_enum(get_path(manifest, "encoding.envelope_magic_ascii"), "encoding.envelope_magic_ascii", {"QEP2"})
+    require_int(get_path(manifest, "encoding.envelope_version"), "encoding.envelope_version", 1, 1)
     require_int(get_path(manifest, "encoding.epose_protocol_version"), "encoding.epose_protocol_version", 2, 2)
+    require_enum(get_path(manifest, "encoding.integer_byte_order"), "encoding.integer_byte_order", {"little-endian"})
+    record_versions = get_path(manifest, "encoding.record_versions")
+    supported_record_versions = {
+        "admission_lease",
+        "descriptor",
+        "lifecycle_authorization",
+        "payment_proof",
+        "service_receipt",
+    }
+    if not isinstance(record_versions, dict) or set(record_versions) != supported_record_versions:
+        raise ManifestError("encoding.record_versions must contain exactly the supported record types")
+    for name in sorted(supported_record_versions):
+        require_int(record_versions[name], f"encoding.record_versions.{name}", 1, 1)
     require_int(get_path(manifest, "carrier.tx_extra_tag"), "carrier.tx_extra_tag", 5, 5)
-    require_bool(get_path(manifest, "carrier.coinbase_envelope_allowed"), "carrier.coinbase_envelope_allowed")
-    require_bool(get_path(manifest, "carrier.fee_funded_envelope_allowed"), "carrier.fee_funded_envelope_allowed")
-    require_bool(get_path(manifest, "carrier.legacy_nonce_allowed_after_activation"), "carrier.legacy_nonce_allowed_after_activation")
-    require_bool(get_path(manifest, "admission.target_epoch_required"), "admission.target_epoch_required")
+    if not require_bool(get_path(manifest, "carrier.coinbase_envelope_allowed"), "carrier.coinbase_envelope_allowed"):
+        raise ManifestError("coinbase envelope carrier must remain enabled")
+    if not require_bool(get_path(manifest, "carrier.fee_funded_envelope_allowed"), "carrier.fee_funded_envelope_allowed"):
+        raise ManifestError("fee-funded envelope carrier must remain enabled")
+    if require_bool(get_path(manifest, "carrier.legacy_nonce_allowed_after_activation"), "carrier.legacy_nonce_allowed_after_activation"):
+        raise ManifestError("legacy nonce carrier must remain disabled after activation")
+    require_enum(get_path(manifest, "admission.algorithm"), "admission.algorithm", {"RandomX"})
+    if not require_bool(get_path(manifest, "admission.target_epoch_required"), "admission.target_epoch_required"):
+        raise ManifestError("admission target epoch must be explicit")
     require_int(get_path(manifest, "admission.context_epoch_offset"), "admission.context_epoch_offset", 1, 1)
+    lease_epochs = get_path(manifest, "admission.lease_epochs")
+    if lease_epochs is not None:
+        require_int(lease_epochs, "admission.lease_epochs", 1, 1)
+    leading_zero_bits = get_path(manifest, "admission.leading_zero_bits")
+    if leading_zero_bits is not None:
+        require_int(leading_zero_bits, "admission.leading_zero_bits", 1, 255)
     require_int(get_path(manifest, "reward.basis_points"), "reward.basis_points", 1000, 1000)
+    require_enum(get_path(manifest, "reward.schedule"), "reward.schedule", {"epoch-relative-index"})
 
     committee_size = get_path(manifest, "committee.size")
     threshold = get_path(manifest, "committee.threshold")
@@ -160,6 +191,8 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
         if not isinstance(round_offsets, list) or not round_offsets:
             raise ManifestError("committee.round_offsets must be a nonempty list")
         checked_offsets = [require_int(value, f"committee.round_offsets[{index}]", 0, epoch_length - anchor_depth - 1) for index, value in enumerate(round_offsets)]
+        if checked_offsets[0] != 0:
+            raise ManifestError("committee.round_offsets must begin at zero")
         if checked_offsets != sorted(set(checked_offsets)):
             raise ManifestError("committee.round_offsets must be strictly increasing")
     if rounds_required is not None:

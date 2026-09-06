@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import copy
 import subprocess
 import unittest
 from pathlib import Path
@@ -15,6 +16,49 @@ MANIFEST = ROOT / "docs/epose/PARAMETER_MANIFEST_V2.json"
 class ManifestV2Tests(unittest.TestCase):
     def setUp(self):
         self.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+    def complete_test_candidate(self):
+        manifest = copy.deepcopy(self.manifest)
+        manifest["manifest_kind"] = "test-fixture"
+        manifest["status"] = "activatable"
+        manifest["activation"]["height"] = 1440
+        manifest["network"]["genesis_hash"] = "11" * 32
+        manifest["release"]["source_revision"] = "22" * 20
+        manifest["admission"].update({"lease_epochs": 1, "leading_zero_bits": 20})
+        manifest["committee"].update(
+            {"round_offsets": [0, 200, 400], "rounds_required": 2, "size": 15, "threshold": 11}
+        )
+        manifest["resource_limits"].update(
+            {
+                "max_active_population": 1000,
+                "max_admission_verifications_per_block": 8,
+                "max_envelope_bytes_per_transaction": 65536,
+                "max_envelopes_per_transaction": 4,
+                "max_epose_bytes_per_block": 262144,
+                "max_records_per_block": 1024,
+                "max_records_per_envelope": 256,
+                "max_relay_queue_bytes": 1048576,
+                "max_relay_queue_items": 2048,
+                "max_signature_verifications_per_block": 2048,
+                "minimum_undo_blocks": 2160,
+                "reserved_enrollment_queue_bytes": 262144,
+                "reserved_enrollment_queue_items": 512,
+                "reserved_evidence_queue_bytes": 262144,
+                "reserved_evidence_queue_items": 512,
+            }
+        )
+        manifest["reward"].update(
+            {
+                "empty_set_policy": "miner-fallback",
+                "emission_accounting": "actual-issued-subsidy",
+                "fee_policy": "subsidy-only",
+                "payment_proof_scheme": "scoped-tx-proof-v1",
+            }
+        )
+        manifest["state"].update(
+            {"index_schema": 1, "pruned_validation_mode": "unsupported-fail-closed"}
+        )
+        return manifest
 
     def test_reservation_manifest_is_typed_and_nonactivatable(self):
         missing = validate_manifest(self.manifest)
@@ -75,6 +119,43 @@ class ManifestV2Tests(unittest.TestCase):
         )
         with self.assertRaises(ManifestError):
             validate_manifest(broken)
+
+    def test_complete_supported_candidate_passes_typed_validation(self):
+        self.assertEqual(
+            [],
+            validate_manifest(self.complete_test_candidate(), allow_test_fixture=True),
+        )
+
+    def test_every_consensus_field_rejects_unsupported_values(self):
+        mutations = (
+            ("admission.algorithm", "anything"),
+            ("admission.leading_zero_bits", 0),
+            ("admission.leading_zero_bits", True),
+            ("admission.leading_zero_bits", "twenty"),
+            ("admission.lease_epochs", -1),
+            ("admission.lease_epochs", "forever"),
+            ("committee.round_offsets", [1, 200, 400]),
+            ("encoding.envelope_version", 999),
+            ("encoding.envelope_magic_ascii", "QEP3"),
+            ("encoding.integer_byte_order", "big-endian"),
+            ("encoding.record_versions.service_receipt", 2),
+            ("carrier.coinbase_envelope_allowed", False),
+            ("carrier.fee_funded_envelope_allowed", False),
+            ("carrier.legacy_nonce_allowed_after_activation", True),
+            ("admission.target_epoch_required", False),
+            ("epoch.epoch_zero_has_v2_rewards", True),
+            ("reward.schedule", "height-modulo"),
+        )
+        for path, invalid in mutations:
+            with self.subTest(path=path, value=invalid):
+                broken = self.complete_test_candidate()
+                target = broken
+                components = path.split(".")
+                for component in components[:-1]:
+                    target = target[component]
+                target[components[-1]] = invalid
+                with self.assertRaises(ManifestError):
+                    validate_manifest(broken, allow_test_fixture=True)
 
 
 if __name__ == "__main__":
