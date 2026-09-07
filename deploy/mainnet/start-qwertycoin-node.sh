@@ -19,13 +19,15 @@ source "$env_file"
 : "${QWC_CONTAINER_NAME:=qwertycoin-mainnet}"
 : "${QWC_DATA_VOLUME:?QWC_DATA_VOLUME is required}"
 : "${QWC_IDENTITY_VOLUME:?QWC_IDENTITY_VOLUME is required}"
-: "${QWC_SERVICE_NODE_KEY_PATH:=/service-node/service-node.key}"
+: "${QWC_EPOSE_V2_KEYSTORE_PATH:=/service-node/epose-v2-keystore}"
 : "${QWC_REWARD_ADDRESS:?QWC_REWARD_ADDRESS is required}"
-: "${QWC_REWARD_VIEW_KEY:?QWC_REWARD_VIEW_KEY is required}"
-: "${QWC_ADVERTISE_ADDRESS:?QWC_ADVERTISE_ADDRESS is required}"
+: "${QWC_EPOSE_V2_ENDPOINT_HOST:?QWC_EPOSE_V2_ENDPOINT_HOST is required}"
+: "${QWC_EPOSE_V2_ENDPOINT_PORT:=8198}"
+: "${QWC_EPOSE_V2_DISCOVERY_ENDPOINTS:?QWC_EPOSE_V2_DISCOVERY_ENDPOINTS is required}"
 : "${QWC_P2P_PORT:=8196}"
 : "${QWC_RPC_PORT:=8197}"
 : "${QWC_RESTRICTED_RPC_PORT:=}"
+: "${QWC_RESTRICTED_RPC_HOST_IP:=0.0.0.0}"
 : "${QWC_ZMQ_RPC_PORT:=8199}"
 : "${QWC_MAX_CONNECTIONS_PER_IP:=4}"
 : "${QWC_PRIORITY_NODES:=}"
@@ -52,20 +54,21 @@ docker volume create "$QWC_DATA_VOLUME" >/dev/null
 docker volume create "$QWC_IDENTITY_VOLUME" >/dev/null
 
 args=(
-  --service-node
-  "--service-node-key=$QWC_SERVICE_NODE_KEY_PATH"
-  "--service-reward-address=$QWC_REWARD_ADDRESS"
-  "--service-reward-view-key=$QWC_REWARD_VIEW_KEY"
-  "--service-node-advertise-address=$QWC_ADVERTISE_ADDRESS"
+  --epose-v2-service
+  "--epose-v2-keystore=$QWC_EPOSE_V2_KEYSTORE_PATH"
+  "--epose-v2-reward-address=$QWC_REWARD_ADDRESS"
+  "--epose-v2-endpoint-host=$QWC_EPOSE_V2_ENDPOINT_HOST"
+  "--epose-v2-endpoint-port=$QWC_EPOSE_V2_ENDPOINT_PORT"
   --p2p-bind-ip=0.0.0.0
   "--p2p-bind-port=$QWC_P2P_PORT"
   --rpc-bind-ip=0.0.0.0
   "--rpc-bind-port=$QWC_RPC_PORT"
+  --zmq-rpc-bind-ip=0.0.0.0
   "--zmq-rpc-bind-port=$QWC_ZMQ_RPC_PORT"
+  --confirm-zmq-rpc-external-bind
   --non-interactive
   --confirm-external-bind
   --no-igd
-  --hide-my-port
   "--max-connections-per-ip=$QWC_MAX_CONNECTIONS_PER_IP"
   --disable-dns-checkpoints
 )
@@ -89,6 +92,14 @@ for node in "${priority_nodes[@]}"; do
   fi
 done
 
+IFS=',' read -r -a discovery_endpoints <<< "$QWC_EPOSE_V2_DISCOVERY_ENDPOINTS"
+for endpoint in "${discovery_endpoints[@]}"; do
+  endpoint="${endpoint//[[:space:]]/}"
+  if [[ -n "$endpoint" ]]; then
+    args+=("--epose-v2-discovery-endpoint=$endpoint")
+  fi
+done
+
 ports=(
   -p "$QWC_P2P_PORT:$QWC_P2P_PORT"
   -p "127.0.0.1:$QWC_RPC_PORT:$QWC_RPC_PORT"
@@ -96,7 +107,7 @@ ports=(
 )
 
 if [[ -n "$QWC_RESTRICTED_RPC_PORT" ]]; then
-  ports+=(-p "127.0.0.1:$QWC_RESTRICTED_RPC_PORT:$QWC_RESTRICTED_RPC_PORT")
+  ports+=(-p "$QWC_RESTRICTED_RPC_HOST_IP:$QWC_RESTRICTED_RPC_PORT:$QWC_RESTRICTED_RPC_PORT")
 fi
 
 network_args=()
