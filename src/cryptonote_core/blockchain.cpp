@@ -902,17 +902,47 @@ bool Blockchain::is_epose_enabled_at_height(uint64_t height) const
 uint64_t Blockchain::get_epose_current_epoch() const
 {
   const uint64_t height = m_db ? m_db->height() : 0;
+  if (m_epose_v2 && height > m_epose_v2_parameters.timing.activation_height)
+    return (height - 1 - m_epose_v2_parameters.timing.activation_height)
+        / m_epose_v2_parameters.timing.epoch_length;
   return qwertycoin::epose::epoch_for_height(height > 0 ? height - 1 : 0);
 }
 //------------------------------------------------------------------
 uint64_t Blockchain::get_epose_epoch_start_height(uint64_t epoch) const
 {
+  if (m_epose_v2)
+  {
+    uint64_t height = 0;
+    return m_epose_v2_parameters.timing.epoch_start(epoch, height)
+        ? height : std::numeric_limits<uint64_t>::max();
+  }
   return qwertycoin::epose::epoch_start_height(epoch);
 }
 //------------------------------------------------------------------
 uint64_t Blockchain::get_epose_epoch_end_height(uint64_t epoch) const
 {
+  if (m_epose_v2)
+  {
+    uint64_t height = 0;
+    return m_epose_v2_parameters.timing.epoch_end(epoch, height)
+        ? height : std::numeric_limits<uint64_t>::max();
+  }
   return qwertycoin::epose::epoch_end_height(epoch);
+}
+//------------------------------------------------------------------
+bool Blockchain::get_epose_reward_source_epoch_v2(uint64_t height, uint64_t &epoch) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  epoch = 0;
+  if (!m_epose_v2 || !m_epose_v2_parameters.timing.valid()
+      || height < m_epose_v2_parameters.timing.activation_height)
+    return false;
+  const uint64_t payout_epoch =
+      (height - m_epose_v2_parameters.timing.activation_height)
+      / m_epose_v2_parameters.timing.epoch_length;
+  if (payout_epoch != 0)
+    epoch = payout_epoch - 1;
+  return true;
 }
 //------------------------------------------------------------------
 std::vector<qwertycoin::epose::service_node_identity> Blockchain::get_epose_service_nodes() const
@@ -934,14 +964,59 @@ std::vector<qwertycoin::epose::service_attestation> Blockchain::get_epose_attest
 std::vector<crypto::public_key> Blockchain::get_epose_qualified_service_nodes(uint64_t epoch) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  if (!m_epose_state)
-    return {};
-  return m_epose_state->qualified_service_nodes(epoch);
+  if (m_epose_v2)
+  {
+    const auto *qualification =
+        m_epose_v2->state().membership().qualification(epoch);
+    return qualification == nullptr
+        ? std::vector<crypto::public_key>{}
+        : qualification->qualified_nodes;
+  }
+  return m_epose_state
+      ? m_epose_state->qualified_service_nodes(epoch)
+      : std::vector<crypto::public_key>{};
+}
+//------------------------------------------------------------------
+std::vector<qwertycoin::epose::identity_descriptor_v2>
+Blockchain::get_epose_identity_descriptors_v2(uint64_t epoch) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  return m_epose_v2
+      ? m_epose_v2->state().lifecycle().descriptors_for_epoch(epoch)
+      : std::vector<qwertycoin::epose::identity_descriptor_v2>{};
+}
+//------------------------------------------------------------------
+bool Blockchain::get_epose_membership_snapshot_v2(
+    uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_v2)
+    return false;
+  const auto *stored = m_epose_v2->state().membership().snapshot(epoch);
+  if (stored == nullptr)
+    return false;
+  snapshot = *stored;
+  return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_epose_qualification_v2(
+    uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_v2)
+    return false;
+  const auto *stored = m_epose_v2->state().membership().qualification(epoch);
+  if (stored == nullptr)
+    return false;
+  qualification = *stored;
+  return true;
 }
 //------------------------------------------------------------------
 uint64_t Blockchain::get_epose_attestation_count() const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (m_epose_v2)
+    return m_epose_v2->state().membership().receipt_count();
   if (!m_epose_state)
     return 0;
   return m_epose_state->attestations().size();
@@ -950,6 +1025,8 @@ uint64_t Blockchain::get_epose_attestation_count() const
 crypto::hash Blockchain::get_epose_state_hash() const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (m_epose_v2)
+    return m_epose_v2->state().state_hash();
   if (!m_epose_state)
     return crypto::null_hash;
   return m_epose_state->state_hash();

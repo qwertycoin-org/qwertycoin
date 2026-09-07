@@ -943,9 +943,13 @@ namespace cryptonote
     uint64_t get_epose_current_epoch() const;
     uint64_t get_epose_epoch_start_height(uint64_t epoch) const;
     uint64_t get_epose_epoch_end_height(uint64_t epoch) const;
+    bool get_epose_reward_source_epoch_v2(uint64_t height, uint64_t &epoch) const;
     std::vector<qwertycoin::epose::service_node_identity> get_epose_service_nodes() const;
     std::vector<qwertycoin::epose::service_attestation> get_epose_attestations() const;
     std::vector<crypto::public_key> get_epose_qualified_service_nodes(uint64_t epoch) const;
+    std::vector<qwertycoin::epose::identity_descriptor_v2> get_epose_identity_descriptors_v2(uint64_t epoch) const;
+    bool get_epose_membership_snapshot_v2(uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const;
+    bool get_epose_qualification_v2(uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const;
     uint64_t get_epose_attestation_count() const;
     crypto::hash get_epose_state_hash() const;
     crypto::hash get_epose_epoch_context_hash(uint64_t epoch) const;

@@ -345,15 +345,14 @@ namespace epose
           const identity_descriptor_v2 &existing = existing_record.next_descriptor;
           if (existing.service_public_key != next.service_public_key)
             continue;
+          // Descriptor intervals are half-open: [effective_epoch, expiry_epoch).
           uint64_t existing_end = existing.expiry_epoch;
           if (index + 1 < history.records.size())
           {
             const uint64_t next_start = history.records[index + 1].next_descriptor.effective_epoch;
-            if (next_start == 0)
-              return lifecycle_status_v2::invalid_transition;
-            existing_end = std::min(existing_end, next_start - 1);
+            existing_end = std::min(existing_end, next_start);
           }
-          if (proposed_start <= existing_end && existing.effective_epoch <= proposed_end)
+          if (proposed_start < existing_end && existing.effective_epoch < proposed_end)
             return lifecycle_status_v2::service_key_in_use;
         }
       }
@@ -404,7 +403,7 @@ namespace epose
       else
         break;
     }
-    if (!selected || epoch > selected->next_descriptor.expiry_epoch
+    if (!selected || epoch >= selected->next_descriptor.expiry_epoch
         || selected->action == lifecycle_action_v2::deregister_identity)
       return nullptr;
     return &selected->next_descriptor;

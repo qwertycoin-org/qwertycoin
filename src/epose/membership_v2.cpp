@@ -715,6 +715,11 @@ namespace epose
     return found == qualifications_.end() ? nullptr : &found->second;
   }
 
+  size_t membership_pipeline_v2::receipt_count() const
+  {
+    return receipts_.size();
+  }
+
   crypto::hash membership_pipeline_v2::state_hash() const
   {
     std::string blob("QWC_EPOSE_PIPELINE_STATE_V2");

@@ -793,22 +793,30 @@ namespace cryptonote
 
   struct epose_service_node_entry
   {
+    std::string identity_id;
     std::string service_public_key;
+    std::string operator_authorization_public_key;
     std::string reward_view_public_key;
     std::string reward_spend_public_key;
     std::string endpoint_commitment;
     std::string admission_hash;
+    uint64_t descriptor_sequence;
+    uint64_t effective_epoch;
     uint64_t registration_epoch;
     uint64_t expiry_epoch;
     bool active;
     bool qualified;
 
     BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(identity_id)
       KV_SERIALIZE(service_public_key)
+      KV_SERIALIZE(operator_authorization_public_key)
       KV_SERIALIZE(reward_view_public_key)
       KV_SERIALIZE(reward_spend_public_key)
       KV_SERIALIZE(endpoint_commitment)
       KV_SERIALIZE(admission_hash)
+      KV_SERIALIZE(descriptor_sequence)
+      KV_SERIALIZE(effective_epoch)
       KV_SERIALIZE(registration_epoch)
       KV_SERIALIZE(expiry_epoch)
       KV_SERIALIZE(active)
@@ -1022,7 +1030,9 @@ namespace cryptonote
 
     struct response_t: public rpc_response_base
     {
+      bool preview_available;
       bool service_reward_active;
+      uint64_t protocol_version;
       uint64_t height;
       uint64_t epoch;
       uint64_t service_reward_bps;
@@ -1033,7 +1043,9 @@ namespace cryptonote
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(preview_available)
         KV_SERIALIZE(service_reward_active)
+        KV_SERIALIZE(protocol_version)
         KV_SERIALIZE(height)
         KV_SERIALIZE(epoch)
         KV_SERIALIZE(service_reward_bps)

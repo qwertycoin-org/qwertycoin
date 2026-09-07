@@ -161,3 +161,6 @@ activated by CO-01.
 148. Aborting a multi-block database batch rebuilds the in-memory v2 coordinator from the post-abort canonical LMDB state; transitions from earlier blocks in the aborted batch cannot survive only in memory.
 149. A v2 miner template for an alternative parent is rejected until that branch's EPoSE state has been reconstructed; template reward planning never reuses the main-chain coordinator for another branch.
 150. Fee addition and miner/service output accumulation use checked unsigned arithmetic before a Coinbase is accepted or returned to a miner.
+151. Public EPoSE status, identity, epoch, receipt-count, qualification, and state-root RPC reads are copies of the canonical v2 coordinator state; retired v1 state cannot populate those responses.
+152. Legacy registration and reward-preview RPCs never construct a v1 record or predict a v2 payee under HF17; they report the producer/preview capability unavailable until the typed v2 path is connected.
+153. Lifecycle validity intervals are half-open `[effective_epoch, expiry_epoch)`; an expired descriptor is absent at its expiry epoch and its service key can be reused then only after all independent admission reservations and canonical-order checks succeed.

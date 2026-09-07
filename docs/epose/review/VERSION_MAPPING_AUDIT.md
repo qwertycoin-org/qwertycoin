@@ -41,6 +41,10 @@ and startup/deep-replay paths select the hardened coordinator at exact HF17.
 The inherited service-node CLI, extra-nonce template producer and fixed-size
 P2P registration/attestation command fail closed and cannot supply eligibility,
 receipts, qualification, or payouts for the fresh-genesis candidate.
+Daemon observer RPCs read only the canonical v2 coordinator state. The retained
+v1 registration-payload and reward-preview endpoint names do not call their
+legacy builders: they report the corresponding typed-v2 capability unavailable
+until the producer and shared reward-plan RPC contracts are implemented.
 
 ## Required launch evidence
 

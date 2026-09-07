@@ -91,6 +91,7 @@ TEST(epose_lifecycle_v2, registration_is_future_effective_and_idempotent)
   EXPECT_EQ(lifecycle_status_v2::invalid_service_signature, registry.apply(invalid_duplicate, 1, 2));
   EXPECT_EQ(nullptr, registry.descriptor_for_epoch(record.next_descriptor.identity_id, 1));
   ASSERT_NE(nullptr, registry.descriptor_for_epoch(record.next_descriptor.identity_id, 2));
+  EXPECT_EQ(nullptr, registry.descriptor_for_epoch(record.next_descriptor.identity_id, 10));
   EXPECT_EQ(nullptr, registry.descriptor_for_epoch(record.next_descriptor.identity_id, 11));
 }
 
@@ -264,7 +265,30 @@ TEST(epose_lifecycle_v2, renewal_extends_expiry_without_mutating_frozen_epochs)
   ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(renewal, 3, 4));
   EXPECT_EQ(0u, registry.descriptor_for_epoch(next.identity_id, 3)->sequence);
   EXPECT_EQ(1u, registry.descriptor_for_epoch(next.identity_id, 4)->sequence);
-  EXPECT_NE(nullptr, registry.descriptor_for_epoch(next.identity_id, 12));
+  EXPECT_NE(nullptr, registry.descriptor_for_epoch(next.identity_id, 11));
+  EXPECT_EQ(nullptr, registry.descriptor_for_epoch(next.identity_id, 12));
+}
+
+TEST(epose_lifecycle_v2, expired_service_key_can_be_reused_at_the_expiry_epoch)
+{
+  fixture first;
+  fixture successor;
+  successor.genesis = first.genesis;
+  successor.parameters = first.parameters;
+  successor.service = first.service;
+  lifecycle_registry_v2 registry(first.nettype, first.genesis, first.parameters);
+  ASSERT_EQ(lifecycle_status_v2::accepted,
+      registry.apply(registration(first, 2, 4), 1, 2));
+  EXPECT_EQ(nullptr, registry.descriptor_for_epoch(
+      descriptor(first, 0, 2, 4).identity_id, 4));
+
+  const lifecycle_record_v2 reused = registration(successor, 4, 10);
+  ASSERT_EQ(lifecycle_status_v2::accepted, registry.apply(reused, 3, 4));
+  ASSERT_NE(nullptr, registry.descriptor_for_epoch(
+      reused.next_descriptor.identity_id, 4));
+  EXPECT_EQ(first.service.public_key,
+      registry.descriptor_for_epoch(
+          reused.next_descriptor.identity_id, 4)->service_public_key);
 }
 
 TEST(epose_lifecycle_v2, deregistration_is_delayed_and_does_not_erase_history)

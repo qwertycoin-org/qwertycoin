@@ -206,6 +206,7 @@ namespace epose
 
     const membership_snapshot_v2 *snapshot(uint64_t epoch) const;
     const qualification_set_v2 *qualification(uint64_t epoch) const;
+    size_t receipt_count() const;
 
     std::vector<verifier_assignment_v2> committee(
         uint64_t epoch,

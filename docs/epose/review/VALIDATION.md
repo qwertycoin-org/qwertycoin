@@ -766,3 +766,32 @@ Candidate behavior:
 
 Final numeric limits, empty-set/emission policy, genesis hash, native macOS
 arm64 evidence, and network/wallet end-to-end evidence remain launch gates.
+
+## Canonical v2 observer RPC boundary
+
+Commands:
+
+```text
+cmake --build <build-dir> --target rpc daemon epose_unit_tests -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_lifecycle_v2.*'
+```
+
+Candidate behavior:
+
+- the EPoSE info, identity list/status, epoch, qualification, receipt-count and
+  state-root reads use copies of the canonical v2 coordinator state under the
+  blockchain lock;
+- identity responses expose stable identity, offline operator authority,
+  descriptor sequence and effective epoch without any private key material;
+- the retained v1 registration-payload endpoint returns `ready=false` and does
+  not invoke the private-view-key-era builder;
+- the retained reward endpoint does not run the v1 payee selector and reports
+  its v2 preview unavailable;
+- descriptor expiry is half-open and the lifecycle regression suite proves
+  absence and service-key reuse at the expiry boundary.
+
+This is an observer/read-surface milestone. It does not claim a typed v2 record
+producer, network relay queue, canonical probe transport, or wallet-funded
+submission path; those remain launch gates while their manifest bounds are
+unset.
