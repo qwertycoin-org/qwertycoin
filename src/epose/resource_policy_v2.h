@@ -178,6 +178,7 @@ namespace epose
         uint64_t current_height,
         const relay_template_limits_v2 &limits,
         std::vector<relay_item_v2> &selected) const;
+    bool erase(const crypto::hash &id);
     size_t size() const;
     size_t bytes() const;
     size_t size(relay_class_v2 record_class) const;
@@ -187,6 +188,7 @@ namespace epose
     size_t bytes_ = 0;
     std::vector<relay_item_v2> items_;
   };
+
 
   resource_status_v2 validate_rpc_page_v2(
       uint64_t offset,

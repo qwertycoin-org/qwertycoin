@@ -743,6 +743,26 @@ on failure. `charge_block_budget_v2` accumulates byte, record, signature, and
 admission costs transaction by transaction without mutating the committed
 budget on failure.
 
+`append_fee_funded_envelope_v2` is the shared wallet-carrier boundary. It
+accepts one complete canonical envelope containing already signed lifecycle,
+admission, or receipt records and appends the dedicated field to an ordinary
+transaction. It is exact-HF17 gated and rejects service-payment proofs, which
+are valid only in the prescribed Coinbase context. The single-transfer wallet
+RPC exposes the envelope as hexadecimal only when the compiled, genesis-bound
+parameter set is complete. Split transfers deliberately do not expose it,
+because duplicating one record across independently constructed transactions
+would make the carrier semantics ambiguous.
+
+`src/epose/relay_pool_v2.*` stores the complete typed records rather than only
+their hashes. The pool derives enrollment and evidence deadlines from each
+record's canonical protocol fields, rejects payment proofs, bounds items and
+bytes independently for both traffic classes, and selects a deterministic
+deadline-ordered template while preserving a nonzero share for each class.
+Confirmed records are removed by an ID over the complete canonical envelope.
+This pool is local policy only: callers must perform the canonical semantic and
+cryptographic validation before enqueue, and every complete block is parsed and
+validated again without consulting the pool.
+
 `src/epose/record_codec_v2.*` currently defines the canonical service-receipt
 payload. It is exactly 402 bytes in this order: version and service kind
 (`uint8` each); epoch and round (`uint64` little-endian each); snapshot hash,
@@ -751,11 +771,12 @@ requested-object hash, and response-object hash (32 bytes each); then subject
 and verifier signatures (64 bytes each). Decode is atomic and returns a receipt
 only after the complete context-bound signature validation succeeds.
 
-The carrier and receipt codec remain non-activating pending real block-state
-wiring. Codecs for lifecycle, admission, descriptors and the
-payment proof, miner template batching, wallet-funded submission, queue
-fairness, and measured manifest limits remain required before EPoSE v2 can affect
-block validity.
+All five record codecs and the canonical block-state path are connected to the
+gated HF17 coordinator. The fee-funded wallet carrier and full-record local
+pool are implemented, but typed P2P ingestion, semantic admission into that
+pool, miner-template batching from the pool, live record production, and
+measured manifest limits remain required for public operation. Incomplete
+compiled parameters keep every public producer fail-closed.
 
 ## CO-06 reward and payment-proof candidate
 

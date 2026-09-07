@@ -420,6 +420,18 @@ namespace epose
     return resource_status_v2::accepted;
   }
 
+  bool deadline_relay_queue_v2::erase(const crypto::hash &id)
+  {
+    const auto found = std::find_if(items_.begin(), items_.end(), [&](const relay_item_v2 &item) {
+      return item.id == id;
+    });
+    if (found == items_.end())
+      return false;
+    bytes_ -= found->bytes;
+    items_.erase(found);
+    return true;
+  }
+
   size_t deadline_relay_queue_v2::size() const { return items_.size(); }
   size_t deadline_relay_queue_v2::bytes() const { return bytes_; }
   size_t deadline_relay_queue_v2::size(relay_class_v2 record_class) const

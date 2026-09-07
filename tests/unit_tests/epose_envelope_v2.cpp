@@ -398,3 +398,41 @@ TEST(epose_envelope_v2, payment_proof_stripping_is_canonical_and_atomic)
   EXPECT_EQ(stale, stripped);
   EXPECT_EQ(0u, removed);
 }
+
+TEST(epose_envelope_v2, fee_funded_carrier_accepts_signed_record_envelopes_but_not_coinbase_proofs)
+{
+  std::string encoded;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_envelope_v2(
+          {record(record_type_v2::service_receipt, "receipt")},
+          limits(), encoded, budget));
+  std::vector<uint8_t> extra;
+  ASSERT_TRUE(cryptonote::add_extra_nonce_to_tx_extra(extra, "wallet-metadata"));
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_fee_funded_envelope_v2(
+          encoded, HF_VERSION_QWC_EPOSE, 1, limits(), extra, budget));
+  std::vector<envelope_record_v2> parsed;
+  ASSERT_EQ(envelope_status_v2::accepted,
+      parse_transaction_extra_v2(
+          extra, HF_VERSION_QWC_EPOSE, 1, limits(), parsed, budget));
+  ASSERT_EQ(1u, parsed.size());
+  EXPECT_EQ("receipt", parsed.front().payload);
+
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_envelope_v2(
+          {record(record_type_v2::service_payment_proof, "proof")},
+          limits(), encoded, budget));
+  const std::vector<uint8_t> unchanged = extra;
+  EXPECT_EQ(envelope_status_v2::forbidden_record_context,
+      append_fee_funded_envelope_v2(
+          encoded, HF_VERSION_QWC_EPOSE, 2, limits(), extra, budget));
+  EXPECT_EQ(unchanged, extra);
+  EXPECT_EQ(0u, budget.records);
+
+  EXPECT_EQ(envelope_status_v2::inactive_protocol,
+      append_fee_funded_envelope_v2(
+          encoded, HF_VERSION_MONERO_CURRENT_CONSENSUS,
+          2, limits(), extra, budget));
+  EXPECT_EQ(unchanged, extra);
+}

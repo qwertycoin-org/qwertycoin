@@ -93,6 +93,7 @@ namespace epose
     block_admission_budget_exceeded,
     trailing_bytes,
     inactive_protocol,
+    forbidden_record_context,
     malformed_transaction_extra
   };
 
@@ -137,6 +138,17 @@ namespace epose
   // reserved carrier unless the exact reserved v2 major version is supplied.
   envelope_status_v2 append_transaction_envelope_v2(
       const std::vector<envelope_record_v2> &records,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      std::vector<uint8_t> &tx_extra,
+      envelope_budget_v2 &budget);
+
+  // Wallet-funded carrier for already signed records. It accepts one complete
+  // canonical envelope, rejects Coinbase-only proofs, and appends the records
+  // using the same exact-HF17 transaction-extra encoder as miner templates.
+  envelope_status_v2 append_fee_funded_envelope_v2(
+      const std::string &encoded_envelope,
       uint8_t major_version,
       size_t max_envelopes_per_transaction,
       const envelope_limits_v2 &limits,

@@ -11,6 +11,7 @@ set(epose_sources
   lifecycle_v2.cpp
   membership_v2.cpp
   record_codec_v2.cpp
+  relay_pool_v2.cpp
   reward_v2.cpp
   resource_policy_v2.cpp
   semantic_batch_v2.cpp
@@ -31,6 +32,7 @@ set(epose_headers
   lifecycle_v2.h
   membership_v2.h
   record_codec_v2.h
+  relay_pool_v2.h
   reward_v2.h
   resource_policy_v2.h
   semantic_batch_v2.h

@@ -795,3 +795,38 @@ This is an observer/read-surface milestone. It does not claim a typed v2 record
 producer, network relay queue, canonical probe transport, or wallet-funded
 submission path; those remain launch gates while their manifest bounds are
 unset.
+
+## Fee-funded carrier and typed relay-pool milestone
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests wallet_rpc_server -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_envelope_v2.*:epose_relay_pool_v2.*:epose_resource_policy_v2.*'
+```
+
+Candidate behavior:
+
+- one complete canonical lifecycle, admission, or receipt envelope can be
+  appended to a normal single wallet transfer when the compiled genesis-bound
+  parameters are complete;
+- service-payment proofs, block versions 16/18, malformed hexadecimal and
+  oversize inputs fail before transaction construction and without mutating
+  transaction extra;
+- split transfers do not expose this carrier and therefore cannot duplicate
+  one record across multiple transactions;
+- the local relay pool stores complete typed records, derives all deadlines
+  from those records, rejects payment proofs, prunes expired records and
+  preserves independently reserved Enrollment/Evidence capacity;
+- exact duplicate records are idempotent and confirmed records are erased by a
+  complete-envelope ID;
+- targeted envelope/resource/relay regressions: **32/32 passed** on Linux;
+- complete focused EPoSE C++ suite: **209/209 passed**;
+- EPoSE Python manifest/reference suite: **38/38 passed**.
+
+The pool accepts only records already validated by its caller. Typed P2P
+ingestion, canonical semantic validation before enqueue, pool-to-template
+insertion, live record construction and native macOS arm64 evidence remain
+open. The incomplete production manifest keeps the wallet carrier unavailable
+on public networks.

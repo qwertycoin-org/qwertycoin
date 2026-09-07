@@ -164,3 +164,7 @@ activated by CO-01.
 151. Public EPoSE status, identity, epoch, receipt-count, qualification, and state-root RPC reads are copies of the canonical v2 coordinator state; retired v1 state cannot populate those responses.
 152. Legacy registration and reward-preview RPCs never construct a v1 record or predict a v2 payee under HF17; they report the producer/preview capability unavailable until the typed v2 path is connected.
 153. Lifecycle validity intervals are half-open `[effective_epoch, expiry_epoch)`; an expired descriptor is absent at its expiry epoch and its service key can be reused then only after all independent admission reservations and canonical-order checks succeed.
+154. A fee-funded wallet carrier appends only one complete canonical, already-signed v2 envelope under exact HF17; service-payment proofs remain Coinbase-only and failures leave transaction extra unchanged.
+155. Split wallet transfers cannot carry a v2 envelope because one submitted record must not be copied implicitly into multiple independently constructed transactions.
+156. Relay-pool deadlines are derived from canonical record fields, never supplied by an untrusted peer, and local capacity reserves enrollment and evidence independently.
+157. The local relay pool stores complete canonical records for later revalidation; neither its contents, ordering, eviction, nor availability can alter validity of the same complete block.

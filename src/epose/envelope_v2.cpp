@@ -529,6 +529,32 @@ namespace epose
     return envelope_status_v2::accepted;
   }
 
+  envelope_status_v2 append_fee_funded_envelope_v2(
+      const std::string &encoded_envelope,
+      uint8_t major_version,
+      size_t max_envelopes_per_transaction,
+      const envelope_limits_v2 &limits,
+      std::vector<uint8_t> &tx_extra,
+      envelope_budget_v2 &budget)
+  {
+    budget = {};
+    if (major_version != HF_VERSION_QWC_EPOSE)
+      return envelope_status_v2::inactive_protocol;
+    std::vector<envelope_record_v2> records;
+    envelope_budget_v2 parsed_budget{};
+    const envelope_status_v2 parsed =
+        parse_envelope_v2(encoded_envelope, limits, records, parsed_budget);
+    if (parsed != envelope_status_v2::accepted)
+      return parsed;
+    if (std::any_of(records.begin(), records.end(), [](const envelope_record_v2 &record) {
+          return record.type == static_cast<uint8_t>(record_type_v2::service_payment_proof);
+        }))
+      return envelope_status_v2::forbidden_record_context;
+    return append_transaction_envelope_v2(
+        records, major_version, max_envelopes_per_transaction,
+        limits, tx_extra, budget);
+  }
+
   envelope_status_v2 strip_transaction_record_type_v2(
       const std::vector<uint8_t> &tx_extra,
       uint8_t major_version,

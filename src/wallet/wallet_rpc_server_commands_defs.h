@@ -605,6 +605,7 @@ namespace wallet_rpc
       uint64_t ring_size;
       uint64_t unlock_time;
       std::string payment_id;
+      std::string epose_v2_envelope;
       bool get_tx_key;
       bool do_not_relay;
       bool get_tx_hex;
@@ -619,6 +620,7 @@ namespace wallet_rpc
         KV_SERIALIZE_OPT(ring_size, (uint64_t)0)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
+        KV_SERIALIZE_OPT(epose_v2_envelope, std::string())
         KV_SERIALIZE(get_tx_key)
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(get_tx_hex, false)
