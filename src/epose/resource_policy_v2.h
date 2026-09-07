@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "crypto/crypto.h"
+#include "cryptonote_basic/blobdatatype.h"
 #include "cryptonote_config.h"
 
 namespace qwertycoin
@@ -79,6 +80,20 @@ namespace epose
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
       const endpoint_descriptor_v2 &descriptor);
+
+  resource_status_v2 encode_endpoint_descriptor_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const endpoint_descriptor_v2 &descriptor,
+      cryptonote::blobdata &blob);
+
+  resource_status_v2 decode_endpoint_descriptor_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const cryptonote::blobdata &blob,
+      endpoint_descriptor_v2 &descriptor);
 
   bool public_probe_address_v2(const std::string &address);
   resource_status_v2 validate_resolved_targets_v2(

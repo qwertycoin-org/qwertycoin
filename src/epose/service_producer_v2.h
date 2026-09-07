@@ -58,5 +58,15 @@ namespace epose
       uint64_t max_nonce_attempts,
       service_enrollment_v2 &enrollment,
       const std::atomic<bool> *cancel = nullptr);
+
+  service_producer_status_v2 build_service_renewal_enrollment_v2(
+      const consensus_parameters_v2 &parameters,
+      const service_keystore_v2 &keystore,
+      const identity_descriptor_v2 &current_descriptor,
+      uint64_t target_epoch,
+      const crypto::hash &admission_context_hash,
+      uint64_t max_nonce_attempts,
+      service_enrollment_v2 &enrollment,
+      const std::atomic<bool> *cancel = nullptr);
 } // namespace epose
 } // namespace qwertycoin

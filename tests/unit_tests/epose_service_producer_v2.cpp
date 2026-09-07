@@ -63,11 +63,17 @@ namespace
   class contexts final : public canonical_context_source_v2
   {
   public:
-    explicit contexts(const crypto::hash &genesis) : genesis_(genesis) {}
+    explicit contexts(const crypto::hash &genesis)
+      : genesis_(genesis), epoch_one_(hash_text("epoch-one")) {}
     bool block_hash(uint64_t height, crypto::hash &hash) const override
     {
-      hash = height == 0 ? genesis_ : crypto::null_hash;
-      return height == 0;
+      if (height == 0)
+        hash = genesis_;
+      else if (height == 720)
+        hash = epoch_one_;
+      else
+        hash = crypto::null_hash;
+      return height == 0 || height == 720;
     }
     bool round_anchor(uint64_t, uint64_t, crypto::hash &) const override
     {
@@ -75,6 +81,7 @@ namespace
     }
   private:
     crypto::hash genesis_{};
+    crypto::hash epoch_one_{};
   };
 }
 
@@ -156,4 +163,41 @@ TEST(epose_service_producer_v2, admission_search_honors_cancellation_atomically)
           policy, config, policy.genesis_hash, 1000000, enrollment, &cancel));
   EXPECT_TRUE(enrollment.records.empty());
   EXPECT_EQ(crypto::null_hash, enrollment.admission.lease_hash);
+}
+
+TEST(epose_service_producer_v2, renewal_extends_lifecycle_and_admits_the_next_epoch)
+{
+  const auto policy = parameters();
+  const auto config = configuration();
+  const contexts source{policy.genesis_hash};
+  service_enrollment_v2 initial{};
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_initial_service_enrollment_v2(
+          policy, config, policy.genesis_hash, 1000, initial));
+  semantic_state_v2 state{
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+      policy.timing, policy.admission, policy.committee};
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          initial.records, {1, false, nullptr, nullptr}, source, summary));
+
+  service_enrollment_v2 renewal{};
+  const crypto::hash epoch_one_hash = hash_text("epoch-one");
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_service_renewal_enrollment_v2(
+          policy, config.keystore, initial.lifecycle.next_descriptor,
+          2, epoch_one_hash, 1000, renewal));
+  ASSERT_EQ(2u, renewal.records.size());
+  EXPECT_EQ(lifecycle_action_v2::renew_lease, renewal.lifecycle.action);
+  EXPECT_EQ(1u, renewal.lifecycle.next_descriptor.sequence);
+  EXPECT_EQ(2u, renewal.lifecycle.next_descriptor.effective_epoch);
+  EXPECT_EQ(4u, renewal.lifecycle.next_descriptor.expiry_epoch);
+  EXPECT_EQ(initial.lifecycle.next_descriptor.endpoint_descriptor_hash,
+      renewal.lifecycle.next_descriptor.endpoint_descriptor_hash);
+  EXPECT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          renewal.records, {721, false, nullptr, nullptr}, source, summary));
+  EXPECT_TRUE(state.membership().has_admission(
+      initial.lifecycle.next_descriptor.identity_id, 2));
 }

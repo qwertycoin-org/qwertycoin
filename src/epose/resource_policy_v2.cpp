@@ -35,6 +35,45 @@ namespace
   }
   crypto::hash fast_hash(const std::string &blob) { return crypto::cn_fast_hash(blob.data(), blob.size()); }
 
+  template <typename T>
+  bool read_bytes(const std::string &blob, size_t &offset, T &value)
+  {
+    if (offset > blob.size() || sizeof(T) > blob.size() - offset)
+      return false;
+    std::memcpy(&value, blob.data() + offset, sizeof(T));
+    offset += sizeof(T);
+    return true;
+  }
+
+  bool read_u8(const std::string &blob, size_t &offset, uint8_t &value)
+  {
+    if (offset >= blob.size())
+      return false;
+    value = static_cast<uint8_t>(blob[offset++]);
+    return true;
+  }
+
+  bool read_u16(const std::string &blob, size_t &offset, uint16_t &value)
+  {
+    if (offset > blob.size() || 2 > blob.size() - offset)
+      return false;
+    value = static_cast<uint16_t>(static_cast<uint8_t>(blob[offset]))
+        | static_cast<uint16_t>(static_cast<uint8_t>(blob[offset + 1])) << 8;
+    offset += 2;
+    return true;
+  }
+
+  bool read_u64(const std::string &blob, size_t &offset, uint64_t &value)
+  {
+    if (offset > blob.size() || 8 > blob.size() - offset)
+      return false;
+    value = 0;
+    for (unsigned shift = 0; shift < 64; shift += 8)
+      value |= static_cast<uint64_t>(
+          static_cast<uint8_t>(blob[offset++])) << shift;
+    return true;
+  }
+
   bool canonical_dns(const std::string &host)
   {
     if (host.empty() || host.size() > 253 || host.front() == '.' || host.back() == '.'
@@ -181,6 +220,71 @@ namespace epose
     if (!crypto::check_signature(hash_endpoint_descriptor_v2(nettype, genesis_hash, parameter_set_hash, descriptor),
             descriptor.service_public_key, descriptor.signature))
       return resource_status_v2::invalid_signature;
+    return resource_status_v2::accepted;
+  }
+
+  resource_status_v2 encode_endpoint_descriptor_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const endpoint_descriptor_v2 &descriptor,
+      cryptonote::blobdata &blob)
+  {
+    blob.clear();
+    const resource_status_v2 status = validate_endpoint_descriptor_v2(
+        nettype, genesis_hash, parameter_set_hash, descriptor);
+    if (status != resource_status_v2::accepted)
+      return status;
+    if (descriptor.host.size() > std::numeric_limits<uint16_t>::max())
+      return resource_status_v2::invalid_descriptor;
+    append_u8(blob, descriptor.version);
+    append_bytes(blob, descriptor.service_public_key);
+    append_u8(blob, static_cast<uint8_t>(descriptor.transport));
+    append_u16(blob, static_cast<uint16_t>(descriptor.host.size()));
+    blob.append(descriptor.host);
+    append_u16(blob, descriptor.port);
+    append_u8(blob, descriptor.service_kind);
+    append_u8(blob, descriptor.service_version);
+    append_u64(blob, descriptor.sequence);
+    append_u64(blob, descriptor.expiry_epoch);
+    append_bytes(blob, descriptor.signature);
+    return resource_status_v2::accepted;
+  }
+
+  resource_status_v2 decode_endpoint_descriptor_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const cryptonote::blobdata &blob,
+      endpoint_descriptor_v2 &descriptor)
+  {
+    descriptor = {};
+    endpoint_descriptor_v2 next{};
+    size_t offset = 0;
+    uint8_t transport = 0;
+    uint16_t host_size = 0;
+    if (!read_u8(blob, offset, next.version)
+        || !read_bytes(blob, offset, next.service_public_key)
+        || !read_u8(blob, offset, transport)
+        || !read_u16(blob, offset, host_size)
+        || offset > blob.size() || host_size > blob.size() - offset)
+      return resource_status_v2::invalid_descriptor;
+    next.transport = static_cast<endpoint_transport_v2>(transport);
+    next.host.assign(blob.data() + offset, host_size);
+    offset += host_size;
+    if (!read_u16(blob, offset, next.port)
+        || !read_u8(blob, offset, next.service_kind)
+        || !read_u8(blob, offset, next.service_version)
+        || !read_u64(blob, offset, next.sequence)
+        || !read_u64(blob, offset, next.expiry_epoch)
+        || !read_bytes(blob, offset, next.signature)
+        || offset != blob.size())
+      return resource_status_v2::invalid_descriptor;
+    const resource_status_v2 status = validate_endpoint_descriptor_v2(
+        nettype, genesis_hash, parameter_set_hash, next);
+    if (status != resource_status_v2::accepted)
+      return status;
+    descriptor = std::move(next);
     return resource_status_v2::accepted;
   }
 

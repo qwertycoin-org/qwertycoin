@@ -50,6 +50,32 @@ TEST(epose_resource_policy_v2, signed_canonical_descriptor_is_context_bound)
       cryptonote::TESTNET, hash_text("other-genesis"), hash_text("parameters"), value));
 }
 
+TEST(epose_resource_policy_v2, endpoint_wire_codec_is_canonical_context_bound_and_atomic)
+{
+  crypto::secret_key secret{};
+  const auto value = descriptor(secret);
+  cryptonote::blobdata blob;
+  ASSERT_EQ(resource_status_v2::accepted, encode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), value, blob));
+  endpoint_descriptor_v2 decoded{};
+  ASSERT_EQ(resource_status_v2::accepted, decode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), blob, decoded));
+  EXPECT_EQ(value.service_public_key, decoded.service_public_key);
+  EXPECT_EQ(value.host, decoded.host);
+  EXPECT_EQ(value.port, decoded.port);
+  EXPECT_EQ(value.signature, decoded.signature);
+
+  decoded.host = "stale.example.org";
+  auto malformed = blob;
+  malformed.push_back('\0');
+  EXPECT_EQ(resource_status_v2::invalid_descriptor, decode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), malformed, decoded));
+  EXPECT_TRUE(decoded.host.empty());
+  EXPECT_EQ(resource_status_v2::invalid_signature, decode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("other-genesis"), hash_text("parameters"), blob, decoded));
+  EXPECT_TRUE(decoded.host.empty());
+}
+
 TEST(epose_resource_policy_v2, dns_and_literal_hosts_must_be_canonical)
 {
   crypto::secret_key secret{};

@@ -952,10 +952,15 @@ namespace cryptonote
     bool get_epose_membership_snapshot_v2(uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const;
     bool get_epose_qualification_v2(uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const;
     bool get_epose_consensus_parameters_v2(qwertycoin::epose::consensus_parameters_v2 &parameters) const;
+    bool has_epose_admission_v2(const crypto::hash &identity_id, uint64_t target_epoch) const;
     std::vector<qwertycoin::epose::verifier_assignment_v2> get_epose_committee_v2(
         uint64_t epoch, uint64_t round,
         const crypto::public_key &subject_public_key,
         const crypto::hash &round_anchor_hash) const;
+    bool has_epose_receipt_slot_v2(
+        uint64_t epoch, uint64_t round,
+        const crypto::public_key &subject_public_key,
+        const crypto::public_key &verifier_public_key) const;
     uint64_t get_epose_attestation_count() const;
     crypto::hash get_epose_state_hash() const;
     crypto::hash get_epose_epoch_context_hash(uint64_t epoch) const;

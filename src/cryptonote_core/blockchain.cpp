@@ -1125,6 +1125,14 @@ bool Blockchain::get_epose_consensus_parameters_v2(
   return true;
 }
 //------------------------------------------------------------------
+bool Blockchain::has_epose_admission_v2(
+    const crypto::hash &identity_id, uint64_t target_epoch) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  return m_epose_v2 && m_epose_v2->state().membership().has_admission(
+      identity_id, target_epoch);
+}
+//------------------------------------------------------------------
 std::vector<qwertycoin::epose::verifier_assignment_v2>
 Blockchain::get_epose_committee_v2(
     uint64_t epoch, uint64_t round,
@@ -1136,6 +1144,16 @@ Blockchain::get_epose_committee_v2(
       ? m_epose_v2->state().membership().committee(
             epoch, round, subject_public_key, round_anchor_hash)
       : std::vector<qwertycoin::epose::verifier_assignment_v2>{};
+}
+
+bool Blockchain::has_epose_receipt_slot_v2(
+    uint64_t epoch, uint64_t round,
+    const crypto::public_key &subject_public_key,
+    const crypto::public_key &verifier_public_key) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  return m_epose_v2 && m_epose_v2->state().membership().has_receipt_slot(
+      epoch, round, subject_public_key, verifier_public_key);
 }
 //------------------------------------------------------------------
 uint64_t Blockchain::get_epose_attestation_count() const

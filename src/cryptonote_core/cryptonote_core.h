@@ -88,6 +88,7 @@ namespace cryptonote
   extern const command_line::arg_descriptor<std::string> arg_epose_v2_reward_address;
   extern const command_line::arg_descriptor<std::string> arg_epose_v2_endpoint_host;
   extern const command_line::arg_descriptor<uint16_t> arg_epose_v2_endpoint_port;
+  extern const command_line::arg_descriptor<std::vector<std::string>> arg_epose_v2_discovery_endpoint;
 
   /************************************************************************/
   /*                                                                      */
@@ -1071,6 +1072,7 @@ namespace cryptonote
      bool init_epose_service_node_config(const boost::program_options::variables_map& vm);
      bool init_epose_v2_service_runtime();
      bool update_epose_v2_service_producer();
+     bool update_epose_v2_receipt_producer();
      bool build_epose_miner_extra_nonce(blobdata& epose_extra_nonce) const;
 
      /**
@@ -1138,6 +1140,7 @@ namespace cryptonote
      std::string m_epose_v2_reward_address_string;
      std::string m_epose_v2_endpoint_host;
      uint16_t m_epose_v2_endpoint_port = 0;
+     std::vector<std::string> m_epose_v2_discovery_endpoints;
      qwertycoin::epose::service_keystore_v2 m_epose_v2_keystore;
      cryptonote::account_public_address m_epose_v2_reward_address{};
      mutable std::mutex m_epose_v2_endpoint_mutex;
@@ -1150,6 +1153,16 @@ namespace cryptonote
      std::future<std::pair<
          qwertycoin::epose::service_producer_status_v2,
          qwertycoin::epose::service_enrollment_v2>> m_epose_v2_producer_future;
+     struct epose_v2_receipt_job_result
+     {
+       bool accepted = false;
+       crypto::hash slot{};
+       blobdata envelope;
+     };
+     std::future<epose_v2_receipt_job_result> m_epose_v2_receipt_future;
+     uint64_t m_epose_v2_receipt_epoch = std::numeric_limits<uint64_t>::max();
+     std::vector<crypto::hash> m_epose_v2_attempted_receipt_slots;
+     std::chrono::steady_clock::time_point m_epose_v2_last_receipt_attempt{};
 
      cryptonote_protocol_stub m_protocol_stub; //!< cryptonote protocol stub instance
 

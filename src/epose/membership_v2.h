@@ -211,6 +211,12 @@ namespace epose
     const membership_snapshot_v2 *snapshot(uint64_t epoch) const;
     const qualification_set_v2 *qualification(uint64_t epoch) const;
     size_t receipt_count() const;
+    bool has_admission(const crypto::hash &identity_id, uint64_t target_epoch) const;
+    bool has_receipt_slot(
+        uint64_t epoch,
+        uint64_t round,
+        const crypto::public_key &subject_public_key,
+        const crypto::public_key &verifier_public_key) const;
 
     std::vector<verifier_assignment_v2> committee(
         uint64_t epoch,
