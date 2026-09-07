@@ -10,8 +10,13 @@ SSH_TARGETS=(root@95.216.221.239 root@seed-01.qwertycoin.org codiki@159.195.216.
 PUBLIC_ENDPOINTS=(95.216.221.239 202.61.202.161 159.195.216.239 159.195.194.92)
 
 usage() {
-  echo "usage: $0 <inventory|status|assert-converged|assert-rpc-split|restart-smoke|sigkill-smoke>" >&2
+  echo "usage: $0 <inventory|status|assert-converged|assert-rpc-split|start-mining|stop-mining|mining-status|restart-smoke|sigkill-smoke>" >&2
   exit 64
+}
+
+admin_http() {
+  local index="$1" path="$2" payload="$3"
+  ssh_host "$index" "curl -fsS --max-time 15 -X POST http://127.0.0.1:8197/$path -H 'Content-Type: application/json' -d '$payload'"
 }
 
 ssh_host() {
@@ -108,6 +113,38 @@ assert_rpc_split() {
   done
 }
 
+start_mining() {
+  local i command_json reward_address payload
+  for i in "${!SSH_TARGETS[@]}"; do
+    command_json="$(ssh_host "$i" 'docker inspect qwertycoin-mainnet --format "{{json .Config.Cmd}}"')"
+    reward_address="$(jq -r '.[] | select(startswith("--epose-v2-reward-address=")) | sub("^--epose-v2-reward-address="; "")' <<<"$command_json")"
+    if [[ -z "$reward_address" || "$reward_address" == null ]]; then
+      echo "${HOST_NAMES[$i]} has no configured rehearsal reward address" >&2
+      return 1
+    fi
+    payload="$(jq -cn --arg address "$reward_address" '{miner_address:$address,threads_count:1,do_background_mining:false,ignore_battery:true}')"
+    admin_http "$i" start_mining "$payload" >/dev/null
+    echo "${HOST_NAMES[$i]} mining started with one RandomX thread"
+  done
+}
+
+stop_mining() {
+  local i
+  for i in "${!SSH_TARGETS[@]}"; do
+    admin_http "$i" stop_mining '{}' >/dev/null
+    echo "${HOST_NAMES[$i]} mining stopped"
+  done
+}
+
+mining_status() {
+  local i response
+  for i in "${!SSH_TARGETS[@]}"; do
+    response="$(admin_http "$i" mining_status '{}')"
+    jq -n --arg node "${HOST_NAMES[$i]}" --argjson response "$response" \
+      '{node:$node,active:$response.active,threads:$response.threads_count,speed:$response.speed,difficulty:$response.difficulty}'
+  done | jq -s .
+}
+
 restart_smoke() {
   local before after i
   before="$(status)"
@@ -116,7 +153,8 @@ restart_smoke() {
   after="$(status)"
   jq -e --argjson after "$after" '
     length == 4 and
-    all(.[] as $old; any($after[]; .node == $old.node and .height >= $old.height))
+    all(.[]; .node as $node | .height as $height |
+      any($after[]; .node == $node and .height >= $height))
   ' <<<"$before" >/dev/null
   assert_converged
 }
@@ -136,6 +174,9 @@ case "${1:-}" in
   status) status ;;
   assert-converged) assert_converged ;;
   assert-rpc-split) assert_rpc_split ;;
+  start-mining) start_mining ;;
+  stop-mining) stop_mining ;;
+  mining-status) mining_status ;;
   restart-smoke) restart_smoke ;;
   sigkill-smoke) sigkill_smoke ;;
   *) usage ;;
