@@ -1,0 +1,1484 @@
+{
+  "admission": [
+    {
+      "amortized_seconds_per_epoch": 65.536,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 16,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 65.536,
+      "p95_seconds_per_ticket": 196.32831027963434
+    },
+    {
+      "amortized_seconds_per_epoch": 2.1845333333333334,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 16,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 65.536,
+      "p95_seconds_per_ticket": 196.32831027963434
+    },
+    {
+      "amortized_seconds_per_epoch": 6.5536,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 16,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 6.5536,
+      "p95_seconds_per_ticket": 19.632831027963434
+    },
+    {
+      "amortized_seconds_per_epoch": 0.21845333333333333,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 16,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 6.5536,
+      "p95_seconds_per_ticket": 19.632831027963434
+    },
+    {
+      "amortized_seconds_per_epoch": 0.65536,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 16,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 0.65536,
+      "p95_seconds_per_ticket": 1.9632831027963435
+    },
+    {
+      "amortized_seconds_per_epoch": 0.021845333333333335,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 16,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 0.65536,
+      "p95_seconds_per_ticket": 1.9632831027963435
+    },
+    {
+      "amortized_seconds_per_epoch": 262.144,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 18,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 262.144,
+      "p95_seconds_per_ticket": 785.3132411185373
+    },
+    {
+      "amortized_seconds_per_epoch": 8.738133333333334,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 18,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 262.144,
+      "p95_seconds_per_ticket": 785.3132411185373
+    },
+    {
+      "amortized_seconds_per_epoch": 26.2144,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 18,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 26.2144,
+      "p95_seconds_per_ticket": 78.53132411185373
+    },
+    {
+      "amortized_seconds_per_epoch": 0.8738133333333333,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 18,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 26.2144,
+      "p95_seconds_per_ticket": 78.53132411185373
+    },
+    {
+      "amortized_seconds_per_epoch": 2.62144,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 18,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 2.62144,
+      "p95_seconds_per_ticket": 7.853132411185374
+    },
+    {
+      "amortized_seconds_per_epoch": 0.08738133333333334,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 18,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 2.62144,
+      "p95_seconds_per_ticket": 7.853132411185374
+    },
+    {
+      "amortized_seconds_per_epoch": 1048.576,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 20,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 1048.576,
+      "p95_seconds_per_ticket": 3141.2529644741494
+    },
+    {
+      "amortized_seconds_per_epoch": 34.952533333333335,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 20,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 1048.576,
+      "p95_seconds_per_ticket": 3141.2529644741494
+    },
+    {
+      "amortized_seconds_per_epoch": 104.8576,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 20,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 104.8576,
+      "p95_seconds_per_ticket": 314.12529644741494
+    },
+    {
+      "amortized_seconds_per_epoch": 3.4952533333333333,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 20,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 104.8576,
+      "p95_seconds_per_ticket": 314.12529644741494
+    },
+    {
+      "amortized_seconds_per_epoch": 10.48576,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 20,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 10.48576,
+      "p95_seconds_per_ticket": 31.412529644741497
+    },
+    {
+      "amortized_seconds_per_epoch": 0.34952533333333335,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 20,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 10.48576,
+      "p95_seconds_per_ticket": 31.412529644741497
+    },
+    {
+      "amortized_seconds_per_epoch": 4194.304,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 22,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 4194.304,
+      "p95_seconds_per_ticket": 12565.011857896598
+    },
+    {
+      "amortized_seconds_per_epoch": 139.81013333333334,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 22,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 4194.304,
+      "p95_seconds_per_ticket": 12565.011857896598
+    },
+    {
+      "amortized_seconds_per_epoch": 419.4304,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 22,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 419.4304,
+      "p95_seconds_per_ticket": 1256.5011857896598
+    },
+    {
+      "amortized_seconds_per_epoch": 13.981013333333333,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 22,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 419.4304,
+      "p95_seconds_per_ticket": 1256.5011857896598
+    },
+    {
+      "amortized_seconds_per_epoch": 41.94304,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 22,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 41.94304,
+      "p95_seconds_per_ticket": 125.65011857896599
+    },
+    {
+      "amortized_seconds_per_epoch": 1.3981013333333334,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 22,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 41.94304,
+      "p95_seconds_per_ticket": 125.65011857896599
+    },
+    {
+      "amortized_seconds_per_epoch": 16777.216,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 24,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 16777.216,
+      "p95_seconds_per_ticket": 50260.04743158639
+    },
+    {
+      "amortized_seconds_per_epoch": 559.2405333333334,
+      "illustrative_hashes_per_second": 1000,
+      "leading_zero_bits": 24,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 16777.216,
+      "p95_seconds_per_ticket": 50260.04743158639
+    },
+    {
+      "amortized_seconds_per_epoch": 1677.7216,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 24,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 1677.7216,
+      "p95_seconds_per_ticket": 5026.004743158639
+    },
+    {
+      "amortized_seconds_per_epoch": 55.92405333333333,
+      "illustrative_hashes_per_second": 10000,
+      "leading_zero_bits": 24,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 1677.7216,
+      "p95_seconds_per_ticket": 5026.004743158639
+    },
+    {
+      "amortized_seconds_per_epoch": 167.77216,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 24,
+      "lease_epochs": 1,
+      "mean_seconds_per_ticket": 167.77216,
+      "p95_seconds_per_ticket": 502.60047431586395
+    },
+    {
+      "amortized_seconds_per_epoch": 5.592405333333334,
+      "illustrative_hashes_per_second": 100000,
+      "leading_zero_bits": 24,
+      "lease_epochs": 30,
+      "mean_seconds_per_ticket": 167.77216,
+      "p95_seconds_per_ticket": 502.60047431586395
+    }
+  ],
+  "baseline": {
+    "controlled_identities": 20,
+    "population": 100
+  },
+  "capacity": [
+    {
+      "committee": 9,
+      "minimum_receipts": 1200,
+      "population": 100,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -540,
+      "threshold": 6,
+      "window_capacity": 660
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 1200,
+      "population": 100,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": 1440,
+      "threshold": 6,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 1200,
+      "population": 100,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": 9360,
+      "threshold": 6,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 1200,
+      "population": 100,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 41040,
+      "threshold": 6,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 1400,
+      "population": 100,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -740,
+      "threshold": 7,
+      "window_capacity": 660
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 1400,
+      "population": 100,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": 1240,
+      "threshold": 7,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 1400,
+      "population": 100,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": 9160,
+      "threshold": 7,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 1400,
+      "population": 100,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 40840,
+      "threshold": 7,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 2200,
+      "population": 100,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -1540,
+      "threshold": 11,
+      "window_capacity": 660
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 2200,
+      "population": 100,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": 440,
+      "threshold": 11,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 2200,
+      "population": 100,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": 8360,
+      "threshold": 11,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 2200,
+      "population": 100,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 40040,
+      "threshold": 11,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 3000,
+      "population": 100,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -2340,
+      "threshold": 15,
+      "window_capacity": 660
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 3000,
+      "population": 100,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -360,
+      "threshold": 15,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 3000,
+      "population": 100,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": 7560,
+      "threshold": 15,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 3000,
+      "population": 100,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 39240,
+      "threshold": 15,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 4200,
+      "population": 100,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -3540,
+      "threshold": 21,
+      "window_capacity": 660
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 4200,
+      "population": 100,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -1560,
+      "threshold": 21,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 4200,
+      "population": 100,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": 6360,
+      "threshold": 21,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 4200,
+      "population": 100,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 38040,
+      "threshold": 21,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 12000,
+      "population": 1000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -11340,
+      "threshold": 6,
+      "window_capacity": 660
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 12000,
+      "population": 1000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -9360,
+      "threshold": 6,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 12000,
+      "population": 1000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -1440,
+      "threshold": 6,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 12000,
+      "population": 1000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 30240,
+      "threshold": 6,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 14000,
+      "population": 1000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -13340,
+      "threshold": 7,
+      "window_capacity": 660
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 14000,
+      "population": 1000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -11360,
+      "threshold": 7,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 14000,
+      "population": 1000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -3440,
+      "threshold": 7,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 14000,
+      "population": 1000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 28240,
+      "threshold": 7,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 22000,
+      "population": 1000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -21340,
+      "threshold": 11,
+      "window_capacity": 660
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 22000,
+      "population": 1000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -19360,
+      "threshold": 11,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 22000,
+      "population": 1000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -11440,
+      "threshold": 11,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 22000,
+      "population": 1000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 20240,
+      "threshold": 11,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 30000,
+      "population": 1000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -29340,
+      "threshold": 15,
+      "window_capacity": 660
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 30000,
+      "population": 1000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -27360,
+      "threshold": 15,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 30000,
+      "population": 1000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -19440,
+      "threshold": 15,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 30000,
+      "population": 1000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 12240,
+      "threshold": 15,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 42000,
+      "population": 1000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -41340,
+      "threshold": 21,
+      "window_capacity": 660
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 42000,
+      "population": 1000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -39360,
+      "threshold": 21,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 42000,
+      "population": 1000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -31440,
+      "threshold": 21,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 42000,
+      "population": 1000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": 240,
+      "threshold": 21,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 120000,
+      "population": 10000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -119340,
+      "threshold": 6,
+      "window_capacity": 660
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 120000,
+      "population": 10000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -117360,
+      "threshold": 6,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 120000,
+      "population": 10000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -109440,
+      "threshold": 6,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 120000,
+      "population": 10000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": -77760,
+      "threshold": 6,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 140000,
+      "population": 10000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -139340,
+      "threshold": 7,
+      "window_capacity": 660
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 140000,
+      "population": 10000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -137360,
+      "threshold": 7,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 140000,
+      "population": 10000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -129440,
+      "threshold": 7,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 9,
+      "minimum_receipts": 140000,
+      "population": 10000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": -97760,
+      "threshold": 7,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 220000,
+      "population": 10000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -219340,
+      "threshold": 11,
+      "window_capacity": 660
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 220000,
+      "population": 10000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -217360,
+      "threshold": 11,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 220000,
+      "population": 10000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -209440,
+      "threshold": 11,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 15,
+      "minimum_receipts": 220000,
+      "population": 10000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": -177760,
+      "threshold": 11,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 300000,
+      "population": 10000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -299340,
+      "threshold": 15,
+      "window_capacity": 660
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 300000,
+      "population": 10000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -297360,
+      "threshold": 15,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 300000,
+      "population": 10000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -289440,
+      "threshold": 15,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 21,
+      "minimum_receipts": 300000,
+      "population": 10000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": -257760,
+      "threshold": 15,
+      "window_capacity": 42240
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 420000,
+      "population": 10000,
+      "receipts_per_block": 1,
+      "rounds_required": 2,
+      "surplus": -419340,
+      "threshold": 21,
+      "window_capacity": 660
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 420000,
+      "population": 10000,
+      "receipts_per_block": 4,
+      "rounds_required": 2,
+      "surplus": -417360,
+      "threshold": 21,
+      "window_capacity": 2640
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 420000,
+      "population": 10000,
+      "receipts_per_block": 16,
+      "rounds_required": 2,
+      "surplus": -409440,
+      "threshold": 21,
+      "window_capacity": 10560
+    },
+    {
+      "committee": 31,
+      "minimum_receipts": 420000,
+      "population": 10000,
+      "receipts_per_block": 64,
+      "rounds_required": 2,
+      "surplus": -377760,
+      "threshold": 21,
+      "window_capacity": 42240
+    }
+  ],
+  "committees": [
+    {
+      "attacker_subject_capture": 0.001383297129393118,
+      "committee": 9,
+      "honest_round_success_attacker_withholds": 0.9101727605112047,
+      "threshold": 6,
+      "threshold_rule": "ceil_two_thirds"
+    },
+    {
+      "attacker_subject_capture": 9.552978727279703e-05,
+      "committee": 9,
+      "honest_round_success_attacker_withholds": 0.7160555632818024,
+      "threshold": 7,
+      "threshold_rule": "strict_supermajority"
+    },
+    {
+      "attacker_subject_capture": 1.0887708561363448e-05,
+      "committee": 15,
+      "honest_round_success_attacker_withholds": 0.9406011601068063,
+      "threshold": 10,
+      "threshold_rule": "ceil_two_thirds"
+    },
+    {
+      "attacker_subject_capture": 5.747508611072486e-07,
+      "committee": 15,
+      "honest_round_success_attacker_withholds": 0.8248854135358239,
+      "threshold": 11,
+      "threshold_rule": "strict_supermajority"
+    },
+    {
+      "attacker_subject_capture": 2.3636621570181e-08,
+      "committee": 21,
+      "honest_round_success_attacker_withholds": 0.9636476745200742,
+      "threshold": 14,
+      "threshold_rule": "ceil_two_thirds"
+    },
+    {
+      "attacker_subject_capture": 7.366802590302781e-10,
+      "committee": 21,
+      "honest_round_success_attacker_withholds": 0.8925104580851584,
+      "threshold": 15,
+      "threshold_rule": "strict_supermajority"
+    },
+    {
+      "attacker_subject_capture": 0.0,
+      "committee": 31,
+      "honest_round_success_attacker_withholds": 0.9798908610792675,
+      "threshold": 21,
+      "threshold_rule": "ceil_two_thirds"
+    },
+    {
+      "attacker_subject_capture": 0.0,
+      "committee": 31,
+      "honest_round_success_attacker_withholds": 0.9798908610792675,
+      "threshold": 21,
+      "threshold_rule": "strict_supermajority"
+    }
+  ],
+  "correlated_liveness": [
+    {
+      "result": {
+        "estimate": 0.89596,
+        "successes": 44798,
+        "trials": 50000,
+        "wilson_95_high": 0.8986057833896147,
+        "wilson_95_low": 0.8932533787231244
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 1,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5336864,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.84392,
+        "successes": 42196,
+        "trials": 50000,
+        "wilson_95_high": 0.8470747399698723,
+        "wilson_95_low": 0.8407124179092399
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 1,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5336860,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.89914,
+        "successes": 44957,
+        "trials": 50000,
+        "wilson_95_high": 0.9017490019836385,
+        "wilson_95_low": 0.8964696715330771
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 2,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5336874,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.8425,
+        "successes": 42125,
+        "trials": 50000,
+        "wilson_95_high": 0.8456665958965867,
+        "wilson_95_low": 0.839280780160624
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 2,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5336870,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.89746,
+        "successes": 44873,
+        "trials": 50000,
+        "wilson_95_high": 0.9000885326256467,
+        "wilson_95_low": 0.89477039901727
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 5,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5336904,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.836,
+        "successes": 41800,
+        "trials": 50000,
+        "wilson_95_high": 0.8392197142199755,
+        "wilson_95_low": 0.832728660539799
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 5,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5336900,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.89544,
+        "successes": 44772,
+        "trials": 50000,
+        "wilson_95_high": 0.8980917230584713,
+        "wilson_95_low": 0.8927275189504729
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 10,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5336954,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.8276,
+        "successes": 41380,
+        "trials": 50000,
+        "wilson_95_high": 0.8308856698915186,
+        "wilson_95_low": 0.8242639954992617
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 10,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5336950,
+        "threshold": 6,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.69372,
+        "successes": 34686,
+        "trials": 50000,
+        "wilson_95_high": 0.6977452984012095,
+        "wilson_95_low": 0.6896649371894558
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 1,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5337864,
+        "threshold": 7,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.6032,
+        "successes": 30160,
+        "trials": 50000,
+        "wilson_95_high": 0.6074801594170612,
+        "wilson_95_low": 0.5989039842591551
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 1,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5337860,
+        "threshold": 7,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.6906,
+        "successes": 34530,
+        "trials": 50000,
+        "wilson_95_high": 0.6946369213030192,
+        "wilson_95_low": 0.6865337936648765
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 2,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5337874,
+        "threshold": 7,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.60132,
+        "successes": 30066,
+        "trials": 50000,
+        "wilson_95_high": 0.6056037464335392,
+        "wilson_95_low": 0.597020686098188
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 2,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5337870,
+        "threshold": 7,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.6932,
+        "successes": 34660,
+        "trials": 50000,
+        "wilson_95_high": 0.6972272506246674,
+        "wilson_95_low": 0.6891430648622031
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 5,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5337904,
+        "threshold": 7,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.60266,
+        "successes": 30133,
+        "trials": 50000,
+        "wilson_95_high": 0.6069411964929907,
+        "wilson_95_low": 0.5983630301523617
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 5,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5337900,
+        "threshold": 7,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.6935,
+        "successes": 34675,
+        "trials": 50000,
+        "wilson_95_high": 0.6975261250796565,
+        "wilson_95_low": 0.6894441443132493
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 10,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.99,
+        "population": 100,
+        "seed": 5337954,
+        "threshold": 7,
+        "trials": 50000
+      }
+    },
+    {
+      "result": {
+        "estimate": 0.60504,
+        "successes": 30252,
+        "trials": 50000,
+        "wilson_95_high": 0.6093165846837394,
+        "wilson_95_low": 0.6007472762828283
+      },
+      "scenario": {
+        "committee": 9,
+        "controlled": 20,
+        "honest_identities_per_operator": 10,
+        "identity_availability_given_operator": 0.99,
+        "operator_availability": 0.95,
+        "population": 100,
+        "seed": 5337950,
+        "threshold": 7,
+        "trials": 50000
+      }
+    }
+  ],
+  "grinding": [
+    {
+      "attempts": 1,
+      "committee": 9,
+      "independent_estimate": 0.001383297129393118,
+      "threshold": 6,
+      "threshold_rule": "ceil_two_thirds",
+      "union_bound": 0.001383297129393118
+    },
+    {
+      "attempts": 10,
+      "committee": 9,
+      "independent_estimate": 0.01374718016812179,
+      "threshold": 6,
+      "threshold_rule": "ceil_two_thirds",
+      "union_bound": 0.013832971293931181
+    },
+    {
+      "attempts": 100,
+      "committee": 9,
+      "independent_estimate": 0.12927186171036528,
+      "threshold": 6,
+      "threshold_rule": "ceil_two_thirds",
+      "union_bound": 0.13832971293931182
+    },
+    {
+      "attempts": 1000,
+      "committee": 9,
+      "independent_estimate": 0.7494895813992812,
+      "threshold": 6,
+      "threshold_rule": "ceil_two_thirds",
+      "union_bound": 1.0
+    },
+    {
+      "attempts": 1,
+      "committee": 9,
+      "independent_estimate": 9.552978727279703e-05,
+      "threshold": 7,
+      "threshold_rule": "strict_supermajority",
+      "union_bound": 9.552978727279703e-05
+    },
+    {
+      "attempts": 10,
+      "committee": 9,
+      "independent_estimate": 0.0009548873100148412,
+      "threshold": 7,
+      "threshold_rule": "strict_supermajority",
+      "union_bound": 0.0009552978727279703
+    },
+    {
+      "attempts": 100,
+      "committee": 9,
+      "independent_estimate": 0.009507945966957674,
+      "threshold": 7,
+      "threshold_rule": "strict_supermajority",
+      "union_bound": 0.009552978727279704
+    },
+    {
+      "attempts": 1000,
+      "committee": 9,
+      "independent_estimate": 0.09111285964076399,
+      "threshold": 7,
+      "threshold_rule": "strict_supermajority",
+      "union_bound": 0.09552978727279703
+    }
+  ],
+  "labels": {
+    "admission_hash_rates": "illustrative_not_hardware_measurements",
+    "capacity": "record_count_only_wire_bytes_owned_by_CO_05",
+    "capture": "exact_hypergeometric_attacker_subject_excluded",
+    "correlated_liveness": "deterministic_monte_carlo_wilson_95_interval",
+    "grinding": "independence_estimate_and_union_bound_not_a_beacon_proof",
+    "liveness": "exact_hypergeometric_plus_binomial_unless_marked_simulation"
+  },
+  "model_version": 1,
+  "status": "no_go_for_economic_activation",
+  "unresolved_gates": [
+    "owner_approved_numeric_risk_budget",
+    "optimized_solver_measurements_on_supported_x86_64_and_arm64",
+    "ordinary_operator_and_high_throughput_attacker_cost_measurements",
+    "CO_05_wire_size_and_minimum_inclusion_share",
+    "operator_concentration_measurements",
+    "PoW_security_budget_effect"
+  ],
+  "verification_duties": [
+    {
+      "committee": 9,
+      "mean_checks_per_identity_per_epoch": 9,
+      "mean_seconds_per_identity_per_epoch": 0.9,
+      "milliseconds_per_check": 100,
+      "rounds": 1
+    },
+    {
+      "committee": 9,
+      "mean_checks_per_identity_per_epoch": 9,
+      "mean_seconds_per_identity_per_epoch": 9.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 1
+    },
+    {
+      "committee": 9,
+      "mean_checks_per_identity_per_epoch": 9,
+      "mean_seconds_per_identity_per_epoch": 45.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 1
+    },
+    {
+      "committee": 9,
+      "mean_checks_per_identity_per_epoch": 27,
+      "mean_seconds_per_identity_per_epoch": 2.7,
+      "milliseconds_per_check": 100,
+      "rounds": 3
+    },
+    {
+      "committee": 9,
+      "mean_checks_per_identity_per_epoch": 27,
+      "mean_seconds_per_identity_per_epoch": 27.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 3
+    },
+    {
+      "committee": 9,
+      "mean_checks_per_identity_per_epoch": 27,
+      "mean_seconds_per_identity_per_epoch": 135.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 3
+    },
+    {
+      "committee": 15,
+      "mean_checks_per_identity_per_epoch": 15,
+      "mean_seconds_per_identity_per_epoch": 1.5,
+      "milliseconds_per_check": 100,
+      "rounds": 1
+    },
+    {
+      "committee": 15,
+      "mean_checks_per_identity_per_epoch": 15,
+      "mean_seconds_per_identity_per_epoch": 15.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 1
+    },
+    {
+      "committee": 15,
+      "mean_checks_per_identity_per_epoch": 15,
+      "mean_seconds_per_identity_per_epoch": 75.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 1
+    },
+    {
+      "committee": 15,
+      "mean_checks_per_identity_per_epoch": 45,
+      "mean_seconds_per_identity_per_epoch": 4.5,
+      "milliseconds_per_check": 100,
+      "rounds": 3
+    },
+    {
+      "committee": 15,
+      "mean_checks_per_identity_per_epoch": 45,
+      "mean_seconds_per_identity_per_epoch": 45.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 3
+    },
+    {
+      "committee": 15,
+      "mean_checks_per_identity_per_epoch": 45,
+      "mean_seconds_per_identity_per_epoch": 225.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 3
+    },
+    {
+      "committee": 21,
+      "mean_checks_per_identity_per_epoch": 21,
+      "mean_seconds_per_identity_per_epoch": 2.1,
+      "milliseconds_per_check": 100,
+      "rounds": 1
+    },
+    {
+      "committee": 21,
+      "mean_checks_per_identity_per_epoch": 21,
+      "mean_seconds_per_identity_per_epoch": 21.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 1
+    },
+    {
+      "committee": 21,
+      "mean_checks_per_identity_per_epoch": 21,
+      "mean_seconds_per_identity_per_epoch": 105.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 1
+    },
+    {
+      "committee": 21,
+      "mean_checks_per_identity_per_epoch": 63,
+      "mean_seconds_per_identity_per_epoch": 6.3,
+      "milliseconds_per_check": 100,
+      "rounds": 3
+    },
+    {
+      "committee": 21,
+      "mean_checks_per_identity_per_epoch": 63,
+      "mean_seconds_per_identity_per_epoch": 63.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 3
+    },
+    {
+      "committee": 21,
+      "mean_checks_per_identity_per_epoch": 63,
+      "mean_seconds_per_identity_per_epoch": 315.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 3
+    },
+    {
+      "committee": 31,
+      "mean_checks_per_identity_per_epoch": 31,
+      "mean_seconds_per_identity_per_epoch": 3.1,
+      "milliseconds_per_check": 100,
+      "rounds": 1
+    },
+    {
+      "committee": 31,
+      "mean_checks_per_identity_per_epoch": 31,
+      "mean_seconds_per_identity_per_epoch": 31.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 1
+    },
+    {
+      "committee": 31,
+      "mean_checks_per_identity_per_epoch": 31,
+      "mean_seconds_per_identity_per_epoch": 155.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 1
+    },
+    {
+      "committee": 31,
+      "mean_checks_per_identity_per_epoch": 93,
+      "mean_seconds_per_identity_per_epoch": 9.3,
+      "milliseconds_per_check": 100,
+      "rounds": 3
+    },
+    {
+      "committee": 31,
+      "mean_checks_per_identity_per_epoch": 93,
+      "mean_seconds_per_identity_per_epoch": 93.0,
+      "milliseconds_per_check": 1000,
+      "rounds": 3
+    },
+    {
+      "committee": 31,
+      "mean_checks_per_identity_per_epoch": 93,
+      "mean_seconds_per_identity_per_epoch": 465.0,
+      "milliseconds_per_check": 5000,
+      "rounds": 3
+    }
+  ]
+}

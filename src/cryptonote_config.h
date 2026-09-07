@@ -159,7 +159,8 @@
 #define P2P_IDLE_CONNECTION_KILL_INTERVAL               (5*60) //5 minutes
 
 #define P2P_SUPPORT_FLAG_FLUFFY_BLOCKS                  0x01
-#define P2P_SUPPORT_FLAGS                               P2P_SUPPORT_FLAG_FLUFFY_BLOCKS
+#define P2P_SUPPORT_FLAG_EPOSE_V2                       0x02
+#define P2P_SUPPORT_FLAGS                               (P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_EPOSE_V2)
 
 #define RPC_IP_FAILS_BEFORE_BLOCK                       3
 
@@ -197,7 +198,10 @@
 // Monero's v16 rules are represented by the post-v15 checks in this codebase.
 #define HF_VERSION_MONERO_CURRENT_CONSENSUS     16
 #define HF_VERSION_QWC_RELAUNCH_BASE            HF_VERSION_MONERO_CURRENT_CONSENSUS
-#define HF_VERSION_QWC_EPOSE_V1                 17
+// QWC starts directly from the inherited Monero-v16 rule baseline and assigns
+// block major version 17 to the hardened EPoSE-v2 launch rules. Block-version
+// and EPoSE wire-format versions are separate domains.
+#define HF_VERSION_QWC_EPOSE                    17
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 #define CRYPTONOTE_SCALING_2021_FEE_ROUNDING_PLACES 2

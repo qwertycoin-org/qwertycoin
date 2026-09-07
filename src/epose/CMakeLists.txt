@@ -2,7 +2,21 @@
 
 set(epose_sources
   attestation_pool.cpp
+  block_transition_v2.cpp
+  replay_v2.cpp
+  canonical_service_v2.cpp
+  coordinator_v2.cpp
   chain_state.cpp
+  envelope_v2.cpp
+  lifecycle_v2.cpp
+  membership_v2.cpp
+  record_codec_v2.cpp
+  relay_pool_v2.cpp
+  reward_v2.cpp
+  resource_policy_v2.cpp
+  semantic_batch_v2.cpp
+  service_receipt_v2.cpp
+  state_index_v2.cpp
   service_epoch.cpp
   service_registry.cpp
   service_node.cpp
@@ -10,7 +24,20 @@ set(epose_sources
 
 set(epose_headers
   attestation_pool.h
+  block_transition_v2.h
+  canonical_service_v2.h
+  coordinator_v2.h
   chain_state.h
+  envelope_v2.h
+  lifecycle_v2.h
+  membership_v2.h
+  record_codec_v2.h
+  relay_pool_v2.h
+  reward_v2.h
+  resource_policy_v2.h
+  semantic_batch_v2.h
+  service_receipt_v2.h
+  state_index_v2.h
   service_epoch.h
   service_registry.h
   service_node.h

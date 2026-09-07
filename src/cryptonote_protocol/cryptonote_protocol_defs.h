@@ -395,5 +395,22 @@ namespace cryptonote
     };
     typedef epee::misc_utils::struct_init<request_t> request;
   };
+
+  // Hardened HF17/v2 relay. Every element is one complete canonical envelope
+  // containing exactly one already-signed non-Coinbase record.
+  struct NOTIFY_NEW_EPOSE_ENVELOPES_V2
+  {
+    const static int ID = BC_COMMANDS_POOL_BASE + 12;
+
+    struct request_t
+    {
+      std::vector<blobdata> envelopes;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(envelopes)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+  };
     
 }

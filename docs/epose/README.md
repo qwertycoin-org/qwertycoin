@@ -47,6 +47,10 @@ block templates.
 - `HARDENING_STATUS.md` - DONE/PARTIAL/OPEN/ACCEPTED RISK matrix.
 - `BENCHMARKS.md` - benchmark and simulation notes.
 - `MACOS_M1_TESTING.md` - Apple Silicon test notes.
+- `review/README.md` - security-review baseline, finding disposition, and
+  activation decisions for the coordinated hardening program.
+- `PARAMETER_MANIFEST_V2.json` - machine-readable, deliberately non-activatable
+  hardened-protocol reservation.
 
 ## Specialized Design Notes
 

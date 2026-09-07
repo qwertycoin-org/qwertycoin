@@ -1066,6 +1066,35 @@ namespace cryptonote
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
+  int t_cryptonote_protocol_handler<t_core>::handle_notify_new_epose_envelopes_v2(int command, NOTIFY_NEW_EPOSE_ENVELOPES_V2::request& arg, cryptonote_connection_context& context)
+  {
+    MLOG_P2P_MESSAGE("Received NOTIFY_NEW_EPOSE_ENVELOPES_V2 ("
+        << arg.envelopes.size() << " envelopes)");
+    if (context.m_state != cryptonote_connection_context::state_normal)
+      return 1;
+    if (!is_synchronized())
+    {
+      LOG_DEBUG_CC(context, "Received EPoSE-v2 envelopes while syncing, ignored");
+      return 1;
+    }
+
+    std::vector<blobdata> accepted;
+    if (!m_core.handle_incoming_epose_envelopes_v2(arg.envelopes, accepted))
+    {
+      LOG_PRINT_CCONTEXT_L1("EPoSE-v2 envelope validation failed, dropping connection");
+      drop_connection(context, false, false);
+      return 1;
+    }
+    if (!accepted.empty())
+    {
+      arg.envelopes = std::move(accepted);
+      relay_epose_envelopes_v2(
+          arg, context.m_connection_id, context.m_remote_address.get_zone());
+    }
+    return 1;
+  }
+  //------------------------------------------------------------------------------------------------------------------------
+  template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_request_get_objects(int command, NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote_connection_context& context)
   {
     if (context.m_state == cryptonote_connection_context::state_before_handshake)
@@ -2774,6 +2803,29 @@ skip:
       m_p2p->relay_notify_to_list(NOTIFY_NEW_EPOSE_PAYLOADS::ID, std::move(blob), std::move(connections));
     }
 
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------
+  template<class t_core>
+  bool t_cryptonote_protocol_handler<t_core>::relay_epose_envelopes_v2(NOTIFY_NEW_EPOSE_ENVELOPES_V2::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone)
+  {
+    std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>> connections;
+    m_p2p->for_each_connection([&source, zone, &connections](connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)
+    {
+      if (peer_id && (support_flags & P2P_SUPPORT_FLAG_EPOSE_V2)
+          && source != context.m_connection_id
+          && context.m_remote_address.get_zone() == zone)
+        connections.push_back({context.m_remote_address.get_zone(), context.m_connection_id});
+      return true;
+    });
+    if (!connections.empty())
+    {
+      epee::levin::message_writer blob{16 * 1024};
+      epee::serialization::store_t_to_binary(arg, blob.buffer);
+      m_p2p->relay_notify_to_list(
+          NOTIFY_NEW_EPOSE_ENVELOPES_V2::ID,
+          std::move(blob), std::move(connections));
+    }
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------

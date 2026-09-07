@@ -57,6 +57,8 @@ using namespace epee;
 #include "rpc/rpc_args.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "daemonizer/daemonizer.h"
+#include "epose/coordinator_v2.h"
+#include "epose/envelope_v2.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -104,6 +106,64 @@ using namespace epee;
       return false; \
     } \
   } while(0)
+
+namespace
+{
+  bool append_wallet_epose_envelope_v2(
+      tools::wallet2 &wallet,
+      const std::string &hex,
+      std::vector<uint8_t> &extra,
+      epee::json_rpc::error &error)
+  {
+    if (hex.empty())
+      return true;
+
+    cryptonote::block genesis{};
+    cryptonote::generate_genesis_block(
+        genesis,
+        cryptonote::get_config(wallet.nettype()).GENESIS_TX,
+        cryptonote::get_config(wallet.nettype()).GENESIS_NONCE);
+    qwertycoin::epose::consensus_parameters_v2 parameters{};
+    if (!qwertycoin::epose::compiled_consensus_parameters_v2(
+            wallet.nettype(), cryptonote::get_block_hash(genesis), parameters))
+    {
+      error.code = WALLET_RPC_ERROR_CODE_DISABLED;
+      error.message = "EPoSE v2 fee-funded records are unavailable until the compiled launch manifest is complete";
+      return false;
+    }
+    if ((hex.size() & 1) != 0
+        || hex.size() / 2 > parameters.limits.envelope.max_envelope_bytes)
+    {
+      error.code = WALLET_RPC_ERROR_CODE_BAD_HEX;
+      error.message = "EPoSE v2 envelope exceeds the compiled transaction limit";
+      return false;
+    }
+
+    cryptonote::blobdata encoded;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(hex, encoded))
+    {
+      error.code = WALLET_RPC_ERROR_CODE_BAD_HEX;
+      error.message = "EPoSE v2 envelope is not canonical hexadecimal";
+      return false;
+    }
+    qwertycoin::epose::envelope_budget_v2 appended_budget{};
+    const qwertycoin::epose::envelope_status_v2 status =
+        qwertycoin::epose::append_fee_funded_envelope_v2(
+            encoded, HF_VERSION_QWC_EPOSE,
+            parameters.limits.max_envelopes_per_transaction,
+            parameters.limits.envelope, extra, appended_budget);
+    if (status != qwertycoin::epose::envelope_status_v2::accepted)
+    {
+      error.code = status == qwertycoin::epose::envelope_status_v2::forbidden_record_context
+          ? WALLET_RPC_ERROR_CODE_DENIED : WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      error.message = status == qwertycoin::epose::envelope_status_v2::forbidden_record_context
+          ? "Scoped EPoSE payment proofs are Coinbase-only"
+          : "EPoSE v2 envelope is malformed, unsupported, or cannot be added to this transaction";
+      return false;
+    }
+    return true;
+  }
+}
 
 #define PRE_VALIDATE_BACKGROUND_SYNC() \
   do \
@@ -1264,6 +1324,8 @@ namespace tools
     {
       return false;
     }
+    if (!append_wallet_epose_envelope_v2(*m_wallet, req.epose_v2_envelope, extra, er))
+      return false;
 
     try
     {

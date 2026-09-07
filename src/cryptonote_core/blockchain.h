@@ -67,6 +67,8 @@
 #include "cryptonote_basic/hardfork.h"
 #include "blockchain_db/blockchain_db.h"
 #include "epose/chain_state.h"
+#include "epose/coordinator_v2.h"
+#include "epose/relay_pool_v2.h"
 
 namespace tools { class Notify; }
 
@@ -141,7 +143,7 @@ namespace cryptonote
      *
      * @return true on success, false if any initialization steps fail
      */
-    bool init(BlockchainDB* db, const network_type nettype = MAINNET, bool offline = false, const cryptonote::test_options *test_options = NULL, difficulty_type fixed_difficulty = 0, const GetCheckpointsCallback& get_checkpoints = nullptr);
+    bool init(BlockchainDB* db, const network_type nettype = MAINNET, bool offline = false, const cryptonote::test_options *test_options = NULL, difficulty_type fixed_difficulty = 0, const GetCheckpointsCallback& get_checkpoints = nullptr, const qwertycoin::epose::consensus_parameters_v2 *epose_test_parameters = nullptr, const qwertycoin::epose::relay_policy_v2 *epose_test_relay_policy = nullptr);
 
     /**
      * @brief Initialize the Blockchain state
@@ -942,12 +944,19 @@ namespace cryptonote
     uint64_t get_epose_current_epoch() const;
     uint64_t get_epose_epoch_start_height(uint64_t epoch) const;
     uint64_t get_epose_epoch_end_height(uint64_t epoch) const;
+    bool get_epose_reward_source_epoch_v2(uint64_t height, uint64_t &epoch) const;
     std::vector<qwertycoin::epose::service_node_identity> get_epose_service_nodes() const;
     std::vector<qwertycoin::epose::service_attestation> get_epose_attestations() const;
     std::vector<crypto::public_key> get_epose_qualified_service_nodes(uint64_t epoch) const;
+    std::vector<qwertycoin::epose::identity_descriptor_v2> get_epose_identity_descriptors_v2(uint64_t epoch) const;
+    bool get_epose_membership_snapshot_v2(uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const;
+    bool get_epose_qualification_v2(uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const;
     uint64_t get_epose_attestation_count() const;
     crypto::hash get_epose_state_hash() const;
     crypto::hash get_epose_epoch_context_hash(uint64_t epoch) const;
+    bool submit_epose_relay_envelopes_v2(
+        const std::vector<blobdata> &envelopes,
+        std::vector<blobdata> &accepted);
 
     /**
      * @brief returns the earliest block a given version may activate
@@ -1279,11 +1288,19 @@ namespace cryptonote
 
     std::unique_ptr<qwertycoin::epose::chain_state> m_epose_state;
     std::vector<std::pair<uint64_t, qwertycoin::epose::chain_state::snapshot>> m_epose_block_snapshots;
+    std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> m_epose_v2;
+    qwertycoin::epose::consensus_parameters_v2 m_epose_v2_parameters{};
+    qwertycoin::epose::relay_policy_v2 m_epose_v2_relay_policy{};
+    std::unique_ptr<qwertycoin::epose::relay_record_pool_v2> m_epose_v2_relay_pool;
 
     bool is_epose_enabled_for_height(uint64_t height) const;
     bool get_epose_service_reward_for_block(uint64_t height, uint64_t total_reward, account_public_address &reward_address, crypto::secret_key &reward_view_secret_key, uint64_t &service_reward) const;
     bool validate_epose_service_reward(const block &b, uint64_t height, uint64_t total_reward) const;
-    bool apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height);
+    bool plan_epose_reward_v2(uint64_t height, const crypto::hash &parent_hash, uint64_t scheduled_subsidy, uint64_t fees, qwertycoin::epose::coordinator_reward_plan_v2 &plan) const;
+    bool select_epose_template_records_v2(
+        uint64_t height,
+        std::vector<qwertycoin::epose::envelope_record_v2> &records);
+    bool apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height, uint64_t scheduled_subsidy, uint64_t fees, epose_state_commitment_v2 &commitment, std::vector<qwertycoin::epose::envelope_record_v2> &confirmed_records);
     void rollback_epose_block(uint64_t popped_height);
     bool rebuild_epose_state();
 

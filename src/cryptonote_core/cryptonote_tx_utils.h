@@ -34,10 +34,28 @@
 #include <boost/serialization/utility.hpp>
 #include "ringct/rctOps.h"
 
+namespace qwertycoin { namespace epose {
+  struct envelope_limits_v2;
+  struct envelope_record_v2;
+  struct service_payment_context_v2;
+  struct service_payment_expectation_v2;
+} }
+
 namespace cryptonote
 {
+  struct miner_service_payment_v2
+  {
+    const qwertycoin::epose::service_payment_expectation_v2 *expectation = nullptr;
+    uint64_t permanently_unissued = 0;
+    uint64_t expected_coinbase_total = 0;
+    size_t max_envelopes_per_transaction = 0;
+    const qwertycoin::epose::envelope_limits_v2 *limits = nullptr;
+    const std::vector<qwertycoin::epose::envelope_record_v2> *carrier_records = nullptr;
+    qwertycoin::epose::service_payment_context_v2 *generated_context = nullptr;
+  };
+
   //---------------------------------------------------------------
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce = blobdata(), size_t max_outs = 999, uint8_t hard_fork_version = 1, const account_public_address *service_reward_address = NULL, uint64_t service_reward = 0);
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce = blobdata(), size_t max_outs = 999, uint8_t hard_fork_version = 1, const account_public_address *service_reward_address = NULL, uint64_t service_reward = 0, const miner_service_payment_v2 *service_payment_v2 = nullptr);
 
   struct tx_source_entry
   {
@@ -141,8 +159,8 @@ namespace cryptonote
       block& bl
     , std::string const & genesis_tx
     , uint32_t nonce
-    , uint8_t major_version = HF_VERSION_QWC_EPOSE_V1
-    , uint8_t minor_version = HF_VERSION_QWC_EPOSE_V1
+    , uint8_t major_version = HF_VERSION_QWC_EPOSE
+    , uint8_t minor_version = HF_VERSION_QWC_EPOSE
     );
 
   class Blockchain;
