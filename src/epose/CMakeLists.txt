@@ -20,7 +20,9 @@ set(epose_sources
   service_epoch.cpp
   service_registry.cpp
   service_node.cpp
-  service_node_config.cpp)
+  service_node_config.cpp
+  service_keystore_v2.cpp
+  service_producer_v2.cpp)
 
 set(epose_headers
   attestation_pool.h
@@ -41,7 +43,9 @@ set(epose_headers
   service_epoch.h
   service_registry.h
   service_node.h
-  service_node_config.h)
+  service_node_config.h
+  service_keystore_v2.h
+  service_producer_v2.h)
 
 monero_add_library(epose
   ${epose_sources}

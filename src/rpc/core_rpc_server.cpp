@@ -629,18 +629,47 @@ namespace cryptonote
     res.attestation_count = blockchain.get_epose_attestation_count();
     res.state_hash = epee::string_tools::pod_to_hex(blockchain.get_epose_state_hash());
     res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS_V2;
-    // The private-view-key v1 daemon configuration is retired. A future v2
-    // producer exposes separate operator/service authority status here.
-    res.local_service_node = false;
-    res.local_service_node_key_loaded = false;
+    res.local_service_node = m_core.is_epose_v2_service_enabled();
+    res.local_service_node_key_loaded = m_core.is_epose_v2_service_ready();
     res.local_service_node_registered = false;
     res.local_service_node_active = false;
     res.local_service_node_qualified = false;
     res.local_service_node_expiry_epoch = 0;
-    res.local_service_public_key.clear();
-    res.local_service_reward_address.clear();
-    res.local_service_advertised_endpoint.clear();
-    res.local_service_endpoint_commitment.clear();
+    const crypto::public_key local_key =
+        m_core.get_epose_v2_local_service_public_key();
+    if (m_core.is_epose_v2_service_ready())
+    {
+      res.local_service_public_key = epee::string_tools::pod_to_hex(local_key);
+      res.local_service_reward_address =
+          m_core.get_epose_v2_reward_address_string();
+      res.local_service_advertised_endpoint =
+          m_core.get_epose_v2_endpoint_host() + ":"
+          + std::to_string(m_core.get_epose_v2_endpoint_port());
+      for (const auto &descriptor : service_nodes)
+      {
+        if (descriptor.identity_id == m_core.get_epose_v2_local_identity_id())
+        {
+          res.local_service_node_registered = true;
+          res.local_service_node_active = descriptor.effective_epoch <= epoch
+              && epoch < descriptor.expiry_epoch;
+          res.local_service_node_expiry_epoch = descriptor.expiry_epoch;
+          res.local_service_node_qualified = std::find(
+              qualified_nodes.begin(), qualified_nodes.end(), local_key)
+              != qualified_nodes.end();
+          res.local_service_endpoint_commitment =
+              epee::string_tools::pod_to_hex(
+                  descriptor.endpoint_descriptor_hash);
+          break;
+        }
+      }
+    }
+    else
+    {
+      res.local_service_public_key.clear();
+      res.local_service_reward_address.clear();
+      res.local_service_advertised_endpoint.clear();
+      res.local_service_endpoint_commitment.clear();
+    }
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -752,6 +781,83 @@ namespace cryptonote
       res.status = "EPoSE-v2 envelope rejected or daemon not synchronized";
       return true;
     }
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_epose_service_endpoint_v2(
+      const COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::request& req,
+      COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response& res,
+      const connection_context *ctx)
+  {
+    qwertycoin::epose::endpoint_descriptor_v2 descriptor{};
+    qwertycoin::epose::consensus_parameters_v2 parameters{};
+    res.ready = m_core.get_epose_v2_endpoint_descriptor(descriptor)
+        && m_core.get_blockchain_storage().get_epose_consensus_parameters_v2(parameters);
+    if (!res.ready)
+    {
+      res.status = CORE_RPC_STATUS_BUSY;
+      return true;
+    }
+    res.version = descriptor.version;
+    res.service_public_key = epee::string_tools::pod_to_hex(descriptor.service_public_key);
+    res.transport = static_cast<uint8_t>(descriptor.transport);
+    res.host = descriptor.host;
+    res.port = descriptor.port;
+    res.service_kind = descriptor.service_kind;
+    res.service_version = descriptor.service_version;
+    res.sequence = descriptor.sequence;
+    res.expiry_epoch = descriptor.expiry_epoch;
+    res.signature = epee::string_tools::pod_to_hex(descriptor.signature);
+    res.descriptor_hash = epee::string_tools::pod_to_hex(
+        qwertycoin::epose::hash_endpoint_descriptor_v2(
+            parameters.nettype, parameters.genesis_hash,
+            parameters.parameter_set_hash, descriptor));
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_epose_service_challenge_v2(
+      const COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::request& req,
+      COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::response& res,
+      const connection_context *ctx)
+  {
+    res.block_blob.clear();
+    res.subject_signature.clear();
+    if (req.version > std::numeric_limits<uint8_t>::max()
+        || req.service_kind > std::numeric_limits<uint8_t>::max())
+    {
+      res.status = "REJECTED";
+      return true;
+    }
+    qwertycoin::epose::service_challenge_v2 challenge{};
+    challenge.version = static_cast<uint8_t>(req.version);
+    challenge.service_kind = static_cast<uint8_t>(req.service_kind);
+    challenge.epoch = req.epoch;
+    challenge.round = req.round;
+    if (!epee::string_tools::hex_to_pod(req.snapshot_hash, challenge.snapshot_hash)
+        || !epee::string_tools::hex_to_pod(req.anchor_hash, challenge.anchor_hash)
+        || !epee::string_tools::hex_to_pod(
+            req.subject_public_key, challenge.subject_public_key)
+        || !epee::string_tools::hex_to_pod(
+            req.verifier_public_key, challenge.verifier_public_key)
+        || !epee::string_tools::hex_to_pod(
+            req.endpoint_descriptor_hash, challenge.endpoint_descriptor_hash)
+        || !epee::string_tools::hex_to_pod(req.nonce, challenge.nonce)
+        || !epee::string_tools::hex_to_pod(
+            req.requested_object_hash, challenge.requested_object_hash))
+    {
+      res.status = "REJECTED";
+      return true;
+    }
+    qwertycoin::epose::canonical_service_response_v2 response{};
+    if (!m_core.answer_epose_v2_service_challenge(challenge, response))
+    {
+      res.status = "REJECTED";
+      return true;
+    }
+    res.block_blob = epee::string_tools::buff_to_hex_nodelimer(response.block_blob);
+    res.subject_signature = epee::string_tools::pod_to_hex(response.subject_signature);
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

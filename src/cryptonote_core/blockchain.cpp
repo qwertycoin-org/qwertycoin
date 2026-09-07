@@ -1114,6 +1114,30 @@ bool Blockchain::get_epose_qualification_v2(
   return true;
 }
 //------------------------------------------------------------------
+bool Blockchain::get_epose_consensus_parameters_v2(
+    qwertycoin::epose::consensus_parameters_v2 &parameters) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  parameters = {};
+  if (!m_epose_v2)
+    return false;
+  parameters = m_epose_v2_parameters;
+  return true;
+}
+//------------------------------------------------------------------
+std::vector<qwertycoin::epose::verifier_assignment_v2>
+Blockchain::get_epose_committee_v2(
+    uint64_t epoch, uint64_t round,
+    const crypto::public_key &subject_public_key,
+    const crypto::hash &round_anchor_hash) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  return m_epose_v2
+      ? m_epose_v2->state().membership().committee(
+            epoch, round, subject_public_key, round_anchor_hash)
+      : std::vector<qwertycoin::epose::verifier_assignment_v2>{};
+}
+//------------------------------------------------------------------
 uint64_t Blockchain::get_epose_attestation_count() const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
