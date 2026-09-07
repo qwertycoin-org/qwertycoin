@@ -772,11 +772,26 @@ and verifier signatures (64 bytes each). Decode is atomic and returns a receipt
 only after the complete context-bound signature validation succeeds.
 
 All five record codecs and the canonical block-state path are connected to the
-gated HF17 coordinator. The fee-funded wallet carrier and full-record local
-pool are implemented, but typed P2P ingestion, semantic admission into that
-pool, miner-template batching from the pool, live record production, and
-measured manifest limits remain required for public operation. Incomplete
-compiled parameters keep every public producer fail-closed.
+gated HF17 coordinator. The fee-funded wallet carrier, typed P2P command,
+semantic admission into the full-record local pool, and miner-template batching
+from that pool are implemented. A P2P message is atomic: every item must be one
+canonical one-record non-Coinbase envelope, and every record must pass the real
+ordered semantic and cryptographic transition before any new record is kept.
+Only complete-byte duplicates are idempotent without repeating cryptography.
+New records are forwarded only to peers advertising v2 support.
+
+Template selection uses separate manifest-owned Enrollment and Evidence item
+and byte reservations, simulates selected records in canonical order against a
+copy of the current semantic state, and appends the survivors before the
+required payment proof. The resulting proof therefore commits to the actual
+Coinbase carrier. Confirmed records are erased only after the block and its
+state commitment have committed successfully. Local pool/template limits must
+fit the consensus envelope/block limits and the Coinbase producer bound.
+
+Live lifecycle/admission/receipt production, canonical service probing,
+multi-node propagation evidence, sustained-load measurements, and final
+manifest limits remain required for public operation. Incomplete compiled
+parameters keep every public producer and relay pool fail-closed.
 
 ## CO-06 reward and payment-proof candidate
 

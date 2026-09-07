@@ -45,7 +45,7 @@ ignore the default failure.
 ## Current result
 
 - 0 of 13 top-level release gates are satisfied by candidate-bound evidence.
-- 29 required manifest values remain unset.
+- 35 required manifest values remain unset.
 - 13 gates remain blocked or not run.
 - The security-parameter study independently reports
   `no_go_for_economic_activation`.
@@ -58,17 +58,16 @@ the component is connected to the canonical block transition and tested there.
 
 ## Blocking implementation work
 
-1. Integrate the version-aware envelope and record codecs into the QWC-HF17
-   fresh-genesis parsing, block connect/disconnect, relay, miner templates, and
-   fee-funded wallet construction. Retire legacy-v1 production dispatch.
-2. Complete canonical handler ownership of the v2 state. LMDB now stores a
-   schema-bound state/parameter commitment in the same write transaction as
-   each canonical block, and the streaming replay verifier rejects missing or
-   mismatched commitments. The handler still must supply those commitments,
-   retire the legacy state, and prove crash recovery, pruning and deep replay
-   through the production coordinator.
-3. Connect the bounded probe/descriptor policy to live P2P and RPC handlers and
-   measure worst-valid-block plus sustained invalid-load behavior.
+1. Complete live lifecycle/admission/receipt construction and the bounded
+   canonical service probe. The canonical HF17 parser, block transition,
+   fee-funded wallet carrier, typed P2P semantic ingress, bounded relay pool,
+   miner-template carrier and legacy-v1 retirement are implemented.
+2. Prove the production coordinator's same-transaction LMDB commitments,
+   bounded disconnect, startup verification and deep replay under process-crash,
+   pruning and full canonical reorg scenarios.
+3. Exercise the connected P2P/RPC/descriptor protections across isolated nodes
+   and measure worst-valid-block, sustained invalid-load, backlog and inclusion
+   behavior before selecting the six local queue/template reservations.
 4. Select committee, round, admission, capacity, and resource constants from
    optimized measurements on the supported hardware classes and an approved
    adversarial risk budget.

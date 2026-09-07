@@ -40,11 +40,17 @@ class ManifestV2Tests(unittest.TestCase):
                 "max_relay_queue_bytes": 1048576,
                 "max_relay_queue_items": 2048,
                 "max_signature_verifications_per_block": 2048,
+                "max_template_epose_bytes": 32768,
+                "max_template_records": 512,
                 "minimum_undo_blocks": 2160,
                 "reserved_enrollment_queue_bytes": 262144,
                 "reserved_enrollment_queue_items": 512,
+                "reserved_enrollment_template_bytes": 8192,
+                "reserved_enrollment_template_records": 128,
                 "reserved_evidence_queue_bytes": 262144,
                 "reserved_evidence_queue_items": 512,
+                "reserved_evidence_template_bytes": 8192,
+                "reserved_evidence_template_records": 128,
             }
         )
         manifest["reward"].update(
@@ -119,6 +125,24 @@ class ManifestV2Tests(unittest.TestCase):
         )
         with self.assertRaises(ManifestError):
             validate_manifest(broken)
+
+    def test_template_reservations_and_consensus_ceilings_are_enforced(self):
+        for values in (
+            {
+                "max_template_records": 10,
+                "reserved_enrollment_template_records": 6,
+                "reserved_evidence_template_records": 5,
+            },
+            {"max_template_records": 1025, "max_records_per_block": 1024},
+            {"max_template_epose_bytes": 262145, "max_epose_bytes_per_block": 262144},
+            {"max_template_epose_bytes": 65537, "max_envelope_bytes_per_transaction": 65536},
+            {"max_template_records": 1, "max_envelopes_per_transaction": 1},
+        ):
+            with self.subTest(values=values):
+                broken = self.complete_test_candidate()
+                broken["resource_limits"].update(values)
+                with self.assertRaises(ManifestError):
+                    validate_manifest(broken, allow_test_fixture=True)
 
     def test_complete_supported_candidate_passes_typed_validation(self):
         self.assertEqual(

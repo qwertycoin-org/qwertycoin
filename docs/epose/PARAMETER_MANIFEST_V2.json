@@ -73,11 +73,17 @@
     "max_relay_queue_bytes": null,
     "max_relay_queue_items": null,
     "max_signature_verifications_per_block": null,
+    "max_template_epose_bytes": null,
+    "max_template_records": null,
     "minimum_undo_blocks": null,
     "reserved_enrollment_queue_bytes": null,
     "reserved_enrollment_queue_items": null,
+    "reserved_enrollment_template_bytes": null,
+    "reserved_enrollment_template_records": null,
     "reserved_evidence_queue_bytes": null,
-    "reserved_evidence_queue_items": null
+    "reserved_evidence_queue_items": null,
+    "reserved_evidence_template_bytes": null,
+    "reserved_evidence_template_records": null
   },
   "reward": {
     "basis_points": 1000,

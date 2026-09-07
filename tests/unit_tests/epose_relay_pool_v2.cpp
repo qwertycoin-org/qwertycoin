@@ -32,6 +32,9 @@ namespace
     return crypto::cn_fast_hash(text, std::strlen(text));
   }
 
+  crypto::hash relay_genesis() { return hash_text("relay-genesis"); }
+  crypto::hash relay_parameters() { return hash_text("relay-parameters"); }
+
   envelope_limits_v2 envelope_limits()
   {
     envelope_limits_v2 limits{};
@@ -58,8 +61,8 @@ namespace
     const key_pair authority = keys();
     const key_pair reward_view = keys();
     const key_pair reward_spend = keys();
-    const crypto::hash genesis = hash_text("relay-genesis");
-    const crypto::hash parameters = hash_text("relay-parameters");
+    const crypto::hash genesis = relay_genesis();
+    const crypto::hash parameters = relay_parameters();
     lifecycle_record_v2 lifecycle{};
     lifecycle.action = lifecycle_action_v2::register_identity;
     lifecycle.next_descriptor.identity_id = derive_identity_id_v2(
@@ -93,6 +96,28 @@ namespace
       record.payload[2 + shift / 8] = static_cast<char>((epoch >> shift) & 0xff);
     return record;
   }
+
+  relay_policy_v2 relay_policy()
+  {
+    return {
+        relay_queue_limits_v2{4, 8192, 1, 1, 2048, 2048},
+        relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048}};
+  }
+
+  class fixed_contexts final : public canonical_context_source_v2
+  {
+  public:
+    bool block_hash(uint64_t, crypto::hash &hash) const override
+    {
+      hash = hash_text("relay-context");
+      return true;
+    }
+    bool round_anchor(uint64_t, uint64_t, crypto::hash &hash) const override
+    {
+      hash = hash_text("relay-anchor");
+      return true;
+    }
+  };
 }
 
 TEST(epose_relay_pool_v2, derives_deadlines_and_preserves_both_template_classes)
@@ -144,13 +169,18 @@ TEST(epose_relay_pool_v2, rejects_coinbase_proofs_and_prunes_derived_deadlines)
 TEST(epose_relay_pool_v2, confirmed_records_are_removed_by_complete_record_id)
 {
   auto relay = pool();
-  ASSERT_EQ(relay_record_status_v2::accepted,
-      relay.enqueue(receipt_record(1), 1));
+  const envelope_record_v2 receipt = receipt_record(1);
+  ASSERT_EQ(relay_record_status_v2::accepted, relay.enqueue(receipt, 1));
   std::vector<relay_record_selection_v2> selected;
   ASSERT_EQ(relay_record_status_v2::accepted,
       relay.select_for_template(1, selected));
   ASSERT_EQ(1u, selected.size());
   relay.erase_confirmed({selected.front().id});
+  EXPECT_EQ(0u, relay.size());
+  EXPECT_EQ(0u, relay.bytes());
+
+  ASSERT_EQ(relay_record_status_v2::accepted, relay.enqueue(receipt, 1));
+  relay.erase_confirmed_records({receipt});
   EXPECT_EQ(0u, relay.size());
   EXPECT_EQ(0u, relay.bytes());
 }
@@ -168,4 +198,67 @@ TEST(epose_relay_pool_v2, invalid_local_limits_fail_closed)
   EXPECT_EQ(relay_record_status_v2::invalid_configuration,
       invalid.select_for_template(1, selected));
   EXPECT_TRUE(selected.empty());
+}
+
+TEST(epose_relay_pool_v2, relay_policy_must_fit_the_backing_queue)
+{
+  relay_policy_v2 policy = relay_policy();
+  EXPECT_TRUE(policy.valid());
+  policy.mining_template.max_items = 5;
+  EXPECT_FALSE(policy.valid());
+  policy.mining_template.max_items = 2;
+  policy.mining_template.max_bytes = 8193;
+  EXPECT_FALSE(policy.valid());
+}
+
+TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch_atomic)
+{
+  const epoch_timing_v2 timing{0, 720, 60};
+  const admission_policy_v2 admission{
+      admission_work_algorithm_v2::randomx, 1, 1};
+  const committee_policy_v2 committee{1, 1, 1, 1, 1, {0}};
+  semantic_state_v2 state(
+      cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+      timing, admission, committee);
+  ASSERT_TRUE(state.valid());
+  auto relay = pool();
+  const envelope_record_v2 record = lifecycle_record(1);
+  envelope_budget_v2 ignored{};
+  std::string encoded;
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_envelope_v2({record}, envelope_limits(), encoded, ignored));
+  std::string corrupted = encoded;
+  ASSERT_FALSE(corrupted.empty());
+  corrupted.back() ^= 1;
+  const fixed_contexts contexts{};
+  std::vector<std::string> accepted;
+
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {encoded, corrupted}, 1, envelope_limits(), relay_policy(),
+          state, contexts, relay, accepted));
+  EXPECT_EQ(0u, relay.size());
+  EXPECT_TRUE(accepted.empty());
+
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {encoded}, 1, envelope_limits(), relay_policy(),
+          state, contexts, relay, accepted));
+  ASSERT_EQ(1u, relay.size());
+  ASSERT_EQ(1u, accepted.size());
+  EXPECT_EQ(encoded, accepted.front());
+
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {encoded}, 1, envelope_limits(), relay_policy(),
+          state, contexts, relay, accepted));
+  EXPECT_EQ(1u, relay.size());
+  EXPECT_TRUE(accepted.empty());
+
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {corrupted}, 1, envelope_limits(), relay_policy(),
+          state, contexts, relay, accepted));
+  EXPECT_EQ(1u, relay.size());
+  EXPECT_TRUE(accepted.empty());
 }

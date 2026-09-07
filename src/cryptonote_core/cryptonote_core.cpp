@@ -671,6 +671,14 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
+  bool core::handle_incoming_epose_envelopes_v2(
+      const std::vector<blobdata>& envelopes,
+      std::vector<blobdata>& accepted_envelopes)
+  {
+    return m_blockchain_storage.submit_epose_relay_envelopes_v2(
+        envelopes, accepted_envelopes);
+  }
+  //-----------------------------------------------------------------------------------------------
   bool core::publish_local_epose_payloads()
   {
     const qwertycoin::epose::local_service_node_config &config = m_epose_local_service_node_config;

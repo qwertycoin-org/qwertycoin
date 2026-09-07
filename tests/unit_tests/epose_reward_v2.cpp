@@ -570,6 +570,11 @@ TEST(epose_reward_v2, production_miner_constructor_emits_verifiable_v2_payment)
 
   const cryptonote::account_public_address miner_address = make_address();
   const envelope_limits_v2 limits = envelope_limits();
+  envelope_record_v2 relay_record{};
+  relay_record.type = static_cast<uint8_t>(record_type_v2::descriptor_lifecycle);
+  relay_record.version = EPOSE_LIFECYCLE_RECORD_VERSION_V2;
+  relay_record.payload = "relay-record";
+  const std::vector<envelope_record_v2> relay_records{relay_record};
   service_payment_context_v2 generated{};
   const cryptonote::miner_service_payment_v2 payment{
       &expected,
@@ -577,6 +582,7 @@ TEST(epose_reward_v2, production_miner_constructor_emits_verifiable_v2_payment)
       scheduled_subsidy + fees,
       2,
       &limits,
+      &relay_records,
       &generated};
   cryptonote::transaction coinbase{};
   ASSERT_TRUE(cryptonote::construct_miner_tx(
@@ -606,4 +612,15 @@ TEST(epose_reward_v2, production_miner_constructor_emits_verifiable_v2_payment)
   for (const service_payment_output_v2 &output : verified.outputs)
     paid += output.amount;
   EXPECT_EQ(service_reward, paid);
+  std::vector<envelope_record_v2> records;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      parse_transaction_extra_v2(
+          coinbase.extra, HF_VERSION_QWC_EPOSE, 2, limits,
+          records, budget));
+  ASSERT_EQ(2u, records.size());
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::descriptor_lifecycle),
+      records.front().type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof),
+      records.back().type);
 }

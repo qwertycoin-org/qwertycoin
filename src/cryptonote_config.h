@@ -159,7 +159,8 @@
 #define P2P_IDLE_CONNECTION_KILL_INTERVAL               (5*60) //5 minutes
 
 #define P2P_SUPPORT_FLAG_FLUFFY_BLOCKS                  0x01
-#define P2P_SUPPORT_FLAGS                               P2P_SUPPORT_FLAG_FLUFFY_BLOCKS
+#define P2P_SUPPORT_FLAG_EPOSE_V2                       0x02
+#define P2P_SUPPORT_FLAGS                               (P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_EPOSE_V2)
 
 #define RPC_IP_FAILS_BEFORE_BLOCK                       3
 

@@ -79,11 +79,17 @@ REQUIRED_ACTIVATION_PATHS = (
     "resource_limits.max_relay_queue_bytes",
     "resource_limits.max_relay_queue_items",
     "resource_limits.max_signature_verifications_per_block",
+    "resource_limits.max_template_epose_bytes",
+    "resource_limits.max_template_records",
     "resource_limits.minimum_undo_blocks",
     "resource_limits.reserved_enrollment_queue_bytes",
     "resource_limits.reserved_enrollment_queue_items",
+    "resource_limits.reserved_enrollment_template_bytes",
+    "resource_limits.reserved_enrollment_template_records",
     "resource_limits.reserved_evidence_queue_bytes",
     "resource_limits.reserved_evidence_queue_items",
+    "resource_limits.reserved_evidence_template_bytes",
+    "resource_limits.reserved_evidence_template_records",
     "reward.empty_set_policy",
     "reward.emission_accounting",
     "reward.fee_policy",
@@ -227,6 +233,21 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
         if {maximum, enrollment, evidence} <= checked_limits.keys():
             if checked_limits[enrollment] > checked_limits[maximum] - checked_limits[evidence]:
                 raise ManifestError(f"reserved relay queue {unit} exceed the total")
+    for unit in ("records", "bytes"):
+        maximum = f"max_template_{'epose_' if unit == 'bytes' else ''}{unit}"
+        enrollment = f"reserved_enrollment_template_{unit}"
+        evidence = f"reserved_evidence_template_{unit}"
+        if {maximum, enrollment, evidence} <= checked_limits.keys():
+            if checked_limits[enrollment] > checked_limits[maximum] - checked_limits[evidence]:
+                raise ManifestError(f"reserved template {unit} exceed the total")
+    if {"max_template_records", "max_records_per_block"} <= checked_limits.keys() and checked_limits["max_template_records"] > checked_limits["max_records_per_block"]:
+        raise ManifestError("template record limit exceeds consensus block limit")
+    if {"max_template_epose_bytes", "max_epose_bytes_per_block"} <= checked_limits.keys() and checked_limits["max_template_epose_bytes"] > checked_limits["max_epose_bytes_per_block"]:
+        raise ManifestError("template EPoSE bytes exceed consensus block limit")
+    if {"max_template_epose_bytes", "max_envelope_bytes_per_transaction"} <= checked_limits.keys() and checked_limits["max_template_epose_bytes"] > checked_limits["max_envelope_bytes_per_transaction"]:
+        raise ManifestError("template EPoSE bytes exceed the transaction envelope limit")
+    if checked_limits.get("max_template_records", 0) > 0 and checked_limits.get("max_envelopes_per_transaction", 2) < 2:
+        raise ManifestError("template relay plus a possible payment proof require two envelope fields")
 
     for path, allowed in (
         ("reward.empty_set_policy", {"miner-fallback", "permanent-nonissuance"}),

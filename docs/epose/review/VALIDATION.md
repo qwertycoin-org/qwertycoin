@@ -664,7 +664,8 @@ Results reproduced on 2026-09-06:
 - epoch 0 is enrollment-only, epoch 1 is the first service epoch, and the first
   possible v2 payout is height 1440;
 - release evaluation remains **NO-GO**, with **0/13** gates satisfied and
-  **29** unresolved manifest values;
+  **35** unresolved manifest values after reserving six local queue/template
+  policy limits;
 - canonical reservation manifest SHA-256 is
   `6377b1eb1eca7b44165cf64f66b1d686ec657e99ca057a0041ba4990c83e8699`;
 - documentation parsing, Python byte-compilation, whitespace, and credential
@@ -825,8 +826,53 @@ Candidate behavior:
 - complete focused EPoSE C++ suite: **209/209 passed**;
 - EPoSE Python manifest/reference suite: **38/38 passed**.
 
-The pool accepts only records already validated by its caller. Typed P2P
-ingestion, canonical semantic validation before enqueue, pool-to-template
-insertion, live record construction and native macOS arm64 evidence remain
-open. The incomplete production manifest keeps the wallet carrier unavailable
-on public networks.
+The incomplete production manifest keeps the wallet carrier unavailable on
+public networks. At this milestone the pool still accepted only records already
+validated by its caller; the following integration milestone closes that local
+boundary.
+
+## Typed P2P semantic ingress and miner-template integration
+
+Commands:
+
+```text
+cmake --build <build-dir> --target epose_unit_tests daemon wallet_rpc_server -j1
+<build-dir>/tests/unit_tests/epose_unit_tests \
+  --gtest_filter='epose_relay_pool_v2.*:epose_reward_v2.production_miner_constructor_emits_verifiable_v2_payment:epose_envelope_v2.*:epose_resource_policy_v2.*'
+<build-dir>/tests/unit_tests/epose_unit_tests
+python3 -m unittest discover -s tests/epose -p 'test_*.py'
+python3 tests/epose/release_gate_v2.py \
+  --manifest docs/epose/PARAMETER_MANIFEST_V2.json \
+  --gates docs/epose/review/RELEASE_GATES_V2.json \
+  --policy docs/epose/review/RELEASE_GATE_POLICY_V2.json \
+  --evidence-root . --expect no-go
+git diff --check
+```
+
+Results reproduced on Linux on 2026-09-07:
+
+- typed carrier/relay/resource subset: **35/35 passed**;
+- complete focused EPoSE C++ suite: **211/211 passed**;
+- EPoSE Python manifest/reference/gate suite: **39/39 passed**;
+- `qwertycoind` and `qwertycoin-wallet-rpc` rebuilt and linked;
+- every P2P item is one canonical one-record non-Coinbase envelope, and a
+  malformed or semantically invalid suffix rejects the complete ingress batch;
+- real lifecycle signatures and state transitions are verified before enqueue;
+  exact complete-byte duplicates remain idempotent without weakening signature
+  binding;
+- relay targets must advertise the EPoSE-v2 support flag;
+- deterministic template selection reserves both traffic classes, simulates
+  records in order, appends accepted records before the scoped payment proof,
+  and removes confirmed records only after canonical block commit;
+- the six new local template-policy values remain unset and are cross-checked
+  against the queue, consensus envelope/block limits and local Coinbase-extra
+  bound;
+- release evaluation remains **NO-GO**, with **0/13** gates satisfied and
+  **35** manifest values unset; manifest SHA-256 is
+  `e1b7d43c0ecff91b1f9124a59bbb838c027a41e09227e132ba2143a38f5179c4`.
+
+This evidence proves the local production code paths compile and the shared
+cryptographic/semantic primitives behave as specified. It does not yet prove
+multi-node propagation, canonical live service probing, lifecycle/admission/
+receipt construction, sustained-load behavior, wallet funds safety, or native
+macOS arm64 support.

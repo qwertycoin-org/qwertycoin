@@ -53,7 +53,7 @@
       "evidence": [],
       "id": "network_and_rpc_resource_integration",
       "state": "blocked",
-      "summary": "Probe, P2P, RPC, admission-cache, and DNS-race protections are not connected to live handlers or sustained-load tests.",
+      "summary": "Typed P2P ingress now performs canonical atomic semantic validation, bounded pooling, capability-filtered relay and deterministic template insertion; canonical service probing, multi-node propagation, DNS-race coverage and sustained-load measurements remain open.",
       "references": null
     },
     {

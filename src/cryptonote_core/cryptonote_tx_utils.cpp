@@ -45,6 +45,7 @@ using namespace epee;
 #include "cryptonote_basic/tx_extra.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
+#include "epose/envelope_v2.h"
 #include "epose/reward_v2.h"
 #include "ringct/rctSigs.h"
 
@@ -296,6 +297,23 @@ namespace cryptonote
     tx.invalidate_hashes();
 
     if (service_payment_v2 != nullptr
+        && service_payment_v2->carrier_records != nullptr
+        && !service_payment_v2->carrier_records->empty())
+    {
+      qwertycoin::epose::envelope_budget_v2 carrier_budget{};
+      CHECK_AND_ASSERT_MES(
+          qwertycoin::epose::append_transaction_envelope_v2(
+              *service_payment_v2->carrier_records, hard_fork_version,
+              service_payment_v2->max_envelopes_per_transaction,
+              *service_payment_v2->limits, tx.extra, carrier_budget)
+              == qwertycoin::epose::envelope_status_v2::accepted,
+          false, "failed to append EPoSE-v2 relay records to Coinbase");
+      CHECK_AND_ASSERT_MES(tx.extra.size() <= MAX_TX_EXTRA_SIZE, false,
+          "EPoSE-v2 relay records exceed the local Coinbase extra limit");
+      tx.invalidate_hashes();
+    }
+
+    if (service_payment_v2 != nullptr
         && service_payment_v2->expectation != nullptr)
     {
       qwertycoin::epose::service_payment_context_v2 generated{};
@@ -310,6 +328,10 @@ namespace cryptonote
       if (service_payment_v2->generated_context != nullptr)
         *service_payment_v2->generated_context = std::move(generated);
     }
+
+    if (service_payment_v2 != nullptr)
+      CHECK_AND_ASSERT_MES(tx.extra.size() <= MAX_TX_EXTRA_SIZE, false,
+          "EPoSE-v2 Coinbase extra exceeds the local producer limit");
 
     //LOG_PRINT("MINER_TX generated ok, block_reward=" << print_money(block_reward) << "("  << print_money(block_reward - fee) << "+" << print_money(fee)
     //  << "), current_block_size=" << current_block_size << ", already_generated_coins=" << already_generated_coins << ", tx_id=" << get_transaction_hash(tx), LOG_LEVEL_2);

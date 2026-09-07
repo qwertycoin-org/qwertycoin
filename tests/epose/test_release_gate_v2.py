@@ -57,11 +57,17 @@ class ReleaseGateTests(unittest.TestCase):
                 "max_relay_queue_bytes": 1048576,
                 "max_relay_queue_items": 2048,
                 "max_signature_verifications_per_block": 2048,
+                "max_template_epose_bytes": 32768,
+                "max_template_records": 512,
                 "minimum_undo_blocks": 2160,
                 "reserved_enrollment_queue_bytes": 262144,
                 "reserved_enrollment_queue_items": 512,
+                "reserved_enrollment_template_bytes": 8192,
+                "reserved_enrollment_template_records": 128,
                 "reserved_evidence_queue_bytes": 262144,
                 "reserved_evidence_queue_items": 512,
+                "reserved_evidence_template_bytes": 8192,
+                "reserved_evidence_template_records": 128,
             }
         )
         manifest["reward"].update(

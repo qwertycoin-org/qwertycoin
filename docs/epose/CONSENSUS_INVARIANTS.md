@@ -168,3 +168,8 @@ activated by CO-01.
 155. Split wallet transfers cannot carry a v2 envelope because one submitted record must not be copied implicitly into multiple independently constructed transactions.
 156. Relay-pool deadlines are derived from canonical record fields, never supplied by an untrusted peer, and local capacity reserves enrollment and evidence independently.
 157. The local relay pool stores complete canonical records for later revalidation; neither its contents, ordering, eviction, nor availability can alter validity of the same complete block.
+158. Every v2 P2P relay item is one canonical envelope containing exactly one non-Coinbase record; malformed or semantically invalid input rejects the complete received batch without retaining a valid prefix.
+159. A relayed record enters the local pool only after the real lifecycle, admission, or receipt cryptography and canonical-state bindings succeed; only an exact complete-byte duplicate may skip repeated verification.
+160. V2 envelopes are forwarded only to peers advertising the EPoSE-v2 support flag, and a syncing or non-normal peer cannot mutate the relay pool.
+161. Miner-template selection preserves independent Enrollment and Evidence reservations, applies selected records in deterministic order to a temporary semantic state, and commits the resulting carrier before constructing any required payment proof.
+162. Local relay/template item and byte limits are manifest-owned, must fit the backing queue and consensus envelope/block bounds, and cannot enable a public producer while unset.

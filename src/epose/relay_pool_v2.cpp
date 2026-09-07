@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 #include "epose/record_codec_v2.h"
 
@@ -31,6 +32,23 @@ namespace qwertycoin
 {
 namespace epose
 {
+  bool relay_policy_v2::valid() const
+  {
+    return queue.valid() && mining_template.valid()
+        && mining_template.max_items <= queue.max_items
+        && mining_template.max_bytes <= queue.max_bytes;
+  }
+
+  bool compiled_relay_policy_v2(
+      cryptonote::network_type,
+      const crypto::hash &,
+      const crypto::hash &,
+      relay_policy_v2 &policy)
+  {
+    policy = {};
+    return false;
+  }
+
   relay_record_pool_v2::relay_record_pool_v2(
       const epoch_timing_v2 &timing,
       const envelope_limits_v2 &envelope_limits,
@@ -179,7 +197,90 @@ namespace epose
     }
   }
 
+  void relay_record_pool_v2::erase_confirmed_records(
+      const std::vector<envelope_record_v2> &records)
+  {
+    std::vector<crypto::hash> ids;
+    ids.reserve(records.size());
+    for (const envelope_record_v2 &record : records)
+    {
+      std::string encoded;
+      envelope_budget_v2 ignored{};
+      if (encode_envelope_v2({record}, envelope_limits_, encoded, ignored)
+          == envelope_status_v2::accepted)
+        ids.push_back(relay_id(encoded));
+    }
+    erase_confirmed(ids);
+  }
+
   size_t relay_record_pool_v2::size() const { return records_.size(); }
   size_t relay_record_pool_v2::bytes() const { return queue_.bytes(); }
+
+  relay_ingress_status_v2 admit_relay_envelopes_v2(
+      const std::vector<std::string> &envelopes,
+      uint64_t inclusion_height,
+      const envelope_limits_v2 &envelope_limits,
+      const relay_policy_v2 &policy,
+      const semantic_state_v2 &canonical_state,
+      const canonical_context_source_v2 &contexts,
+      relay_record_pool_v2 &pool,
+      std::vector<std::string> &accepted)
+  {
+    accepted.clear();
+    if (!envelope_limits.valid() || !policy.valid()
+        || !canonical_state.valid() || !pool.valid()
+        || envelopes.size() > policy.queue.max_items)
+      return relay_ingress_status_v2::invalid_configuration;
+
+    size_t total_bytes = 0;
+    for (const std::string &encoded : envelopes)
+    {
+      if (encoded.size() > envelope_limits.max_envelope_bytes
+          || encoded.size() > policy.queue.max_bytes
+          || total_bytes > policy.queue.max_bytes - encoded.size())
+        return relay_ingress_status_v2::invalid_batch;
+      total_bytes += encoded.size();
+    }
+
+    relay_record_pool_v2 next_pool = pool;
+    next_pool.prune_expired(inclusion_height);
+    std::vector<std::string> next_accepted;
+    next_accepted.reserve(envelopes.size());
+    for (const std::string &encoded : envelopes)
+    {
+      std::vector<envelope_record_v2> records;
+      envelope_budget_v2 ignored{};
+      if (parse_envelope_v2(encoded, envelope_limits, records, ignored)
+              != envelope_status_v2::accepted
+          || records.size() != 1)
+        return relay_ingress_status_v2::invalid_batch;
+
+      relay_record_pool_v2 tentative = next_pool;
+      const relay_record_status_v2 queue_status =
+          tentative.enqueue(records.front(), inclusion_height);
+      if (queue_status == relay_record_status_v2::idempotent_duplicate
+          || queue_status == relay_record_status_v2::expired
+          || queue_status == relay_record_status_v2::full)
+        continue;
+      if (queue_status != relay_record_status_v2::accepted)
+        return relay_ingress_status_v2::invalid_batch;
+
+      semantic_state_v2 semantic = canonical_state;
+      semantic_apply_summary_v2 summary{};
+      const semantic_transaction_context_v2 transaction{
+          inclusion_height, false, nullptr, nullptr};
+      if (semantic.apply_transaction(
+              records, transaction, contexts, summary)
+          != semantic_status_v2::accepted)
+        return relay_ingress_status_v2::invalid_batch;
+
+      next_pool = std::move(tentative);
+      next_accepted.push_back(encoded);
+    }
+
+    pool = std::move(next_pool);
+    accepted.swap(next_accepted);
+    return relay_ingress_status_v2::accepted;
+  }
 } // namespace epose
 } // namespace qwertycoin

@@ -140,6 +140,9 @@ namespace cryptonote
        const std::vector<blobdata>& attestation_blobs,
        std::vector<blobdata>& accepted_registration_blobs,
        std::vector<blobdata>& accepted_attestation_blobs);
+     bool handle_incoming_epose_envelopes_v2(
+       const std::vector<blobdata>& envelopes,
+       std::vector<blobdata>& accepted_envelopes);
 
     /**
       * @brief handles a single incoming block

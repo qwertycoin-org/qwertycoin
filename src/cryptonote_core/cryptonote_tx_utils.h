@@ -36,6 +36,7 @@
 
 namespace qwertycoin { namespace epose {
   struct envelope_limits_v2;
+  struct envelope_record_v2;
   struct service_payment_context_v2;
   struct service_payment_expectation_v2;
 } }
@@ -49,6 +50,7 @@ namespace cryptonote
     uint64_t expected_coinbase_total = 0;
     size_t max_envelopes_per_transaction = 0;
     const qwertycoin::epose::envelope_limits_v2 *limits = nullptr;
+    const std::vector<qwertycoin::epose::envelope_record_v2> *carrier_records = nullptr;
     qwertycoin::epose::service_payment_context_v2 *generated_context = nullptr;
   };
 
