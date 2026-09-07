@@ -13,7 +13,7 @@ final mainnet security-parameter approval**
 - Consensus-parameter SHA-256:
   `16bde722b05071956f10be18530235be42b374228ead95e2b053d99d53f328ff`
 - Exact candidate implementation revision recorded by the manifest:
-  `e306698ac5432622751bd6eb43ce81b89fa17744`
+  `e306698ac23bb23d8a6050d479d8f2f2e32af505`
 
 The parameter commitment is SHA-256 over the canonical JSON projection of
 `activation`, `admission`, `carrier`, `committee`, `encoding`, `epoch`,
