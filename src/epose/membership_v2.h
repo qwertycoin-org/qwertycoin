@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <limits>
 #include <vector>
 
 #include "crypto/crypto.h"
@@ -48,6 +49,8 @@ namespace epose
     uint64_t rounds_required = 0;
     uint8_t service_kind = 0;
     std::vector<uint64_t> round_offsets;
+    // Consensus ceiling for distinct effective identities in one epoch.
+    size_t max_active_population = std::numeric_limits<size_t>::max();
 
     bool valid() const;
   };
@@ -153,6 +156,7 @@ namespace epose
     too_late,
     invalid_member,
     conflicting_record,
+    population_limit_exceeded,
     snapshot_missing,
     snapshot_already_frozen,
     wrong_boundary,

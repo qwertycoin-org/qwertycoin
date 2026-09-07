@@ -11,6 +11,7 @@
 #include "epose/coordinator_v2.h"
 #include "epose/record_codec_v2.h"
 #include "epose/service_receipt_v2.h"
+#include "string_tools.h"
 
 namespace
 {
@@ -285,6 +286,36 @@ TEST(epose_coordinator_v2, incomplete_or_wrong_version_configuration_fails_close
   EXPECT_EQ(coordinator_status_v2::invalid_block,
       connect_empty(coordinator, source, 0, 1025, result, 18));
   EXPECT_EQ(crypto::null_hash, result.state_hash);
+}
+
+TEST(epose_coordinator_v2, compiled_mainnet_rehearsal_profile_matches_manifest)
+{
+  crypto::hash genesis{};
+  ASSERT_TRUE(epee::string_tools::hex_to_pod(
+      "e791e506200ba3a221b87b6c78359c2bbb13c3ef622e1c90b3b3fbb52f4943f5",
+      genesis));
+  consensus_parameters_v2 compiled{};
+  ASSERT_TRUE(compiled_consensus_parameters_v2(
+      cryptonote::MAINNET, genesis, compiled));
+  EXPECT_TRUE(compiled.valid());
+  EXPECT_EQ(17, HF_VERSION_QWC_EPOSE);
+  EXPECT_EQ(0u, compiled.timing.activation_height);
+  EXPECT_EQ(720u, compiled.timing.epoch_length);
+  EXPECT_EQ(60u, compiled.timing.anchor_depth);
+  EXPECT_EQ(16u, compiled.admission.leading_zero_bits);
+  EXPECT_EQ(3u, compiled.committee.committee_size);
+  EXPECT_EQ(3u, compiled.committee.threshold);
+  EXPECT_EQ(1000u, compiled.committee.max_active_population);
+  EXPECT_EQ((std::vector<uint64_t>{0, 200, 400}),
+      compiled.committee.round_offsets);
+
+  crypto::hash wrong = genesis;
+  reinterpret_cast<unsigned char *>(&wrong)[0] ^= 1;
+  EXPECT_FALSE(compiled_consensus_parameters_v2(
+      cryptonote::MAINNET, wrong, compiled));
+  EXPECT_FALSE(compiled.valid());
+  EXPECT_FALSE(compiled_consensus_parameters_v2(
+      cryptonote::TESTNET, genesis, compiled));
 }
 
 TEST(epose_coordinator_v2, genesis_bootstrap_and_empty_miner_fallback_are_deterministic)

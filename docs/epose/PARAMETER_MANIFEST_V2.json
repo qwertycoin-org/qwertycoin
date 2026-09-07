@@ -7,8 +7,8 @@
   "admission": {
     "algorithm": "RandomX",
     "context_epoch_offset": 1,
-    "lease_epochs": null,
-    "leading_zero_bits": null,
+    "lease_epochs": 1,
+    "leading_zero_bits": 16,
     "target_epoch_required": true
   },
   "carrier": {
@@ -18,10 +18,18 @@
     "tx_extra_tag": 5
   },
   "committee": {
-    "round_offsets": null,
-    "rounds_required": null,
-    "size": null,
-    "threshold": null
+    "round_offsets": [
+      0,
+      200,
+      400
+    ],
+    "rounds_required": 2,
+    "service_kind": "canonical-object",
+    "size": 3,
+    "threshold": 3
+  },
+  "commitments": {
+    "parameter_set_sha256": "16bde722b05071956f10be18530235be42b374228ead95e2b053d99d53f328ff"
   },
   "dependencies": {
     "core_source_commit": "1c4c1bf10c387887a42243dc690a65abb6c6e786",
@@ -53,50 +61,51 @@
     "length_blocks": 720,
     "warmup_epochs": 2
   },
-  "manifest_kind": "reservation",
+  "manifest_kind": "activation-candidate",
   "network": {
-    "genesis_hash": null,
+    "genesis_hash": "e791e506200ba3a221b87b6c78359c2bbb13c3ef622e1c90b3b3fbb52f4943f5",
     "network_id": "515743324d41494e32303236504f4301",
     "type": "mainnet"
   },
   "release": {
-    "source_revision": null
+    "source_revision": "9483fbeb278dd5595f1989a8066f05c76c5ca1e8"
   },
   "resource_limits": {
-    "max_active_population": null,
-    "max_admission_verifications_per_block": null,
-    "max_envelope_bytes_per_transaction": null,
-    "max_envelopes_per_transaction": null,
-    "max_epose_bytes_per_block": null,
-    "max_records_per_block": null,
-    "max_records_per_envelope": null,
-    "max_relay_queue_bytes": null,
-    "max_relay_queue_items": null,
-    "max_signature_verifications_per_block": null,
-    "max_template_epose_bytes": null,
-    "max_template_records": null,
-    "minimum_undo_blocks": null,
-    "reserved_enrollment_queue_bytes": null,
-    "reserved_enrollment_queue_items": null,
-    "reserved_enrollment_template_bytes": null,
-    "reserved_enrollment_template_records": null,
-    "reserved_evidence_queue_bytes": null,
-    "reserved_evidence_queue_items": null,
-    "reserved_evidence_template_bytes": null,
-    "reserved_evidence_template_records": null
+    "max_active_population": 1000,
+    "max_admission_verifications_per_block": 8,
+    "max_envelope_bytes_per_transaction": 65536,
+    "max_envelopes_per_transaction": 4,
+    "max_epose_bytes_per_block": 262144,
+    "max_records_per_block": 1024,
+    "max_records_per_envelope": 256,
+    "max_record_payload_bytes": 65536,
+    "max_relay_queue_bytes": 1048576,
+    "max_relay_queue_items": 2048,
+    "max_signature_verifications_per_block": 2048,
+    "max_template_epose_bytes": 32768,
+    "max_template_records": 256,
+    "minimum_undo_blocks": 2160,
+    "reserved_enrollment_queue_bytes": 262144,
+    "reserved_enrollment_queue_items": 512,
+    "reserved_enrollment_template_bytes": 8192,
+    "reserved_enrollment_template_records": 64,
+    "reserved_evidence_queue_bytes": 262144,
+    "reserved_evidence_queue_items": 512,
+    "reserved_evidence_template_bytes": 8192,
+    "reserved_evidence_template_records": 64
   },
   "reward": {
     "basis_points": 1000,
-    "empty_set_policy": null,
-    "emission_accounting": null,
-    "fee_policy": null,
-    "payment_proof_scheme": null,
+    "empty_set_policy": "miner-fallback",
+    "emission_accounting": "actual-issued-subsidy",
+    "fee_policy": "subsidy-only",
+    "payment_proof_scheme": "scoped-tx-proof-v1",
     "schedule": "epoch-relative-index"
   },
   "schema_version": 2,
   "state": {
-    "index_schema": null,
-    "pruned_validation_mode": null
+    "index_schema": 1,
+    "pruned_validation_mode": "unsupported-fail-closed"
   },
-  "status": "not-activatable"
+  "status": "activatable"
 }

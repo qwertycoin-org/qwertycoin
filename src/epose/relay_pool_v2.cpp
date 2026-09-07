@@ -7,7 +7,9 @@
 #include <cstring>
 #include <utility>
 
+#include "epose/compiled_profile_v2.h"
 #include "epose/record_codec_v2.h"
+#include "string_tools.h"
 
 namespace
 {
@@ -40,13 +42,31 @@ namespace epose
   }
 
   bool compiled_relay_policy_v2(
-      cryptonote::network_type,
-      const crypto::hash &,
-      const crypto::hash &,
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
       relay_policy_v2 &policy)
   {
     policy = {};
-    return false;
+    crypto::hash expected_genesis{};
+    crypto::hash expected_parameters{};
+    if (nettype != cryptonote::MAINNET
+        || !epee::string_tools::hex_to_pod(MAINNET_REHEARSAL_GENESIS_HASH_V2, expected_genesis)
+        || !epee::string_tools::hex_to_pod(
+            MAINNET_REHEARSAL_PARAMETER_SET_HASH_V2, expected_parameters)
+        || genesis_hash != expected_genesis
+        || parameter_set_hash != expected_parameters)
+      return false;
+
+    policy.queue = {
+        2048, 1048576,
+        512, 512,
+        262144, 262144};
+    policy.mining_template = {
+        256, 32768,
+        64, 64,
+        8192, 8192};
+    return policy.valid();
   }
 
   relay_record_pool_v2::relay_record_pool_v2(

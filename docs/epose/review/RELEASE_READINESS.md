@@ -1,6 +1,6 @@
 # EPoSE v2 Release Readiness
 
-**Assessment date:** 2026-09-06
+**Assessment date:** 2026-09-07
 
 **Status:** **NO-GO for economic activation**
 
@@ -8,20 +8,17 @@
 
 ## Decision
 
-The stacked CO-00 through CO-09 branches provide reviewed design boundaries and
-non-activating C++ primitives. They do not yet form an integrated QWC-HF17 /
-EPoSE-v2 launch protocol.
-The current mainnet manifest intentionally contains unset consensus parameters
-and has status `not-activatable`.
+The consolidated branch connects the hardened v2 coordinator to QWC HF17 from
+genesis. The checked-in mainnet manifest is now a complete, embedded
+`activation-candidate` for the explicitly authorized four-host pre-launch
+rehearsal. Configuration completeness permits that bounded rehearsal; it does
+not satisfy the evidence-bound launch gates or authorize economic launch.
 
-It would therefore be invalid to reset a network from genesis and describe the
-result as an EPoSE v2 funds-safety test. The existing Docker integration harness
-exercises the disposable legacy EPoSE-v1 prototype, including its reward
-view-key interface. It cannot establish the hardened EPoSE-v2 properties
-required by CO-10.
-
-No production, public-testnet, or four-host deployment of this branch is
-authorized by this assessment.
+The historical PR-#183 Docker run exercised legacy production dispatch and is
+not v2 evidence. A new seed-00 through seed-03 run must use the regular MAINNET
+path and the exact embedded candidate, while being publicly identified as a
+resettable rehearsal. The planned chain-only reset follows the run and must pin
+a distinct final-launch genesis before any launch claim.
 
 ## Machine-readable gate
 
@@ -45,7 +42,7 @@ ignore the default failure.
 ## Current result
 
 - 0 of 13 top-level release gates are satisfied by candidate-bound evidence.
-- 35 required manifest values remain unset.
+- 0 required manifest values remain unset in the rehearsal candidate.
 - 13 gates remain blocked or not run.
 - The security-parameter study independently reports
   `no_go_for_economic_activation`.
@@ -65,23 +62,27 @@ the component is connected to the canonical block transition and tested there.
 2. Prove the production coordinator's same-transaction LMDB commitments,
    bounded disconnect, startup verification and deep replay under process-crash,
    pruning and full canonical reorg scenarios.
-3. Exercise the connected P2P/RPC/descriptor protections across isolated nodes
+3. Exercise the connected P2P/RPC/descriptor protections across the four
+   operated rehearsal nodes
    and measure worst-valid-block, sustained invalid-load, backlog and inclusion
    behavior before selecting the six local queue/template reservations.
-4. Select committee, round, admission, capacity, and resource constants from
-   optimized measurements on the supported hardware classes and an approved
-   adversarial risk budget.
-5. Approve one empty-set and emission policy. The implementation must then prove
-   exact inherited emission continuity and the PoW-security consequence.
+4. Measure the embedded rehearsal committee, round, admission, capacity and
+   resource constants on supported hardware, then select final values against
+   an approved adversarial risk budget.
+5. Prove the selected miner-fallback, actual-issued-subsidy policy against exact
+   inherited emission continuity and document its qualification-suppression
+   incentive in the final risk decision.
 6. Obtain independent review of the scoped payment proof and the integrated
    consensus state transition.
 
-## CO-10 execution preconditions
+## CO-10 rehearsal boundary
 
-The four-host test may start only when all six items above are closed and the
-candidate manifest contains the final fresh-genesis identity, parameters, and
-source revision. Activation height is already fixed at zero; there is no future
-activation-block observation or migration boundary. Before any reset:
+The four-host test is authorized to generate the evidence needed by the open
+gates. It may start when the candidate manifest is complete, the compiled
+profile matches its commitment, local build/regression/startup checks pass, and
+the exact destructive inventory has been recorded. Activation height is fixed
+at zero; there is no future activation-block observation or migration boundary.
+Before any reset:
 
 - inventory every container, volume, wallet, chain directory, and persistent
   service identity on the target host;
@@ -94,7 +95,7 @@ activation-block observation or migration boundary. Before any reset:
   those machines remain confined to Docker;
 - treat an unconfirmed SSH host-key replacement as unavailable infrastructure.
 
-The eventual run must cover enrollment, authenticated service, both carriers,
+The rehearsal must cover enrollment, authenticated service, both carriers,
 qualification, payout, maturity, spend, recipient receipt, rescans, restarts,
 partition/heal, payout-fork replacement, deep reorg, fresh replay, and identical
 state roots on all honest nodes.
@@ -107,4 +108,5 @@ rollback guidance, dependency inventory, public protocol/vectors, and linked
 independent review findings. No administrator RPC, DNS record, privileged key,
 or local relay decision may change consensus qualification or payout rules.
 
-Until those conditions are met, the only correct release result is **NO-GO**.
+Until those conditions are met, the only correct final-launch result is
+**NO-GO**. This does not conflict with the bounded pre-launch rehearsal.

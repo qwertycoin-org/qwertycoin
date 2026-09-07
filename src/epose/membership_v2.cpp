@@ -317,6 +317,7 @@ namespace epose
         && rounds_required > 0
         && rounds_required <= round_count
         && service_kind != 0
+        && max_active_population >= committee_size
         && round_offsets.size() == round_count
         && !round_offsets.empty()
         && round_offsets.front() == 0
@@ -413,6 +414,13 @@ namespace epose
       return pipeline_status_v2::conflicting_record;
     }
 
+    const size_t epoch_population = std::count_if(
+        leases_.begin(), leases_.end(), [&](const stored_lease &stored) {
+          return stored.lease.target_epoch == lease.target_epoch;
+        });
+    if (epoch_population >= policy_.max_active_population)
+      return pipeline_status_v2::population_limit_exceeded;
+
     leases_.push_back({lease, inclusion_height});
     return pipeline_status_v2::accepted;
   }
@@ -487,6 +495,8 @@ namespace epose
       if (duplicate_identity_or_key != frozen.members.end())
         return pipeline_status_v2::conflicting_record;
       frozen.members.push_back(stored.lease.member);
+      if (frozen.members.size() > policy_.max_active_population)
+        return pipeline_status_v2::population_limit_exceeded;
     }
     std::sort(frozen.members.begin(), frozen.members.end(), member_less);
 

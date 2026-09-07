@@ -89,15 +89,14 @@ class ManifestTests(unittest.TestCase):
         path = Path(__file__).parents[2] / "docs" / "epose" / "PARAMETER_MANIFEST_V2.json"
         self.manifest = json.loads(path.read_text(encoding="utf-8"))
 
-    def test_reservation_manifest_is_not_activatable(self):
-        self.assertEqual("not-activatable", self.manifest["status"])
+    def test_rehearsal_manifest_is_complete_but_not_a_release_gate_pass(self):
+        self.assertEqual("activation-candidate", self.manifest["manifest_kind"])
+        self.assertEqual("activatable", self.manifest["status"])
         MODEL.validate_manifest(self.manifest)
         missing = MODEL.missing_activation_fields(self.manifest)
         self.assertNotIn("activation.height", missing)
         self.assertNotIn("activation.block_hash", missing)
-        self.assertIn("network.genesis_hash", missing)
-        self.assertIn("reward.fee_policy", missing)
-        self.assertIn("resource_limits.max_epose_bytes_per_block", missing)
+        self.assertEqual([], missing)
 
     def test_manifest_canonicalization_is_stable(self):
         canonical = MODEL.canonical_manifest_bytes(self.manifest)

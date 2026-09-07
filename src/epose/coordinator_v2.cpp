@@ -4,6 +4,9 @@
 #include "epose/coordinator_v2.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "epose/compiled_profile_v2.h"
+#include "epose/service_receipt_v2.h"
+#include "string_tools.h"
 
 #include <algorithm>
 #include <limits>
@@ -43,15 +46,48 @@ namespace epose
   }
 
   bool compiled_consensus_parameters_v2(
-      cryptonote::network_type,
-      const crypto::hash &,
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
       consensus_parameters_v2 &parameters)
   {
-    // PARAMETER_MANIFEST_V2.json is intentionally a non-activatable
-    // reservation. Keeping this factory empty makes a public HF17 daemon fail
-    // before genesis rather than silently selecting fixture or legacy values.
     parameters = {};
-    return false;
+    crypto::hash expected_genesis{};
+    crypto::hash parameter_set_hash{};
+    if (nettype != cryptonote::MAINNET
+        || !epee::string_tools::hex_to_pod(MAINNET_REHEARSAL_GENESIS_HASH_V2, expected_genesis)
+        || !epee::string_tools::hex_to_pod(
+            MAINNET_REHEARSAL_PARAMETER_SET_HASH_V2, parameter_set_hash)
+        || genesis_hash != expected_genesis)
+      return false;
+
+    parameters.nettype = nettype;
+    parameters.genesis_hash = expected_genesis;
+    parameters.parameter_set_hash = parameter_set_hash;
+    parameters.timing = {0, 720, 60};
+    parameters.admission = {
+        admission_work_algorithm_v2::randomx, 16, 1};
+    parameters.committee.committee_size = 3;
+    parameters.committee.threshold = 3;
+    parameters.committee.round_count = 3;
+    parameters.committee.rounds_required = 2;
+    parameters.committee.service_kind =
+        static_cast<uint8_t>(service_kind_v2::canonical_object);
+    parameters.committee.round_offsets = {0, 200, 400};
+    parameters.committee.max_active_population = 1000;
+
+    parameters.limits.max_envelopes_per_transaction = 4;
+    parameters.limits.envelope.max_envelope_bytes = 65536;
+    parameters.limits.envelope.max_records = 256;
+    parameters.limits.envelope.max_record_payload_bytes = 65536;
+    parameters.limits.envelope.max_signature_verifications = 2048;
+    parameters.limits.envelope.max_admission_verifications = 8;
+    parameters.limits.envelope.supported_record_versions = {0, 1, 1, 1, 1, 1};
+    parameters.limits.block = {262144, 1024, 2048, 8};
+    parameters.limits.max_recent_undo_blocks = 2160;
+    parameters.empty_policy = empty_qualification_policy_v2::miner_fallback;
+    parameters.service_reward_bps = EPOSE_SERVICE_REWARD_BPS_V2;
+    parameters.state_commitment_schema = 1;
+    return parameters.valid();
   }
 
   consensus_coordinator_v2::consensus_coordinator_v2(

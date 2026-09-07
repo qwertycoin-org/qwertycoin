@@ -1,21 +1,21 @@
-# ADR-0003: EPoSE v2 Reward Semantics and Open Economic Decision
+# ADR-0003: EPoSE v2 Reward Semantics
 
-- **Status:** Candidate implementation; economic decision required
-- **Date:** 2026-09-06
-- **Scope:** CO-06, non-activating
+- **Status:** Rehearsal candidate decision; final launch evidence required
+- **Date:** 2026-09-07
+- **Scope:** QWC HF17 / EPoSE v2 from fresh genesis
 
 ## Context
 
-HF17 calculates the service share from subsidy plus fees, returns the service
-allocation to the miner when no payee exists, and validates outputs with a
-private reward view key published in each registration. Retrofitting different
-rules onto HF17 would invalidate history. A v2 rule requires separate,
-versioned activation.
+The new Qwertycoin chain starts at block major version 17 with EPoSE protocol
+version 2. There is no earlier Qwertycoin history or v1 service state to
+migrate. The inherited Monero HF16 behavior remains the technical baseline;
+the v2 reward rule is enforced from genesis while actual service payouts begin
+only after completed qualification.
 
-The security review recommends a subsidy-only service allocation and no miner
-windfall when the qualified set is empty. Permanent non-issuance affects
-tokenomics, emission accounting, and the PoW security budget, so it cannot be
-selected by an implementation PR.
+The approved rehearsal economics preserve the 1,000 BPS service share when a
+qualified payee exists, keep fees with the miner, and return the full scheduled
+subsidy to the miner when qualification is empty. This keeps inherited emission
+accounting and PoW revenue deterministic during bootstrap and outages.
 
 ## Candidate implemented by CO-06
 
@@ -58,21 +58,24 @@ encoding, small-order/cofactor behavior, transcript completeness, output
 allocation, and inherited proof assumptions. It must not be activated merely
 because its tests pass.
 
-## Decision required before activation
+## Rehearsal decision
 
-Alex must explicitly select one empty-set policy:
+The embedded rehearsal profile selects:
 
-- **A — miner fallback:** preserve the scheduled subsidy and PoW revenue, but
-  retain the direct incentive to suppress all service qualification.
-- **B — permanent non-issuance (recommended by the review):** remove the
-  empty-set miner windfall, but reduce miner revenue and require reviewed
-  emission-continuity accounting.
+- **miner fallback** for an empty qualification set;
+- **actual-issued-subsidy** emission accounting;
+- **subsidy-only** service allocation, with transaction fees retained by the
+  miner; and
+- the scoped transaction proof candidate for an actual service payout.
 
-The activation ADR must also approve subsidy-only fee treatment and cite the
-independent payment-proof review. Until then the v2 manifest remains
-`not-activatable` and the policy remains unset.
+These values make the resettable rehearsal configuration complete. They do not
+close the independent payment-proof review, integrated emission-continuity,
+payout-fork, maturity, spend, recipient-rescan, or final-launch review gates.
+The incentive to suppress all qualification is an accepted consequence of this
+bootstrap-safe choice and remains part of the economic/security assessment.
 
 ## Compatibility
 
-HF17 reward calculation, registrations, output validation, existing balances,
-and history are unchanged.
+There is no Qwertycoin pre-launch history to preserve. Wallet transaction and
+metadata compatibility remain inherited, while legacy v1 registrations,
+attestations and reward-view-key interfaces do not create v2 eligibility.

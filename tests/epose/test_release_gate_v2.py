@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from manifest_v2 import consensus_parameter_digest
+
 
 MODULE_PATH = Path(__file__).with_name("release_gate_v2.py")
 SPEC = importlib.util.spec_from_file_location("epose_release_gate_v2", MODULE_PATH)
@@ -54,20 +56,21 @@ class ReleaseGateTests(unittest.TestCase):
                 "max_epose_bytes_per_block": 262144,
                 "max_records_per_block": 1024,
                 "max_records_per_envelope": 256,
+                "max_record_payload_bytes": 65536,
                 "max_relay_queue_bytes": 1048576,
                 "max_relay_queue_items": 2048,
                 "max_signature_verifications_per_block": 2048,
                 "max_template_epose_bytes": 32768,
-                "max_template_records": 512,
+                "max_template_records": 256,
                 "minimum_undo_blocks": 2160,
                 "reserved_enrollment_queue_bytes": 262144,
                 "reserved_enrollment_queue_items": 512,
                 "reserved_enrollment_template_bytes": 8192,
-                "reserved_enrollment_template_records": 128,
+                "reserved_enrollment_template_records": 64,
                 "reserved_evidence_queue_bytes": 262144,
                 "reserved_evidence_queue_items": 512,
                 "reserved_evidence_template_bytes": 8192,
-                "reserved_evidence_template_records": 128,
+                "reserved_evidence_template_records": 64,
             }
         )
         manifest["reward"].update(
@@ -79,6 +82,7 @@ class ReleaseGateTests(unittest.TestCase):
             }
         )
         manifest["state"].update({"index_schema": 1, "pruned_validation_mode": "unsupported-fail-closed"})
+        manifest["commitments"]["parameter_set_sha256"] = consensus_parameter_digest(manifest)
         return manifest
 
     def test_current_ledger_proves_no_go(self):
@@ -106,10 +110,12 @@ class ReleaseGateTests(unittest.TestCase):
         invalid = self.valid_test_manifest()
         invalid["committee"].update({"round_offsets": [1], "rounds_required": 1, "size": 1, "threshold": 1})
         invalid["resource_limits"] = {name: 1 for name in invalid["resource_limits"]}
+        invalid["commitments"]["parameter_set_sha256"] = consensus_parameter_digest(invalid)
         with self.assertRaises(MODULE.GateError):
             self.evaluate(invalid, self.ledger, allow_test_fixture=True)
         invalid = self.valid_test_manifest()
         invalid["committee"]["size"] = True
+        invalid["commitments"]["parameter_set_sha256"] = consensus_parameter_digest(invalid)
         with self.assertRaisesRegex(MODULE.GateError, "must be an integer"):
             self.evaluate(invalid, self.ledger, allow_test_fixture=True)
 

@@ -2,11 +2,16 @@
 
 import json
 import copy
+import re
 import subprocess
 import unittest
 from pathlib import Path
 
-from manifest_v2 import ManifestError, validate_manifest
+from manifest_v2 import (
+    ManifestError,
+    consensus_parameter_digest,
+    validate_manifest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,20 +42,21 @@ class ManifestV2Tests(unittest.TestCase):
                 "max_epose_bytes_per_block": 262144,
                 "max_records_per_block": 1024,
                 "max_records_per_envelope": 256,
+                "max_record_payload_bytes": 65536,
                 "max_relay_queue_bytes": 1048576,
                 "max_relay_queue_items": 2048,
                 "max_signature_verifications_per_block": 2048,
                 "max_template_epose_bytes": 32768,
-                "max_template_records": 512,
+                "max_template_records": 256,
                 "minimum_undo_blocks": 2160,
                 "reserved_enrollment_queue_bytes": 262144,
                 "reserved_enrollment_queue_items": 512,
                 "reserved_enrollment_template_bytes": 8192,
-                "reserved_enrollment_template_records": 128,
+                "reserved_enrollment_template_records": 64,
                 "reserved_evidence_queue_bytes": 262144,
                 "reserved_evidence_queue_items": 512,
                 "reserved_evidence_template_bytes": 8192,
-                "reserved_evidence_template_records": 128,
+                "reserved_evidence_template_records": 64,
             }
         )
         manifest["reward"].update(
@@ -64,12 +70,16 @@ class ManifestV2Tests(unittest.TestCase):
         manifest["state"].update(
             {"index_schema": 1, "pruned_validation_mode": "unsupported-fail-closed"}
         )
+        manifest.setdefault("commitments", {})["parameter_set_sha256"] = (
+            consensus_parameter_digest(manifest)
+        )
         return manifest
 
-    def test_reservation_manifest_is_typed_and_nonactivatable(self):
+    def test_checked_in_rehearsal_candidate_is_complete_and_activatable(self):
         missing = validate_manifest(self.manifest)
-        self.assertEqual(self.manifest["status"], "not-activatable")
-        self.assertGreater(len(missing), 0)
+        self.assertEqual(self.manifest["manifest_kind"], "activation-candidate")
+        self.assertEqual(self.manifest["status"], "activatable")
+        self.assertEqual([], missing)
 
     def test_dependency_manifest_matches_declared_baseline_gitlinks(self):
         revision = self.manifest["dependencies"]["core_source_commit"]
@@ -134,6 +144,7 @@ class ManifestV2Tests(unittest.TestCase):
                 "reserved_evidence_template_records": 5,
             },
             {"max_template_records": 1025, "max_records_per_block": 1024},
+            {"max_template_records": 257, "max_records_per_envelope": 256},
             {"max_template_epose_bytes": 262145, "max_epose_bytes_per_block": 262144},
             {"max_template_epose_bytes": 65537, "max_envelope_bytes_per_transaction": 65536},
             {"max_template_records": 1, "max_envelopes_per_transaction": 1},
@@ -148,6 +159,37 @@ class ManifestV2Tests(unittest.TestCase):
         self.assertEqual(
             [],
             validate_manifest(self.complete_test_candidate(), allow_test_fixture=True),
+        )
+
+    def test_consensus_commitment_excludes_release_metadata_but_binds_policy(self):
+        candidate = self.complete_test_candidate()
+        expected = candidate["commitments"]["parameter_set_sha256"]
+        candidate["release"]["source_revision"] = "33" * 20
+        self.assertEqual(expected, consensus_parameter_digest(candidate))
+        validate_manifest(candidate, allow_test_fixture=True)
+
+        candidate["committee"]["threshold"] -= 1
+        with self.assertRaises(ManifestError):
+            validate_manifest(candidate, allow_test_fixture=True)
+
+    def test_compiled_profile_commitments_match_checked_in_manifest(self):
+        header = (ROOT / "src/epose/compiled_profile_v2.h").read_text(encoding="utf-8")
+        genesis = re.search(
+            r'MAINNET_REHEARSAL_GENESIS_HASH_V2\[\].*?"([0-9a-f]{64})"',
+            header,
+            re.DOTALL,
+        )
+        parameters = re.search(
+            r'MAINNET_REHEARSAL_PARAMETER_SET_HASH_V2\[\].*?"([0-9a-f]{64})"',
+            header,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(genesis)
+        self.assertIsNotNone(parameters)
+        self.assertEqual(self.manifest["network"]["genesis_hash"], genesis.group(1))
+        self.assertEqual(
+            self.manifest["commitments"]["parameter_set_sha256"],
+            parameters.group(1),
         )
 
     def test_every_consensus_field_rejects_unsupported_values(self):

@@ -396,6 +396,34 @@ TEST(epose_v2, duplicate_admission_is_idempotent_but_conflict_is_rejected)
       apply_lease(pipeline, make_lease(member, 3, ":conflict"), 2000));
 }
 
+TEST(epose_v2, active_population_limit_is_consensus_enforced_per_epoch)
+{
+  auto pipeline = make_pipeline({2, 2, 1, 1, 1, {0}, 2});
+  const frozen_member_v2 first = make_member(101);
+  const frozen_member_v2 second = make_member(102);
+  const frozen_member_v2 excess = make_member(103);
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      apply_lease(pipeline, make_lease(first, 3), 2000));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      apply_lease(pipeline, make_lease(second, 3), 2001));
+  EXPECT_EQ(pipeline_status_v2::population_limit_exceeded,
+      apply_lease(pipeline, make_lease(excess, 3), 2002));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      pipeline.freeze_membership(3, 2100, hash_text("population-anchor")));
+  ASSERT_NE(nullptr, pipeline.snapshot(3));
+  EXPECT_EQ(2u, pipeline.snapshot(3)->members.size());
+
+  // The same identity may still replace its pending lease without consuming
+  // a second population slot.
+  auto replacement = first;
+  replacement.sequence += 1;
+  auto replacement_pipeline = make_pipeline({2, 2, 1, 1, 1, {0}, 2});
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      apply_lease(replacement_pipeline, make_lease(first, 3), 2000));
+  EXPECT_EQ(pipeline_status_v2::accepted,
+      apply_lease(replacement_pipeline, make_lease(replacement, 3), 2001));
+}
+
 TEST(epose_v2, admission_reserves_service_key_for_one_identity_per_target_epoch)
 {
   auto pipeline = make_pipeline({1, 1, 1, 1, 1, {0}});

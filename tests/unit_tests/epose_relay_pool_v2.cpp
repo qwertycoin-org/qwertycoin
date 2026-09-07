@@ -9,6 +9,7 @@
 #include "epose/lifecycle_v2.h"
 #include "epose/record_codec_v2.h"
 #include "epose/relay_pool_v2.h"
+#include "string_tools.h"
 
 namespace
 {
@@ -118,6 +119,33 @@ namespace
       return true;
     }
   };
+}
+
+TEST(epose_relay_pool_v2, compiled_mainnet_rehearsal_policy_matches_manifest)
+{
+  crypto::hash genesis{};
+  crypto::hash parameters{};
+  ASSERT_TRUE(epee::string_tools::hex_to_pod(
+      "e791e506200ba3a221b87b6c78359c2bbb13c3ef622e1c90b3b3fbb52f4943f5",
+      genesis));
+  ASSERT_TRUE(epee::string_tools::hex_to_pod(
+      "16bde722b05071956f10be18530235be42b374228ead95e2b053d99d53f328ff",
+      parameters));
+
+  relay_policy_v2 policy{};
+  ASSERT_TRUE(compiled_relay_policy_v2(
+      cryptonote::MAINNET, genesis, parameters, policy));
+  EXPECT_TRUE(policy.valid());
+  EXPECT_EQ(2048u, policy.queue.max_items);
+  EXPECT_EQ(1048576u, policy.queue.max_bytes);
+  EXPECT_EQ(256u, policy.mining_template.max_items);
+  EXPECT_EQ(32768u, policy.mining_template.max_bytes);
+
+  crypto::hash wrong = parameters;
+  reinterpret_cast<unsigned char *>(&wrong)[0] ^= 1;
+  EXPECT_FALSE(compiled_relay_policy_v2(
+      cryptonote::MAINNET, genesis, wrong, policy));
+  EXPECT_FALSE(policy.valid());
 }
 
 TEST(epose_relay_pool_v2, derives_deadlines_and_preserves_both_template_classes)

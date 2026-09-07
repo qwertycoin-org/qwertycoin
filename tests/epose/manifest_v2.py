@@ -24,6 +24,32 @@ def digest(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
+CONSENSUS_PARAMETER_SECTIONS = (
+    "activation",
+    "admission",
+    "carrier",
+    "committee",
+    "encoding",
+    "epoch",
+    "network",
+    "resource_limits",
+    "reward",
+    "schema_version",
+    "state",
+)
+
+
+def consensus_parameter_projection(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Return the exact release-metadata-independent consensus commitment input."""
+    if not isinstance(manifest, dict):
+        raise ManifestError("manifest must be an object")
+    return {section: manifest[section] for section in CONSENSUS_PARAMETER_SECTIONS}
+
+
+def consensus_parameter_digest(manifest: dict[str, Any]) -> str:
+    return digest(consensus_parameter_projection(manifest))
+
+
 def get_path(value: dict[str, Any], path: str) -> Any:
     current: Any = value
     for component in path.split("."):
@@ -61,12 +87,14 @@ def require_hex(value: Any, path: str, digits: int) -> str:
 
 REQUIRED_ACTIVATION_PATHS = (
     "activation.height",
+    "commitments.parameter_set_sha256",
     "network.genesis_hash",
     "release.source_revision",
     "admission.lease_epochs",
     "admission.leading_zero_bits",
     "committee.round_offsets",
     "committee.rounds_required",
+    "committee.service_kind",
     "committee.size",
     "committee.threshold",
     "resource_limits.max_active_population",
@@ -76,6 +104,7 @@ REQUIRED_ACTIVATION_PATHS = (
     "resource_limits.max_epose_bytes_per_block",
     "resource_limits.max_records_per_block",
     "resource_limits.max_records_per_envelope",
+    "resource_limits.max_record_payload_bytes",
     "resource_limits.max_relay_queue_bytes",
     "resource_limits.max_relay_queue_items",
     "resource_limits.max_signature_verifications_per_block",
@@ -125,6 +154,11 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
     genesis_hash = get_path(manifest, "network.genesis_hash")
     if genesis_hash is not None:
         require_hex(genesis_hash, "network.genesis_hash", 64)
+    parameter_set_hash = get_path(manifest, "commitments.parameter_set_sha256")
+    if parameter_set_hash is not None:
+        require_hex(parameter_set_hash, "commitments.parameter_set_sha256", 64)
+        if parameter_set_hash != consensus_parameter_digest(manifest):
+            raise ManifestError("commitments.parameter_set_sha256 does not match the consensus projection")
 
     activation_height = get_path(manifest, "activation.height")
     activation_mode = require_enum(
@@ -194,6 +228,7 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
     threshold = get_path(manifest, "committee.threshold")
     rounds_required = get_path(manifest, "committee.rounds_required")
     round_offsets = get_path(manifest, "committee.round_offsets")
+    require_enum(get_path(manifest, "committee.service_kind"), "committee.service_kind", {"canonical-object"})
     if committee_size is not None:
         committee_size = require_int(committee_size, "committee.size", 1, 65535)
     if threshold is not None:
@@ -224,6 +259,8 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
         raise ManifestError("per-envelope record limit exceeds block record limit")
     if {"max_envelope_bytes_per_transaction", "max_epose_bytes_per_block"} <= checked_limits.keys() and checked_limits["max_envelope_bytes_per_transaction"] > checked_limits["max_epose_bytes_per_block"]:
         raise ManifestError("per-transaction envelope bytes exceed block EPoSE bytes")
+    if {"max_record_payload_bytes", "max_envelope_bytes_per_transaction"} <= checked_limits.keys() and checked_limits["max_record_payload_bytes"] > checked_limits["max_envelope_bytes_per_transaction"]:
+        raise ManifestError("record payload limit exceeds the transaction envelope limit")
     if "minimum_undo_blocks" in checked_limits and checked_limits["minimum_undo_blocks"] < epoch_length * 2:
         raise ManifestError("minimum_undo_blocks must cover at least two epochs")
     for unit in ("items", "bytes"):
@@ -242,6 +279,8 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
                 raise ManifestError(f"reserved template {unit} exceed the total")
     if {"max_template_records", "max_records_per_block"} <= checked_limits.keys() and checked_limits["max_template_records"] > checked_limits["max_records_per_block"]:
         raise ManifestError("template record limit exceeds consensus block limit")
+    if {"max_template_records", "max_records_per_envelope"} <= checked_limits.keys() and checked_limits["max_template_records"] > checked_limits["max_records_per_envelope"]:
+        raise ManifestError("template record limit exceeds the single-envelope record limit")
     if {"max_template_epose_bytes", "max_epose_bytes_per_block"} <= checked_limits.keys() and checked_limits["max_template_epose_bytes"] > checked_limits["max_epose_bytes_per_block"]:
         raise ManifestError("template EPoSE bytes exceed consensus block limit")
     if {"max_template_epose_bytes", "max_envelope_bytes_per_transaction"} <= checked_limits.keys() and checked_limits["max_template_epose_bytes"] > checked_limits["max_envelope_bytes_per_transaction"]:
