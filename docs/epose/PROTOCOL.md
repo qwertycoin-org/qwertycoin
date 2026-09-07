@@ -780,6 +780,15 @@ ordered semantic and cryptographic transition before any new record is kept.
 Only complete-byte duplicates are idempotent without repeating cryptography.
 New records are forwarded only to peers advertising v2 support.
 
+The `/submit_epose_envelope` daemon endpoint is available only through the
+unrestricted-admin RPC and is the local handoff for an external/offline
+signer. It accepts exactly one hexadecimal, already signed canonical envelope,
+requires a synchronized online daemon, routes it through the identical
+semantic ingress, and attempts to relay only a newly accepted record. A
+transient relay failure does not discard the locally accepted record. The
+endpoint accepts no operator, service, wallet, or transaction secret. An
+ordinary fee-funded wallet transfer remains the alternative carrier.
+
 Template selection uses separate manifest-owned Enrollment and Evidence item
 and byte reservations, simulates selected records in canonical order against a
 copy of the current semantic state, and appends the survivors before the

@@ -732,6 +732,30 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_submit_epose_envelope(
+      const COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE::request& req,
+      COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE::response& res,
+      const connection_context *ctx)
+  {
+    res.newly_accepted = false;
+    res.relayed = false;
+    blobdata envelope;
+    if (req.envelope.empty()
+        || !epee::string_tools::parse_hexstr_to_binbuff(req.envelope, envelope))
+    {
+      res.status = "Invalid EPoSE-v2 envelope encoding";
+      return true;
+    }
+    if (!m_core.submit_local_epose_envelope_v2(
+            envelope, res.newly_accepted, res.relayed))
+    {
+      res.status = "EPoSE-v2 envelope rejected or daemon not synchronized";
+      return true;
+    }
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_service_rewards(const COMMAND_RPC_GET_SERVICE_REWARDS::request& req, COMMAND_RPC_GET_SERVICE_REWARDS::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_service_rewards);

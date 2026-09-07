@@ -173,3 +173,4 @@ activated by CO-01.
 160. V2 envelopes are forwarded only to peers advertising the EPoSE-v2 support flag, and a syncing or non-normal peer cannot mutate the relay pool.
 161. Miner-template selection preserves independent Enrollment and Evidence reservations, applies selected records in deterministic order to a temporary semantic state, and commits the resulting carrier before constructing any required payment proof.
 162. Local relay/template item and byte limits are manifest-owned, must fit the backing queue and consensus envelope/block bounds, and cannot enable a public producer while unset.
+163. Local RPC submission accepts only one already-signed canonical v2 envelope through the unrestricted-admin interface, reuses the same semantic ingress as P2P, and attempts to relay only a newly accepted record without receiving any operator or wallet secret; transient relay failure does not discard a locally accepted record.

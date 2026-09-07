@@ -136,6 +136,7 @@ namespace cryptonote
       MAP_URI_AUTO_JON2("/get_service_node_status", on_get_service_node_status, COMMAND_RPC_GET_SERVICE_NODE_STATUS)
       MAP_URI_AUTO_JON2("/get_service_node_registration_payload", on_get_service_node_registration_payload, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD)
       MAP_URI_AUTO_JON2("/get_epose_epoch", on_get_epose_epoch, COMMAND_RPC_GET_EPOSE_EPOCH)
+      MAP_URI_AUTO_JON2_IF("/submit_epose_envelope", on_submit_epose_envelope, COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE, !m_restricted)
       MAP_URI_AUTO_JON2("/get_service_rewards", on_get_service_rewards, COMMAND_RPC_GET_SERVICE_REWARDS)
       MAP_URI_AUTO_JON2_IF("/get_net_stats", on_get_net_stats, COMMAND_RPC_GET_NET_STATS, !m_restricted)
       MAP_URI_AUTO_JON2("/get_limit", on_get_limit, COMMAND_RPC_GET_LIMIT)
@@ -222,6 +223,7 @@ namespace cryptonote
     bool on_get_service_node_status(const COMMAND_RPC_GET_SERVICE_NODE_STATUS::request& req, COMMAND_RPC_GET_SERVICE_NODE_STATUS::response& res, const connection_context *ctx = NULL);
     bool on_get_service_node_registration_payload(const COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::request& req, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::response& res, const connection_context *ctx = NULL);
     bool on_get_epose_epoch(const COMMAND_RPC_GET_EPOSE_EPOCH::request& req, COMMAND_RPC_GET_EPOSE_EPOCH::response& res, const connection_context *ctx = NULL);
+    bool on_submit_epose_envelope(const COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE::request& req, COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE::response& res, const connection_context *ctx = NULL);
     bool on_get_service_rewards(const COMMAND_RPC_GET_SERVICE_REWARDS::request& req, COMMAND_RPC_GET_SERVICE_REWARDS::response& res, const connection_context *ctx = NULL);
     bool on_get_net_stats(const COMMAND_RPC_GET_NET_STATS::request& req, COMMAND_RPC_GET_NET_STATS::response& res, const connection_context *ctx = NULL);
     bool on_save_bc(const COMMAND_RPC_SAVE_BC::request& req, COMMAND_RPC_SAVE_BC::response& res, const connection_context *ctx = NULL);

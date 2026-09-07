@@ -63,6 +63,7 @@ using namespace epee;
 #include "version.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "epose/attestation_pool.h"
 #include "epose/service_epoch.h"
 
 #include <boost/filesystem.hpp>
@@ -455,40 +456,6 @@ namespace cryptonote
     // receive a deterministic error, but never load keys or construct v1 state.
     MERROR("The legacy --service-node interface is retired for QWC-HF17/EPoSE-v2; use the future v2 lifecycle/admission producer once its launch gate is complete");
     return false;
-
-    const std::string reward_address = command_line::get_arg(vm, arg_service_reward_address);
-    CHECK_AND_ASSERT_MES(!reward_address.empty(), false, "--" << arg_service_reward_address.name << " is required with --" << arg_service_node.name);
-
-    std::string error;
-    CHECK_AND_ASSERT_MES(qwertycoin::epose::parse_reward_address(reward_address, m_nettype, config.reward_address, error), false, error);
-    config.reward_address_string = cryptonote::get_account_address_as_str(m_nettype, false, config.reward_address);
-    const std::string reward_view_key = command_line::get_arg(vm, arg_service_reward_view_key);
-    CHECK_AND_ASSERT_MES(!reward_view_key.empty(), false, "--" << arg_service_reward_view_key.name << " is required with --" << arg_service_node.name);
-    CHECK_AND_ASSERT_MES(qwertycoin::epose::parse_reward_view_secret_key(reward_view_key, config.reward_address, config.reward_view_secret_key, error), false, error);
-
-    config.key_path = command_line::get_arg(vm, arg_service_node_key);
-    if (config.key_path.empty())
-      config.key_path = (boost::filesystem::path(m_config_folder) / "service-node.key").string();
-    config.advertised_endpoint = command_line::get_arg(vm, arg_service_node_advertise_address);
-    CHECK_AND_ASSERT_MES(!config.advertised_endpoint.empty(), false,
-        "--" << arg_service_node_advertise_address.name << " is required with --" << arg_service_node.name);
-    config.endpoint_commitment = qwertycoin::epose::make_endpoint_commitment(config.advertised_endpoint);
-
-    CHECK_AND_ASSERT_MES(qwertycoin::epose::load_or_create_service_node_key(
-        config.key_path,
-        config.service_public_key,
-        config.service_secret_key,
-        config.key_created,
-        error), false, error);
-    config.key_loaded = true;
-
-    MGINFO("EPoSE service node enabled with public key "
-        << epee::string_tools::pod_to_hex(config.service_public_key)
-        << " and reward address " << config.reward_address_string
-        << (config.advertised_endpoint.empty() ? "" : " and advertised endpoint commitment " + epee::string_tools::pod_to_hex(config.endpoint_commitment))
-        << (config.key_created ? " (created new service-node key)" : " (loaded existing service-node key)"));
-    m_epose_local_service_node_config = config;
-    return true;
   }
   //-----------------------------------------------------------------------------------------------
   namespace
@@ -506,90 +473,8 @@ namespace cryptonote
   bool core::build_epose_miner_extra_nonce(blobdata& epose_extra_nonce) const
   {
     epose_extra_nonce.clear();
-    const qwertycoin::epose::local_service_node_config &config = m_epose_local_service_node_config;
-
-    const uint64_t registration_height = m_blockchain_storage.get_current_blockchain_height();
-    if (!m_blockchain_storage.is_epose_enabled_at_height(registration_height))
-      return true;
-
     // HF17 is exclusively EPoSE-v2. The old extra-nonce carrier is never
     // appended to a miner template; v2 records use the typed 0x05 envelope.
-    return true;
-
-    const uint64_t registration_epoch = qwertycoin::epose::epoch_for_height(registration_height);
-    const std::vector<qwertycoin::epose::service_node_identity> service_nodes = m_blockchain_storage.get_epose_service_nodes();
-    const crypto::hash epoch_context_hash = m_blockchain_storage.get_epose_epoch_context_hash(registration_epoch);
-    bool local_registered = false;
-    if (config.enabled && config.key_loaded)
-    {
-      for (const auto &identity : service_nodes)
-      {
-        if (identity.service_public_key == config.service_public_key
-            && qwertycoin::epose::identity_active_in_epoch(identity, registration_epoch))
-        {
-          local_registered = true;
-          break;
-        }
-      }
-    }
-
-    if (config.enabled && config.key_loaded && !local_registered)
-    {
-      qwertycoin::epose::service_node_identity identity{};
-      std::string error;
-      if (!qwertycoin::epose::build_service_node_registration_identity(
-          config,
-          m_nettype,
-          registration_epoch,
-          epoch_context_hash,
-          identity,
-          error))
-      {
-        MWARNING("EPoSE service-node registration payload was not added to miner tx: " << error);
-        return true;
-      }
-
-      epose_extra_nonce = qwertycoin::epose::make_registration_tx_extra_nonce(identity);
-      MINFO("EPoSE service-node registration payload will be included in the next mined block for epoch " << registration_epoch);
-      return true;
-    }
-
-    const std::vector<qwertycoin::epose::service_node_identity> relay_registrations = m_epose_attestation_pool.select_registrations_for_template(
-        service_nodes,
-        registration_epoch,
-        m_nettype,
-        epoch_context_hash,
-        1);
-    if (!relay_registrations.empty())
-    {
-      epose_extra_nonce = qwertycoin::epose::make_registration_tx_extra_nonce(relay_registrations.front());
-      MINFO("EPoSE relayed registration payload will be included in the next mined block for epoch "
-          << relay_registrations.front().registration_epoch
-          << " service " << epee::string_tools::pod_to_hex(relay_registrations.front().service_public_key));
-      return true;
-    }
-
-    const std::vector<qwertycoin::epose::service_attestation> attestations = m_blockchain_storage.get_epose_attestations();
-    const std::vector<qwertycoin::epose::service_attestation> relay_attestations = m_epose_attestation_pool.select_for_template(
-        service_nodes,
-        attestations,
-        registration_epoch,
-        m_nettype,
-        epoch_context_hash,
-        1);
-    if (!relay_attestations.empty())
-    {
-      epose_extra_nonce = qwertycoin::epose::make_attestation_tx_extra_nonce(relay_attestations.front());
-      MINFO("EPoSE relayed attestation payload will be included in the next mined block for epoch "
-          << relay_attestations.front().epoch
-          << " subject " << epee::string_tools::pod_to_hex(relay_attestations.front().subject_public_key));
-      return true;
-    }
-
-    if (!config.enabled || !config.key_loaded)
-      return true;
-    if (local_registered)
-      return true;
     return true;
   }
   //-----------------------------------------------------------------------------------------------
@@ -604,71 +489,10 @@ namespace cryptonote
     if (registration_blobs.size() + attestation_blobs.size() > qwertycoin::epose::EPOSE_ATTESTATION_RELAY_MAX_BATCH)
       return false;
 
-    const uint64_t height = m_blockchain_storage.get_current_blockchain_height();
-    if (!m_blockchain_storage.is_epose_enabled_at_height(height))
-      return true;
-
     // This P2P command carries only legacy fixed-size registrations and
     // attestations. HF17/v2 peers must not treat either collection as a v2
     // lifecycle, admission, or receipt record.
     return registration_blobs.empty() && attestation_blobs.empty();
-
-    const uint64_t current_epoch = qwertycoin::epose::epoch_for_height(height);
-    const crypto::hash epoch_context_hash = m_blockchain_storage.get_epose_epoch_context_hash(current_epoch);
-    const std::vector<qwertycoin::epose::service_node_identity> service_nodes = m_blockchain_storage.get_epose_service_nodes();
-    const std::vector<qwertycoin::epose::service_attestation> chain_attestations = m_blockchain_storage.get_epose_attestations();
-
-    for (const blobdata &blob : registration_blobs)
-    {
-      if (blob.size() != qwertycoin::epose::EPOSE_IDENTITY_BLOB_SIZE)
-        return false;
-
-      qwertycoin::epose::service_node_identity identity{};
-      if (!qwertycoin::epose::parse_identity(blob, identity))
-        return false;
-
-      const qwertycoin::epose::attestation_pool_result result = m_epose_attestation_pool.add_registration(
-          identity,
-          service_nodes,
-          current_epoch,
-          m_nettype,
-          epoch_context_hash);
-
-      if (result == qwertycoin::epose::attestation_pool_result::accepted)
-      {
-        accepted_registration_blobs.push_back(blob);
-        MINFO("EPoSE registration accepted from relay for epoch " << identity.registration_epoch
-            << " service " << epee::string_tools::pod_to_hex(identity.service_public_key));
-      }
-    }
-
-    for (const blobdata &blob : attestation_blobs)
-    {
-      if (blob.size() != qwertycoin::epose::EPOSE_ATTESTATION_BLOB_SIZE)
-        return false;
-
-      qwertycoin::epose::service_attestation attestation{};
-      if (!qwertycoin::epose::parse_attestation(blob, attestation))
-        return false;
-
-      const qwertycoin::epose::attestation_pool_result result = m_epose_attestation_pool.add(
-          attestation,
-          service_nodes,
-          chain_attestations,
-          current_epoch,
-          m_nettype,
-          epoch_context_hash);
-
-      if (result == qwertycoin::epose::attestation_pool_result::accepted)
-      {
-        accepted_attestation_blobs.push_back(blob);
-        MINFO("EPoSE attestation accepted from relay for epoch " << attestation.epoch
-            << " subject " << epee::string_tools::pod_to_hex(attestation.subject_public_key)
-            << " verifier " << epee::string_tools::pod_to_hex(attestation.verifier_public_key));
-      }
-    }
-
-    return true;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_epose_envelopes_v2(
@@ -679,74 +503,29 @@ namespace cryptonote
         envelopes, accepted_envelopes);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::publish_local_epose_payloads()
+  bool core::submit_local_epose_envelope_v2(
+      const blobdata& envelope,
+      bool& newly_accepted,
+      bool& relayed)
   {
-    const qwertycoin::epose::local_service_node_config &config = m_epose_local_service_node_config;
-    if (!config.enabled || !config.key_loaded || !get_protocol()->is_synchronized())
+    newly_accepted = false;
+    relayed = false;
+    if (envelope.empty() || m_offline || !get_protocol()->is_synchronized())
+      return false;
+
+    std::vector<blobdata> accepted;
+    if (!handle_incoming_epose_envelopes_v2({envelope}, accepted))
+      return false;
+    if (accepted.empty())
       return true;
+    if (accepted.size() != 1 || accepted.front() != envelope)
+      return false;
 
-    const uint64_t height = m_blockchain_storage.get_current_blockchain_height();
-    if (!m_blockchain_storage.is_epose_enabled_at_height(height))
-      return true;
-
-    static std::atomic_flag warned_v2_producer = ATOMIC_FLAG_INIT;
-    if (!warned_v2_producer.test_and_set())
-      MWARNING("Legacy EPoSE relay production is disabled under HF17/v2; no v1 registration or attestation will be broadcast");
-    return true;
-
-    const uint64_t current_epoch = qwertycoin::epose::epoch_for_height(height);
-    m_epose_attestation_pool.prune(current_epoch);
-
-    const std::vector<qwertycoin::epose::service_node_identity> service_nodes = m_blockchain_storage.get_epose_service_nodes();
-    const crypto::hash epoch_context_hash = m_blockchain_storage.get_epose_epoch_context_hash(current_epoch);
-    bool local_registered = false;
-    for (const auto &identity : service_nodes)
-    {
-      if (identity.service_public_key == config.service_public_key
-          && qwertycoin::epose::identity_active_in_epoch(identity, current_epoch))
-      {
-        local_registered = true;
-        break;
-      }
-    }
-    if (!local_registered)
-    {
-      qwertycoin::epose::service_node_identity identity{};
-      std::string error;
-      if (!qwertycoin::epose::build_service_node_registration_identity(
-          config,
-          m_nettype,
-          current_epoch,
-          epoch_context_hash,
-          identity,
-          error))
-      {
-        MWARNING("EPoSE service-node registration payload was not broadcast: " << error);
-        return true;
-      }
-
-      const qwertycoin::epose::attestation_pool_result result = m_epose_attestation_pool.add_registration(
-          identity,
-          service_nodes,
-          current_epoch,
-          m_nettype,
-          epoch_context_hash);
-      if (result == qwertycoin::epose::attestation_pool_result::accepted
-          || result == qwertycoin::epose::attestation_pool_result::duplicate)
-      {
-        NOTIFY_NEW_EPOSE_PAYLOADS::request req{};
-        req.registrations.push_back(qwertycoin::epose::serialize_identity(identity));
-        const boost::uuids::uuid source = boost::uuids::nil_uuid();
-        get_protocol()->relay_epose_payloads(req, source, epee::net_utils::zone::public_);
-        if (result == qwertycoin::epose::attestation_pool_result::accepted)
-          MINFO("EPoSE service-node registration broadcast for epoch " << current_epoch);
-      }
-      return true;
-    }
-
-    static std::atomic_flag warned = ATOMIC_FLAG_INIT;
-    if (!warned.test_and_set())
-      MWARNING("Automatic HF17 EPoSE attestations are disabled because the legacy path did not contact or authenticate the subject; hardened receipts require the future EPoSE v2 probe transport");
+    NOTIFY_NEW_EPOSE_ENVELOPES_V2::request request{};
+    request.envelopes = accepted;
+    newly_accepted = true;
+    relayed = get_protocol()->relay_epose_envelopes_v2(
+        request, boost::uuids::nil_uuid(), epee::net_utils::zone::public_);
     return true;
   }
   //-----------------------------------------------------------------------------------------------
@@ -1976,7 +1755,6 @@ namespace cryptonote
     }
 
     relay_txpool_transactions(); // txpool handles periodic DB checking
-    m_epose_attestation_relay_interval.do_call(boost::bind(&core::publish_local_epose_payloads, this));
     m_check_updates_interval.do_call(boost::bind(&core::check_updates, this));
     m_check_disk_space_interval.do_call(boost::bind(&core::check_disk_space, this));
     m_block_rate_interval.do_call(boost::bind(&core::check_block_rate, this));

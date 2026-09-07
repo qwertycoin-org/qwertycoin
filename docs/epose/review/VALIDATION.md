@@ -854,13 +854,19 @@ Results reproduced on Linux on 2026-09-07:
 - typed carrier/relay/resource subset: **35/35 passed**;
 - complete focused EPoSE C++ suite: **211/211 passed**;
 - EPoSE Python manifest/reference/gate suite: **39/39 passed**;
-- `qwertycoind` and `qwertycoin-wallet-rpc` rebuilt and linked;
+- `qwertycoind`, `qwertycoin-wallet-rpc` and `qwertycoin-wallet-cli` rebuilt
+  and linked;
 - every P2P item is one canonical one-record non-Coinbase envelope, and a
   malformed or semantically invalid suffix rejects the complete ingress batch;
 - real lifecycle signatures and state transitions are verified before enqueue;
   exact complete-byte duplicates remain idempotent without weakening signature
   binding;
 - relay targets must advertise the EPoSE-v2 support flag;
+- the unrestricted-admin local submit endpoint accepts one already-signed
+  hexadecimal envelope, delegates to the same semantic pool admission and
+  attempts to relay only a newly accepted record; offline, unsynchronized and
+  malformed submissions fail without exposing or accepting signing secrets,
+  while transient relay failure leaves an accepted record in the local pool;
 - deterministic template selection reserves both traffic classes, simulates
   records in order, appends accepted records before the scoped payment proof,
   and removes confirmed records only after canonical block commit;

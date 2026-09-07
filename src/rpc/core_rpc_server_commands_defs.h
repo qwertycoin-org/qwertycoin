@@ -1015,6 +1015,33 @@ namespace cryptonote
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
+  struct COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE
+  {
+    struct request_t: public rpc_request_base
+    {
+      std::string envelope;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE(envelope)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool newly_accepted;
+      bool relayed;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(newly_accepted)
+        KV_SERIALIZE(relayed)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
   struct COMMAND_RPC_GET_SERVICE_REWARDS
   {
     struct request_t: public rpc_request_base

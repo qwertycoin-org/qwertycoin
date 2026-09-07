@@ -44,7 +44,6 @@
 #include "common/command_line.h"
 #include "tx_pool.h"
 #include "blockchain.h"
-#include "epose/attestation_pool.h"
 #include "epose/service_node_config.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
@@ -143,6 +142,10 @@ namespace cryptonote
      bool handle_incoming_epose_envelopes_v2(
        const std::vector<blobdata>& envelopes,
        std::vector<blobdata>& accepted_envelopes);
+     bool submit_local_epose_envelope_v2(
+       const blobdata& envelope,
+       bool& newly_accepted,
+       bool& relayed);
 
     /**
       * @brief handles a single incoming block
@@ -1044,7 +1047,6 @@ namespace cryptonote
 
      bool init_epose_service_node_config(const boost::program_options::variables_map& vm);
      bool build_epose_miner_extra_nonce(blobdata& epose_extra_nonce) const;
-     bool publish_local_epose_payloads();
 
      /**
       * @brief attempts to relay any transactions in the mempool which need it
@@ -1105,7 +1107,6 @@ namespace cryptonote
      std::string m_config_folder; //!< folder to look in for configs and other files
 
      qwertycoin::epose::local_service_node_config m_epose_local_service_node_config;
-     qwertycoin::epose::attestation_pool m_epose_attestation_pool;
 
      cryptonote_protocol_stub m_protocol_stub; //!< cryptonote protocol stub instance
 
@@ -1116,8 +1117,6 @@ namespace cryptonote
      epee::math_helper::once_a_time_seconds<90, false> m_block_rate_interval; //!< interval for checking block rate
      epee::math_helper::once_a_time_seconds<60*60*5, true> m_blockchain_pruning_interval; //!< interval for incremental blockchain pruning
      epee::math_helper::once_a_time_seconds<60*60*24*7, false> m_diff_recalc_interval; //!< interval for recalculating difficulties
-     epee::math_helper::once_a_time_seconds<60, false> m_epose_attestation_relay_interval;
-
      std::atomic<bool> m_starter_message_showed; //!< has the "daemon will sync now" message been shown?
 
      uint64_t m_target_blockchain_height; //!< blockchain height target
