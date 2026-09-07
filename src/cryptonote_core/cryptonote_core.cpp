@@ -661,7 +661,7 @@ namespace cryptonote
   {
     m_epose_v2_service_ready = false;
     m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
-    m_epose_v2_pending_envelope.clear();
+    m_epose_v2_pending_envelopes.clear();
     if (!m_epose_v2_service_enabled)
       return true;
     if (m_offline || m_epose_v2_keystore_path.empty()
@@ -802,7 +802,7 @@ namespace cryptonote
               m_epose_v2_identity_id, target_epoch))
       {
         m_epose_v2_producer_cancel.store(true, std::memory_order_relaxed);
-        m_epose_v2_pending_envelope.clear();
+        m_epose_v2_pending_envelopes.clear();
         m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
         return true;
       }
@@ -818,12 +818,12 @@ namespace cryptonote
           return true;
         m_epose_v2_producer_future.get();
       }
-      m_epose_v2_pending_envelope.clear();
+      m_epose_v2_pending_envelopes.clear();
       m_epose_v2_pending_epoch = target_epoch;
       m_epose_v2_producer_cancel.store(false, std::memory_order_relaxed);
     }
 
-    if (m_epose_v2_pending_envelope.empty())
+    if (m_epose_v2_pending_envelopes.empty())
     {
       if (m_epose_v2_producer_future.valid())
       {
@@ -840,12 +840,19 @@ namespace cryptonote
           m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
           return false;
         }
-        qwertycoin::epose::envelope_budget_v2 budget{};
-        if (qwertycoin::epose::encode_envelope_v2(
-                result.second.records, parameters.limits.envelope,
-                m_epose_v2_pending_envelope, budget)
-            != qwertycoin::epose::envelope_status_v2::accepted)
-          return false;
+        std::vector<blobdata> encoded;
+        encoded.reserve(result.second.records.size());
+        for (const auto &record : result.second.records)
+        {
+          qwertycoin::epose::envelope_budget_v2 budget{};
+          blobdata envelope;
+          if (qwertycoin::epose::encode_envelope_v2(
+                  {record}, parameters.limits.envelope, envelope, budget)
+              != qwertycoin::epose::envelope_status_v2::accepted)
+            return false;
+          encoded.push_back(std::move(envelope));
+        }
+        m_epose_v2_pending_envelopes = std::move(encoded);
         {
           const std::lock_guard<std::mutex> lock(m_epose_v2_endpoint_mutex);
           m_epose_v2_endpoint = result.second.endpoint;
@@ -910,8 +917,8 @@ namespace cryptonote
       return true;
     bool newly_accepted = false;
     bool relayed = false;
-    if (!submit_local_epose_envelope_v2(
-            m_epose_v2_pending_envelope, newly_accepted, relayed))
+    if (!submit_local_epose_envelopes_v2(
+            m_epose_v2_pending_envelopes, newly_accepted, relayed))
       return false;
     m_epose_v2_last_submission = now;
     if (newly_accepted)
@@ -1210,18 +1217,28 @@ namespace cryptonote
       bool& newly_accepted,
       bool& relayed)
   {
+    return submit_local_epose_envelopes_v2(
+        std::vector<blobdata>{envelope}, newly_accepted, relayed);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::submit_local_epose_envelopes_v2(
+      const std::vector<blobdata>& envelopes,
+      bool& newly_accepted,
+      bool& relayed)
+  {
     newly_accepted = false;
     relayed = false;
-    if (envelope.empty() || m_offline || !get_protocol()->is_synchronized())
+    if (envelopes.empty()
+        || std::any_of(envelopes.begin(), envelopes.end(),
+            [](const blobdata &envelope) { return envelope.empty(); })
+        || m_offline || !get_protocol()->is_synchronized())
       return false;
 
     std::vector<blobdata> accepted;
-    if (!handle_incoming_epose_envelopes_v2({envelope}, accepted))
+    if (!handle_incoming_epose_envelopes_v2(envelopes, accepted))
       return false;
     if (accepted.empty())
       return true;
-    if (accepted.size() != 1 || accepted.front() != envelope)
-      return false;
 
     NOTIFY_NEW_EPOSE_ENVELOPES_V2::request request{};
     request.envelopes = accepted;

@@ -158,6 +158,10 @@ namespace cryptonote
        const blobdata& envelope,
        bool& newly_accepted,
        bool& relayed);
+     bool submit_local_epose_envelopes_v2(
+       const std::vector<blobdata>& envelopes,
+       bool& newly_accepted,
+       bool& relayed);
 
     /**
       * @brief handles a single incoming block
@@ -1147,7 +1151,7 @@ namespace cryptonote
      qwertycoin::epose::endpoint_descriptor_v2 m_epose_v2_endpoint{};
      crypto::hash m_epose_v2_identity_id{};
      uint64_t m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
-     blobdata m_epose_v2_pending_envelope;
+     std::vector<blobdata> m_epose_v2_pending_envelopes;
      std::chrono::steady_clock::time_point m_epose_v2_last_submission{};
      std::atomic<bool> m_epose_v2_producer_cancel{false};
      std::future<std::pair<

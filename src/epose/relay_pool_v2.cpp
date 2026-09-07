@@ -264,6 +264,7 @@ namespace epose
 
     relay_record_pool_v2 next_pool = pool;
     next_pool.prune_expired(inclusion_height);
+    semantic_state_v2 semantic = canonical_state;
     std::vector<std::string> next_accepted;
     next_accepted.reserve(envelopes.size());
     for (const std::string &encoded : envelopes)
@@ -278,14 +279,13 @@ namespace epose
       relay_record_pool_v2 tentative = next_pool;
       const relay_record_status_v2 queue_status =
           tentative.enqueue(records.front(), inclusion_height);
-      if (queue_status == relay_record_status_v2::idempotent_duplicate
-          || queue_status == relay_record_status_v2::expired
+      if (queue_status == relay_record_status_v2::expired
           || queue_status == relay_record_status_v2::full)
         continue;
-      if (queue_status != relay_record_status_v2::accepted)
+      if (queue_status != relay_record_status_v2::accepted
+          && queue_status != relay_record_status_v2::idempotent_duplicate)
         return relay_ingress_status_v2::invalid_batch;
 
-      semantic_state_v2 semantic = canonical_state;
       semantic_apply_summary_v2 summary{};
       const semantic_transaction_context_v2 transaction{
           inclusion_height, false, nullptr, nullptr};
@@ -294,6 +294,8 @@ namespace epose
           != semantic_status_v2::accepted)
         return relay_ingress_status_v2::invalid_batch;
 
+      if (queue_status == relay_record_status_v2::idempotent_duplicate)
+        continue;
       next_pool = std::move(tentative);
       next_accepted.push_back(encoded);
     }

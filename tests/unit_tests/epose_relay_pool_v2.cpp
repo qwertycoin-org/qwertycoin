@@ -85,6 +85,55 @@ namespace
     return record;
   }
 
+  std::vector<envelope_record_v2> dependent_lifecycle_records()
+  {
+    const key_pair service = keys();
+    const key_pair authority = keys();
+    const key_pair reward_view = keys();
+    const key_pair reward_spend = keys();
+    identity_descriptor_v2 descriptor{};
+    descriptor.identity_id = derive_identity_id_v2(
+        cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+        authority.public_key);
+    descriptor.service_public_key = service.public_key;
+    descriptor.operator_authorization_public_key = authority.public_key;
+    descriptor.reward_address.m_view_public_key = reward_view.public_key;
+    descriptor.reward_address.m_spend_public_key = reward_spend.public_key;
+    descriptor.endpoint_descriptor_hash = hash_text("relay-dependent-endpoint");
+    descriptor.effective_epoch = 1;
+    descriptor.expiry_epoch = 5;
+
+    lifecycle_record_v2 registration{};
+    registration.action = lifecycle_action_v2::register_identity;
+    registration.next_descriptor = descriptor;
+    EXPECT_TRUE(sign_lifecycle_record_v2(
+        cryptonote::TESTNET, relay_genesis(), relay_parameters(), registration,
+        authority.secret_key, service.secret_key));
+
+    lifecycle_record_v2 update{};
+    update.action = lifecycle_action_v2::update_descriptor;
+    update.previous_descriptor_hash = hash_identity_descriptor_v2(
+        cryptonote::TESTNET, relay_genesis(), relay_parameters(), descriptor);
+    update.next_descriptor = descriptor;
+    update.next_descriptor.sequence = 1;
+    update.next_descriptor.effective_epoch = 2;
+    update.next_descriptor.expiry_epoch = 6;
+    EXPECT_TRUE(sign_lifecycle_record_v2(
+        cryptonote::TESTNET, relay_genesis(), relay_parameters(), update,
+        authority.secret_key, service.secret_key));
+
+    std::vector<envelope_record_v2> records(2);
+    EXPECT_EQ(record_codec_status_v2::accepted,
+        encode_lifecycle_record_v2(
+            registration, cryptonote::TESTNET, relay_genesis(),
+            relay_parameters(), records[0]));
+    EXPECT_EQ(record_codec_status_v2::accepted,
+        encode_lifecycle_record_v2(
+            update, cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+            records[1]));
+    return records;
+  }
+
   envelope_record_v2 receipt_record(uint64_t epoch)
   {
     envelope_record_v2 record{};
@@ -288,5 +337,46 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
           {corrupted}, 1, envelope_limits(), relay_policy(),
           state, contexts, relay, accepted));
   EXPECT_EQ(1u, relay.size());
+  EXPECT_TRUE(accepted.empty());
+}
+
+TEST(epose_relay_pool_v2, ordered_single_record_envelopes_share_one_atomic_semantic_preview)
+{
+  const epoch_timing_v2 timing{0, 720, 60};
+  const admission_policy_v2 admission{
+      admission_work_algorithm_v2::randomx, 1, 1};
+  const committee_policy_v2 committee{1, 1, 1, 1, 1, {0}};
+  semantic_state_v2 state(
+      cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+      timing, admission, committee);
+  ASSERT_TRUE(state.valid());
+  auto relay = pool();
+  const auto records = dependent_lifecycle_records();
+  std::vector<std::string> encoded;
+  for (const auto &record : records)
+  {
+    envelope_budget_v2 ignored{};
+    std::string envelope;
+    ASSERT_EQ(envelope_status_v2::accepted,
+        encode_envelope_v2({record}, envelope_limits(), envelope, ignored));
+    encoded.push_back(std::move(envelope));
+  }
+  const fixed_contexts contexts{};
+  std::vector<std::string> accepted;
+
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          encoded, 1, envelope_limits(), relay_policy(), state, contexts,
+          relay, accepted));
+  EXPECT_EQ(2u, relay.size());
+  EXPECT_EQ(encoded, accepted);
+
+  auto reversed_pool = pool();
+  std::reverse(encoded.begin(), encoded.end());
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          encoded, 1, envelope_limits(), relay_policy(), state, contexts,
+          reversed_pool, accepted));
+  EXPECT_EQ(0u, reversed_pool.size());
   EXPECT_TRUE(accepted.empty());
 }

@@ -165,6 +165,41 @@ TEST(epose_service_producer_v2, admission_search_honors_cancellation_atomically)
   EXPECT_EQ(crypto::null_hash, enrollment.admission.lease_hash);
 }
 
+TEST(epose_service_producer_v2, admission_nonce_changes_randomx_work_with_expected_spread)
+{
+  const auto policy = parameters(16);
+  const auto config = configuration();
+  service_enrollment_v2 enrollment{};
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_initial_service_enrollment_v2(
+          parameters(1), config, policy.genesis_hash, 1000, enrollment));
+
+  admission_lease_v2 lease = enrollment.admission;
+  const admission_context_v2 context{
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+      0, policy.genesis_hash};
+  crypto::hash previous{};
+  unsigned best = 0;
+  for (uint64_t nonce = 0; nonce < 256; ++nonce)
+  {
+    lease.nonce = nonce;
+    const crypto::hash work = calculate_admission_work_v2(lease, context);
+    if (nonce != 0)
+    {
+      EXPECT_NE(previous, work);
+    }
+    previous = work;
+    for (unsigned bits = 1; bits <= 32; ++bits)
+    {
+      if (!admission_work_meets_target_v2(work, bits))
+        break;
+      if (bits > best)
+        best = bits;
+    }
+  }
+  EXPECT_GE(best, 2u);
+}
+
 TEST(epose_service_producer_v2, renewal_extends_lifecycle_and_admits_the_next_epoch)
 {
   const auto policy = parameters();
