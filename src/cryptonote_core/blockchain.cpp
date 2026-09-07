@@ -2583,10 +2583,26 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
         hf_version != HF_VERSION_QWC_EPOSE || m_nettype == FAKECHAIN,
         false, "HF17 block template requires the EPoSE-v2 coordinator");
 
-  bool r = construct_miner_tx(
-      height, median_weight, already_generated_coins, txs_weight, fee,
-      miner_address, b.miner_tx, ex_nonce, max_outs, hf_version,
-      nullptr, 0, service_payment_ptr);
+  const auto construct_template_miner_tx = [&](size_t current_weight) {
+    for (;;)
+    {
+      if (service_payment_ptr != nullptr)
+        service_payment.carrier_records = relay_records.empty()
+            ? nullptr : &relay_records;
+      if (construct_miner_tx(
+              height, median_weight, already_generated_coins,
+              current_weight, fee, miner_address, b.miner_tx, ex_nonce,
+              max_outs, hf_version, nullptr, 0, service_payment_ptr))
+        return true;
+      if (relay_records.empty())
+        return false;
+      MDEBUG("Deferring one EPoSE-v2 relay record that does not fit the "
+             "current Coinbase template");
+      relay_records.pop_back();
+    }
+  };
+
+  bool r = construct_template_miner_tx(txs_weight);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -2616,10 +2632,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
           reward_plan.allocation.coinbase_total;
     }
 
-    r = construct_miner_tx(
-        height, median_weight, already_generated_coins, cumulative_weight,
-        fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version,
-        nullptr, 0, service_payment_ptr);
+    r = construct_template_miner_tx(cumulative_weight);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);
