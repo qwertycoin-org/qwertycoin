@@ -282,7 +282,8 @@ namespace cryptonote
 
      const qwertycoin::epose::local_service_node_config& get_epose_local_service_node_config() const { return m_epose_local_service_node_config; }
      bool get_epose_v2_endpoint_descriptor(
-         qwertycoin::epose::endpoint_descriptor_v2 &descriptor) const;
+         qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
+         const crypto::hash *required_hash = nullptr) const;
      bool is_epose_v2_service_enabled() const { return m_epose_v2_service_enabled; }
      bool is_epose_v2_service_ready() const { return m_epose_v2_service_ready; }
      crypto::hash get_epose_v2_local_identity_id() const { return m_epose_v2_identity_id; }
@@ -1077,6 +1078,14 @@ namespace cryptonote
      bool init_epose_v2_service_runtime();
      bool update_epose_v2_service_producer();
      bool update_epose_v2_receipt_producer();
+     bool build_epose_v2_configured_endpoint(
+         const qwertycoin::epose::consensus_parameters_v2 &parameters,
+         uint64_t sequence,
+         uint64_t expiry_epoch,
+         qwertycoin::epose::endpoint_descriptor_v2 &endpoint) const;
+     void remember_epose_v2_endpoint(
+         const qwertycoin::epose::consensus_parameters_v2 &parameters,
+         const qwertycoin::epose::endpoint_descriptor_v2 &endpoint);
      bool build_epose_miner_extra_nonce(blobdata& epose_extra_nonce) const;
 
      /**
@@ -1149,6 +1158,8 @@ namespace cryptonote
      cryptonote::account_public_address m_epose_v2_reward_address{};
      mutable std::mutex m_epose_v2_endpoint_mutex;
      qwertycoin::epose::endpoint_descriptor_v2 m_epose_v2_endpoint{};
+     std::vector<qwertycoin::epose::endpoint_descriptor_v2>
+         m_epose_v2_endpoint_history;
      crypto::hash m_epose_v2_identity_id{};
      uint64_t m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
      std::vector<blobdata> m_epose_v2_pending_envelopes;
@@ -1165,7 +1176,8 @@ namespace cryptonote
      };
      std::future<epose_v2_receipt_job_result> m_epose_v2_receipt_future;
      uint64_t m_epose_v2_receipt_epoch = std::numeric_limits<uint64_t>::max();
-     std::vector<crypto::hash> m_epose_v2_attempted_receipt_slots;
+     qwertycoin::epose::receipt_retry_tracker_v2
+         m_epose_v2_receipt_retries{};
      std::chrono::steady_clock::time_point m_epose_v2_last_receipt_attempt{};
 
      cryptonote_protocol_stub m_protocol_stub; //!< cryptonote protocol stub instance

@@ -1046,8 +1046,11 @@ namespace cryptonote
   {
     struct request_t: public rpc_request_base
     {
+      std::string descriptor_hash;
+
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE_OPT(descriptor_hash, std::string())
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;

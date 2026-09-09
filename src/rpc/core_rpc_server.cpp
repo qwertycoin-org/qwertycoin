@@ -792,7 +792,19 @@ namespace cryptonote
   {
     qwertycoin::epose::endpoint_descriptor_v2 descriptor{};
     qwertycoin::epose::consensus_parameters_v2 parameters{};
-    res.ready = m_core.get_epose_v2_endpoint_descriptor(descriptor)
+    crypto::hash required_hash{};
+    const crypto::hash *required = nullptr;
+    if (!req.descriptor_hash.empty())
+    {
+      if (!epee::string_tools::hex_to_pod(req.descriptor_hash, required_hash))
+      {
+        res.ready = false;
+        res.status = "Invalid endpoint descriptor hash";
+        return true;
+      }
+      required = &required_hash;
+    }
+    res.ready = m_core.get_epose_v2_endpoint_descriptor(descriptor, required)
         && m_core.get_blockchain_storage().get_epose_consensus_parameters_v2(parameters);
     if (!res.ready)
     {

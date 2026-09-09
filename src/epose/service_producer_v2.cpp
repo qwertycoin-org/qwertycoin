@@ -3,6 +3,7 @@
 
 #include "epose/service_producer_v2.h"
 
+#include <algorithm>
 #include <limits>
 
 namespace
@@ -109,12 +110,149 @@ namespace
     }
     return service_producer_status_v2::accepted;
   }
+
+  qwertycoin::epose::service_producer_status_v2 build_endpoint(
+      const qwertycoin::epose::consensus_parameters_v2 &parameters,
+      const qwertycoin::epose::service_enrollment_config_v2 &configuration,
+      const uint64_t sequence,
+      qwertycoin::epose::endpoint_descriptor_v2 &endpoint)
+  {
+    using namespace qwertycoin::epose;
+    endpoint = {};
+    endpoint.service_public_key = configuration.keystore.service_public_key;
+    endpoint.transport = configuration.endpoint_transport;
+    endpoint.host = configuration.endpoint_host;
+    endpoint.port = configuration.endpoint_port;
+    endpoint.service_kind = parameters.committee.service_kind;
+    endpoint.service_version = EPOSE_PROTOCOL_VERSION_V2;
+    endpoint.sequence = sequence;
+    endpoint.expiry_epoch = configuration.expiry_epoch;
+    if (!sign_endpoint_descriptor_v2(
+            parameters.nettype, parameters.genesis_hash,
+            parameters.parameter_set_hash, endpoint,
+            configuration.keystore.service_secret_key)
+        || validate_endpoint_descriptor_v2(
+               parameters.nettype, parameters.genesis_hash,
+               parameters.parameter_set_hash, endpoint)
+            != resource_status_v2::accepted)
+    {
+      endpoint = {};
+      return service_producer_status_v2::invalid_endpoint;
+    }
+    return service_producer_status_v2::accepted;
+  }
 }
 
 namespace qwertycoin
 {
 namespace epose
 {
+  receipt_retry_tracker_v2::receipt_retry_tracker_v2(
+      const size_t max_entries,
+      const uint64_t base_backoff_ms,
+      const uint64_t max_backoff_ms,
+      const uint64_t resubmit_ms)
+    : max_entries_(max_entries),
+      base_backoff_ms_(base_backoff_ms),
+      max_backoff_ms_(max_backoff_ms),
+      resubmit_ms_(resubmit_ms)
+  {
+  }
+
+  bool receipt_retry_tracker_v2::begin_context(
+      const uint64_t epoch,
+      const uint64_t round,
+      const crypto::hash &anchor_hash)
+  {
+    if (max_entries_ == 0 || base_backoff_ms_ == 0
+        || max_backoff_ms_ < base_backoff_ms_ || resubmit_ms_ == 0
+        || anchor_hash == crypto::null_hash)
+      return false;
+    if (!context_set_ || epoch_ != epoch || round_ != round
+        || anchor_hash_ != anchor_hash)
+    {
+      entries_.clear();
+      epoch_ = epoch;
+      round_ = round;
+      anchor_hash_ = anchor_hash;
+      context_set_ = true;
+    }
+    return true;
+  }
+
+  bool receipt_retry_tracker_v2::can_attempt(
+      const crypto::hash &slot, const uint64_t now_ms) const
+  {
+    if (!context_set_ || slot == crypto::null_hash)
+      return false;
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    return found == entries_.end()
+        || (!found->in_flight && now_ms >= found->next_attempt_ms);
+  }
+
+  bool receipt_retry_tracker_v2::start(
+      const crypto::hash &slot, const uint64_t now_ms)
+  {
+    if (!can_attempt(slot, now_ms))
+      return false;
+    auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    if (found == entries_.end())
+    {
+      if (entries_.size() >= max_entries_)
+        return false;
+      entries_.push_back({slot, now_ms, 0, true});
+    }
+    else
+      found->in_flight = true;
+    return true;
+  }
+
+  void receipt_retry_tracker_v2::failed(
+      const crypto::hash &slot, const uint64_t now_ms)
+  {
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    if (found == entries_.end())
+      return;
+    found->in_flight = false;
+    if (found->failures != std::numeric_limits<uint32_t>::max())
+      ++found->failures;
+    uint64_t delay = base_backoff_ms_;
+    for (uint32_t attempt = 1;
+         attempt < found->failures && delay < max_backoff_ms_; ++attempt)
+      delay = std::min(max_backoff_ms_, delay > max_backoff_ms_ / 2
+          ? max_backoff_ms_ : delay * 2);
+    found->next_attempt_ms = now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
+  }
+
+  void receipt_retry_tracker_v2::submitted(
+      const crypto::hash &slot, const uint64_t now_ms)
+  {
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    if (found == entries_.end())
+      return;
+    found->in_flight = false;
+    found->next_attempt_ms =
+        now_ms > std::numeric_limits<uint64_t>::max() - resubmit_ms_
+        ? std::numeric_limits<uint64_t>::max() : now_ms + resubmit_ms_;
+  }
+
+  void receipt_retry_tracker_v2::canonical(const crypto::hash &slot)
+  {
+    entries_.erase(std::remove_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; }),
+        entries_.end());
+  }
+
+  size_t receipt_retry_tracker_v2::size() const
+  {
+    return entries_.size();
+  }
+
   service_producer_status_v2 build_initial_service_enrollment_v2(
       const consensus_parameters_v2 &parameters,
       const service_enrollment_config_v2 &configuration,
@@ -147,24 +285,12 @@ namespace epose
     if (!parameters.timing.epoch_start(context_epoch, context_height))
       return service_producer_status_v2::invalid_context;
 
-    enrollment.endpoint.service_public_key =
-        configuration.keystore.service_public_key;
-    enrollment.endpoint.transport = configuration.endpoint_transport;
-    enrollment.endpoint.host = configuration.endpoint_host;
-    enrollment.endpoint.port = configuration.endpoint_port;
-    enrollment.endpoint.service_kind = parameters.committee.service_kind;
-    enrollment.endpoint.service_version = EPOSE_PROTOCOL_VERSION_V2;
-    enrollment.endpoint.sequence = 0;
-    enrollment.endpoint.expiry_epoch = configuration.expiry_epoch;
-    if (!sign_endpoint_descriptor_v2(
-            parameters.nettype, parameters.genesis_hash,
-            parameters.parameter_set_hash, enrollment.endpoint,
-            configuration.keystore.service_secret_key)
-        || validate_endpoint_descriptor_v2(
-               parameters.nettype, parameters.genesis_hash,
-               parameters.parameter_set_hash, enrollment.endpoint)
-            != resource_status_v2::accepted)
-      return service_producer_status_v2::invalid_endpoint;
+    const service_producer_status_v2 endpoint_status = build_endpoint(
+        parameters, configuration, 0,
+        enrollment.endpoint_update.descriptor);
+    if (endpoint_status != service_producer_status_v2::accepted)
+      return endpoint_status;
+    enrollment.endpoint_update.present = true;
 
     identity_descriptor_v2 &descriptor =
         enrollment.lifecycle.next_descriptor;
@@ -178,7 +304,7 @@ namespace epose
     descriptor.reward_address = configuration.reward_address;
     descriptor.endpoint_descriptor_hash = hash_endpoint_descriptor_v2(
         parameters.nettype, parameters.genesis_hash,
-        parameters.parameter_set_hash, enrollment.endpoint);
+        parameters.parameter_set_hash, enrollment.endpoint_update.descriptor);
     descriptor.sequence = 0;
     descriptor.effective_epoch = configuration.target_epoch;
     descriptor.expiry_epoch = configuration.expiry_epoch;
@@ -218,43 +344,67 @@ namespace epose
 
   service_producer_status_v2 build_service_renewal_enrollment_v2(
       const consensus_parameters_v2 &parameters,
-      const service_keystore_v2 &keystore,
+      const service_enrollment_config_v2 &configuration,
       const identity_descriptor_v2 &current_descriptor,
-      uint64_t target_epoch,
       const crypto::hash &admission_context_hash,
       uint64_t max_nonce_attempts,
       service_enrollment_v2 &enrollment,
       const std::atomic<bool> *cancel)
   {
     enrollment = {};
+    const uint64_t target_epoch = configuration.target_epoch;
     if (!parameters.valid() || target_epoch == 0
         || current_descriptor.identity_id != derive_identity_id_v2(
             parameters.nettype, parameters.genesis_hash,
-            parameters.parameter_set_hash, keystore.operator_public_key)
+            parameters.parameter_set_hash,
+            configuration.keystore.operator_public_key)
         || current_descriptor.operator_authorization_public_key
-            != keystore.operator_public_key
-        || current_descriptor.service_public_key != keystore.service_public_key
-        || !valid_key_pair(keystore.operator_public_key, keystore.operator_secret_key)
-        || !valid_key_pair(keystore.service_public_key, keystore.service_secret_key)
+            != configuration.keystore.operator_public_key
+        || current_descriptor.service_public_key
+            != configuration.keystore.service_public_key
+        || current_descriptor.reward_address.m_view_public_key
+            != configuration.reward_address.m_view_public_key
+        || current_descriptor.reward_address.m_spend_public_key
+            != configuration.reward_address.m_spend_public_key
+        || configuration.expiry_epoch != target_epoch + 2
+        || !valid_key_pair(
+            configuration.keystore.operator_public_key,
+            configuration.keystore.operator_secret_key)
+        || !valid_key_pair(
+            configuration.keystore.service_public_key,
+            configuration.keystore.service_secret_key)
         || current_descriptor.sequence == std::numeric_limits<uint64_t>::max()
         || target_epoch <= current_descriptor.effective_epoch
         || target_epoch > std::numeric_limits<uint64_t>::max() - 2)
       return service_producer_status_v2::invalid_configuration;
 
-    enrollment.lifecycle.action = lifecycle_action_v2::renew_lease;
+    const service_producer_status_v2 endpoint_status = build_endpoint(
+        parameters, configuration, current_descriptor.sequence + 1,
+        enrollment.endpoint_update.descriptor);
+    if (endpoint_status != service_producer_status_v2::accepted)
+      return endpoint_status;
+    enrollment.endpoint_update.present = true;
+
+    enrollment.lifecycle.action = lifecycle_action_v2::update_descriptor;
     enrollment.lifecycle.previous_descriptor_hash = hash_identity_descriptor_v2(
         parameters.nettype, parameters.genesis_hash,
         parameters.parameter_set_hash, current_descriptor);
     enrollment.lifecycle.next_descriptor = current_descriptor;
     enrollment.lifecycle.next_descriptor.sequence = current_descriptor.sequence + 1;
     enrollment.lifecycle.next_descriptor.effective_epoch = target_epoch;
-    enrollment.lifecycle.next_descriptor.expiry_epoch = target_epoch + 2;
+    enrollment.lifecycle.next_descriptor.expiry_epoch = configuration.expiry_epoch;
+    enrollment.lifecycle.next_descriptor.endpoint_descriptor_hash =
+        hash_endpoint_descriptor_v2(
+            parameters.nettype, parameters.genesis_hash,
+            parameters.parameter_set_hash,
+            enrollment.endpoint_update.descriptor);
     if (enrollment.lifecycle.next_descriptor.expiry_epoch
             <= current_descriptor.expiry_epoch
         || !sign_lifecycle_record_v2(
             parameters.nettype, parameters.genesis_hash,
             parameters.parameter_set_hash, enrollment.lifecycle,
-            keystore.operator_secret_key, keystore.service_secret_key)
+            configuration.keystore.operator_secret_key,
+            configuration.keystore.service_secret_key)
         || validate_lifecycle_record_authorization_v2(
             parameters.nettype, parameters.genesis_hash,
             parameters.parameter_set_hash, enrollment.lifecycle)
