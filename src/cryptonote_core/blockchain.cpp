@@ -318,7 +318,19 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   if (m_hardfork == nullptr)
   {
     if (m_nettype ==  FAKECHAIN)
-      m_hardfork = new HardFork(*db, 1, 0);
+    {
+      // A FAKECHAIN fixture may intentionally start at a historical version,
+      // while QWC regtest is HF17-native just like the public chain. Seed the
+      // hard-fork controller from the fixture's declared height-zero version
+      // instead of unconditionally forcing Monero v1.
+      const uint8_t initial_version = test_options != nullptr
+          && test_options->hard_forks != nullptr
+          && test_options->hard_forks[0].first != 0
+          && test_options->hard_forks[0].second == 0
+          ? test_options->hard_forks[0].first
+          : 1;
+      m_hardfork = new HardFork(*db, initial_version, 0);
+    }
     else if (m_nettype == STAGENET)
       m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE, 0);
     else if (m_nettype == TESTNET)

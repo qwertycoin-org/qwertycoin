@@ -81,13 +81,13 @@ class BlockchainTest():
         assert ok
 
         res = daemon.get_fee_estimate()
-        assert res.fee == 1200000
-        assert res.quantization_mask == 10000
+        assert res.fee == 1200
+        assert not 'quantization_mask' in res or res.quantization_mask == 1
         res = daemon.get_fee_estimate(10)
-        assert res.fee <= 1200000
+        assert res.fee <= 1200
 
         # generate blocks
-        res_generateblocks = daemon.generateblocks('42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm', blocks)
+        res_generateblocks = daemon.generateblocks('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh', blocks)
 
         # check info/height after generateblocks blocks
         assert res_generateblocks.height == height + blocks - 1
@@ -109,7 +109,7 @@ class BlockchainTest():
             assert block_header.prev_hash == prev_block, prev_block
             assert int(block_header.wide_difficulty, 16) == (block_header.difficulty_top64 << 64) + block_header.difficulty
             assert int(block_header.wide_cumulative_difficulty, 16) == (block_header.cumulative_difficulty_top64 << 64) + block_header.cumulative_difficulty
-            assert block_header.reward >= 600000000000 # tail emission
+            assert block_header.reward >= 60000000 # 0.6 QWC tail emission
             cumulative_difficulty += int(block_header.wide_difficulty, 16)
             assert cumulative_difficulty == int(block_header.wide_cumulative_difficulty, 16)
             assert block_header.block_size > 0
@@ -132,11 +132,11 @@ class BlockchainTest():
         assert res_getblockheaderbyheight.block_header == block_header
 
         # getting a block template after that should have the right height, etc
-        res_getblocktemplate = daemon.getblocktemplate('42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm')
+        res_getblocktemplate = daemon.getblocktemplate('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh')
         assert res_getblocktemplate.height == height + blocks
         assert res_getblocktemplate.reserved_offset > 0
         assert res_getblocktemplate.prev_hash == res_info.top_block_hash
-        assert res_getblocktemplate.expected_reward >= 600000000000
+        assert res_getblocktemplate.expected_reward >= 60000000
         assert len(res_getblocktemplate.blocktemplate_blob) > 0
         assert len(res_getblocktemplate.blockhashing_blob) > 0
         assert int(res_getblocktemplate.wide_difficulty, 16) == (res_getblocktemplate.difficulty_top64 << 64) + res_getblocktemplate.difficulty
@@ -176,11 +176,13 @@ class BlockchainTest():
         res = daemon.getblockheadersrange(0, nblocks - 1)
         assert len(res.headers) == nblocks
         assert res.headers[-1] == block_header
-        txids = [x.miner_tx_hash for x in res.headers]
+        block_headers = res.headers
+        txids = [x.miner_tx_hash for x in block_headers]
         res = daemon.get_transactions(txs_hashes = txids)
         assert len(res.txs) == nblocks
         assert not 'missed_txs' in res or len(res.missed_txs) == 0
-        running_output_index = 0
+        # HF17 genesis contributes the first amount-0 output.
+        running_output_index = 1
         for i in range(len(txids)):
             tx = res.txs[i]
             assert tx.tx_hash == txids[i]
@@ -208,45 +210,45 @@ class BlockchainTest():
             assert res_sum.emission_amount == int(res_sum.wide_emission_amount, 16)
             assert res_sum.fee_amount == int(res_sum.wide_fee_amount, 16)
 
+        genesis_reward = block_headers[0].reward
         res = daemon.get_coinbase_tx_sum(0, 1)
-        assert res.emission_amount == 17592186044415
+        assert res.emission_amount == genesis_reward
         assert res.emission_amount_top64 == 0
         assert res.fee_amount == 0
         assert res.fee_amount_top64 == 0
         sum_blocks = height + nblocks - 1
         res = daemon.get_coinbase_tx_sum(0, sum_blocks)
-        extrapolated = 17592186044415 + 17592186044415 * 2 * (sum_blocks - 1)
-        assert res.emission_amount < extrapolated and res.emission_amount > extrapolated - 1e12
+        expected_emission = sum(header.reward for header in block_headers[:sum_blocks])
+        assert res.emission_amount == expected_emission
         assert res.fee_amount == 0
         sum_blocks_emission = res.emission_amount
         res = daemon.get_coinbase_tx_sum(1, sum_blocks)
-        assert res.emission_amount == sum_blocks_emission - 17592186044415
+        assert res.emission_amount == sum_blocks_emission - genesis_reward
         assert res.fee_amount == 0
 
-        res = daemon.get_output_distribution([0, 1, 17592186044415], 0, 0)
+        res = daemon.get_output_distribution([0, 1, genesis_reward], 0, 0)
         assert len(res.distributions) == 3
         for a in range(3):
-            assert res.distributions[a].amount == [0, 1, 17592186044415][a]
+            assert res.distributions[a].amount == [0, 1, genesis_reward][a]
             assert res.distributions[a].start_height == 0
             assert res.distributions[a].base == 0
             assert len(res.distributions[a].distribution) == height + nblocks - 1
             assert res.distributions[a].binary == False
             for i in range(height + nblocks - 1):
-                assert res.distributions[a].distribution[i] == (1 if i > 0 and a == 0 else 1 if a == 2 and i == 0 else 0)
+                assert res.distributions[a].distribution[i] == (1 if a == 0 else 0)
 
         res = daemon.get_output_histogram([], min_count = 0, max_count = 0)
-        assert len(res.histogram) == 2
-        for i in range(2):
-            assert res.histogram[i].amount in [0, 17592186044415]
-            assert res.histogram[i].total_instances in [height + nblocks - 2, 1]
-            assert res.histogram[i].unlocked_instances == 0
-            assert res.histogram[i].recent_instances == 0
+        assert len(res.histogram) == 1
+        assert res.histogram[0].amount == 0
+        assert res.histogram[0].total_instances == height + nblocks - 1
+        assert res.histogram[0].unlocked_instances == 0
+        assert res.histogram[0].recent_instances == 0
 
         res = daemon.get_fee_estimate()
-        assert res.fee == 1200000
-        assert res.quantization_mask == 10000
+        assert res.fee == 1200
+        assert not 'quantization_mask' in res or res.quantization_mask == 1
         res = daemon.get_fee_estimate(10)
-        assert res.fee <= 1200000
+        assert res.fee <= 1200
 
     def _test_alt_chains(self):
         print('Testing alt chains')
@@ -257,13 +259,13 @@ class BlockchainTest():
         root_block_hash = res.top_block_hash
         height = res.height
         prev_hash = res.top_block_hash
-        res_template = daemon.getblocktemplate('42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm')
+        res_template = daemon.getblocktemplate('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh')
         nonce = 0
 
         # 5 siblings
         alt_blocks = [None] * 5
         for i in range(len(alt_blocks)):
-            res = daemon.generateblocks('42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm', 1, prev_block = prev_hash, starting_nonce = nonce)
+            res = daemon.generateblocks('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh', 1, prev_block = prev_hash, starting_nonce = nonce)
             assert res.height == height
             assert len(res.blocks) == 1
             txid = res.blocks[0]
@@ -278,7 +280,7 @@ class BlockchainTest():
         print('mining 3 on 1')
         # three more on [1]
         chain1 = []
-        res = daemon.generateblocks('42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm', 3, prev_block = alt_blocks[1], starting_nonce = nonce)
+        res = daemon.generateblocks('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh', 3, prev_block = alt_blocks[1], starting_nonce = nonce)
         assert res.height == height + 3
         assert len(res.blocks) == 3
         blk_hash = res.blocks[2]
@@ -300,7 +302,7 @@ class BlockchainTest():
         top_block_hash = blk_hash
         prev_block = alt_blocks[3]
         for i in range(4):
-            res = daemon.generateblocks('42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm', 1, prev_block = prev_block)
+            res = daemon.generateblocks('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh', 1, prev_block = prev_block)
             assert res.height == height + 1 + i
             assert len(res.blocks) == 1
             prev_block = res.blocks[-1]

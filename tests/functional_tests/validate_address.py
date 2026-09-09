@@ -44,7 +44,7 @@ class AddressValidationTest():
     def create(self):
         print('Creating wallet')
         seed = 'velvet lymph giddy number token physics poetry unquoted nibs useful sabotage limits benches lifestyle eden nitrogen anvil fewest avoid batch vials washing fences goat unquoted'
-        address = '42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm'
+        address = 'QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh'
         self.wallet = Wallet()
         # close the wallet if any, will throw if none is loaded
         try: self.wallet.close_wallet()
@@ -65,19 +65,19 @@ class AddressValidationTest():
     def check_good_addresses(self):
         print('Validating good addresses')
         addresses = [
-            [ 'mainnet',  '', '42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm' ],
-            [ 'mainnet',  '', '44Kbx4sJ7JDRDV5aAhLJzQCjDz2ViLRduE3ijDZu3osWKBjMGkV1XPk4pfDUMqt1Aiezvephdqm6YD19GKFD9ZcXVUTp6BW' ],
-            [ 'testnet',  '', '9ujeXrjzf7bfeK3KZdCqnYaMwZVFuXemPU8Ubw335rj2FN1CdMiWNyFV3ksEfMFvRp9L9qum5UxkP5rN9aLcPxbH1au4WAB' ],
-            [ 'stagenet', '', '53teqCAESLxeJ1REzGMAat1ZeHvuajvDiXqboEocPaDRRmqWoVPzy46GLo866qRFjbNhfkNckyhST3WEvBviDwpUDd7DSzB' ],
-            [ 'mainnet', 'i', '4BxSHvcgTwu25WooY4BVmgdcKwZu5EksVZSZkDd6ooxSVVqQ4ubxXkhLF6hEqtw96i9cf3cVfLw8UWe95bdDKfRQeYtPwLm1Jiw7AKt2LY' ],
-            [ 'mainnet', 's', '8AsN91rznfkBGTY8psSNkJBg9SZgxxGGRUhGwRptBhgr5XSQ1XzmA9m8QAnoxydecSh5aLJXdrgXwTDMMZ1AuXsN1EX5Mtm' ],
-            [ 'mainnet', 's', '86kKnBKFqzCLxtK1Jmx2BkNBDBSMDEVaRYMMyVbeURYDWs8uNGDZURKCA5yRcyMxHzPcmCf1q2fSdhQVcaKsFrtGRsdGfNk' ],
-            [ 'testnet', 'i', 'AApMA1VuhiCaHzr5X2KXi2Zc9oJ3VaGjkfChxxpRpxkyKf1NetvbRbQTbFMrGkr85DjnEH7JsBaoUFsgKwZnmtnVWnoB8MDotCsLb7eWwz' ],
-            [ 'testnet', 's', 'BdKg9udkvckC5T58a8Nmtb6BNsgRAxs7uA2D49sWNNX5HPW5Us6Wxu8QMXrnSx3xPBQQ2iu9kwEcRGAoiz6EPmcZKbF62GS' ],
-            [ 'testnet', 's', 'BcFvPa3fT4gVt5QyRDe5Vv7VtUFao9ci8NFEy3r254KF7R1N2cNB5FYhGvrHbMStv4D6VDzZ5xtxeKV8vgEPMnDcNFuwZb9' ],
-            [ 'stagenet', 'i', '5K8mwfjumVseCcQEjNbf59Um6R9NfVUNkHTLhhPCmNvgDLVS88YW5tScnm83rw9mfgYtchtDDTW5jEfMhygi27j1QYphX38hg6m4VMtN29' ],
-            [ 'stagenet', 's', '73LhUiix4DVFMcKhsPRG51QmCsv8dYYbL6GcQoLwEEFvPvkVvc7BhebfA4pnEFF9Lq66hwvLqBvpHjTcqvpJMHmmNjPPBqa' ],
-            [ 'stagenet', 's', '7A1Hr63MfgUa8pkWxueD5xBqhQczkusYiCMYMnJGcGmuQxa7aDBxN1G7iCuLCNB3VPeb2TW7U9FdxB27xKkWKfJ8VhUZthF' ],
+            [ 'mainnet',  '', 'QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh' ],
+            [ 'mainnet',  '', 'QWC1MH8Mit9fVkUZ8JUmeLXZoSGZ4EyTx6mrfkDUazq5361xT7VQsp7ZugqtNJamRQYBXF8jf3Sq1Z2ETh4jMpnnA4yBYckQv9' ],
+            [ 'testnet',  '', 'TBQmZouTsMTZT15ndaYMYQTBcmKpLUSuHM4eLiC7NgKiQuRNhQne1qW3JoAkSNXTGG4Rzp2b5Ham35wVgCSvFKGy4cMXj6RiPL' ],
+            [ 'stagenet', '', 'VrdXmDDWDmwb88LMC1i1dGdGzroNUYNsK3xor2E66gRFQmMkLk5YJLq2Q5BWjWYeH5XKJ8vLkqE86HdpgaHBBFZd5AacyShmEx' ],
+            [ 'mainnet', 'i', 'QftgFwAVzfsRb5wFn2SN9H3ntHJjeoXjsGS81YC3sfCQBo2Ebw4GhiMKfYLuyFd1TrDG3PhmMxfTr81Jdw6fHSC69c1CqijeM9S9nxaamX4iv' ],
+            [ 'mainnet', 's', 'QqbMfv3rXbaRMGADmVsVFLaric1VLDGmRFJZL6v7vLdnPYWkxgvnNhq8rMpziyJ9MuKgxjj1vq3p31V9Db9976Ug6CpB2iCQRH' ],
+            [ 'mainnet', 's', 'QqbMTePG5Qy4S5od87BgeCQqs7pCPHx92U71ZQ3uhVVDAju2bAiy8PdNrmTds86B2fE4WnWaotPGZdMAUo3E7FVH3RGn9b2eKf' ],
+            [ 'testnet', 'i', 'TM7SrdgfjU85hThbnx69zRib7krLqLEXrapcw3zEQFyJLGFdKhtY6qY7bRn89TBKA8ZbscYZuobQrheEEG9Q3m5D7oX5wCHBRtU6ERdJEfphG' ],
+            [ 'testnet', 's', 'TWp7j63E5nM3GAe4w5eQYNMjf6JQdUSh9YMzay2z37BkWNeSBqw942dYLuahnq9TRYXFp1m7KAWa3TB2rxSbxKSq3ffmTz5tWk' ],
+            [ 'testnet', 's', 'TWp7fvBhEbjA4biMkHkhJNiWKUaTFGEoYjej2Mpp2SFmgCfLXEGc19Jh35qxbCkEKXe9du7Qhbxru1KAmCq6pEoj9Nt2uFja78' ],
+            [ 'stagenet', 'i', 'W2LD4X3hXERGgJHRXyD3zaHiEwWMu1a38L1495cWyiSWGxm7Rh6QUwu3ZYZimJ42AgHFyyoKAfpguiBZs3ZQNQ2GAwnrfskGSip5DUHEtdNWn' ],
+            [ 'stagenet', 's', 'WC2sjx47EsuUECJ6fDmHCH35E5xsjD7yvQtt8u5xNUDHK9VZpsM7Kqk9uAuKimwbCSd49zQWWhdwASEVEFTW8rEQA6xbUVLgQU' ],
+            [ 'stagenet', 's', 'WC2t5o1NhLU2fAsjexf9ePLZiUaMLBpb5JDHvDyXouchcZ9LUTGNFgpXwYo9iVqe2Q8PwDTq1YRRgCFgdsyQAst42PivEvdGVM' ],
         ]
         for any_net_type in [True, False]:
             for address in addresses:

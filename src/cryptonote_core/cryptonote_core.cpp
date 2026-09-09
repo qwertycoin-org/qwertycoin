@@ -1835,7 +1835,13 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec: " << e.what());
     }
 
-    const std::pair<uint8_t, uint64_t> regtest_hard_forks[3] = {std::make_pair(1, 0), std::make_pair(mainnet_hard_forks[num_mainnet_hard_forks-1].version, 1), std::make_pair(0, 0)};
+    // QWC's public chain is HF17-native, so regtest must use the same genesis
+    // version. Starting regtest at v1 creates a different genesis from the
+    // wallet clients and makes the disposable RPC test network reject itself.
+    const std::pair<uint8_t, uint64_t> regtest_hard_forks[2] = {
+      std::make_pair(HF_VERSION_QWC_EPOSE, 0),
+      std::make_pair(0, 0)
+    };
     const cryptonote::test_options regtest_test_options = {
       regtest_hard_forks,
       0

@@ -199,6 +199,67 @@ class Daemon(object):
         return self.rpc.send_json_rpc_request(get_info)
     getinfo = get_info
 
+    def get_epose_info(self, client = ""):
+        return self.rpc.send_request('/get_epose_info', {'client': client})
+
+    def get_service_nodes(self, limit = 100, client = ""):
+        return self.rpc.send_request('/get_service_nodes', {
+            'limit': limit,
+            'client': client,
+        })
+
+    def get_service_node_status(self, service_public_key, client = ""):
+        return self.rpc.send_request('/get_service_node_status', {
+            'service_public_key': service_public_key,
+            'client': client,
+        })
+
+    def get_service_node_registration_payload(self, client = ""):
+        return self.rpc.send_request('/get_service_node_registration_payload', {'client': client})
+
+    def get_epose_epoch(self, epoch = 0, client = ""):
+        return self.rpc.send_request('/get_epose_epoch', {
+            'epoch': epoch,
+            'client': client,
+        })
+
+    def submit_epose_envelope(self, envelope, client = ""):
+        return self.rpc.send_request('/submit_epose_envelope', {
+            'envelope': envelope,
+            'client': client,
+        })
+
+    def get_epose_service_endpoint_v2(self, descriptor_hash = "", client = ""):
+        return self.rpc.send_request('/get_epose_service_endpoint_v2', {
+            'descriptor_hash': descriptor_hash,
+            'client': client,
+        })
+
+    def epose_service_challenge_v2(self, version, service_kind, epoch, round,
+                                   snapshot_hash, anchor_hash, subject_public_key,
+                                   verifier_public_key, endpoint_descriptor_hash,
+                                   nonce, requested_object_hash, client = ""):
+        return self.rpc.send_request('/epose_service_challenge_v2', {
+            'version': version,
+            'service_kind': service_kind,
+            'epoch': epoch,
+            'round': round,
+            'snapshot_hash': snapshot_hash,
+            'anchor_hash': anchor_hash,
+            'subject_public_key': subject_public_key,
+            'verifier_public_key': verifier_public_key,
+            'endpoint_descriptor_hash': endpoint_descriptor_hash,
+            'nonce': nonce,
+            'requested_object_hash': requested_object_hash,
+            'client': client,
+        })
+
+    def get_service_rewards(self, height = 0, client = ""):
+        return self.rpc.send_request('/get_service_rewards', {
+            'height': height,
+            'client': client,
+        })
+
     def hard_fork_info(self, client = ""):
         hard_fork_info = {
             'method': 'hard_fork_info',
