@@ -1301,7 +1301,22 @@
     "grinding": "independence_estimate_and_union_bound_not_a_beacon_proof",
     "liveness": "exact_hypergeometric_plus_binomial_unless_marked_simulation"
   },
-  "model_version": 1,
+  "model_version": 2,
+  "rehearsal_selective_withholding": {
+    "committee": 3,
+    "population": 4,
+    "qualified_subjects": [
+      3
+    ],
+    "receipt_counts": [
+      2,
+      2,
+      2,
+      3
+    ],
+    "threshold": 3,
+    "withholding_verifier": 3
+  },
   "status": "no_go_for_economic_activation",
   "unresolved_gates": [
     "owner_approved_numeric_risk_budget",

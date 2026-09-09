@@ -2,7 +2,7 @@
 
 Status: **CO-03 study in progress; no-go for economic activation**
 
-Model version: 1
+Model version: 2
 
 Generated results: `review/results/security_parameters_v1.json`
 
@@ -157,6 +157,23 @@ outgoing duties. Missing evidence cannot objectively distinguish that strategy
 from subject failure, verifier failure, packet loss, or censorship. No per-vote
 reward or penalty is proposed here because reciprocal fabrication and false
 blame remain unresolved.
+
+### Four-node rehearsal selective-withholding result
+
+The activation-candidate rehearsal uses four members, a committee size of
+three, a threshold of three and two required rounds. Because the subject is
+excluded, every subject's committee is the other three members. If member D
+answers inbound probes but withholds every outbound verifier receipt, each
+round deterministically produces the receipt counts `A=2, B=2, C=2, D=3`.
+Across two required rounds, D alone can qualify without forging a signature.
+
+`full_committee_selective_withholding(4, 3, 3)` reproduces this result in the
+machine-readable model and its unit test. This is a rule-level consequence,
+not yet an executed production-network exploit. It makes the 4-node/3-of-3
+profile unsuitable as an approved economic launch profile until the threat
+model, committee policy and incentive/fallback behavior are independently
+reviewed. Changing it to 2-of-3 without a corresponding collusion and false-
+qualification analysis is not an accepted fix.
 
 ## Candidate sets for further testing
 

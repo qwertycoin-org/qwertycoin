@@ -7,6 +7,7 @@ from security_parameter_model import (
     CorrelatedScenario,
     build_report,
     capture_probability,
+    full_committee_selective_withholding,
     grinding_probability,
     honest_qualification_probability,
     probability_at_least_hypergeometric,
@@ -46,6 +47,17 @@ class SecurityParameterModelTests(unittest.TestCase):
         result = grinding_probability(0.01, 10)
         self.assertLess(result["independent_estimate"], result["union_bound"])
         self.assertEqual(0.1, result["union_bound"])
+
+    def test_four_node_three_of_three_selective_withholding_is_asymmetric(self):
+        result = full_committee_selective_withholding(4, 3, 3)
+        self.assertEqual([2, 2, 2, 3], result["receipt_counts"])
+        self.assertEqual([3], result["qualified_subjects"])
+
+    def test_selective_withholding_rejects_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            full_committee_selective_withholding(4, 4, 3)
+        with self.assertRaises(ValueError):
+            full_committee_selective_withholding(4, 3, 4)
 
     def test_rare_grinding_probability_does_not_cancel_to_zero(self):
         result = grinding_probability(1e-20, 1_000_000)

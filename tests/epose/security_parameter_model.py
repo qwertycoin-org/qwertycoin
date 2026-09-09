@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-MODEL_VERSION = 1
+MODEL_VERSION = 2
 DEFAULT_SEED = 0x515743
 
 
@@ -109,6 +109,46 @@ def grinding_probability(single_probability: float, attempts: int) -> dict[str, 
     return {
         "independent_estimate": independent,
         "union_bound": min(1.0, single_probability * attempts),
+    }
+
+
+def full_committee_selective_withholding(
+    population: int, threshold: int, withholding_verifier: int
+) -> dict[str, object]:
+    """Deterministic all-other-members committee withholding outcome.
+
+    This exactly models the four-member rehearsal where committee size is
+    population minus one. The selected verifier answers inbound probes but
+    never emits outbound receipts. It does not model signature forgery.
+    """
+    if (
+        population <= 1
+        or threshold <= 0
+        or threshold > population - 1
+        or withholding_verifier < 0
+        or withholding_verifier >= population
+    ):
+        raise ValueError("invalid selective-withholding scenario")
+    receipt_counts: list[int] = []
+    for subject in range(population):
+        receipt_counts.append(
+            sum(
+                1
+                for verifier in range(population)
+                if verifier != subject and verifier != withholding_verifier
+            )
+        )
+    return {
+        "population": population,
+        "committee": population - 1,
+        "threshold": threshold,
+        "withholding_verifier": withholding_verifier,
+        "receipt_counts": receipt_counts,
+        "qualified_subjects": [
+            subject
+            for subject, count in enumerate(receipt_counts)
+            if count >= threshold
+        ],
     }
 
 
@@ -322,6 +362,9 @@ def build_report() -> dict[str, object]:
         "admission": admission_rows(),
         "capacity": capacity_rows(),
         "verification_duties": verification_duty_rows(),
+        "rehearsal_selective_withholding": full_committee_selective_withholding(
+            4, 3, 3
+        ),
         "unresolved_gates": [
             "owner_approved_numeric_risk_budget",
             "optimized_solver_measurements_on_supported_x86_64_and_arm64",
