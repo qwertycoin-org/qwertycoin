@@ -53,10 +53,10 @@ namespace
 
   TEST_F(block_reward_and_already_generated_coins, handles_first_values)
   {
-  	// 17592186044415 from neozaru, confirmed by fluffypony
-    TEST_ALREADY_GENERATED_COINS(0, UINT64_C(17592186044415));
-    TEST_ALREADY_GENERATED_COINS(m_block_reward, UINT64_C(17592169267200));
-    TEST_ALREADY_GENERATED_COINS(UINT64_C(2756434948434199641), UINT64_C(14963444829249));
+    // QWC uses eight atomic decimal places and its own capped money supply.
+    TEST_ALREADY_GENERATED_COINS(0, UINT64_C(17592186044));
+    TEST_ALREADY_GENERATED_COINS(m_block_reward, UINT64_C(17592169267));
+    TEST_ALREADY_GENERATED_COINS(UINT64_C(4611686018427387), UINT64_C(13194139533));
   }
 
   TEST_F(block_reward_and_already_generated_coins, correctly_steps_from_2_to_1)

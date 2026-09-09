@@ -588,7 +588,10 @@ TEST(cryptonote_protocol_handler, race_condition)
       reward,
       hardfork
     );
-    block.miner_tx.vout.push_back(cryptonote::tx_out{reward, cryptonote::txout_to_key{}});
+    if (hardfork > HF_VERSION_VIEW_TAGS)
+      block.miner_tx.vout.push_back(cryptonote::tx_out{reward, cryptonote::txout_to_tagged_key{}});
+    else
+      block.miner_tx.vout.push_back(cryptonote::tx_out{reward, cryptonote::txout_to_key{}});
     diff = storage.get_difficulty_for_next_block();
   };
   struct stat {
@@ -797,6 +800,7 @@ TEST(cryptonote_protocol_handler, race_condition)
           boost::program_options::command_line_parser({
             "--data-dir",
             (dir / "main").string(),
+            "--regtest",
             "--disable-dns-checkpoints",
             "--check-updates=disabled",
             "--fixed-difficulty=1",
@@ -824,6 +828,7 @@ TEST(cryptonote_protocol_handler, race_condition)
           boost::program_options::command_line_parser({
             "--data-dir",
             (dir / "alt").string(),
+            "--regtest",
             "--disable-dns-checkpoints",
             "--check-updates=disabled",
             "--fixed-difficulty=1",

@@ -664,21 +664,29 @@ TEST(Serialization, serializes_ringct_types)
   ASSERT_TRUE(clsag0.D == clsag1.D);
 }
 
+// The archived Monero-testnet wallet remains useful as a negative domain
+// fixture after QWC's fresh HF17 genesis. It must never load as a current
+// QWC-testnet wallet merely because the serialization itself is readable.
 TEST(Serialization, portability_wallet)
 {
   const cryptonote::network_type nettype = cryptonote::TESTNET;
   tools::wallet2 w(nettype);
   const boost::filesystem::path wallet_file = unit_test::data_dir / "wallet_9svHk1";
   string password = "test";
-  bool r = false;
   try
   {
     w.load(wallet_file.string(), password);
-    r = true;
+    FAIL() << "legacy pre-relaunch wallet cache unexpectedly loaded";
+  }
+  catch (const tools::error::wallet_internal_error& e)
+  {
+    ASSERT_NE(std::string::npos, std::string(e.what()).find("Genesis block mismatch"));
+    return;
   }
   catch (const exception& e)
-  {}
-  ASSERT_TRUE(r);
+  {
+    FAIL() << "unexpected legacy wallet error: " << e.what();
+  }
   /*
   fields of tools::wallet2 to be checked: 
     std::vector<crypto::hash>                                       m_blockchain
@@ -997,15 +1005,18 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tse.mask) == "789bafff169ef206aa21219342c69ca52ce1d78d776c10b21d14bdd960fc7703");
   // tcd.change_dts
   ASSERT_TRUE(tcd.change_dts.amount == 9631208773403);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) == "9svHk1wHPo3ULf2AZykghzcye6sitaRE4MaDjPC6uanTHCynHjJHZaiAb922PojE1GexhhRt1LVf5DC43feyrRZMLXQr3mk");
+  ASSERT_EQ("TBQmUQEaskbVxnJ4VatxuJebGw3bk6EKLYVmksCHY7BTRiNiZFKWbhwVgHHBqwGwfuAqhjDJpNzDX1jkuKmBxSXU6bAiyGKDVu",
+      cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr));
   // tcd.splitted_dsts
   ASSERT_TRUE(tcd.splitted_dsts.size() == 2);
   auto& splitted_dst0 = tcd.splitted_dsts[0];
   auto& splitted_dst1 = tcd.splitted_dsts[1];
   ASSERT_TRUE(splitted_dst0.amount == 1400000000000);
   ASSERT_TRUE(splitted_dst1.amount == 9631208773403);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr) == "9xnhrMczQkPeoGi6dyu6BgKAYX4tZsDs6KHCkyTStDBKL4M4pM1gfCR3utmTAcSaKHGa1R5o266FbdnubErmij3oMdLyYgA");
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr) == "9svHk1wHPo3ULf2AZykghzcye6sitaRE4MaDjPC6uanTHCynHjJHZaiAb922PojE1GexhhRt1LVf5DC43feyrRZMLXQr3mk");
+  ASSERT_EQ("TBQmiu313aKGi3RJm5CKgZSFsJhbrhb2XRqPSdBqMiNnf2A7Nw3kncTLhZ3SbVJ2bH1W7pPq9LExDHVbHu9fTZJv1HeRWyZhjH",
+      cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr));
+  ASSERT_EQ("TBQmUQEaskbVxnJ4VatxuJebGw3bk6EKLYVmksCHY7BTRiNiZFKWbhwVgHHBqwGwfuAqhjDJpNzDX1jkuKmBxSXU6bAiyGKDVu",
+      cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr));
   // tcd.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 1);
   ASSERT_TRUE(tcd.selected_transfers.front() == 2);
@@ -1018,7 +1029,8 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(tcd.dests.size() == 1);
   auto& dest = tcd.dests[0];
   ASSERT_TRUE(dest.amount == 1400000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, dest.addr) == "9xnhrMczQkPeoGi6dyu6BgKAYX4tZsDs6KHCkyTStDBKL4M4pM1gfCR3utmTAcSaKHGa1R5o266FbdnubErmij3oMdLyYgA");
+  ASSERT_EQ("TBQmiu313aKGi3RJm5CKgZSFsJhbrhb2XRqPSdBqMiNnf2A7Nw3kncTLhZ3SbVJ2bH1W7pPq9LExDHVbHu9fTZJv1HeRWyZhjH",
+      cryptonote::get_account_address_as_str(nettype, false, dest.addr));
   // transfers
   ASSERT_TRUE(exported_txs.transfers.size() == 3);
   auto& td0 = exported_txs.transfers[0];
@@ -1111,7 +1123,8 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_FALSE(ptx.dust_added_to_fee);
   // ptx.change.{amount, addr}
   ASSERT_TRUE(ptx.change_dts.amount == 9631208773403);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, ptx.change_dts.addr) == "9svHk1wHPo3ULf2AZykghzcye6sitaRE4MaDjPC6uanTHCynHjJHZaiAb922PojE1GexhhRt1LVf5DC43feyrRZMLXQr3mk");
+  ASSERT_EQ("TBQmUQEaskbVxnJ4VatxuJebGw3bk6EKLYVmksCHY7BTRiNiZFKWbhwVgHHBqwGwfuAqhjDJpNzDX1jkuKmBxSXU6bAiyGKDVu",
+      cryptonote::get_account_address_as_str(nettype, false, ptx.change_dts.addr));
   // ptx.selected_transfers
   ASSERT_TRUE(ptx.selected_transfers.size() == 1);
   ASSERT_TRUE(ptx.selected_transfers.front() == 2);
@@ -1121,7 +1134,8 @@ TEST(Serialization, portability_signed_tx)
   // ptx.dests
   ASSERT_TRUE(ptx.dests.size() == 1);
   ASSERT_TRUE(ptx.dests[0].amount == 1400000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, ptx.dests[0].addr) == "9xnhrMczQkPeoGi6dyu6BgKAYX4tZsDs6KHCkyTStDBKL4M4pM1gfCR3utmTAcSaKHGa1R5o266FbdnubErmij3oMdLyYgA");
+  ASSERT_EQ("TBQmiu313aKGi3RJm5CKgZSFsJhbrhb2XRqPSdBqMiNnf2A7Nw3kncTLhZ3SbVJ2bH1W7pPq9LExDHVbHu9fTZJv1HeRWyZhjH",
+      cryptonote::get_account_address_as_str(nettype, false, ptx.dests[0].addr));
   // ptx.construction_data
   auto& tcd = ptx.construction_data;
   ASSERT_TRUE(tcd.sources.size() == 1);
@@ -1152,15 +1166,18 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tse.mask) == "789bafff169ef206aa21219342c69ca52ce1d78d776c10b21d14bdd960fc7703");
   // ptx.construction_data.change_dts
   ASSERT_TRUE(tcd.change_dts.amount == 9631208773403);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) == "9svHk1wHPo3ULf2AZykghzcye6sitaRE4MaDjPC6uanTHCynHjJHZaiAb922PojE1GexhhRt1LVf5DC43feyrRZMLXQr3mk");
+  ASSERT_EQ("TBQmUQEaskbVxnJ4VatxuJebGw3bk6EKLYVmksCHY7BTRiNiZFKWbhwVgHHBqwGwfuAqhjDJpNzDX1jkuKmBxSXU6bAiyGKDVu",
+      cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr));
   // ptx.construction_data.splitted_dsts
   ASSERT_TRUE(tcd.splitted_dsts.size() == 2);
   auto& splitted_dst0 = tcd.splitted_dsts[0];
   auto& splitted_dst1 = tcd.splitted_dsts[1];
   ASSERT_TRUE(splitted_dst0.amount == 1400000000000);
   ASSERT_TRUE(splitted_dst1.amount == 9631208773403);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr) == "9xnhrMczQkPeoGi6dyu6BgKAYX4tZsDs6KHCkyTStDBKL4M4pM1gfCR3utmTAcSaKHGa1R5o266FbdnubErmij3oMdLyYgA");
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr) == "9svHk1wHPo3ULf2AZykghzcye6sitaRE4MaDjPC6uanTHCynHjJHZaiAb922PojE1GexhhRt1LVf5DC43feyrRZMLXQr3mk");
+  ASSERT_EQ("TBQmiu313aKGi3RJm5CKgZSFsJhbrhb2XRqPSdBqMiNnf2A7Nw3kncTLhZ3SbVJ2bH1W7pPq9LExDHVbHu9fTZJv1HeRWyZhjH",
+      cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr));
+  ASSERT_EQ("TBQmUQEaskbVxnJ4VatxuJebGw3bk6EKLYVmksCHY7BTRiNiZFKWbhwVgHHBqwGwfuAqhjDJpNzDX1jkuKmBxSXU6bAiyGKDVu",
+      cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr));
   // ptx.construction_data.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 1);
   ASSERT_TRUE(tcd.selected_transfers.front() == 2);
@@ -1173,7 +1190,8 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(tcd.dests.size() == 1);
   auto& dest = tcd.dests[0];
   ASSERT_TRUE(dest.amount == 1400000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, dest.addr) == "9xnhrMczQkPeoGi6dyu6BgKAYX4tZsDs6KHCkyTStDBKL4M4pM1gfCR3utmTAcSaKHGa1R5o266FbdnubErmij3oMdLyYgA");
+  ASSERT_EQ("TBQmiu313aKGi3RJm5CKgZSFsJhbrhb2XRqPSdBqMiNnf2A7Nw3kncTLhZ3SbVJ2bH1W7pPq9LExDHVbHu9fTZJv1HeRWyZhjH",
+      cryptonote::get_account_address_as_str(nettype, false, dest.addr));
   // key_images
   ASSERT_TRUE(exported_txs.key_images.size() == 3);
   auto& ki0 = exported_txs.key_images[0];

@@ -36,14 +36,40 @@
 using namespace boost::filesystem;
 using namespace epee::file_io_utils;
 
-static constexpr const char WALLET_00fd416a_PRIMARY_ADDRESS[] =
-    "45p2SngJAPSJbqSiUvYfS3BfhEdxZmv8pDt25oW1LzxrZv9Uq6ARagiFViMGUE3gJk5VPWingCXVf1p2tyAy6SUeSHPhbve";
+namespace
+{
+  struct current_wallet_fixture
+  {
+    path directory;
+    path wallet_file;
+    std::string primary_address;
+
+    explicit current_wallet_fixture(const epee::wipeable_string &password)
+      : directory(temp_directory_path() / unique_path("qwc-wallet-storage-%%%%-%%%%")),
+        wallet_file(directory / "source-wallet")
+    {
+      create_directories(directory);
+      tools::wallet2 wallet;
+      wallet.generate(wallet_file.string(), password);
+      primary_address = wallet.get_address_as_str();
+      wallet.store();
+    }
+
+    ~current_wallet_fixture()
+    {
+      boost::system::error_code ignored;
+      remove_all(directory, ignored);
+    }
+  };
+}
 
 TEST(wallet_storage, store_to_file2file)
 {
-    const path source_wallet_file = unit_test::data_dir / "wallet_00fd416a";
-    const path interm_wallet_file = unit_test::data_dir / "wallet_00fd416a_copy_file2file";
-    const path target_wallet_file = unit_test::data_dir / "wallet_00fd416a_new_file2file";
+    epee::wipeable_string password("beepbeep");
+    current_wallet_fixture fixture(password);
+    const path source_wallet_file = fixture.wallet_file;
+    const path interm_wallet_file = fixture.directory / "copy-file2file";
+    const path target_wallet_file = fixture.directory / "new-file2file";
 
     ASSERT_TRUE(is_file_exist(source_wallet_file.string()));
     ASSERT_TRUE(is_file_exist(source_wallet_file.string() + ".keys"));
@@ -61,8 +87,6 @@ TEST(wallet_storage, store_to_file2file)
     ASSERT_FALSE(is_file_exist(target_wallet_file.string()));
     ASSERT_FALSE(is_file_exist(target_wallet_file.string() + ".keys"));
 
-    epee::wipeable_string password("beepbeep");
-
     const auto files_are_expected = [&]()
     {
         EXPECT_FALSE(is_file_exist(interm_wallet_file.string()));
@@ -75,7 +99,7 @@ TEST(wallet_storage, store_to_file2file)
         tools::wallet2 w;
         w.load(interm_wallet_file.string(), password);
         const std::string primary_address = w.get_address_as_str();
-        EXPECT_EQ(WALLET_00fd416a_PRIMARY_ADDRESS, primary_address);
+        EXPECT_EQ(fixture.primary_address, primary_address);
         w.store_to(target_wallet_file.string(), password);
         files_are_expected();
     }
@@ -86,7 +110,7 @@ TEST(wallet_storage, store_to_file2file)
         tools::wallet2 w;
         w.load(target_wallet_file.string(), password);
         const std::string primary_address = w.get_address_as_str();
-        EXPECT_EQ(WALLET_00fd416a_PRIMARY_ADDRESS, primary_address);
+        EXPECT_EQ(fixture.primary_address, primary_address);
         w.store_to("", "");
         files_are_expected();
     }
@@ -96,7 +120,9 @@ TEST(wallet_storage, store_to_file2file)
 
 TEST(wallet_storage, store_to_mem2file)
 {
-    const path target_wallet_file = unit_test::data_dir / "wallet_mem2file";
+    const epee::wipeable_string password("beepbeep2");
+    current_wallet_fixture fixture(password);
+    const path target_wallet_file = fixture.directory / "wallet-mem2file";
 
     if (is_file_exist(target_wallet_file.string()))
         remove(target_wallet_file);
@@ -104,8 +130,6 @@ TEST(wallet_storage, store_to_mem2file)
         remove(target_wallet_file.string() + ".keys");
     ASSERT_FALSE(is_file_exist(target_wallet_file.string()));
     ASSERT_FALSE(is_file_exist(target_wallet_file.string() + ".keys"));
-
-    epee::wipeable_string password("beepbeep2");
 
     {
         tools::wallet2 w;
@@ -133,8 +157,10 @@ TEST(wallet_storage, store_to_mem2file)
 
 TEST(wallet_storage, change_password_same_file)
 {
-    const path source_wallet_file = unit_test::data_dir / "wallet_00fd416a";
-    const path interm_wallet_file = unit_test::data_dir / "wallet_00fd416a_copy_change_password_same";
+    epee::wipeable_string old_password("beepbeep");
+    current_wallet_fixture fixture(old_password);
+    const path source_wallet_file = fixture.wallet_file;
+    const path interm_wallet_file = fixture.directory / "copy-change-password-same";
 
     ASSERT_TRUE(is_file_exist(source_wallet_file.string()));
     ASSERT_TRUE(is_file_exist(source_wallet_file.string() + ".keys"));
@@ -145,14 +171,13 @@ TEST(wallet_storage, change_password_same_file)
     ASSERT_TRUE(is_file_exist(interm_wallet_file.string()));
     ASSERT_TRUE(is_file_exist(interm_wallet_file.string() + ".keys"));
 
-    epee::wipeable_string old_password("beepbeep");
     epee::wipeable_string new_password("meepmeep");
 
     {
         tools::wallet2 w;
         w.load(interm_wallet_file.string(), old_password);
         const std::string primary_address = w.get_address_as_str();
-        EXPECT_EQ(WALLET_00fd416a_PRIMARY_ADDRESS, primary_address);
+        EXPECT_EQ(fixture.primary_address, primary_address);
         w.change_password(w.get_wallet_file(), old_password, new_password);
     }
 
@@ -160,7 +185,7 @@ TEST(wallet_storage, change_password_same_file)
         tools::wallet2 w;
         w.load(interm_wallet_file.string(), new_password);
         const std::string primary_address = w.get_address_as_str();
-        EXPECT_EQ(WALLET_00fd416a_PRIMARY_ADDRESS, primary_address);
+        EXPECT_EQ(fixture.primary_address, primary_address);
     }
 
     {
@@ -171,9 +196,11 @@ TEST(wallet_storage, change_password_same_file)
 
 TEST(wallet_storage, change_password_different_file)
 {
-    const path source_wallet_file = unit_test::data_dir / "wallet_00fd416a";
-    const path interm_wallet_file = unit_test::data_dir / "wallet_00fd416a_copy_change_password_diff";
-    const path target_wallet_file = unit_test::data_dir / "wallet_00fd416a_new_change_password_diff";
+    epee::wipeable_string old_password("beepbeep");
+    current_wallet_fixture fixture(old_password);
+    const path source_wallet_file = fixture.wallet_file;
+    const path interm_wallet_file = fixture.directory / "copy-change-password-diff";
+    const path target_wallet_file = fixture.directory / "new-change-password-diff";
 
     ASSERT_TRUE(is_file_exist(source_wallet_file.string()));
     ASSERT_TRUE(is_file_exist(source_wallet_file.string() + ".keys"));
@@ -191,14 +218,13 @@ TEST(wallet_storage, change_password_different_file)
     ASSERT_FALSE(is_file_exist(target_wallet_file.string()));
     ASSERT_FALSE(is_file_exist(target_wallet_file.string() + ".keys"));
 
-    epee::wipeable_string old_password("beepbeep");
     epee::wipeable_string new_password("meepmeep");
 
     {
         tools::wallet2 w;
         w.load(interm_wallet_file.string(), old_password);
         const std::string primary_address = w.get_address_as_str();
-        EXPECT_EQ(WALLET_00fd416a_PRIMARY_ADDRESS, primary_address);
+        EXPECT_EQ(fixture.primary_address, primary_address);
         w.change_password(target_wallet_file.string(), old_password, new_password);
     }
 
@@ -211,7 +237,7 @@ TEST(wallet_storage, change_password_different_file)
         tools::wallet2 w;
         w.load(target_wallet_file.string(), new_password);
         const std::string primary_address = w.get_address_as_str();
-        EXPECT_EQ(WALLET_00fd416a_PRIMARY_ADDRESS, primary_address);
+        EXPECT_EQ(fixture.primary_address, primary_address);
     }
 }
 
@@ -233,7 +259,9 @@ TEST(wallet_storage, change_password_in_memory)
 
 TEST(wallet_storage, change_password_mem2file)
 {
-    const path target_wallet_file = unit_test::data_dir / "wallet_change_password_mem2file";
+    const epee::wipeable_string fixture_password("temporary fixture password");
+    current_wallet_fixture fixture(fixture_password);
+    const path target_wallet_file = fixture.directory / "wallet-change-password-mem2file";
 
     if (is_file_exist(target_wallet_file.string()))
         remove(target_wallet_file);

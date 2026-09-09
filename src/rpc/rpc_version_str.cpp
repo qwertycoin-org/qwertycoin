@@ -37,7 +37,7 @@ namespace rpc
 {
 
 // Expected format of Qwertycoin/Monero software version string:
-// 1) Four numbers, one to two digits each, separated by periods
+// 1) Three or four numbers, one to two digits each, separated by periods
 // 2) Or a Qwertycoin beta semver string
 // 3) Optionally, one of the following suffixes:
 //      a) -release
@@ -46,7 +46,7 @@ namespace rpc
 bool is_version_string_valid(const std::string& str)
 {
     return std::regex_match(str, std::regex(
-        "^(\\d{1,2}(\\.\\d{1,2}){3}|\\d{1,2}\\.\\d{1,2}\\.\\d{1,2}-beta\\.\\d{1,2})(-(release|[0-9a-f]{9}))?$",
+        "^(\\d{1,2}(\\.\\d{1,2}){2,3}|\\d{1,2}\\.\\d{1,2}\\.\\d{1,2}-beta\\.\\d{1,2})(-(release|[0-9a-f]{9}))?$",
         std::regex_constants::nosubs
     ));
 }

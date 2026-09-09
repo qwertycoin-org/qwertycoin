@@ -829,17 +829,17 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(r, false, "failed to parse coinbase tx from hard coded blob");
     r = parse_and_validate_tx_from_blob(tx_bl, bl.miner_tx);
     CHECK_AND_ASSERT_MES(r, false, "failed to parse coinbase tx from hard coded blob");
-    if (major_version >= HF_VERSION_MIN_V2_COINBASE_TX)
-      bl.miner_tx.version = 2;
-    if (major_version >= HF_VERSION_QWC_RELAUNCH_BASE)
-    {
-      uint64_t genesis_reward = 0;
-      r = get_block_reward(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0, genesis_reward, major_version);
-      CHECK_AND_ASSERT_MES(r, false, "failed to calculate Qwertycoin relaunch genesis reward");
-      CHECK_AND_ASSERT_MES(!bl.miner_tx.vout.empty(), false, "Qwertycoin relaunch genesis tx has no outputs");
-      bl.miner_tx.vout.resize(1);
-      bl.miner_tx.vout.front().amount = genesis_reward;
-    }
+    bl.miner_tx.version = major_version >= HF_VERSION_MIN_V2_COINBASE_TX ? 2 : 1;
+    // The embedded transaction is the HF17 launch template. Normalize its
+    // monetary fields for the explicitly requested version as well, so
+    // inherited historical FAKECHAIN schedules remain internally valid under
+    // QWC's eight-decimal supply constants.
+    uint64_t genesis_reward = 0;
+    r = get_block_reward(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0, genesis_reward, major_version);
+    CHECK_AND_ASSERT_MES(r, false, "failed to calculate Qwertycoin genesis reward");
+    CHECK_AND_ASSERT_MES(!bl.miner_tx.vout.empty(), false, "Qwertycoin genesis tx has no outputs");
+    bl.miner_tx.vout.resize(1);
+    bl.miner_tx.vout.front().amount = genesis_reward;
     if (major_version > HF_VERSION_VIEW_TAGS)
     {
       for (tx_out& out: bl.miner_tx.vout)
@@ -850,6 +850,23 @@ namespace cryptonote
           tagged_key.key = boost::get<txout_to_key>(out.target).key;
           tagged_key.view_tag = crypto::view_tag{};
           out.target = tagged_key;
+        }
+      }
+      bl.miner_tx.invalidate_hashes();
+    }
+    else
+    {
+      // The public QWC genesis transaction is encoded for the HF17 launch.
+      // Historical FAKECHAIN schedules still exercise inherited pre-view-tag
+      // consensus rules, so normalize the embedded output back to the target
+      // type required by the explicitly requested genesis version.
+      for (tx_out& out: bl.miner_tx.vout)
+      {
+        if (out.target.type() == typeid(txout_to_tagged_key))
+        {
+          txout_to_key key;
+          key.key = boost::get<txout_to_tagged_key>(out.target).key;
+          out.target = key;
         }
       }
       bl.miner_tx.invalidate_hashes();

@@ -244,3 +244,4 @@ set_property(TARGET epose_sybil_sim
 monero_add_minimal_executable(test_notifier test_notifier.cpp)
 target_link_libraries(test_notifier ${EXTRA_LIBRARIES})
 set_property(TARGET test_notifier PROPERTY FOLDER "tests")
+add_dependencies(unit_tests test_notifier)
