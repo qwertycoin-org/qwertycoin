@@ -95,6 +95,54 @@ namespace epose
       const cryptonote::blobdata &blob,
       endpoint_descriptor_v2 &descriptor);
 
+  constexpr size_t EPOSE_ENDPOINT_DESCRIPTOR_MAX_BLOB_SIZE_V2 = 512;
+  constexpr size_t EPOSE_ENDPOINT_RELAY_MAX_BATCH_V2 = 16;
+  constexpr size_t EPOSE_ENDPOINT_CACHE_MAX_ENTRIES_V2 = 4096;
+  constexpr uint64_t EPOSE_ENDPOINT_CACHE_MAX_FUTURE_EPOCHS_V2 = 4;
+
+  // Non-consensus, bounded cache for authenticated endpoint discovery. The
+  // caller must prove that a cached descriptor hash is referenced by
+  // canonical lifecycle or frozen membership state before relaying/serving it.
+  class endpoint_descriptor_cache_v2
+  {
+  public:
+    endpoint_descriptor_cache_v2(
+        size_t max_entries = EPOSE_ENDPOINT_CACHE_MAX_ENTRIES_V2,
+        uint64_t max_future_epochs = EPOSE_ENDPOINT_CACHE_MAX_FUTURE_EPOCHS_V2);
+
+    resource_status_v2 admit(
+        cryptonote::network_type nettype,
+        const crypto::hash &genesis_hash,
+        const crypto::hash &parameter_set_hash,
+        uint64_t current_epoch,
+        const endpoint_descriptor_v2 &descriptor);
+    bool find(const crypto::hash &descriptor_hash, uint64_t current_epoch,
+        endpoint_descriptor_v2 &descriptor) const;
+    void prune(uint64_t current_epoch);
+    size_t size() const;
+
+  private:
+    struct entry
+    {
+      crypto::hash descriptor_hash{};
+      endpoint_descriptor_v2 descriptor{};
+    };
+
+    size_t max_entries_ = 0;
+    uint64_t max_future_epochs_ = 0;
+    std::vector<entry> entries_;
+  };
+
+  resource_status_v2 admit_endpoint_relay_batch_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      uint64_t current_epoch,
+      const std::vector<cryptonote::blobdata> &descriptor_blobs,
+      const std::vector<crypto::hash> &canonical_descriptor_hashes,
+      endpoint_descriptor_cache_v2 &cache,
+      std::vector<cryptonote::blobdata> &accepted_blobs);
+
   bool public_probe_address_v2(const std::string &address);
   resource_status_v2 validate_resolved_targets_v2(
       const std::vector<std::string> &addresses,

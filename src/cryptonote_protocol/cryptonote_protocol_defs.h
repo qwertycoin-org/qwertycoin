@@ -412,5 +412,23 @@ namespace cryptonote
     };
     typedef epee::misc_utils::struct_init<request_t> request;
   };
+
+  // Bounded authenticated endpoint discovery. Each blob is one canonical,
+  // service-key-signed v2 descriptor. Receivers relay and serve only hashes
+  // already referenced by canonical lifecycle or frozen membership state.
+  struct NOTIFY_NEW_EPOSE_ENDPOINTS_V2
+  {
+    const static int ID = BC_COMMANDS_POOL_BASE + 13;
+
+    struct request_t
+    {
+      std::vector<blobdata> descriptors;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(descriptors)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+  };
     
 }

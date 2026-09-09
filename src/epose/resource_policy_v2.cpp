@@ -288,6 +288,125 @@ namespace epose
     return resource_status_v2::accepted;
   }
 
+  endpoint_descriptor_cache_v2::endpoint_descriptor_cache_v2(
+      const size_t max_entries, const uint64_t max_future_epochs)
+      : max_entries_(max_entries), max_future_epochs_(max_future_epochs)
+  {
+  }
+
+  resource_status_v2 endpoint_descriptor_cache_v2::admit(
+      const cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const uint64_t current_epoch,
+      const endpoint_descriptor_v2 &descriptor)
+  {
+    if (max_entries_ == 0)
+      return resource_status_v2::invalid_configuration;
+    const resource_status_v2 status = validate_endpoint_descriptor_v2(
+        nettype, genesis_hash, parameter_set_hash, descriptor);
+    if (status != resource_status_v2::accepted)
+      return status;
+    if (descriptor.expiry_epoch < current_epoch)
+      return resource_status_v2::relay_item_expired;
+    if (descriptor.expiry_epoch - current_epoch > max_future_epochs_)
+      return resource_status_v2::invalid_descriptor;
+
+    const crypto::hash descriptor_hash = hash_endpoint_descriptor_v2(
+        nettype, genesis_hash, parameter_set_hash, descriptor);
+    const auto existing = std::find_if(
+        entries_.begin(), entries_.end(),
+        [&descriptor_hash](const entry &value) {
+          return value.descriptor_hash == descriptor_hash;
+        });
+    if (existing != entries_.end())
+      return resource_status_v2::idempotent_duplicate;
+
+    prune(current_epoch);
+    if (entries_.size() >= max_entries_)
+      return resource_status_v2::relay_queue_full;
+    entries_.push_back({descriptor_hash, descriptor});
+    return resource_status_v2::accepted;
+  }
+
+  bool endpoint_descriptor_cache_v2::find(
+      const crypto::hash &descriptor_hash,
+      const uint64_t current_epoch,
+      endpoint_descriptor_v2 &descriptor) const
+  {
+    descriptor = {};
+    const auto found = std::find_if(
+        entries_.begin(), entries_.end(),
+        [&descriptor_hash, current_epoch](const entry &value) {
+          return value.descriptor_hash == descriptor_hash
+              && value.descriptor.expiry_epoch >= current_epoch;
+        });
+    if (found == entries_.end())
+      return false;
+    descriptor = found->descriptor;
+    return true;
+  }
+
+  void endpoint_descriptor_cache_v2::prune(const uint64_t current_epoch)
+  {
+    entries_.erase(std::remove_if(entries_.begin(), entries_.end(),
+        [current_epoch](const entry &value) {
+          return value.descriptor.expiry_epoch < current_epoch;
+        }), entries_.end());
+  }
+
+  size_t endpoint_descriptor_cache_v2::size() const
+  {
+    return entries_.size();
+  }
+
+  resource_status_v2 admit_endpoint_relay_batch_v2(
+      const cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const uint64_t current_epoch,
+      const std::vector<cryptonote::blobdata> &descriptor_blobs,
+      const std::vector<crypto::hash> &canonical_descriptor_hashes,
+      endpoint_descriptor_cache_v2 &cache,
+      std::vector<cryptonote::blobdata> &accepted_blobs)
+  {
+    accepted_blobs.clear();
+    if (descriptor_blobs.size() > EPOSE_ENDPOINT_RELAY_MAX_BATCH_V2)
+      return resource_status_v2::request_too_large;
+
+    endpoint_descriptor_cache_v2 staged = cache;
+    std::vector<cryptonote::blobdata> staged_accepted;
+    staged_accepted.reserve(descriptor_blobs.size());
+    for (const cryptonote::blobdata &blob : descriptor_blobs)
+    {
+      if (blob.empty() || blob.size() > EPOSE_ENDPOINT_DESCRIPTOR_MAX_BLOB_SIZE_V2)
+        return resource_status_v2::request_too_large;
+      endpoint_descriptor_v2 descriptor{};
+      const resource_status_v2 decode_status = decode_endpoint_descriptor_v2(
+          nettype, genesis_hash, parameter_set_hash, blob, descriptor);
+      if (decode_status != resource_status_v2::accepted)
+        return decode_status;
+      const crypto::hash descriptor_hash = hash_endpoint_descriptor_v2(
+          nettype, genesis_hash, parameter_set_hash, descriptor);
+      if (std::find(canonical_descriptor_hashes.begin(),
+                    canonical_descriptor_hashes.end(), descriptor_hash)
+          == canonical_descriptor_hashes.end())
+        continue;
+
+      const resource_status_v2 cache_status = staged.admit(
+          nettype, genesis_hash, parameter_set_hash, current_epoch, descriptor);
+      if (cache_status == resource_status_v2::accepted)
+        staged_accepted.push_back(blob);
+      else if (cache_status != resource_status_v2::idempotent_duplicate
+          && cache_status != resource_status_v2::relay_item_expired
+          && cache_status != resource_status_v2::relay_queue_full)
+        return cache_status;
+    }
+    cache = std::move(staged);
+    accepted_blobs = std::move(staged_accepted);
+    return resource_status_v2::accepted;
+  }
+
   bool public_probe_address_v2(const std::string &text)
   {
     boost::system::error_code error;

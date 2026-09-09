@@ -154,6 +154,9 @@ namespace cryptonote
      bool handle_incoming_epose_envelopes_v2(
        const std::vector<blobdata>& envelopes,
        std::vector<blobdata>& accepted_envelopes);
+     bool handle_incoming_epose_endpoints_v2(
+       const std::vector<blobdata>& descriptors,
+       std::vector<blobdata>& accepted_descriptors);
      bool submit_local_epose_envelope_v2(
        const blobdata& envelope,
        bool& newly_accepted,
@@ -1086,6 +1089,11 @@ namespace cryptonote
      void remember_epose_v2_endpoint(
          const qwertycoin::epose::consensus_parameters_v2 &parameters,
          const qwertycoin::epose::endpoint_descriptor_v2 &endpoint);
+     bool epose_v2_endpoint_hash_is_canonical(
+         const crypto::hash &descriptor_hash) const;
+     bool relay_local_epose_v2_endpoint(
+         const qwertycoin::epose::consensus_parameters_v2 &parameters,
+         const qwertycoin::epose::endpoint_descriptor_v2 &endpoint);
      bool build_epose_miner_extra_nonce(blobdata& epose_extra_nonce) const;
 
      /**
@@ -1158,8 +1166,11 @@ namespace cryptonote
      cryptonote::account_public_address m_epose_v2_reward_address{};
      mutable std::mutex m_epose_v2_endpoint_mutex;
      qwertycoin::epose::endpoint_descriptor_v2 m_epose_v2_endpoint{};
-     std::vector<qwertycoin::epose::endpoint_descriptor_v2>
-         m_epose_v2_endpoint_history;
+     qwertycoin::epose::endpoint_descriptor_cache_v2
+         m_epose_v2_endpoint_cache{};
+     crypto::hash m_epose_v2_last_relayed_endpoint_hash{};
+     std::chrono::steady_clock::time_point
+         m_epose_v2_last_endpoint_relay{};
      crypto::hash m_epose_v2_identity_id{};
      uint64_t m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
      std::vector<blobdata> m_epose_v2_pending_envelopes;

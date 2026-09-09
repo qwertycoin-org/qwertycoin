@@ -76,6 +76,132 @@ TEST(epose_resource_policy_v2, endpoint_wire_codec_is_canonical_context_bound_an
   EXPECT_TRUE(decoded.host.empty());
 }
 
+TEST(epose_resource_policy_v2, endpoint_discovery_cache_is_context_bound_bounded_and_expiring)
+{
+  const crypto::hash genesis = hash_text("genesis");
+  const crypto::hash parameters = hash_text("parameters");
+  endpoint_descriptor_cache_v2 cache(2, 4);
+
+  crypto::secret_key first_secret{};
+  auto first = descriptor(first_secret);
+  first.expiry_epoch = 3;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters, first, first_secret));
+  const crypto::hash first_hash = hash_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters, first);
+  ASSERT_EQ(resource_status_v2::accepted,
+      cache.admit(cryptonote::TESTNET, genesis, parameters, 1, first));
+  EXPECT_EQ(resource_status_v2::idempotent_duplicate,
+      cache.admit(cryptonote::TESTNET, genesis, parameters, 1, first));
+
+  endpoint_descriptor_v2 found{};
+  ASSERT_TRUE(cache.find(first_hash, 1, found));
+  EXPECT_EQ(first.service_public_key, found.service_public_key);
+  EXPECT_FALSE(cache.find(first_hash, 4, found));
+  EXPECT_TRUE(found.host.empty());
+
+  crypto::secret_key second_secret{};
+  auto second = descriptor(second_secret);
+  second.host = "seed-01.qwertycoin.org";
+  second.expiry_epoch = 5;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters, second, second_secret));
+  ASSERT_EQ(resource_status_v2::accepted,
+      cache.admit(cryptonote::TESTNET, genesis, parameters, 1, second));
+
+  crypto::secret_key third_secret{};
+  auto third = descriptor(third_secret);
+  third.host = "seed-02.qwertycoin.org";
+  third.expiry_epoch = 5;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters, third, third_secret));
+  EXPECT_EQ(resource_status_v2::relay_queue_full,
+      cache.admit(cryptonote::TESTNET, genesis, parameters, 1, third));
+
+  cache.prune(4);
+  ASSERT_EQ(resource_status_v2::accepted,
+      cache.admit(cryptonote::TESTNET, genesis, parameters, 4, third));
+  EXPECT_EQ(2u, cache.size());
+
+  auto too_far = third;
+  ++too_far.sequence;
+  too_far.expiry_epoch = 9;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters, too_far, third_secret));
+  EXPECT_EQ(resource_status_v2::invalid_descriptor,
+      cache.admit(cryptonote::TESTNET, genesis, parameters, 4, too_far));
+  EXPECT_EQ(resource_status_v2::invalid_signature,
+      cache.admit(cryptonote::MAINNET, genesis, parameters, 4, third));
+}
+
+TEST(epose_resource_policy_v2, endpoint_relay_batch_is_authorized_bounded_and_atomic)
+{
+  const crypto::hash genesis = hash_text("genesis");
+  const crypto::hash parameters = hash_text("parameters");
+  crypto::secret_key authorized_secret{};
+  auto authorized = descriptor(authorized_secret);
+  authorized.expiry_epoch = 3;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters,
+      authorized, authorized_secret));
+  cryptonote::blobdata authorized_blob;
+  ASSERT_EQ(resource_status_v2::accepted, encode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters,
+      authorized, authorized_blob));
+  const crypto::hash authorized_hash = hash_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters, authorized);
+
+  crypto::secret_key unrelated_secret{};
+  auto unrelated = descriptor(unrelated_secret);
+  unrelated.host = "unrelated.example.org";
+  unrelated.expiry_epoch = 3;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters,
+      unrelated, unrelated_secret));
+  cryptonote::blobdata unrelated_blob;
+  ASSERT_EQ(resource_status_v2::accepted, encode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, genesis, parameters,
+      unrelated, unrelated_blob));
+
+  endpoint_descriptor_cache_v2 cache(2, 4);
+  std::vector<cryptonote::blobdata> accepted{"stale"};
+  ASSERT_EQ(resource_status_v2::accepted, admit_endpoint_relay_batch_v2(
+      cryptonote::TESTNET, genesis, parameters, 1,
+      {authorized_blob, unrelated_blob}, {authorized_hash}, cache, accepted));
+  ASSERT_EQ(1u, accepted.size());
+  EXPECT_EQ(authorized_blob, accepted.front());
+  EXPECT_EQ(1u, cache.size());
+
+  ASSERT_EQ(resource_status_v2::accepted, admit_endpoint_relay_batch_v2(
+      cryptonote::TESTNET, genesis, parameters, 1,
+      {authorized_blob}, {authorized_hash}, cache, accepted));
+  EXPECT_TRUE(accepted.empty());
+
+  auto malformed = authorized_blob;
+  malformed.back() ^= 0x01;
+  endpoint_descriptor_cache_v2 atomic_cache(2, 4);
+  EXPECT_EQ(resource_status_v2::invalid_signature,
+      admit_endpoint_relay_batch_v2(
+          cryptonote::TESTNET, genesis, parameters, 1,
+          {authorized_blob, malformed}, {authorized_hash},
+          atomic_cache, accepted));
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(0u, atomic_cache.size());
+
+  cryptonote::blobdata oversized(
+      EPOSE_ENDPOINT_DESCRIPTOR_MAX_BLOB_SIZE_V2 + 1, 'x');
+  EXPECT_EQ(resource_status_v2::request_too_large,
+      admit_endpoint_relay_batch_v2(
+          cryptonote::TESTNET, genesis, parameters, 1,
+          {oversized}, {authorized_hash}, atomic_cache, accepted));
+  std::vector<cryptonote::blobdata> oversized_batch(
+      EPOSE_ENDPOINT_RELAY_MAX_BATCH_V2 + 1, authorized_blob);
+  EXPECT_EQ(resource_status_v2::request_too_large,
+      admit_endpoint_relay_batch_v2(
+          cryptonote::TESTNET, genesis, parameters, 1,
+          oversized_batch, {authorized_hash}, atomic_cache, accepted));
+}
+
 TEST(epose_resource_policy_v2, dns_and_literal_hosts_must_be_canonical)
 {
   crypto::secret_key secret{};

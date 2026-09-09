@@ -90,6 +90,7 @@ namespace cryptonote
       HANDLE_NOTIFY_T2(NOTIFY_NEW_TRANSACTIONS, &cryptonote_protocol_handler::handle_notify_new_transactions)
       HANDLE_NOTIFY_T2(NOTIFY_NEW_EPOSE_PAYLOADS, &cryptonote_protocol_handler::handle_notify_new_epose_payloads)
       HANDLE_NOTIFY_T2(NOTIFY_NEW_EPOSE_ENVELOPES_V2, &cryptonote_protocol_handler::handle_notify_new_epose_envelopes_v2)
+      HANDLE_NOTIFY_T2(NOTIFY_NEW_EPOSE_ENDPOINTS_V2, &cryptonote_protocol_handler::handle_notify_new_epose_endpoints_v2)
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_GET_OBJECTS, &cryptonote_protocol_handler::handle_request_get_objects)
       HANDLE_NOTIFY_T2(NOTIFY_RESPONSE_GET_OBJECTS, &cryptonote_protocol_handler::handle_response_get_objects)
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_CHAIN, &cryptonote_protocol_handler::handle_request_chain)
@@ -140,6 +141,7 @@ namespace cryptonote
     int handle_notify_new_transactions(int command, NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_epose_payloads(int command, NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_epose_envelopes_v2(int command, NOTIFY_NEW_EPOSE_ENVELOPES_V2::request& arg, cryptonote_connection_context& context);
+    int handle_notify_new_epose_endpoints_v2(int command, NOTIFY_NEW_EPOSE_ENDPOINTS_V2::request& arg, cryptonote_connection_context& context);
     int handle_request_get_objects(int command, NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote_connection_context& context);
     int handle_response_get_objects(int command, NOTIFY_RESPONSE_GET_OBJECTS::request& arg, cryptonote_connection_context& context);
     int handle_request_chain(int command, NOTIFY_REQUEST_CHAIN::request& arg, cryptonote_connection_context& context);
@@ -153,6 +155,7 @@ namespace cryptonote
     virtual bool relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone, relay_method tx_relay);
     virtual bool relay_epose_payloads(NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone);
     virtual bool relay_epose_envelopes_v2(NOTIFY_NEW_EPOSE_ENVELOPES_V2::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone);
+    virtual bool relay_epose_endpoints_v2(NOTIFY_NEW_EPOSE_ENDPOINTS_V2::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone);
     //----------------------------------------------------------------------------------
     //bool get_payload_sync_data(HANDSHAKE_DATA::request& hshd, cryptonote_connection_context& context);
     bool should_drop_connection(cryptonote_connection_context& context, uint32_t next_stripe);
