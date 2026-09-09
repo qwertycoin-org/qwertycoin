@@ -1,6 +1,6 @@
 # EPoSE v2 Mainnet Rehearsal Profile
 
-**Profile date:** 2026-09-07  
+**Profile date:** 2026-09-09
 **Network path:** regular MAINNET, Qwertycoin block major version 17  
 **EPoSE protocol:** version 2 from genesis height 0  
 **Status:** complete activation candidate for a resettable rehearsal; **not a
@@ -13,7 +13,7 @@ final mainnet security-parameter approval**
 - Consensus-parameter SHA-256:
   `16bde722b05071956f10be18530235be42b374228ead95e2b053d99d53f328ff`
 - Exact candidate implementation revision recorded by the manifest:
-  `e306698ac23bb23d8a6050d479d8f2f2e32af505`
+  `e12dc5c731eac6e1692274b4c742258877f94100`
 
 The parameter commitment is SHA-256 over the canonical JSON projection of
 `activation`, `admission`, `carrier`, `committee`, `encoding`, `epoch`,
