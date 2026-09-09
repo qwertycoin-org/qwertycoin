@@ -47,4 +47,10 @@ else()
   write_version("unknown")
 endif ()
 add_custom_target(genversion ALL
-  DEPENDS "${CMAKE_BINARY_DIR}/version.cpp")
+  COMMAND "${CMAKE_COMMAND}"
+    -DSOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    -DBINARY_DIR="${CMAKE_BINARY_DIR}"
+    -DGIT_EXECUTABLE="${GIT_EXECUTABLE}"
+    -P "${CMAKE_CURRENT_LIST_DIR}/GenerateVersion.cmake"
+  BYPRODUCTS "${CMAKE_BINARY_DIR}/version.cpp"
+  COMMENT "Refreshing the embedded source revision")
