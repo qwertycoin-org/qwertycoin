@@ -30,9 +30,10 @@ EPoSE HF17.
 ## Hardforks
 
 QWC does not replay Monero's historical hardfork activation schedule. Mainnet,
-testnet, and stagenet start at `HF_VERSION_QWC_EPOSE_V1 = 17` from height 0.
+testnet, and stagenet start at `HF_VERSION_QWC_EPOSE = 17` from height 0.
 Older Monero hardfork constants remain in the code because validation and wallet
-logic use them as feature gates.
+logic use them as inherited feature gates. EPoSE format/protocol version 2 is a
+separate version domain and is the only QWC-HF17 EPoSE launch format.
 
 ## EPoSE Current State
 

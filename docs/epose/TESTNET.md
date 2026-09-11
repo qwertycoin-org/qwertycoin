@@ -79,19 +79,20 @@ genesis -> inherited current Monero consensus rules -> QWC HF17 / EPoSE active
 ```
 
 Mainnet, testnet, and stagenet hardfork schedules start directly at
-`HF_VERSION_QWC_EPOSE_V1 = 17` from height `0`. Historical Monero hardforks are
+`HF_VERSION_QWC_EPOSE = 17` from height `0`, with EPoSE format version 2.
+Historical Monero hardforks are
 not replayed through later activation heights.
 
 Current configured network constants:
 
 ```text
 mainnet:
-  network id: QWC2MAIN2026POC
+  network id: QWC2MAIN2026FIN
   p2p: 8196
   daemon rpc: 8197
   wallet rpc: 8198
   zmq rpc: 8199
-  genesis nonce: 10000
+  genesis nonce: 10003
 
 testnet:
   network id: QWC2TEST2026POC

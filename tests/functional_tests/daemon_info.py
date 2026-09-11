@@ -54,8 +54,8 @@ class DaemonGetInfoTest():
 
         # hard_fork version should be set at height 1
         assert 'earliest_height' in res.keys()
-        #assert res['earliest_height'] == 1;
-        assert res.earliest_height == 1
+        # Qwertycoin's sole scheduled hard fork starts at genesis.
+        assert res.earliest_height == 0
 
     def _test_get_info(self):
         print('Test get_info')

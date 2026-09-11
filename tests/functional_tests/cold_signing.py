@@ -37,8 +37,8 @@ from framework.wallet import Wallet
 import random
 
 SEED = 'velvet lymph giddy number token physics poetry unquoted nibs useful sabotage limits benches lifestyle eden nitrogen anvil fewest avoid batch vials washing fences goat unquoted'
-STANDARD_ADDRESS = '42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm'
-SUBADDRESS = '84QRUYawRNrU3NN1VpFRndSukeyEb3Xpv8qZjjsoJZnTYpDYceuUTpog13D7qPxpviS7J29bSgSkR11hFFoXWk2yNdsR9WF'
+STANDARD_ADDRESS = 'QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh'
+SUBADDRESS = 'QqbMLfnH9WQAMoV3CE5VdA2Uk55faUqof53AUV9pjFNMSc5WTSVhebbFmvphd74LucCFPpxZ3zr1Qem8kPY8jWqv1M7cwR9dLj'
 
 class ColdSigningTest():
     def run_test(self):
@@ -138,7 +138,7 @@ class ColdSigningTest():
     def create_tx(self, destination_addr, piecemeal_output_export):
         daemon = Daemon()
 
-        dst = {'address': destination_addr, 'amount': 1000000000000}
+        dst = {'address': destination_addr, 'amount': 100000000}
 
         self.export_import(piecemeal_output_export)
 
@@ -165,13 +165,13 @@ class ColdSigningTest():
         assert desc.ring_size == 16
         assert desc.unlock_time == 0
         assert desc.payment_id in ['', '0000000000000000']
-        assert desc.change_amount == desc.amount_in - 1000000000000 - fee
+        assert desc.change_amount == desc.amount_in - 100000000 - fee
         assert desc.change_address == STANDARD_ADDRESS
         assert desc.fee == fee
         assert len(desc.recipients) == 1
         rec = desc.recipients[0]
         assert rec.address == destination_addr
-        assert rec.amount == 1000000000000
+        assert rec.amount == 100000000
 
         res = self.cold_wallet.sign_transfer(unsigned_txset)
         assert len(res.signed_txset) > 0

@@ -30,7 +30,11 @@
 
 #pragma once
 
+#include <chrono>
 #include <ctime>
+#include <future>
+#include <limits>
+#include <mutex>
 
 #include <boost/function.hpp>
 #include <boost/program_options/options_description.hpp>
@@ -44,8 +48,9 @@
 #include "common/command_line.h"
 #include "tx_pool.h"
 #include "blockchain.h"
-#include "epose/attestation_pool.h"
 #include "epose/service_node_config.h"
+#include "epose/canonical_service_v2.h"
+#include "epose/service_producer_v2.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
 #include "warnings.h"
@@ -78,6 +83,12 @@ namespace cryptonote
   extern const command_line::arg_descriptor<std::string> arg_service_reward_address;
   extern const command_line::arg_descriptor<std::string> arg_service_reward_view_key;
   extern const command_line::arg_descriptor<std::string> arg_service_node_advertise_address;
+  extern const command_line::arg_descriptor<bool> arg_epose_v2_service;
+  extern const command_line::arg_descriptor<std::string> arg_epose_v2_keystore;
+  extern const command_line::arg_descriptor<std::string> arg_epose_v2_reward_address;
+  extern const command_line::arg_descriptor<std::string> arg_epose_v2_endpoint_host;
+  extern const command_line::arg_descriptor<uint16_t> arg_epose_v2_endpoint_port;
+  extern const command_line::arg_descriptor<std::vector<std::string>> arg_epose_v2_discovery_endpoint;
 
   /************************************************************************/
   /*                                                                      */
@@ -140,6 +151,20 @@ namespace cryptonote
        const std::vector<blobdata>& attestation_blobs,
        std::vector<blobdata>& accepted_registration_blobs,
        std::vector<blobdata>& accepted_attestation_blobs);
+     bool handle_incoming_epose_envelopes_v2(
+       const std::vector<blobdata>& envelopes,
+       std::vector<blobdata>& accepted_envelopes);
+     bool handle_incoming_epose_endpoints_v2(
+       const std::vector<blobdata>& descriptors,
+       std::vector<blobdata>& accepted_descriptors);
+     bool submit_local_epose_envelope_v2(
+       const blobdata& envelope,
+       bool& newly_accepted,
+       bool& relayed);
+     bool submit_local_epose_envelopes_v2(
+       const std::vector<blobdata>& envelopes,
+       bool& newly_accepted,
+       bool& relayed);
 
     /**
       * @brief handles a single incoming block
@@ -259,6 +284,19 @@ namespace cryptonote
      bool get_miner_data(uint8_t& major_version, uint64_t& height, crypto::hash& prev_id, crypto::hash& seed_hash, difficulty_type& difficulty, uint64_t& median_weight, uint64_t& already_generated_coins, std::vector<tx_block_template_backlog_entry>& tx_backlog);
 
      const qwertycoin::epose::local_service_node_config& get_epose_local_service_node_config() const { return m_epose_local_service_node_config; }
+     bool get_epose_v2_endpoint_descriptor(
+         qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
+         const crypto::hash *required_hash = nullptr) const;
+     bool is_epose_v2_service_enabled() const { return m_epose_v2_service_enabled; }
+     bool is_epose_v2_service_ready() const { return m_epose_v2_service_ready; }
+     crypto::hash get_epose_v2_local_identity_id() const { return m_epose_v2_identity_id; }
+     crypto::public_key get_epose_v2_local_service_public_key() const { return m_epose_v2_keystore.service_public_key; }
+     const std::string& get_epose_v2_reward_address_string() const { return m_epose_v2_reward_address_string; }
+     const std::string& get_epose_v2_endpoint_host() const { return m_epose_v2_endpoint_host; }
+     uint16_t get_epose_v2_endpoint_port() const { return m_epose_v2_endpoint_port; }
+     bool answer_epose_v2_service_challenge(
+         const qwertycoin::epose::service_challenge_v2 &challenge,
+         qwertycoin::epose::canonical_service_response_v2 &response) const;
 
      /**
       * @brief called when a transaction is relayed.
@@ -1040,8 +1078,23 @@ namespace cryptonote
      bool handle_command_line(const boost::program_options::variables_map& vm);
 
      bool init_epose_service_node_config(const boost::program_options::variables_map& vm);
+     bool init_epose_v2_service_runtime();
+     bool update_epose_v2_service_producer();
+     bool update_epose_v2_receipt_producer();
+     bool build_epose_v2_configured_endpoint(
+         const qwertycoin::epose::consensus_parameters_v2 &parameters,
+         uint64_t sequence,
+         uint64_t expiry_epoch,
+         qwertycoin::epose::endpoint_descriptor_v2 &endpoint) const;
+     void remember_epose_v2_endpoint(
+         const qwertycoin::epose::consensus_parameters_v2 &parameters,
+         const qwertycoin::epose::endpoint_descriptor_v2 &endpoint);
+     bool epose_v2_endpoint_hash_is_canonical(
+         const crypto::hash &descriptor_hash) const;
+     bool relay_local_epose_v2_endpoint(
+         const qwertycoin::epose::consensus_parameters_v2 &parameters,
+         const qwertycoin::epose::endpoint_descriptor_v2 &endpoint);
      bool build_epose_miner_extra_nonce(blobdata& epose_extra_nonce) const;
-     bool publish_local_epose_payloads();
 
      /**
       * @brief attempts to relay any transactions in the mempool which need it
@@ -1102,7 +1155,41 @@ namespace cryptonote
      std::string m_config_folder; //!< folder to look in for configs and other files
 
      qwertycoin::epose::local_service_node_config m_epose_local_service_node_config;
-     qwertycoin::epose::attestation_pool m_epose_attestation_pool;
+     bool m_epose_v2_service_enabled = false;
+     bool m_epose_v2_service_ready = false;
+     std::string m_epose_v2_keystore_path;
+     std::string m_epose_v2_reward_address_string;
+     std::string m_epose_v2_endpoint_host;
+     uint16_t m_epose_v2_endpoint_port = 0;
+     std::vector<std::string> m_epose_v2_discovery_endpoints;
+     qwertycoin::epose::service_keystore_v2 m_epose_v2_keystore;
+     cryptonote::account_public_address m_epose_v2_reward_address{};
+     mutable std::mutex m_epose_v2_endpoint_mutex;
+     qwertycoin::epose::endpoint_descriptor_v2 m_epose_v2_endpoint{};
+     qwertycoin::epose::endpoint_descriptor_cache_v2
+         m_epose_v2_endpoint_cache{};
+     crypto::hash m_epose_v2_last_relayed_endpoint_hash{};
+     std::chrono::steady_clock::time_point
+         m_epose_v2_last_endpoint_relay{};
+     crypto::hash m_epose_v2_identity_id{};
+     uint64_t m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
+     std::vector<blobdata> m_epose_v2_pending_envelopes;
+     std::chrono::steady_clock::time_point m_epose_v2_last_submission{};
+     std::atomic<bool> m_epose_v2_producer_cancel{false};
+     std::future<std::pair<
+         qwertycoin::epose::service_producer_status_v2,
+         qwertycoin::epose::service_enrollment_v2>> m_epose_v2_producer_future;
+     struct epose_v2_receipt_job_result
+     {
+       bool accepted = false;
+       crypto::hash slot{};
+       blobdata envelope;
+     };
+     std::future<epose_v2_receipt_job_result> m_epose_v2_receipt_future;
+     uint64_t m_epose_v2_receipt_epoch = std::numeric_limits<uint64_t>::max();
+     qwertycoin::epose::receipt_retry_tracker_v2
+         m_epose_v2_receipt_retries{};
+     std::chrono::steady_clock::time_point m_epose_v2_last_receipt_attempt{};
 
      cryptonote_protocol_stub m_protocol_stub; //!< cryptonote protocol stub instance
 
@@ -1113,8 +1200,6 @@ namespace cryptonote
      epee::math_helper::once_a_time_seconds<90, false> m_block_rate_interval; //!< interval for checking block rate
      epee::math_helper::once_a_time_seconds<60*60*5, true> m_blockchain_pruning_interval; //!< interval for incremental blockchain pruning
      epee::math_helper::once_a_time_seconds<60*60*24*7, false> m_diff_recalc_interval; //!< interval for recalculating difficulties
-     epee::math_helper::once_a_time_seconds<60, false> m_epose_attestation_relay_interval;
-
      std::atomic<bool> m_starter_message_showed; //!< has the "daemon will sync now" message been shown?
 
      uint64_t m_target_blockchain_height; //!< blockchain height target

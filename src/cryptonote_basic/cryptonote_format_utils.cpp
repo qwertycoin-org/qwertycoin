@@ -565,25 +565,47 @@ namespace cryptonote
     return r;
   }
   //---------------------------------------------------------------
-  bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields)
+  namespace
   {
-    tx_extra_fields.clear();
-
-    if(tx_extra.empty())
-      return true;
-
-    binary_archive<false> ar{epee::to_span(tx_extra)};
-
-    do
+    bool parse_tx_extra_impl(
+        const std::vector<uint8_t>& tx_extra,
+        std::vector<tx_extra_field>& tx_extra_fields,
+        bool allow_epose_v2,
+        bool atomic)
     {
-      tx_extra_field field;
-      bool r = ::do_serialize(ar, field);
-      CHECK_AND_NO_ASSERT_MES_L1(r, false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
-      tx_extra_fields.push_back(field);
-    } while (!ar.eof());
-    CHECK_AND_NO_ASSERT_MES_L1(::serialization::check_stream_state(ar), false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
+      tx_extra_fields.clear();
 
-    return true;
+      if(tx_extra.empty())
+        return true;
+
+      binary_archive<false> ar{epee::to_span(tx_extra)};
+      std::vector<tx_extra_field> parsed_fields;
+      std::vector<tx_extra_field>& destination = atomic ? parsed_fields : tx_extra_fields;
+      do
+      {
+        tx_extra_field field;
+        const bool r = ::do_serialize(ar, field);
+        CHECK_AND_NO_ASSERT_MES_L1(r, false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
+        if (!allow_epose_v2 && field.type() == typeid(tx_extra_epose_v2))
+          return false;
+        destination.push_back(std::move(field));
+      } while (!ar.eof());
+      CHECK_AND_NO_ASSERT_MES_L1(::serialization::check_stream_state(ar), false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
+
+      if (atomic)
+        tx_extra_fields.swap(parsed_fields);
+      return true;
+    }
+  }
+  //---------------------------------------------------------------
+  bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2)
+  {
+    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, false);
+  }
+  //---------------------------------------------------------------
+  bool parse_tx_extra_strict(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2)
+  {
+    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, true);
   }
   //---------------------------------------------------------------
   template<typename T>
@@ -601,7 +623,7 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  bool sort_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<uint8_t> &sorted_tx_extra, bool allow_partial)
+  bool sort_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<uint8_t> &sorted_tx_extra, bool allow_partial, bool allow_epose_v2)
   {
     std::vector<tx_extra_field> tx_extra_fields;
 
@@ -625,6 +647,8 @@ namespace cryptonote
           return false;
         break;
       }
+      if (!allow_epose_v2 && field.type() == typeid(tx_extra_epose_v2))
+        return false;
       tx_extra_fields.push_back(field);
       processed = ar.getpos();
     } while (!ar.eof());
@@ -642,6 +666,7 @@ namespace cryptonote
     // sort by:
     if (!pick<tx_extra_pub_key>(nar, tx_extra_fields, TX_EXTRA_TAG_PUBKEY)) return false;
     if (!pick<tx_extra_additional_pub_keys>(nar, tx_extra_fields, TX_EXTRA_TAG_ADDITIONAL_PUBKEYS)) return false;
+    if (!pick<tx_extra_epose_v2>(nar, tx_extra_fields, TX_EXTRA_TAG_EPOSE_V2)) return false;
     if (!pick<tx_extra_nonce>(nar, tx_extra_fields, TX_EXTRA_NONCE)) return false;
     if (!pick<tx_extra_merge_mining_tag>(nar, tx_extra_fields, TX_EXTRA_MERGE_MINING_TAG)) return false;
     if (!pick<tx_extra_mysterious_minergate>(nar, tx_extra_fields, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG)) return false;
@@ -755,6 +780,18 @@ namespace cryptonote
     start_pos += len_varint_bytes;
     if (!extra_nonce.empty())
       memcpy(&tx_extra[start_pos], extra_nonce.data(), extra_nonce.size());
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool add_epose_v2_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& envelope)
+  {
+    tx_extra_field field = tx_extra_epose_v2{envelope};
+    std::ostringstream oss;
+    binary_archive<true> ar(oss);
+    if (!::do_serialize(ar, field))
+      return false;
+    const std::string serialized = oss.str();
+    tx_extra.insert(tx_extra.end(), serialized.begin(), serialized.end());
     return true;
   }
   //---------------------------------------------------------------

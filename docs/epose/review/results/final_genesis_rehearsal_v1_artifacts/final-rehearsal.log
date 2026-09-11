@@ -1,0 +1,100 @@
+Wrote /tmp/qwc-epose-final-2e118dd2c/network4/docker-compose.yml for 4 nodes
+ Network qwc-final-2e118dd2c-qwc-epose-local-net Creating 
+ Network qwc-final-2e118dd2c-qwc-epose-local-net Created 
+ Volume final4_qwc-epose-node-0-data Creating 
+ Volume final4_qwc-epose-node-0-data Created 
+ Volume final4_qwc-epose-node-0-service-identity Creating 
+ Volume final4_qwc-epose-node-0-service-identity Created 
+ Volume final4_qwc-epose-node-1-data Creating 
+ Volume final4_qwc-epose-node-1-data Created 
+ Volume final4_qwc-epose-node-1-service-identity Creating 
+ Volume final4_qwc-epose-node-1-service-identity Created 
+ Volume final4_qwc-epose-node-2-data Creating 
+ Volume final4_qwc-epose-node-2-data Created 
+ Volume final4_qwc-epose-node-2-service-identity Creating 
+ Volume final4_qwc-epose-node-2-service-identity Created 
+ Volume final4_qwc-epose-node-3-data Creating 
+ Volume final4_qwc-epose-node-3-data Created 
+ Volume final4_qwc-epose-node-3-service-identity Creating 
+ Volume final4_qwc-epose-node-3-service-identity Created 
+ Container final4-qwc-epose-node-3-1 Creating 
+ Container final4-qwc-epose-node-0-1 Creating 
+ Container final4-qwc-epose-node-1-1 Creating 
+ Container final4-qwc-epose-node-2-1 Creating 
+ Container final4-qwc-epose-node-1-1 Created 
+ Container final4-qwc-epose-node-2-1 Created 
+ Container final4-qwc-epose-node-0-1 Created 
+ Container final4-qwc-epose-node-3-1 Created 
+ Container final4-qwc-epose-node-1-1 Starting 
+ Container final4-qwc-epose-node-2-1 Starting 
+ Container final4-qwc-epose-node-3-1 Starting 
+ Container final4-qwc-epose-node-0-1 Starting 
+ Container final4-qwc-epose-node-1-1 Started 
+ Container final4-qwc-epose-node-2-1 Started 
+ Container final4-qwc-epose-node-3-1 Started 
+ Container final4-qwc-epose-node-0-1 Started 
+qwc-epose-node-0 height=1 top_hash=906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0 epose_state_hash=9aed64e793cf3c72d8099e40f988141f3bfa0017365ba37810dbd96333510c9a
+qwc-epose-node-1 height=1 top_hash=906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0 epose_state_hash=9aed64e793cf3c72d8099e40f988141f3bfa0017365ba37810dbd96333510c9a
+qwc-epose-node-2 height=1 top_hash=906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0 epose_state_hash=9aed64e793cf3c72d8099e40f988141f3bfa0017365ba37810dbd96333510c9a
+qwc-epose-node-3 height=1 top_hash=906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0 epose_state_hash=9aed64e793cf3c72d8099e40f988141f3bfa0017365ba37810dbd96333510c9a
+qwc-epose-node-0 height=1441 epose_enabled=true service_node_count=4 qualified_count=0 local_registered=true epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-1 height=1441 epose_enabled=true service_node_count=4 qualified_count=0 local_registered=true epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-2 height=1441 epose_enabled=true service_node_count=4 qualified_count=0 local_registered=true epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-3 height=1441 epose_enabled=true service_node_count=4 qualified_count=0 local_registered=true epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-0 height=1441 epoch=1 service_reward_active=false qualified_count=4 expected_payee=
+qwc-epose-node-1 height=1441 epoch=1 service_reward_active=false qualified_count=4 expected_payee=
+qwc-epose-node-2 height=1441 epoch=1 service_reward_active=false qualified_count=4 expected_payee=
+qwc-epose-node-3 height=1441 epoch=1 service_reward_active=false qualified_count=4 expected_payee=
+ Container final4-qwc-epose-node-2-1 Stopping 
+ Container final4-qwc-epose-node-0-1 Stopping 
+ Container final4-qwc-epose-node-1-1 Stopping 
+ Container final4-qwc-epose-node-3-1 Stopping 
+ Container final4-qwc-epose-node-3-1 Stopped 
+ Container final4-qwc-epose-node-3-1 Removing 
+ Container final4-qwc-epose-node-3-1 Removed 
+ Container final4-qwc-epose-node-0-1 Stopped 
+ Container final4-qwc-epose-node-0-1 Removing 
+ Container final4-qwc-epose-node-0-1 Removed 
+ Container final4-qwc-epose-node-2-1 Stopped 
+ Container final4-qwc-epose-node-2-1 Removing 
+ Container final4-qwc-epose-node-2-1 Removed 
+ Container final4-qwc-epose-node-1-1 Stopped 
+ Container final4-qwc-epose-node-1-1 Removing 
+ Container final4-qwc-epose-node-1-1 Removed 
+ Network qwc-final-2e118dd2c-qwc-epose-local-net Removing 
+ Network qwc-final-2e118dd2c-qwc-epose-local-net Removed 
+ Network qwc-final-2e118dd2c-qwc-epose-local-net Creating 
+ Network qwc-final-2e118dd2c-qwc-epose-local-net Created 
+ Container final4-qwc-epose-node-3-1 Creating 
+ Container final4-qwc-epose-node-1-1 Creating 
+ Container final4-qwc-epose-node-0-1 Creating 
+ Container final4-qwc-epose-node-2-1 Creating 
+ Container final4-qwc-epose-node-0-1 Created 
+ Container final4-qwc-epose-node-1-1 Created 
+ Container final4-qwc-epose-node-2-1 Created 
+ Container final4-qwc-epose-node-3-1 Created 
+ Container final4-qwc-epose-node-1-1 Starting 
+ Container final4-qwc-epose-node-2-1 Starting 
+ Container final4-qwc-epose-node-3-1 Starting 
+ Container final4-qwc-epose-node-0-1 Starting 
+ Container final4-qwc-epose-node-0-1 Started 
+ Container final4-qwc-epose-node-1-1 Started 
+ Container final4-qwc-epose-node-3-1 Started 
+ Container final4-qwc-epose-node-2-1 Started 
+qwc-epose-node-0 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-1 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-2 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-3 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-final-2e118dd2c-qwc-epose-fresh-sync height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-0 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-1 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-2 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-3 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-0 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-1 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-2 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+qwc-epose-node-3 height=1441 top_hash=65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f epose_state_hash=fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714
+Qwertycoin 'QWC v2 Mainnet' (v2.0.0-2e118dd2c)
+Qwertycoin 'QWC v2 Mainnet' (v2.0.0-2e118dd2c)
+Qwertycoin 'QWC v2 Mainnet' (v2.0.0-2e118dd2c)
+Qwertycoin 'QWC v2 Mainnet' (v2.0.0-2e118dd2c)

@@ -145,7 +145,10 @@ class RPCPaymentTest():
         res = daemon.rpc_access_info(client = self.get_signature())
         assert len(res.hashing_blob) > 39
         assert res.height == 1
-        assert res.top_hash == '418015bb9ae982a1975da7d79277c2705727a56894ba0fb246adaabb1f4632e3'
+        # The paid RPC rejects unsigned block-header calls, so compare with the
+        # same regtest genesis exposed by the unrestricted fixture daemon.
+        genesis = Daemon().getblockheaderbyheight(0)
+        assert res.top_hash == genesis.block_header.hash
         assert res.credits_per_hash_found == 5000
         assert res.diff == 10
         assert res.credits == 0
@@ -361,7 +364,7 @@ class RPCPaymentTest():
         assert res.credits == credits - 1
         credits = res.credits
 
-        res = daemon.generateblocks('42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm', 100)
+        res = daemon.generateblocks('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh', 100)
         block_hashes = res.blocks
 
         # ask for 1 block -> 1 credit

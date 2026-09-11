@@ -2,10 +2,8 @@
 
 These files start a Qwertycoin v2 EPoSE mainnet seed with one shared Docker
 Compose definition and one host-specific env file. `QWC_REWARD_ADDRESS` is the
-public reward address embedded in new service-node registrations.
-`QWC_REWARD_VIEW_KEY` is the reward wallet private view key disclosed for
-consensus reward validation. It does not allow spending, but it makes incoming
-reward activity observable.
+public reward address embedded in new service registrations. The hardened v2
+path never takes or discloses a reward private view key.
 
 The release-candidate launch profile expects a node image built from the current
 release branch and tagged as:
@@ -55,14 +53,24 @@ Use the matching env file for each host:
 - `seed-00.env` for `seed-00.qwertycoin.org`
 - `seed-01.env` for `seed-01.qwertycoin.org`
 - `seed-02.env` for `seed-02.qwertycoin.org`
+- `seed-03.env` for `seed-03.qwertycoin.org`
 
 Before starting a public node, replace the `CHANGE_ME_*` values in the host env
 file with operator-specific values. Do not commit real operator reward
-addresses, reward view keys, or private host details to this repository.
+addresses, wallet secrets, keystore contents, or private host details to this
+repository.
 
-The service-node identity key is stored outside the chain volume at
-`QWC_SERVICE_NODE_KEY_PATH`, mounted through `QWC_IDENTITY_VOLUME`. Keep that
-identity volume during chain resets.
+The genesis- and parameter-bound v2 operator/service keystore is stored outside
+the chain volume at `QWC_EPOSE_V2_KEYSTORE_PATH`, mounted through
+`QWC_IDENTITY_VOLUME`. A distinct final-launch genesis requires a newly bound
+keystore; do not copy an older v1 identity into this path.
+
+The unrestricted admin RPC is published only on loopback at port 8197. The
+restricted listener is intentionally public at port 8198 so assigned committee
+members can fetch signed endpoint descriptors and answer bounded service
+challenges. It must not expose `/submit_epose_envelope`; that method belongs only
+to the unrestricted listener. `QWC_EPOSE_V2_DISCOVERY_ENDPOINTS` is the
+comma-separated rehearsal allowlist.
 
 ## Bootstrap Modes
 

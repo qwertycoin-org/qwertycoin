@@ -55,8 +55,8 @@ class MessageSigningTest():
             'peeled mixture ionic radar utopia puddle buying illness nuns gadget river spout cavernous bounced paradise drunk looking cottage jump tequila melting went winter adjust spout',
         ]
         self.address = [
-            '42ey1afDFnn4886T7196doS9GPMzexD9gXpsZJDwVjeRVdFCSoHnv7KPbBeGpzJBzHRCAs9UxqeoyFQMYbqSWYTfJJQAWDm',
-            '44Kbx4sJ7JDRDV5aAhLJzQCjDz2ViLRduE3ijDZu3osWKBjMGkV1XPk4pfDUMqt1Aiezvephdqm6YD19GKFD9ZcXVUTp6BW',
+            'QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh',
+            'QWC1MH8Mit9fVkUZ8JUmeLXZoSGZ4EyTx6mrfkDUazq5361xT7VQsp7ZugqtNJamRQYBXF8jf3Sq1Z2ETh4jMpnnA4yBYckQv9',
         ]
         self.wallet = [None, None]
         for i in range(2):

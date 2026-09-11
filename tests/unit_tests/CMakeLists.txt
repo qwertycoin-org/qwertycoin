@@ -51,6 +51,10 @@ set(unit_tests_sources
   epee_http_server.cpp
   epee_serialization.cpp
   epose.cpp
+  epose_canonical_service_v2.cpp
+  epose_coordinator_v2.cpp
+  epose_block_transition_v2.cpp
+  epose_replay_v2.cpp
   epee_utils.cpp
   expect.cpp
   fee.cpp
@@ -155,6 +159,22 @@ add_test(
 
 monero_add_minimal_executable(epose_unit_tests
   epose.cpp
+  epose_block_transition_v2.cpp
+  epose_replay_v2.cpp
+  epose_canonical_service_v2.cpp
+  epose_coordinator_v2.cpp
+  epose_envelope_v2.cpp
+  epose_hardfork_migration_v2.cpp
+  epose_lifecycle_v2.cpp
+  epose_reward_v2.cpp
+  epose_resource_policy_v2.cpp
+  epose_service_keystore_v2.cpp
+  epose_service_producer_v2.cpp
+  epose_relay_pool_v2.cpp
+  epose_semantic_batch_v2.cpp
+  epose_state_index_v2.cpp
+  epose_v2.cpp
+  epose_receipts_v2.cpp
   epose_main.cpp)
 target_link_libraries(epose_unit_tests
   PRIVATE
@@ -225,3 +245,4 @@ set_property(TARGET epose_sybil_sim
 monero_add_minimal_executable(test_notifier test_notifier.cpp)
 target_link_libraries(test_notifier ${EXTRA_LIBRARIES})
 set_property(TARGET test_notifier PROPERTY FOLDER "tests")
+add_dependencies(unit_tests test_notifier)

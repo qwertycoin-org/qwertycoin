@@ -8,12 +8,14 @@ Precondition: service identities are cheap.
 
 Impact: service rewards concentrate with the attacker.
 
-Current Protection: RandomX-bound, identity-scoped admission work makes
-identities non-free; duplicate attestations count once.
+Current Protection: HF17 uses RandomX-bound, identity-scoped admission work and
+counts duplicate attestations once. The non-activating v2 pipeline freezes
+future-epoch membership before selection.
 
-Residual Risk: the current 16-leading-zero-bit target is calibrated to the
-measured light-mode admission solver. A future optimized solver could make
-identities cheaper and would require recalibration.
+Residual Risk: the current 16-leading-zero-bit target was measured only with a
+slow light-mode solver and can buy a long eligibility interval. It is not an
+approved economic Sybil cost. Optimized steady-state x86-64/ARM64 and shared
+dataset measurements remain mandatory.
 
 Test: simulate large identity sets and verify reward rotation, bounded state, and cost assumptions.
 
@@ -39,9 +41,14 @@ Precondition: committee selection can be predicted or dominated.
 
 Impact: unserved identities earn rewards.
 
-Current Protection: epoch seed must come from finalized block data, not participant-chosen data. The target committee size is 9, and qualification requires `ceil(actual_committee_size * 2 / 3)` valid verifier attestations.
+Current Protection: HF17 derives its seed from delayed block data. The
+non-activating v2 pipeline freezes membership before its anchor and refuses to
+shrink committee or threshold when the eligible set is too small.
 
-Residual Risk: small testnets still have limited committee diversity because the actual committee is capped by the active node set. Corrected deterministic simulations show that the old 5-verifier committee with fixed threshold 2 was too weak for mainnet assumptions at high controlled-identity shares; committee 9 with dynamic 2/3 quorum substantially reduces full attacker committee exposure.
+Residual Risk: a delayed PoW hash is not final or unbiased, and identities are
+not independent operators. The previous committee-9 dynamic-quorum conclusion
+is superseded for parameter selection. `SECURITY_PARAMETERS.md` quantifies the
+capture/liveness trade-off and leaves all v2 constants unapproved.
 
 Test: collusion simulation with attacker-controlled fractions of the registered set.
 

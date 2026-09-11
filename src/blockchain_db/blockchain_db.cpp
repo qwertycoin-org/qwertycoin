@@ -254,6 +254,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
                                 , const difficulty_type& cumulative_difficulty
                                 , const uint64_t& coins_generated
                                 , const std::vector<std::pair<transaction, blobdata>>& txs
+                                , const epose_state_commitment_v2 *epose_commitment
                                 )
 {
   const block &blk = blck.first;
@@ -266,6 +267,13 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
   crypto::hash blk_hash = get_block_hash(blk);
   TIME_MEASURE_FINISH(time1);
   time_blk_hash += time1;
+
+  if (epose_commitment != nullptr
+      && (epose_commitment->schema_version != EPOSE_STATE_COMMITMENT_SCHEMA_V2
+          || epose_commitment->block_hash != blk_hash
+          || epose_commitment->state_hash == crypto::null_hash
+          || epose_commitment->parameter_set_hash == crypto::null_hash))
+    throw std::runtime_error("Invalid EPoSE v2 state commitment");
 
   uint64_t prev_height = height();
 
@@ -297,6 +305,8 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
   // call out to subclass implementation to add the block & metadata
   time1 = epee::misc_utils::get_tick_count();
   add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, num_rct_outs, blk_hash);
+  if (epose_commitment != nullptr)
+    add_epose_state_commitment_v2(prev_height, *epose_commitment);
   TIME_MEASURE_FINISH(time1);
   time_add_block1 += time1;
 
@@ -316,7 +326,12 @@ void BlockchainDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
   blk = get_top_block();
 
+  const uint64_t current_height = height();
+  if (current_height == 0)
+    throw DB_ERROR("Cannot pop a block from an empty database");
+
   remove_block();
+  remove_epose_state_commitment_v2(current_height - 1);
 
   for (const auto& h : boost::adaptors::reverse(blk.tx_hashes))
   {

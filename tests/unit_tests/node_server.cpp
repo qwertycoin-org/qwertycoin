@@ -77,6 +77,8 @@ public:
   void get_blockchain_top(uint64_t& height, crypto::hash& top_id)const{height=0;top_id=crypto::null_hash;}
   bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, cryptonote::relay_method tx_relay, bool relayed) { return true; }
   bool handle_incoming_epose_payloads(const std::vector<cryptonote::blobdata>& registration_blobs, const std::vector<cryptonote::blobdata>& attestation_blobs, std::vector<cryptonote::blobdata>& accepted_registration_blobs, std::vector<cryptonote::blobdata>& accepted_attestation_blobs) { accepted_registration_blobs = registration_blobs; accepted_attestation_blobs = attestation_blobs; return true; }
+  bool handle_incoming_epose_envelopes_v2(const std::vector<cryptonote::blobdata>& envelopes, std::vector<cryptonote::blobdata>& accepted_envelopes) { accepted_envelopes = envelopes; return true; }
+  bool handle_incoming_epose_endpoints_v2(const std::vector<cryptonote::blobdata>& descriptors, std::vector<cryptonote::blobdata>& accepted_descriptors) { accepted_descriptors = descriptors; return true; }
   bool handle_single_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *b, cryptonote::block_verification_context& bvc, cryptonote::pool_supplement& extra_block_txs, bool update_miner_blocktemplate = true) { return true; }
   bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, bool update_miner_blocktemplate = true) { return true; }
   bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, cryptonote::pool_supplement& extra_block_txs, bool update_miner_blocktemplate = true) { return true; }
@@ -586,7 +588,10 @@ TEST(cryptonote_protocol_handler, race_condition)
       reward,
       hardfork
     );
-    block.miner_tx.vout.push_back(cryptonote::tx_out{reward, cryptonote::txout_to_key{}});
+    if (hardfork > HF_VERSION_VIEW_TAGS)
+      block.miner_tx.vout.push_back(cryptonote::tx_out{reward, cryptonote::txout_to_tagged_key{}});
+    else
+      block.miner_tx.vout.push_back(cryptonote::tx_out{reward, cryptonote::txout_to_key{}});
     diff = storage.get_difficulty_for_next_block();
   };
   struct stat {
@@ -795,6 +800,7 @@ TEST(cryptonote_protocol_handler, race_condition)
           boost::program_options::command_line_parser({
             "--data-dir",
             (dir / "main").string(),
+            "--regtest",
             "--disable-dns-checkpoints",
             "--check-updates=disabled",
             "--fixed-difficulty=1",
@@ -822,6 +828,7 @@ TEST(cryptonote_protocol_handler, race_condition)
           boost::program_options::command_line_parser({
             "--data-dir",
             (dir / "alt").string(),
+            "--regtest",
             "--disable-dns-checkpoints",
             "--check-updates=disabled",
             "--fixed-difficulty=1",

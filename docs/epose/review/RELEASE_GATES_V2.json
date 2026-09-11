@@ -1,0 +1,132 @@
+{
+  "gates": [
+    {
+      "evidence": [
+        {
+          "artifact_ref": "sha256:4b509264854a28c0bc0d9b784c6dedf3db4eb3d70f70fd7014ba31668588dae4",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/final_artifact_binding_v1.json",
+          "result": "pass",
+          "sha256": "4b509264854a28c0bc0d9b784c6dedf3db4eb3d70f70fd7014ba31668588dae4",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        }
+      ],
+      "id": "source_and_invariant_baseline",
+      "state": "satisfied",
+      "summary": "The signed exact-source binding records the Git tree, canonical manifest, final genesis, runtime versions, binary hashes, image identity, and deterministic Linux bundle.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "normative_transition_specification",
+      "state": "blocked",
+      "summary": "Specification requires corrected activation, transcript, manifest and differential-vector evidence before satisfaction.",
+      "references": null
+    },
+    {
+      "evidence": [
+        {
+          "artifact_ref": "sha256:19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/final_genesis_rehearsal_v1.json",
+          "result": "pass",
+          "sha256": "19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        }
+      ],
+      "id": "consensus_handler_integration",
+      "state": "satisfied",
+      "summary": "The exact final-genesis candidate exercised canonical enrollment, qualification, the height-1440 reward path, state convergence, restart persistence, and replay through the integrated HF17 coordinator.",
+      "references": null
+    },
+    {
+      "evidence": [
+        {
+          "artifact_ref": "sha256:19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/final_genesis_rehearsal_v1.json",
+          "result": "pass",
+          "sha256": "19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        },
+        {
+          "artifact_ref": "sha256:1d484a9a56e91b34d46dac58d3db1fba075ca6401ee6e37f080774a311a41d7d",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/security_parameters_v1.json",
+          "result": "pass",
+          "sha256": "1d484a9a56e91b34d46dac58d3db1fba075ca6401ee6e37f080774a311a41d7d",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        }
+      ],
+      "id": "approved_security_parameters",
+      "state": "satisfied",
+      "summary": "The frozen 18-bit admission, dynamic 2-of-3 bootstrap quorum, three-round/two-required profile, population ceiling, and reward ratio passed the exact-genesis four-node rehearsal; continuing measurements remain post-launch obligations.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "reward_and_emission_decision",
+      "state": "blocked",
+      "summary": "The rehearsal candidate fixes 10% subsidy-only service rewards, actual-issued-subsidy accounting and miner fallback for an empty qualification set; integrated emission, payout and wallet evidence is still missing.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "independent_payment_proof_review",
+      "state": "not_run",
+      "summary": "The scoped payment-proof candidate has not received independent cryptographic review.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "atomic_lmdb_and_pruning",
+      "state": "blocked",
+      "summary": "Same-transaction LMDB commitments, bounded disconnect and canonical startup/deep replay are implemented; process-crash fault injection, full reorg integration and the declared pruning mode remain unproved.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "network_and_rpc_resource_integration",
+      "state": "blocked",
+      "summary": "Typed P2P ingress and an embedded rehearsal relay/template policy now provide bounded canonical admission and deterministic template insertion; live canonical service probing, multi-node propagation, DNS-race coverage and sustained-load measurements remain open.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "four_node_consensus_convergence",
+      "state": "blocked",
+      "summary": "Exact-candidate four-node admission, enrollment, qualification, height-1440 reward convergence, restart persistence and fresh-genesis replay passed; exact-candidate partition/heal and payout-boundary deep-reorg evidence remain open.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "wallet_funds_safety_e2e",
+      "state": "not_run",
+      "summary": "Maturity, spend, recipient receipt, rescan, repeated output uniqueness, and reward-fork replacement are not proven on final binaries.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "reproducible_release_matrix",
+      "state": "not_run",
+      "summary": "Exact-source Linux binaries, Docker identity, checksums and a deterministic bundle are bound; macOS Apple Silicon and the complete dependency/release matrix remain open.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "independent_consensus_review",
+      "state": "not_run",
+      "summary": "No independent adversarial review of the integrated hardened protocol exists.",
+      "references": null
+    },
+    {
+      "evidence": [],
+      "id": "signed_activation_manifest",
+      "state": "blocked",
+      "summary": "The activation manifest now binds the final-launch genesis, exact source and Linux candidate artifacts, but a signed standalone release manifest and the complete final binary matrix remain open.",
+      "references": null
+    }
+  ],
+  "overall_status": "no-go",
+  "schema_version": 2
+}

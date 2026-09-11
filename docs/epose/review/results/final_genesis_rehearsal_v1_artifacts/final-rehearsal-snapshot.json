@@ -1,0 +1,42 @@
+[
+  {
+    "node": 0,
+    "height": 1441,
+    "top_hash": "65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f",
+    "version": "2.0.0-2e118dd2c",
+    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+    "state_hash": "fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714",
+    "reward_epoch": 1,
+    "reward_qualified_count": 4
+  },
+  {
+    "node": 1,
+    "height": 1441,
+    "top_hash": "65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f",
+    "version": "2.0.0-2e118dd2c",
+    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+    "state_hash": "fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714",
+    "reward_epoch": 1,
+    "reward_qualified_count": 4
+  },
+  {
+    "node": 2,
+    "height": 1441,
+    "top_hash": "65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f",
+    "version": "2.0.0-2e118dd2c",
+    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+    "state_hash": "fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714",
+    "reward_epoch": 1,
+    "reward_qualified_count": 4
+  },
+  {
+    "node": 3,
+    "height": 1441,
+    "top_hash": "65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f",
+    "version": "2.0.0-2e118dd2c",
+    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+    "state_hash": "fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714",
+    "reward_epoch": 1,
+    "reward_qualified_count": 4
+  }
+]

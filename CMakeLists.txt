@@ -1083,7 +1083,9 @@ if(STATIC)
 endif()
 
 # Find Boost headers
-set(BOOST_MIN_VER 1.62)
+# boost::asio::ip::make_address is used in daemon/RPC/common and EPoSE input
+# validation. It is the non-deprecated API available from Boost 1.66 onward.
+set(BOOST_MIN_VER 1.66)
 find_package(Boost ${BOOST_MIN_VER} QUIET REQUIRED)
 
 if(NOT Boost_FOUND)
@@ -1110,6 +1112,19 @@ elseif(Boost_FOUND)
   set(CMAKE_FIND_LIBRARY_SUFFIXES ${OLD_LIB_SUFFIXES})
 endif()
 
+# Model Boost.Filesystem's platform dependencies as part of the library itself.
+# Recent static MinGW builds implement boost::filesystem::unique_path with the
+# Windows CNG BCrypt API, so bcrypt must follow the filesystem archive in the
+# final link order.  Keeping bcrypt in EXTRA_LIBRARIES is insufficient because
+# CMake can place those generic system libraries before transitive static Boost
+# archives (notably when linking wallet_rpc_server).
+add_library(qwc_boost_filesystem INTERFACE)
+target_link_libraries(qwc_boost_filesystem INTERFACE ${Boost_FILESYSTEM_LIBRARY})
+if(MINGW)
+  target_link_libraries(qwc_boost_filesystem INTERFACE bcrypt)
+endif()
+set(Boost_FILESYSTEM_LIBRARY qwc_boost_filesystem)
+
 add_definitions(-DBOOST_ASIO_ENABLE_SEQUENTIAL_STRAND_ALLOCATION)
 add_definitions(-DBOOST_NO_AUTO_PTR)
 add_definitions(-DBOOST_UUID_DISABLE_ALIGNMENT) # This restores UUID's std::has_unique_object_representations property
@@ -1117,7 +1132,7 @@ add_definitions(-DBOOST_UUID_DISABLE_ALIGNMENT) # This restores UUID's std::has_
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
-  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
+  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32)
   if(DEPENDS)
     set(ICU_LIBRARIES icuio icui18n icuuc icudata icutu iconv)
   else()

@@ -1,0 +1,182 @@
+services:
+  qwc-epose-node-0:
+    image: qwertycoin-v2-node:epose-final-2e118dd2c
+    entrypoint: ["/usr/local/bin/qwertycoind"]
+    command:
+      - --non-interactive
+      - --p2p-bind-ip=0.0.0.0
+      - --p2p-bind-port=8196
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=8197
+      - --confirm-external-bind
+      - --no-igd
+      - --hide-my-port
+      - --disable-dns-checkpoints
+      - --fixed-difficulty=1
+      - --epose-v2-service
+      - --epose-v2-keystore=/service-node/epose-v2-keystore
+      - --epose-v2-reward-address=QWC1fGDnm8EVSfVVGp55GEdVqDpWjzpAXhSX4VHBz8xqLwvAC9HTWaSEy3rTvyLW7f9meNKDL4sKAJ46UYmPUaa68q7pouWt57
+      - --epose-v2-endpoint-host=qwc-epose-node-0.epose.test
+      - --epose-v2-endpoint-port=8198
+      - --rpc-restricted-bind-ip=0.0.0.0
+      - --rpc-restricted-bind-port=8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-1.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-2.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-3.epose.test:8198
+    environment:
+      MONERO_RANDOMX_UMASK: "4"
+    volumes:
+      # The runtime image runs as user qwertycoin.  Mount the durable chain
+      # volume at its actual default data directory; mounting /root here makes
+      # Docker silently allocate an anonymous /home/qwertycoin/.qwertycoin
+      # volume which is detached by container recreation.
+      - qwc-epose-node-0-data:/home/qwertycoin/.qwertycoin
+      - qwc-epose-node-0-service-identity:/service-node
+    networks:
+      qwc-epose-local-net:
+        aliases:
+          - qwc-epose-node-0.epose.test
+
+  qwc-epose-node-1:
+    image: qwertycoin-v2-node:epose-final-2e118dd2c
+    entrypoint: ["/usr/local/bin/qwertycoind"]
+    command:
+      - --non-interactive
+      - --p2p-bind-ip=0.0.0.0
+      - --p2p-bind-port=8196
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=8197
+      - --confirm-external-bind
+      - --no-igd
+      - --hide-my-port
+      - --disable-dns-checkpoints
+      - --fixed-difficulty=1
+      - --epose-v2-service
+      - --epose-v2-keystore=/service-node/epose-v2-keystore
+      - --epose-v2-reward-address=QWC1fGDnm8EVSfVVGp55GEdVqDpWjzpAXhSX4VHBz8xqLwvAC9HTWaSEy3rTvyLW7f9meNKDL4sKAJ46UYmPUaa68q7pouWt57
+      - --epose-v2-endpoint-host=qwc-epose-node-1.epose.test
+      - --epose-v2-endpoint-port=8198
+      - --rpc-restricted-bind-ip=0.0.0.0
+      - --rpc-restricted-bind-port=8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-0.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-2.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-3.epose.test:8198
+      - --add-priority-node=qwc-epose-node-0:8196
+    environment:
+      MONERO_RANDOMX_UMASK: "4"
+    volumes:
+      # The runtime image runs as user qwertycoin.  Mount the durable chain
+      # volume at its actual default data directory; mounting /root here makes
+      # Docker silently allocate an anonymous /home/qwertycoin/.qwertycoin
+      # volume which is detached by container recreation.
+      - qwc-epose-node-1-data:/home/qwertycoin/.qwertycoin
+      - qwc-epose-node-1-service-identity:/service-node
+    networks:
+      qwc-epose-local-net:
+        aliases:
+          - qwc-epose-node-1.epose.test
+
+  qwc-epose-node-2:
+    image: qwertycoin-v2-node:epose-final-2e118dd2c
+    entrypoint: ["/usr/local/bin/qwertycoind"]
+    command:
+      - --non-interactive
+      - --p2p-bind-ip=0.0.0.0
+      - --p2p-bind-port=8196
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=8197
+      - --confirm-external-bind
+      - --no-igd
+      - --hide-my-port
+      - --disable-dns-checkpoints
+      - --fixed-difficulty=1
+      - --epose-v2-service
+      - --epose-v2-keystore=/service-node/epose-v2-keystore
+      - --epose-v2-reward-address=QWC1fGDnm8EVSfVVGp55GEdVqDpWjzpAXhSX4VHBz8xqLwvAC9HTWaSEy3rTvyLW7f9meNKDL4sKAJ46UYmPUaa68q7pouWt57
+      - --epose-v2-endpoint-host=qwc-epose-node-2.epose.test
+      - --epose-v2-endpoint-port=8198
+      - --rpc-restricted-bind-ip=0.0.0.0
+      - --rpc-restricted-bind-port=8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-0.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-1.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-3.epose.test:8198
+      - --add-priority-node=qwc-epose-node-0:8196
+      - --add-priority-node=qwc-epose-node-1:8196
+    environment:
+      MONERO_RANDOMX_UMASK: "4"
+    volumes:
+      # The runtime image runs as user qwertycoin.  Mount the durable chain
+      # volume at its actual default data directory; mounting /root here makes
+      # Docker silently allocate an anonymous /home/qwertycoin/.qwertycoin
+      # volume which is detached by container recreation.
+      - qwc-epose-node-2-data:/home/qwertycoin/.qwertycoin
+      - qwc-epose-node-2-service-identity:/service-node
+    networks:
+      qwc-epose-local-net:
+        aliases:
+          - qwc-epose-node-2.epose.test
+
+  qwc-epose-node-3:
+    image: qwertycoin-v2-node:epose-final-2e118dd2c
+    entrypoint: ["/usr/local/bin/qwertycoind"]
+    command:
+      - --non-interactive
+      - --p2p-bind-ip=0.0.0.0
+      - --p2p-bind-port=8196
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=8197
+      - --confirm-external-bind
+      - --no-igd
+      - --hide-my-port
+      - --disable-dns-checkpoints
+      - --fixed-difficulty=1
+      - --epose-v2-service
+      - --epose-v2-keystore=/service-node/epose-v2-keystore
+      - --epose-v2-reward-address=QWC1fGDnm8EVSfVVGp55GEdVqDpWjzpAXhSX4VHBz8xqLwvAC9HTWaSEy3rTvyLW7f9meNKDL4sKAJ46UYmPUaa68q7pouWt57
+      - --epose-v2-endpoint-host=qwc-epose-node-3.epose.test
+      - --epose-v2-endpoint-port=8198
+      - --rpc-restricted-bind-ip=0.0.0.0
+      - --rpc-restricted-bind-port=8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-0.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-1.epose.test:8198
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-2.epose.test:8198
+      - --add-priority-node=qwc-epose-node-0:8196
+      - --add-priority-node=qwc-epose-node-1:8196
+      - --add-priority-node=qwc-epose-node-2:8196
+    environment:
+      MONERO_RANDOMX_UMASK: "4"
+    volumes:
+      # The runtime image runs as user qwertycoin.  Mount the durable chain
+      # volume at its actual default data directory; mounting /root here makes
+      # Docker silently allocate an anonymous /home/qwertycoin/.qwertycoin
+      # volume which is detached by container recreation.
+      - qwc-epose-node-3-data:/home/qwertycoin/.qwertycoin
+      - qwc-epose-node-3-service-identity:/service-node
+    networks:
+      qwc-epose-local-net:
+        aliases:
+          - qwc-epose-node-3.epose.test
+
+networks:
+  qwc-epose-local-net:
+    driver: bridge
+    name: qwc-final-2e118dd2c-qwc-epose-local-net
+    internal: true
+  qwc-epose-partition-a:
+    driver: bridge
+    name: qwc-final-2e118dd2c-qwc-epose-partition-a
+    internal: true
+  qwc-epose-partition-b:
+    driver: bridge
+    name: qwc-final-2e118dd2c-qwc-epose-partition-b
+    internal: true
+
+volumes:
+  qwc-epose-node-0-data:
+  qwc-epose-node-0-service-identity:
+  qwc-epose-node-1-data:
+  qwc-epose-node-1-service-identity:
+  qwc-epose-node-2-data:
+  qwc-epose-node-2-service-identity:
+  qwc-epose-node-3-data:
+  qwc-epose-node-3-service-identity:

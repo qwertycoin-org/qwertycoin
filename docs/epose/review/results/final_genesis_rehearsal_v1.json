@@ -1,0 +1,130 @@
+{
+  "schema": "qwertycoin.epose.final-genesis-rehearsal.v1",
+  "evaluated_at_utc": "2026-09-11T19:08:18Z",
+  "status": "pass",
+  "source": {
+    "revision": "2e118dd2cca468ae52fec5c9c30e33673e312043",
+    "tree": "13cc0a993e36ae1e7447dbdc93d87ad127cc0045"
+  },
+  "manifest": {
+    "path": "docs/epose/PARAMETER_MANIFEST_V2.json",
+    "canonical_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+    "file_sha256": "fbc050cdbd015903619d62ab89c212c7ffabcfad36472100c080b6acda006e26"
+  },
+  "candidate": {
+    "version": "2.0.0-2e118dd2c",
+    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+    "admission_leading_zero_bits": 18,
+    "node_count": 4,
+    "service_node_count": 4,
+    "reward_height": 1440,
+    "reward_source_epoch": 1
+  },
+  "checks": {
+    "genuine_admissions": {
+      "status": "pass",
+      "completed": 4,
+      "required": 4
+    },
+    "qualified_reward_source": {
+      "status": "pass",
+      "epoch": 1,
+      "qualified_nodes": 4,
+      "convergent_nodes": 4
+    },
+    "canonical_reward": {
+      "status": "pass",
+      "height": 1440,
+      "convergent_nodes": 4,
+      "assertion": "all nodes expose the same reward view and the canonical coinbase contains a service payment"
+    },
+    "restart_persistence": {
+      "status": "pass",
+      "convergent_nodes": 4
+    },
+    "fresh_genesis_replay": {
+      "status": "pass",
+      "height": 1441,
+      "top_hash": "65e430463b9cf15be985b65840ef7bbc01a0cfc8952a9e9f1cef7d24e1ec947f",
+      "epose_state_hash": "fa57186688ddde57f48d615cb2daf26cb8a320e8107244e156bcc5fe6aeff714"
+    },
+    "oom_guard": {
+      "status": "pass",
+      "minimum_available_mib": 3083,
+      "oom_events": 0
+    },
+    "production_rehearsal_unchanged": {
+      "status": "pass",
+      "height": 1505,
+      "top_hash": "d7962b050e3bc87f8b5f9d6da2e348671e59db668527d47b0273ad9181a4f40c",
+      "convergent_nodes": 4
+    }
+  },
+  "evidence_artifacts": [
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/SHA256SUMS",
+      "sha256": "f07ea4c063b5fdb16981f0b6bcd5d657e85a3450a1496ed259f48088d4e6bb01",
+      "artifact_ref": "sha256:f07ea4c063b5fdb16981f0b6bcd5d657e85a3450a1496ed259f48088d4e6bb01"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/admission-completions.txt",
+      "sha256": "28c27754a63f4b0e411cdc57b6d67f9a418e4a50869fd8e1e6180565dc17ecca",
+      "artifact_ref": "sha256:28c27754a63f4b0e411cdc57b6d67f9a418e4a50869fd8e1e6180565dc17ecca"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/docker-compose.yml",
+      "sha256": "486b7cdd8c59e83b86e89d305795eacabefd4516d5f86b97a45de0a33e96ed13",
+      "artifact_ref": "sha256:486b7cdd8c59e83b86e89d305795eacabefd4516d5f86b97a45de0a33e96ed13"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/final-rehearsal-resume.sh",
+      "sha256": "b74c0361ff1885175f4a3680da2db76df71e516fccc59ced91579918c1320a26",
+      "artifact_ref": "sha256:b74c0361ff1885175f4a3680da2db76df71e516fccc59ced91579918c1320a26"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/final-rehearsal-runner.sh",
+      "sha256": "10cc3c744079fd588b305327265522468397fd98a344c548243229b0a449332d",
+      "artifact_ref": "sha256:10cc3c744079fd588b305327265522468397fd98a344c548243229b0a449332d"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/final-rehearsal-snapshot.json",
+      "sha256": "e8464bb5b4ecd5cf171f080abc1f2cd31782e2feade9ab97fe9406ba1b42bc11",
+      "artifact_ref": "sha256:e8464bb5b4ecd5cf171f080abc1f2cd31782e2feade9ab97fe9406ba1b42bc11"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/final-rehearsal.log",
+      "sha256": "6c7f89fa84b689984cba28c13c0706aa0a13379d6d0bc159855924dc586d3dc1",
+      "artifact_ref": "sha256:6c7f89fa84b689984cba28c13c0706aa0a13379d6d0bc159855924dc586d3dc1"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/final-rehearsal.status",
+      "sha256": "033647de2f32087a4dbcc0fb5de6add71075880a8dbb970ab4aeada1293a537c",
+      "artifact_ref": "sha256:033647de2f32087a4dbcc0fb5de6add71075880a8dbb970ab4aeada1293a537c"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/gate.env",
+      "sha256": "16024e6f8dc2c756ea5c615b813af776fba65e10be212bedef167661953defa7",
+      "artifact_ref": "sha256:16024e6f8dc2c756ea5c615b813af776fba65e10be212bedef167661953defa7"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/local_epose_network.sh",
+      "sha256": "dfc49368d06bb1b247928b12731a2ff56f47e80d093dcd246438ab947c98f8d4",
+      "artifact_ref": "sha256:dfc49368d06bb1b247928b12731a2ff56f47e80d093dcd246438ab947c98f8d4"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/oom-guard.log",
+      "sha256": "9e72034fc52ac421f0a040355bd0e3a5ba940e5791aae063eb309b246eb02ca2",
+      "artifact_ref": "sha256:9e72034fc52ac421f0a040355bd0e3a5ba940e5791aae063eb309b246eb02ca2"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/oom-guard.sh",
+      "sha256": "e7a5b4022cea569745f8d3766e376620edb743fd14eb131058987dbb81141334",
+      "artifact_ref": "sha256:e7a5b4022cea569745f8d3766e376620edb743fd14eb131058987dbb81141334"
+    },
+    {
+      "path": "docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/production-rehearsal-readonly-snapshot.json",
+      "sha256": "b360ac645b14814c511e0825c933e043e4a03d84c2b38d0ac5cadf2a23dc78c5",
+      "artifact_ref": "sha256:b360ac645b14814c511e0825c933e043e4a03d84c2b38d0ac5cadf2a23dc78c5"
+    }
+  ]
+}

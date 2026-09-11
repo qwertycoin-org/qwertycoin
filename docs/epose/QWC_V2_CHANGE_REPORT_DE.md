@@ -61,7 +61,7 @@ Gegenüber Monero `v0.18.5.1` enthält der aktuelle Stand grob:
 Umgesetzt:
 
 - QWC v2 startet als neue Chain.
-- QWC HF17 / `HF_VERSION_QWC_EPOSE_V1 = 17` ist ab Height `0` aktiv.
+- QWC HF17 / `HF_VERSION_QWC_EPOSE = 17` ist ab Height `0` aktiv; das EPoSE-Wireformat hat unabhängig davon Version 2.
 - Die Chain durchläuft nicht künstlich historische Monero-Hardforks.
 - Hardfork-Infrastruktur bleibt erhalten, damit spätere QWC-Upgrades sauber als neue Versionen aktivierbar sind.
 - Blocktarget v2 ist `120` Sekunden.
@@ -139,7 +139,7 @@ Umgesetzt:
 - Proof ist gebunden an Netzwerk, Service Public Key, Reward-Adresse, Endpoint-Commitment, Epoch, Previous Epoch Hash und Nonce.
 - Benchmark- und Simulationscode wurde ergänzt.
 
-Aktuelle Testparameter:
+Historische PoC-Testparameter (nicht vom v2-Launch-Handler verwendet):
 
 - `EPOSE_ADMISSION_LEADING_ZERO_BITS = 8`
 - `EPOSE_VERIFIER_COMMITTEE_SIZE = 5`

@@ -1,0 +1,18 @@
+{
+  "required_gate_ids": [
+    "source_and_invariant_baseline",
+    "normative_transition_specification",
+    "consensus_handler_integration",
+    "approved_security_parameters",
+    "reward_and_emission_decision",
+    "independent_payment_proof_review",
+    "atomic_lmdb_and_pruning",
+    "network_and_rpc_resource_integration",
+    "four_node_consensus_convergence",
+    "wallet_funds_safety_e2e",
+    "reproducible_release_matrix",
+    "independent_consensus_review",
+    "signed_activation_manifest"
+  ],
+  "schema_version": 1
+}

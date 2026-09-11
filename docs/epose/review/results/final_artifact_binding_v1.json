@@ -1,0 +1,80 @@
+{
+  "schema": "qwertycoin.epose.final-artifact-binding.v1",
+  "evaluated_at_utc": "2026-09-11T13:25:44Z",
+  "status": "pass",
+  "source": {
+    "revision": "2e118dd2cca468ae52fec5c9c30e33673e312043",
+    "tree": "13cc0a993e36ae1e7447dbdc93d87ad127cc0045",
+    "commit_signature": "ssh-signed"
+  },
+  "consensus_identity": {
+    "network_id_hex": "515743324d41494e3230323646494e01",
+    "genesis_nonce": 10003,
+    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+    "parameter_set_sha256": "e5654b4f5fa27faa51a80ca1e93bb877c3bd3345d0a803b6e7ab55c05189c20d"
+  },
+  "manifest": {
+    "path": "docs/epose/PARAMETER_MANIFEST_V2.json",
+    "canonical_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+    "file_sha256": "fbc050cdbd015903619d62ab89c212c7ffabcfad36472100c080b6acda006e26",
+    "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043",
+    "missing_activation_fields": []
+  },
+  "build": {
+    "profile": "portable-linux-x86_64",
+    "cmake_build_type": "Release",
+    "arch": "default",
+    "static": false,
+    "build_tests": false,
+    "compiler": "c++ (Debian 12.2.0-14+deb12u1) 12.2.0",
+    "cmake": "3.25.1",
+    "ninja": "1.11.1"
+  },
+  "artifacts": [
+    {
+      "name": "qwertycoind",
+      "version": "2.0.0-2e118dd2c",
+      "size_bytes": 16849104,
+      "sha256": "7d776384146bbd2285105976eac8c09b4e0e29163ed1b527e9441045c3532718",
+      "elf_build_id": "27bca95b448f05b8eb5026a6c37e13a0efe2c794"
+    },
+    {
+      "name": "qwertycoin-wallet-cli",
+      "version": "2.0.0-2e118dd2c",
+      "size_bytes": 19167960,
+      "sha256": "b8a91962c964f3f05c79e52187a71d315c1a8b4c2104d68738612399c7e759ab",
+      "elf_build_id": "641037042afde545a3abe493b068749c2c5a8a43"
+    },
+    {
+      "name": "qwertycoin-wallet-rpc",
+      "version": "2.0.0-2e118dd2c",
+      "size_bytes": 19388504,
+      "sha256": "de818b3644465f5ebf05b06c080fb5626aeed76e05d8b25c5fe52b7db2ae62bb",
+      "elf_build_id": "191aefeb07963727d609d4e79ce7bf58312c77b5"
+    }
+  ],
+  "container": {
+    "runtime_base_manifest": "sha256:dd606ba9a0592a6a8a1da2d656674a010d12e17a5c85dbe6fdcea1a98847e304",
+    "release_image_id": "sha256:c9bd358c5cd58020d4d78ca1fa992620fc8f6b4f19dae952a2cb4cfd83ac1632",
+    "embedded_source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043",
+    "embedded_manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+    "remote_artifact_hashes_match": true,
+    "all_runtime_versions_match": true
+  },
+  "bundle": {
+    "name": "qwertycoin-2.0.0-linux-x86_64.tar.xz",
+    "size_bytes": 12584912,
+    "sha256": "4af734fae41711d4f2b4cac239b3405e4a6035d197c156d0bb087d4c54fc7f5b",
+    "deterministic_tar_metadata": true,
+    "identical_packaging_runs": 2,
+    "payload_checksums_verified": true
+  },
+  "focused_validation": {
+    "cpp_tests_passed": 238,
+    "cpp_tests_failed": 0,
+    "python_tests_passed": 43,
+    "python_tests_failed": 0,
+    "production_daemon_build": "pass",
+    "portable_daemon_wallet_build": "pass"
+  }
+}

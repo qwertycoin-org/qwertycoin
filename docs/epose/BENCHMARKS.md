@@ -1,5 +1,12 @@
 # Benchmarks
 
+> **Historical HF17 evidence — superseded for parameter selection.** The
+> measurements and decisions below describe the earlier implementation and a
+> single light-mode solver path. They do not approve hardened EPoSE v2 mainnet
+> parameters. The current CO-03 model and no-go decision are documented in
+> `SECURITY_PARAMETERS.md`; its machine-readable results are under
+> `review/results/`.
+
 ## Admission Proof
 
 Measured on `seed host A` in Docker image
@@ -22,8 +29,12 @@ below a mining-class optimized RandomX pipeline.
 Command shape:
 
 ```bash
-qwertycoin-epose-admission-bench <leading_zero_bits> <identities> <verify_rounds> [max_hashes_per_identity]
+qwertycoin-epose-admission-bench <leading_zero_bits> <identities> <epoch> [max_hashes_per_identity] [steady_hashes]
 ```
+
+The CO-03 revision reports first-hash setup separately from a repeated
+same-seed steady-state loop. The latter still measures the inherited QWC helper
+and must not be described as a mining-class optimized attacker implementation.
 
 Bounded runs estimate creation cost without waiting for unlikely solutions:
 
@@ -45,7 +56,7 @@ projection:
 | 8 | 3 | 595 | 23.376 s | 7.792 s | 39.0 ms | 25.45 |
 | 12 | 3 | 3963 | 153.256 s | 51.085 s | 39.3 ms | 25.86 |
 
-Decision for this branch:
+Historical rehearsal decision:
 
 ```text
 EPOSE_ADMISSION_LEADING_ZERO_BITS = 16
@@ -60,8 +71,11 @@ Rationale:
 - Verification remains one RandomX evaluation per registration and measured at
   roughly 39 ms in solved runs.
 
-This value should be revisited if QWC adds a dedicated optimized admission
-solver that uses a faster RandomX mode or precomputed dataset safely.
+The final v2 launch candidate supersedes this rehearsal value with 18 bits.
+The asynchronous v2 admission worker uses a cancellable `2^24` attempt bound,
+which is 64 mean search spaces at 18 bits; epoch or reorg context changes still
+cancel stale work.  Final isolated rehearsal evidence is required before this
+candidate is bound to the launch genesis.
 
 ## Sybil / Committee Simulation
 

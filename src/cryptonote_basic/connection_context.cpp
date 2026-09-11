@@ -67,6 +67,8 @@ namespace cryptonote
       return 1024 * 1024 * 4; // 4 MB
     case cryptonote::NOTIFY_NEW_EPOSE_PAYLOADS::ID:
       return 16 * 1024;
+    case cryptonote::NOTIFY_NEW_EPOSE_ENVELOPES_V2::ID:
+      return CRYPTONOTE_MAX_TX_SIZE;
     default:
       break;
     };

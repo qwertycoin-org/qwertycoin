@@ -30,6 +30,7 @@
 
 #include <unordered_set>
 #include <random>
+#include <limits>
 #include "include_base_utils.h"
 #include "misc_log_ex.h"
 #include "string_tools.h"
@@ -44,6 +45,8 @@ using namespace epee;
 #include "cryptonote_basic/tx_extra.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
+#include "epose/envelope_v2.h"
+#include "epose/reward_v2.h"
 #include "ringct/rctSigs.h"
 
 using namespace crypto;
@@ -161,10 +164,13 @@ namespace cryptonote
     }
   }
 
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, const account_public_address *service_reward_address, uint64_t service_reward) {
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, const account_public_address *service_reward_address, uint64_t service_reward, const miner_service_payment_v2 *service_payment_v2) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
+    if (service_payment_v2 != nullptr
+        && service_payment_v2->generated_context != nullptr)
+      *service_payment_v2->generated_context = {};
 
     keypair txkey = keypair::generate(hw::get_device("default"));
     add_tx_pub_key_to_extra(tx, txkey.pub);
@@ -188,7 +194,31 @@ namespace cryptonote
     LOG_PRINT_L1("Creating block template: reward " << block_reward <<
       ", fee " << fee);
 #endif
+    CHECK_AND_ASSERT_MES(
+        block_reward <= std::numeric_limits<uint64_t>::max() - fee,
+        false, "Fee overflows the permitted block reward");
     block_reward += fee;
+    if (service_payment_v2 != nullptr)
+    {
+      CHECK_AND_ASSERT_MES(
+          is_qwc_epose_v2_hardfork(hard_fork_version)
+              && service_reward_address == nullptr
+              && service_reward == 0
+              && service_payment_v2->limits != nullptr
+              && service_payment_v2->permanently_unissued <= block_reward,
+          false, "invalid EPoSE-v2 miner payment context");
+      block_reward -= service_payment_v2->permanently_unissued;
+      if (service_payment_v2->expectation != nullptr)
+      {
+        CHECK_AND_ASSERT_MES(
+            service_payment_v2->expectation->height == height
+                && service_payment_v2->expectation->service_reward != 0,
+            false, "invalid EPoSE-v2 service payment expectation");
+        service_reward_address =
+            &service_payment_v2->expectation->reward_address;
+        service_reward = service_payment_v2->expectation->service_reward;
+      }
+    }
     if (service_reward_address && service_reward)
     {
       CHECK_AND_ASSERT_MES(service_reward <= block_reward, false, "EPoSE service reward exceeds block reward");
@@ -230,6 +260,9 @@ namespace cryptonote
     for (size_t no = 0; no < out_amounts.size(); no++)
     {
       uint64_t amount = out_amounts[no];
+      CHECK_AND_ASSERT_MES(
+          summary_amounts <= std::numeric_limits<uint64_t>::max() - amount,
+          false, "Miner output sum overflow");
       summary_amounts += amount;
 
       bool r = add_miner_output(tx, amount, miner_address, txkey.sec, no, hard_fork_version);
@@ -241,8 +274,16 @@ namespace cryptonote
     if (service_reward_address && service_reward)
     {
       CHECK_AND_ASSERT_MES(add_service_reward_outputs(tx, service_reward, *service_reward_address, txkey.sec, hard_fork_version), false, "failed to add EPoSE service reward output");
+      CHECK_AND_ASSERT_MES(
+          summary_amounts <= std::numeric_limits<uint64_t>::max() - service_reward,
+          false, "Service output sum overflow");
       summary_amounts += service_reward;
     }
+
+    if (service_payment_v2 != nullptr)
+      CHECK_AND_ASSERT_MES(
+          summary_amounts == service_payment_v2->expected_coinbase_total,
+          false, "EPoSE-v2 constructed Coinbase total disagrees with reward plan");
 
     if (hard_fork_version >= 4)
       tx.version = 2;
@@ -254,6 +295,43 @@ namespace cryptonote
     tx.vin.push_back(in);
 
     tx.invalidate_hashes();
+
+    if (service_payment_v2 != nullptr
+        && service_payment_v2->carrier_records != nullptr
+        && !service_payment_v2->carrier_records->empty())
+    {
+      qwertycoin::epose::envelope_budget_v2 carrier_budget{};
+      CHECK_AND_ASSERT_MES(
+          qwertycoin::epose::append_transaction_envelope_v2(
+              *service_payment_v2->carrier_records, hard_fork_version,
+              service_payment_v2->max_envelopes_per_transaction,
+              *service_payment_v2->limits, tx.extra, carrier_budget)
+              == qwertycoin::epose::envelope_status_v2::accepted,
+          false, "failed to append EPoSE-v2 relay records to Coinbase");
+      CHECK_AND_ASSERT_MES(tx.extra.size() <= MAX_TX_EXTRA_SIZE, false,
+          "EPoSE-v2 relay records exceed the local Coinbase extra limit");
+      tx.invalidate_hashes();
+    }
+
+    if (service_payment_v2 != nullptr
+        && service_payment_v2->expectation != nullptr)
+    {
+      qwertycoin::epose::service_payment_context_v2 generated{};
+      CHECK_AND_ASSERT_MES(
+          qwertycoin::epose::append_coinbase_service_payment_proof_v2(
+              tx, txkey.sec, hard_fork_version,
+              service_payment_v2->max_envelopes_per_transaction,
+              *service_payment_v2->limits,
+              *service_payment_v2->expectation,
+              generated) == qwertycoin::epose::reward_status_v2::accepted,
+          false, "failed to construct EPoSE-v2 service payment proof");
+      if (service_payment_v2->generated_context != nullptr)
+        *service_payment_v2->generated_context = std::move(generated);
+    }
+
+    if (service_payment_v2 != nullptr)
+      CHECK_AND_ASSERT_MES(tx.extra.size() <= MAX_TX_EXTRA_SIZE, false,
+          "EPoSE-v2 Coinbase extra exceeds the local producer limit");
 
     //LOG_PRINT("MINER_TX generated ok, block_reward=" << print_money(block_reward) << "("  << print_money(block_reward - fee) << "+" << print_money(fee)
     //  << "), current_block_size=" << current_block_size << ", already_generated_coins=" << already_generated_coins << ", tx_id=" << get_transaction_hash(tx), LOG_LEVEL_2);
@@ -751,17 +829,17 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(r, false, "failed to parse coinbase tx from hard coded blob");
     r = parse_and_validate_tx_from_blob(tx_bl, bl.miner_tx);
     CHECK_AND_ASSERT_MES(r, false, "failed to parse coinbase tx from hard coded blob");
-    if (major_version >= HF_VERSION_MIN_V2_COINBASE_TX)
-      bl.miner_tx.version = 2;
-    if (major_version >= HF_VERSION_QWC_RELAUNCH_BASE)
-    {
-      uint64_t genesis_reward = 0;
-      r = get_block_reward(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0, genesis_reward, major_version);
-      CHECK_AND_ASSERT_MES(r, false, "failed to calculate Qwertycoin relaunch genesis reward");
-      CHECK_AND_ASSERT_MES(!bl.miner_tx.vout.empty(), false, "Qwertycoin relaunch genesis tx has no outputs");
-      bl.miner_tx.vout.resize(1);
-      bl.miner_tx.vout.front().amount = genesis_reward;
-    }
+    bl.miner_tx.version = major_version >= HF_VERSION_MIN_V2_COINBASE_TX ? 2 : 1;
+    // The embedded transaction is the HF17 launch template. Normalize its
+    // monetary fields for the explicitly requested version as well, so
+    // inherited historical FAKECHAIN schedules remain internally valid under
+    // QWC's eight-decimal supply constants.
+    uint64_t genesis_reward = 0;
+    r = get_block_reward(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0, genesis_reward, major_version);
+    CHECK_AND_ASSERT_MES(r, false, "failed to calculate Qwertycoin genesis reward");
+    CHECK_AND_ASSERT_MES(!bl.miner_tx.vout.empty(), false, "Qwertycoin genesis tx has no outputs");
+    bl.miner_tx.vout.resize(1);
+    bl.miner_tx.vout.front().amount = genesis_reward;
     if (major_version > HF_VERSION_VIEW_TAGS)
     {
       for (tx_out& out: bl.miner_tx.vout)
@@ -772,6 +850,23 @@ namespace cryptonote
           tagged_key.key = boost::get<txout_to_key>(out.target).key;
           tagged_key.view_tag = crypto::view_tag{};
           out.target = tagged_key;
+        }
+      }
+      bl.miner_tx.invalidate_hashes();
+    }
+    else
+    {
+      // The public QWC genesis transaction is encoded for the HF17 launch.
+      // Historical FAKECHAIN schedules still exercise inherited pre-view-tag
+      // consensus rules, so normalize the embedded output back to the target
+      // type required by the explicitly requested genesis version.
+      for (tx_out& out: bl.miner_tx.vout)
+      {
+        if (out.target.type() == typeid(txout_to_tagged_key))
+        {
+          txout_to_key key;
+          key.key = boost::get<txout_to_tagged_key>(out.target).key;
+          out.target = key;
         }
       }
       bl.miner_tx.invalidate_hashes();

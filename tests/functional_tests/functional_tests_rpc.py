@@ -10,7 +10,9 @@ import string
 import os
 
 USAGE = 'usage: functional_tests_rpc.py <python> <srcdir> <builddir> [<tests-to-run> | all]'
-DEFAULT_TESTS = ['address_book', 'bans', 'blockchain', 'cold_signing', 'daemon_info', 'get_output_distribution', 'integrated_address', 'mining', 'multisig', 'p2p', 'proofs', 'rpc_payment', 'sign_message', 'transfer', 'txpool', 'uri', 'validate_address', 'wallet']
+# RandomX keeps its dataset resident in the long-lived daemon. Run mining last
+# so constrained CI hosts can still exercise every wallet/P2P group first.
+DEFAULT_TESTS = ['address_book', 'bans', 'blockchain', 'cold_signing', 'daemon_info', 'get_output_distribution', 'integrated_address', 'multisig', 'p2p', 'proofs', 'rpc_payment', 'sign_message', 'transfer', 'txpool', 'uri', 'validate_address', 'wallet', 'mining']
 try:
   python = sys.argv[1]
   srcdir = sys.argv[2]
@@ -34,6 +36,18 @@ try:
 except:
   tests = DEFAULT_TESTS
 
+# RandomX retains a large dataset in the daemon even after mining stops. When
+# the complete suite is requested, run mining in a fresh process phase so the
+# wallet/P2P phase can release all daemon memory before RandomX initializes.
+if 'mining' in tests and len(tests) > 1:
+  phases = [[test for test in tests if test != 'mining'], ['mining']]
+  for phase in phases:
+    command = [sys.executable, os.path.abspath(__file__), python, srcdir, builddir] + phase
+    if subprocess.call(command) != 0:
+      sys.exit(1)
+  print('Done, ' + str(len(tests)) + '/' + str(len(tests)) + ' tests passed in isolated phases')
+  sys.exit(0)
+
 # a main offline qwertycoind, does most of the tests
 # a restricted RPC qwertycoind setup with RPC payment
 # two local online qwertycoind instances connected to each other
@@ -49,9 +63,10 @@ FUNCTIONAL_TESTS_DIRECTORY = builddir + "/tests/functional_tests"
 DIFFICULTY = 10
 
 qwertycoind_base = [builddir + "/bin/qwertycoind", "--regtest", "--fixed-difficulty", str(DIFFICULTY), "--p2p-bind-port", "qwertycoind_p2p_port", "--rpc-bind-port", "qwertycoind_rpc_port", "--zmq-rpc-bind-port", "qwertycoind_zmq_port", "--zmq-pub", "qwertycoind_zmq_pub", "--non-interactive", "--disable-dns-checkpoints", "--check-updates", "disabled", "--rpc-ssl", "disabled", "--data-dir", "qwertycoind_data_dir", "--log-level", "1", "--rpc-max-connections-per-private-ip", "100", "--rpc-max-connections", "100"]
+RPC_PAYMENT_ADDRESS = "QWC1h8SDGxBj74KgQDGKRKAjTfWJywnvM1ZRGv9yX9o89N8qGedHKLheKPmtkLpTmpBWGDT3ZuLUmNVvz3LmU5LrA3gGed58sq"
 qwertycoind_extra = [
   ["--offline"],
-  ["--rpc-payment-address", "44SKxxLQw929wRF6BA9paQ1EWFshNnKhXM3qz6Mo3JGDE2YG3xyzVutMStEicxbQGRfrYvAAYxH6Fe8rnD56EaNwUiqhcwR", "--rpc-payment-difficulty", str(DIFFICULTY), "--rpc-payment-credits", "5000", "--offline"],
+  ["--rpc-payment-address", RPC_PAYMENT_ADDRESS, "--rpc-payment-difficulty", str(DIFFICULTY), "--rpc-payment-credits", "5000", "--offline"],
   ["--add-exclusive-node", "127.0.0.1:18283"],
   ["--add-exclusive-node", "127.0.0.1:18282"],
 ]

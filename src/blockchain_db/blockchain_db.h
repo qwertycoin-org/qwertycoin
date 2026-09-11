@@ -99,6 +99,16 @@
 
 namespace cryptonote
 {
+constexpr uint8_t EPOSE_STATE_COMMITMENT_SCHEMA_V2 = 1;
+
+struct epose_state_commitment_v2
+{
+  uint8_t schema_version = EPOSE_STATE_COMMITMENT_SCHEMA_V2;
+  crypto::hash block_hash{};
+  crypto::hash state_hash{};
+  crypto::hash parameter_set_hash{};
+};
+
 
 /** a pair of <transaction hash, output index>, typedef for convenience */
 typedef std::pair<crypto::hash, uint64_t> tx_out_index;
@@ -419,6 +429,13 @@ private:
    * subclass of DB_EXCEPTION
    */
   virtual void remove_block() = 0;
+
+  // These hooks execute inside the same backend write transaction as their
+  // corresponding canonical block mutation. Backends without the v2 index may
+  // retain the fail-closed defaults; production LMDB overrides both.
+  virtual void add_epose_state_commitment_v2(
+      uint64_t height, const epose_state_commitment_v2 &commitment) {}
+  virtual void remove_epose_state_commitment_v2(uint64_t height) {}
 
   /**
    * @brief store the transaction and its metadata
@@ -858,7 +875,15 @@ public:
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
                             , const std::vector<std::pair<transaction, blobdata>>& txs
+                            , const epose_state_commitment_v2 *epose_commitment = nullptr
                             );
+
+  virtual bool get_epose_state_commitment_v2(
+      uint64_t height, epose_state_commitment_v2 &commitment) const
+  {
+    commitment = {};
+    return false;
+  }
 
   /**
    * @brief checks if a block exists

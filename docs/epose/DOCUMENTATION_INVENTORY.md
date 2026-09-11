@@ -66,7 +66,7 @@ not be used as current protocol reference without checking `README.md`,
 | Parameter | Current `main` value |
 | --- | --- |
 | EPoSE protocol version | `1` |
-| EPoSE hardfork | `HF_VERSION_QWC_EPOSE_V1 = 17` from genesis |
+| QWC launch rules | `HF_VERSION_QWC_EPOSE = 17` from genesis; EPoSE format version 2 |
 | Epoch length | `720` blocks |
 | Finality depth | `60` blocks |
 | Registration TTL | `30` epochs |

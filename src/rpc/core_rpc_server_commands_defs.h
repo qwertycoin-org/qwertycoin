@@ -88,7 +88,7 @@ namespace cryptonote
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 3
-#define CORE_RPC_VERSION_MINOR 18
+#define CORE_RPC_VERSION_MINOR 19
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -793,22 +793,30 @@ namespace cryptonote
 
   struct epose_service_node_entry
   {
+    std::string identity_id;
     std::string service_public_key;
+    std::string operator_authorization_public_key;
     std::string reward_view_public_key;
     std::string reward_spend_public_key;
     std::string endpoint_commitment;
     std::string admission_hash;
+    uint64_t descriptor_sequence;
+    uint64_t effective_epoch;
     uint64_t registration_epoch;
     uint64_t expiry_epoch;
     bool active;
     bool qualified;
 
     BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(identity_id)
       KV_SERIALIZE(service_public_key)
+      KV_SERIALIZE(operator_authorization_public_key)
       KV_SERIALIZE(reward_view_public_key)
       KV_SERIALIZE(reward_spend_public_key)
       KV_SERIALIZE(endpoint_commitment)
       KV_SERIALIZE(admission_hash)
+      KV_SERIALIZE(descriptor_sequence)
+      KV_SERIALIZE(effective_epoch)
       KV_SERIALIZE(registration_epoch)
       KV_SERIALIZE(expiry_epoch)
       KV_SERIALIZE(active)
@@ -1007,6 +1015,127 @@ namespace cryptonote
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
+  struct COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE
+  {
+    struct request_t: public rpc_request_base
+    {
+      std::string envelope;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE(envelope)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool newly_accepted;
+      bool relayed;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(newly_accepted)
+        KV_SERIALIZE(relayed)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2
+  {
+    struct request_t: public rpc_request_base
+    {
+      std::string descriptor_hash;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE_OPT(descriptor_hash, std::string())
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool ready;
+      uint64_t version;
+      std::string service_public_key;
+      uint64_t transport;
+      std::string host;
+      uint64_t port;
+      uint64_t service_kind;
+      uint64_t service_version;
+      uint64_t sequence;
+      uint64_t expiry_epoch;
+      std::string signature;
+      std::string descriptor_hash;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(ready)
+        KV_SERIALIZE(version)
+        KV_SERIALIZE(service_public_key)
+        KV_SERIALIZE(transport)
+        KV_SERIALIZE(host)
+        KV_SERIALIZE(port)
+        KV_SERIALIZE(service_kind)
+        KV_SERIALIZE(service_version)
+        KV_SERIALIZE(sequence)
+        KV_SERIALIZE(expiry_epoch)
+        KV_SERIALIZE(signature)
+        KV_SERIALIZE(descriptor_hash)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2
+  {
+    struct request_t: public rpc_request_base
+    {
+      uint64_t version;
+      uint64_t service_kind;
+      uint64_t epoch;
+      uint64_t round;
+      std::string snapshot_hash;
+      std::string anchor_hash;
+      std::string subject_public_key;
+      std::string verifier_public_key;
+      std::string endpoint_descriptor_hash;
+      std::string nonce;
+      std::string requested_object_hash;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE(version)
+        KV_SERIALIZE(service_kind)
+        KV_SERIALIZE(epoch)
+        KV_SERIALIZE(round)
+        KV_SERIALIZE(snapshot_hash)
+        KV_SERIALIZE(anchor_hash)
+        KV_SERIALIZE(subject_public_key)
+        KV_SERIALIZE(verifier_public_key)
+        KV_SERIALIZE(endpoint_descriptor_hash)
+        KV_SERIALIZE(nonce)
+        KV_SERIALIZE(requested_object_hash)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      std::string block_blob;
+      std::string subject_signature;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(block_blob)
+        KV_SERIALIZE(subject_signature)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
   struct COMMAND_RPC_GET_SERVICE_REWARDS
   {
     struct request_t: public rpc_request_base
@@ -1022,7 +1151,9 @@ namespace cryptonote
 
     struct response_t: public rpc_response_base
     {
+      bool preview_available;
       bool service_reward_active;
+      uint64_t protocol_version;
       uint64_t height;
       uint64_t epoch;
       uint64_t service_reward_bps;
@@ -1033,7 +1164,9 @@ namespace cryptonote
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(preview_available)
         KV_SERIALIZE(service_reward_active)
+        KV_SERIALIZE(protocol_version)
         KV_SERIALIZE(height)
         KV_SERIALIZE(epoch)
         KV_SERIALIZE(service_reward_bps)

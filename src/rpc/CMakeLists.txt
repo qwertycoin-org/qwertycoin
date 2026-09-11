@@ -41,6 +41,14 @@ set(rpc_sources
   rpc_version_str.cpp
   instanciations.cpp)
 
+# This translation unit instantiates the complete RPC serialization surface
+# and can exceed the memory available on supported low-memory builders when
+# compiled with -Ofast. It contains no consensus or hot-path implementation;
+# cap only this mechanical instantiation unit at -O1.
+if (NOT MSVC)
+  set_property(SOURCE instanciations.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " -O1")
+endif()
+
 set(daemon_messages_sources
   message.cpp
   daemon_messages.cpp)

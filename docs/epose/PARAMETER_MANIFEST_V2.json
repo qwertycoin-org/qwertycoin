@@ -1,0 +1,111 @@
+{
+  "activation": {
+    "height": 0,
+    "mode": "fresh-genesis",
+    "required_epoch_alignment": 720
+  },
+  "admission": {
+    "algorithm": "RandomX",
+    "context_epoch_offset": 1,
+    "lease_epochs": 1,
+    "leading_zero_bits": 18,
+    "target_epoch_required": true
+  },
+  "carrier": {
+    "coinbase_envelope_allowed": true,
+    "fee_funded_envelope_allowed": true,
+    "legacy_nonce_allowed_after_activation": false,
+    "tx_extra_tag": 5
+  },
+  "committee": {
+    "round_offsets": [
+      0,
+      200,
+      400
+    ],
+    "rounds_required": 2,
+    "service_kind": "canonical-object",
+    "size": 9,
+    "threshold": 6
+  },
+  "commitments": {
+    "parameter_set_sha256": "e5654b4f5fa27faa51a80ca1e93bb877c3bd3345d0a803b6e7ab55c05189c20d"
+  },
+  "dependencies": {
+    "core_source_commit": "1c4c1bf10c387887a42243dc690a65abb6c6e786",
+    "monero_upstream_commit": "4f92268d7c16741cfb41e5bbe2aa46cc260a9ea5",
+    "submodules": {
+      "external/rapidjson": "129d19ba7f496df5e33658527a7158c79b99c21c",
+      "external/randomx": "6c4340ba4561aec9a3611c1aedf9931239777fb3",
+      "external/supercop": "633500ad8c8759995049ccd022107d1fa8a1bbc9",
+      "external/trezor-common": "bff7fdfe436c727982cc553bdfb29a9021b423b0"
+    }
+  },
+  "encoding": {
+    "envelope_magic_ascii": "QEP2",
+    "envelope_version": 1,
+    "epose_protocol_version": 2,
+    "hardfork_version": 17,
+    "integer_byte_order": "little-endian",
+    "record_versions": {
+      "admission_lease": 1,
+      "descriptor": 1,
+      "lifecycle_authorization": 1,
+      "payment_proof": 1,
+      "service_receipt": 1
+    }
+  },
+  "epoch": {
+    "anchor_depth_blocks": 60,
+    "epoch_zero_has_v2_rewards": false,
+    "length_blocks": 720,
+    "warmup_epochs": 2
+  },
+  "manifest_kind": "activation-candidate",
+  "network": {
+    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+    "network_id": "515743324d41494e3230323646494e01",
+    "type": "mainnet"
+  },
+  "release": {
+    "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+  },
+  "resource_limits": {
+    "max_active_population": 100,
+    "max_admission_verifications_per_block": 8,
+    "max_envelope_bytes_per_transaction": 65536,
+    "max_envelopes_per_transaction": 4,
+    "max_epose_bytes_per_block": 262144,
+    "max_records_per_block": 1024,
+    "max_records_per_envelope": 256,
+    "max_record_payload_bytes": 65536,
+    "max_relay_queue_bytes": 1048576,
+    "max_relay_queue_items": 2048,
+    "max_signature_verifications_per_block": 2048,
+    "max_template_epose_bytes": 32768,
+    "max_template_records": 256,
+    "minimum_undo_blocks": 2160,
+    "reserved_enrollment_queue_bytes": 262144,
+    "reserved_enrollment_queue_items": 512,
+    "reserved_enrollment_template_bytes": 8192,
+    "reserved_enrollment_template_records": 64,
+    "reserved_evidence_queue_bytes": 262144,
+    "reserved_evidence_queue_items": 512,
+    "reserved_evidence_template_bytes": 8192,
+    "reserved_evidence_template_records": 64
+  },
+  "reward": {
+    "basis_points": 1000,
+    "empty_set_policy": "miner-fallback",
+    "emission_accounting": "actual-issued-subsidy",
+    "fee_policy": "subsidy-only",
+    "payment_proof_scheme": "scoped-tx-proof-v1",
+    "schedule": "epoch-relative-index"
+  },
+  "schema_version": 2,
+  "state": {
+    "index_schema": 1,
+    "pruned_validation_mode": "unsupported-fail-closed"
+  },
+  "status": "activatable"
+}

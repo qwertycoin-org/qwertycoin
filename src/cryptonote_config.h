@@ -159,7 +159,8 @@
 #define P2P_IDLE_CONNECTION_KILL_INTERVAL               (5*60) //5 minutes
 
 #define P2P_SUPPORT_FLAG_FLUFFY_BLOCKS                  0x01
-#define P2P_SUPPORT_FLAGS                               P2P_SUPPORT_FLAG_FLUFFY_BLOCKS
+#define P2P_SUPPORT_FLAG_EPOSE_V2                       0x02
+#define P2P_SUPPORT_FLAGS                               (P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_EPOSE_V2)
 
 #define RPC_IP_FAILS_BEFORE_BLOCK                       3
 
@@ -197,7 +198,20 @@
 // Monero's v16 rules are represented by the post-v15 checks in this codebase.
 #define HF_VERSION_MONERO_CURRENT_CONSENSUS     16
 #define HF_VERSION_QWC_RELAUNCH_BASE            HF_VERSION_MONERO_CURRENT_CONSENSUS
-#define HF_VERSION_QWC_EPOSE_V1                 17
+// QWC starts directly from the inherited Monero-v16 rule baseline and assigns
+// block major version 17 to the hardened EPoSE-v2 launch rules. Block-version
+// and EPoSE wire-format versions are separate domains.
+#define HF_VERSION_QWC_EPOSE                    17
+
+// EPoSE-v2 is the launch state machine, not a one-version feature flag.  A
+// later QWC hardfork continues processing the same parameter-bound state until
+// an explicitly versioned migration replaces it.  Keeping this predicate in
+// one place prevents a future HF from silently disabling registration,
+// receipts, qualification, or rewards.
+inline constexpr bool is_qwc_epose_v2_hardfork(const uint8_t version) noexcept
+{
+  return version >= HF_VERSION_QWC_EPOSE;
+}
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 #define CRYPTONOTE_SCALING_2021_FEE_ROUNDING_PLACES 2
@@ -237,10 +251,10 @@ namespace config
   uint16_t const RPC_DEFAULT_PORT = 8197;
   uint16_t const ZMQ_RPC_DEFAULT_PORT = 8199;
   boost::uuids::uuid const NETWORK_ID = { {
-      0x51, 0x57, 0x43, 0x32, 0x4d, 0x41, 0x49, 0x4e, 0x32, 0x30, 0x32, 0x36, 0x50, 0x4f, 0x43, 0x01
-    } }; // QWC2MAIN2026POC
+      0x51, 0x57, 0x43, 0x32, 0x4d, 0x41, 0x49, 0x4e, 0x32, 0x30, 0x32, 0x36, 0x46, 0x49, 0x4e, 0x01
+    } }; // QWC2MAIN2026FIN
   std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd08807121017767aafcde9be00dcfd098715ebcf7f410daebc582fda69d24a28e9d0bc890d1";
-  uint32_t const GENESIS_NONCE = 10000;
+  uint32_t const GENESIS_NONCE = 10003;
 
   // Hash domain separators
   const char HASH_KEY_BULLETPROOF_EXPONENT[] = "bulletproof";

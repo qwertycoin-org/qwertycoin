@@ -1,0 +1,77 @@
+{
+  "schema": "qwertycoin.epose.reset-risk-gate.v1",
+  "evaluated_at_utc": "2026-09-11T12:15:00Z",
+  "status": "pass",
+  "scope": "EPoSE-specific genesis-reset risks only",
+  "source_revision": "f5521a0d7c58a6d50f7f2161f24fb595af6cb81a",
+  "harness": {
+    "path": "tests/epose/integration/local_epose_network.sh",
+    "sha256": "dfc49368d06bb1b247928b12731a2ff56f47e80d093dcd246438ab947c98f8d4",
+    "network_profile": "isolated mainnet profile",
+    "node_count": 4,
+    "service_node_count": 4,
+    "fixed_mining_difficulty": 1,
+    "durable_chain_volume_mount": "/home/qwertycoin/.qwertycoin",
+    "compose_project": "network4"
+  },
+  "preconditions": {
+    "genuine_admission_proofs": 4,
+    "canonical_receipts": 36,
+    "qualified_service_nodes": 4,
+    "production_rehearsal_mutated": false
+  },
+  "tests": {
+    "seed_payout_reorg": {
+      "status": "pass",
+      "rewind_chain_height": 1380,
+      "payout_block_height": 1440,
+      "short_branch_chain_height": 1449,
+      "heavy_branch_chain_height": 1459,
+      "short_seed_hash": "35ebe3ef4c282f5d7950d5caa9ff64dbf872f08a4848d5e20a6724487ea118d3",
+      "heavy_seed_hash": "e0c877f259ad8284a8113d5f1a8f9166e8da74c477416d3052120475f8a39b94",
+      "short_payout_hash": "594d5740450cc3c252b902840cff8f191c44868e1aaac5672fa88792ff6c5ed9",
+      "heavy_payout_hash": "5215ff55966a15e9eb4b563d97975fdb6b8af557007ee51d85ef6ad2ca37f7f9",
+      "short_payment_proof_sha256": "e30663f51b0b4ea3e3e19c677727bb13305aacb51a1ac570c9be18e403c6b508",
+      "heavy_payment_proof_sha256": "e9a31afb0484909a725d1f988595d5a06a42dc0f44277bf329c3333f42e50dc0",
+      "coinbase_total_atomic": 35087867821,
+      "service_reward_atomic": 3508786782,
+      "service_reward_basis_points": 1000,
+      "post_heal_nodes_converged": 4,
+      "post_recreate_nodes_converged": 4,
+      "evidence_log_sha256": "7e8a2a71b200ab4318c9318524c45448ee846ac6735d4393e5db1ec9afc5c4ee"
+    },
+    "partition_heal_reorg": {
+      "status": "pass",
+      "post_recreate_chain_height": 1540,
+      "post_recreate_nodes_converged": 4,
+      "evidence_log_sha256": "8275c5165c129a2998eced155587ed43f4ccab2be2569bafcca5d832593fcd74"
+    },
+    "idle_sigkill_recovery": {
+      "status": "pass",
+      "post_recovery_chain_height": 1467,
+      "post_recovery_nodes_converged": 4,
+      "evidence_log_sha256": "da09eb1cd141f9d6cb3ac6e651af68a2a682ae14c069246b55eb5861a4dd997a"
+    },
+    "sigkill_during_chain_progress": {
+      "status": "pass",
+      "lag_blocks_after_sigkill": 12,
+      "post_replay_chain_height": 1561,
+      "post_recreate_nodes_converged": 4,
+      "evidence_log_sha256": "77a6935af20974c1aba565366246f6a619d178b1bad2a6ac4726503b358aeacf"
+    },
+    "fresh_validator_replay": {
+      "status": "pass",
+      "source": "empty tmpfs datadir",
+      "chain_height": 1467,
+      "tip_hash": "46a8b8ca195c5879972c1e1466fe1066a4c6b10cf164218ed2ed11cc93c7627f",
+      "epose_state_hash": "b13af8aa7c0836ad3bf94f98216a470310a826d4dfcaf48f3c37e688524df365",
+      "evidence_log_sha256": "f0600c786193f1a3331cb574c0a6b2be67e12a7d9604426b7f88eca47b0e9181"
+    }
+  },
+  "invalidated_attempts": [
+    {
+      "reason": "The initial Compose harness mounted the named chain volume at /root/.qwertycoin although the image runs as user qwertycoin. Container recreation therefore detached an anonymous active datadir.",
+      "resolution": "The active datadirs were recovered without deleting the source volumes; the harness now uses a stable project name and mounts the named volume at the runtime user's actual data directory. All passing tests were rerun after this fix."
+    }
+  ]
+}

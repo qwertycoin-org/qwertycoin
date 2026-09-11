@@ -734,7 +734,7 @@ TEST(epose, miner_tx_can_include_consensus_visible_service_reward_output)
       miner_tx,
       cryptonote::blobdata(),
       1,
-      HF_VERSION_QWC_EPOSE_V1,
+      HF_VERSION_QWC_EPOSE,
       &service_address,
       service_reward));
 
@@ -774,7 +774,7 @@ TEST(epose, service_rewards_to_same_wallet_use_unique_one_time_output_keys)
         miner_tx,
         cryptonote::blobdata(),
         1,
-        HF_VERSION_QWC_EPOSE_V1,
+        HF_VERSION_QWC_EPOSE,
         &service_account.address,
         service_reward));
 
@@ -815,7 +815,7 @@ TEST(epose, service_reward_validation_rejects_single_non_decomposed_output)
       miner_tx,
       cryptonote::blobdata(),
       1,
-      HF_VERSION_QWC_EPOSE_V1,
+      HF_VERSION_QWC_EPOSE,
       &service_account.address,
       service_reward));
 
@@ -849,7 +849,7 @@ TEST(epose, transparent_service_reward_validation_rejects_missing_output)
       miner_tx,
       cryptonote::blobdata(),
       1,
-      HF_VERSION_QWC_EPOSE_V1));
+      HF_VERSION_QWC_EPOSE));
 
   EXPECT_FALSE(qwertycoin::epose::validate_service_reward_output(
       miner_tx,
@@ -876,7 +876,7 @@ TEST(epose, transparent_service_reward_validation_rejects_wrong_amount)
       miner_tx,
       cryptonote::blobdata(),
       1,
-      HF_VERSION_QWC_EPOSE_V1,
+      HF_VERSION_QWC_EPOSE,
       &service_address,
       service_reward + 1));
 
@@ -907,7 +907,7 @@ TEST(epose, transparent_service_reward_validation_rejects_wrong_recipient)
       miner_tx,
       cryptonote::blobdata(),
       1,
-      HF_VERSION_QWC_EPOSE_V1,
+      HF_VERSION_QWC_EPOSE,
       &wrong_service_address,
       service_reward));
 
@@ -936,7 +936,7 @@ TEST(epose, service_reward_validation_rejects_wrong_view_key)
       miner_tx,
       cryptonote::blobdata(),
       1,
-      HF_VERSION_QWC_EPOSE_V1,
+      HF_VERSION_QWC_EPOSE,
       &service_account.address,
       service_reward));
 
@@ -965,7 +965,7 @@ TEST(epose, transparent_service_reward_validation_rejects_duplicate_payee_output
       miner_tx,
       cryptonote::blobdata(),
       1,
-      HF_VERSION_QWC_EPOSE_V1,
+      HF_VERSION_QWC_EPOSE,
       &service_address,
       service_reward));
 
