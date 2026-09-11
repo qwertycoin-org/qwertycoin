@@ -54,9 +54,9 @@ namespace epose
     crypto::hash expected_genesis{};
     crypto::hash parameter_set_hash{};
     if (nettype != cryptonote::MAINNET
-        || !epee::string_tools::hex_to_pod(MAINNET_REHEARSAL_GENESIS_HASH_V2, expected_genesis)
+        || !epee::string_tools::hex_to_pod(MAINNET_FINAL_GENESIS_HASH_V2, expected_genesis)
         || !epee::string_tools::hex_to_pod(
-            MAINNET_REHEARSAL_PARAMETER_SET_HASH_V2, parameter_set_hash)
+            MAINNET_FINAL_PARAMETER_SET_HASH_V2, parameter_set_hash)
         || genesis_hash != expected_genesis)
       return false;
 

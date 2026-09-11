@@ -175,12 +175,12 @@ class ManifestV2Tests(unittest.TestCase):
     def test_compiled_profile_commitments_match_checked_in_manifest(self):
         header = (ROOT / "src/epose/compiled_profile_v2.h").read_text(encoding="utf-8")
         genesis = re.search(
-            r'MAINNET_REHEARSAL_GENESIS_HASH_V2\[\].*?"([0-9a-f]{64})"',
+            r'MAINNET_FINAL_GENESIS_HASH_V2\[\].*?"([0-9a-f]{64})"',
             header,
             re.DOTALL,
         )
         parameters = re.search(
-            r'MAINNET_REHEARSAL_PARAMETER_SET_HASH_V2\[\].*?"([0-9a-f]{64})"',
+            r'MAINNET_FINAL_PARAMETER_SET_HASH_V2\[\].*?"([0-9a-f]{64})"',
             header,
             re.DOTALL,
         )

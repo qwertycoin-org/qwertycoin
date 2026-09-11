@@ -4,7 +4,7 @@
 - **Date:** 2026-09-06
 - **Scope:** Public mainnet genesis, protocol version, and EPoSE warm-up
 - **Supersedes:** ADR-0001 chain-preserving activation decision
-- **Current implementation status:** Reserved and non-activating
+- **Current implementation status:** Final identity bound; exact rehearsal pending
 
 ## Context
 
@@ -46,6 +46,26 @@ EPoSE protocol/format version 2 are separate version domains.
 11. Future scheduled QWC block versions continue the parameter-bound EPoSE-v2
     state by default.  ADR-0008 defines that no-op continuation rule; it does
     not schedule a future fork or permit an implicit parameter migration.
+
+## Final public chain identity
+
+The one permitted post-rehearsal reset is bound to these reviewed values:
+
+- Mainnet network ID: `QWC2MAIN2026FIN` plus terminal byte `0x01`
+  (`515743324d41494e3230323646494e01`);
+- Genesis transaction template: unchanged from the reviewed HF17 relaunch
+  template, so this identity change creates no special allocation or premine;
+- Genesis nonce: `10003`;
+- Canonical genesis hash:
+  `906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0`;
+- EPoSE consensus-parameter commitment:
+  `e5654b4f5fa27faa51a80ca1e93bb877c3bd3345d0a803b6e7ab55c05189c20d`.
+
+The network ID prevents accidental P2P association with the disposable
+`QWC2MAIN2026POC` rehearsal network.  The genesis hash is independently
+recomputed by the focused C++ test through the same production constructor
+used by daemon and wallet.  Neither value authorizes announcement or mining;
+the exact-source isolated rehearsal and release-artifact binding remain gates.
 
 ## Consensus consequences
 

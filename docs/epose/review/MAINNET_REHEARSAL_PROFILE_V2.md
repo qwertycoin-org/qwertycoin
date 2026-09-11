@@ -1,5 +1,10 @@
 # EPoSE v2 Mainnet Rehearsal Profile
 
+> Historical record: this file preserves the disposable `QWC2MAIN2026POC`
+> rehearsal profile.  The final public identity and frozen launch parameters
+> are now authoritative in `ADR-0007-FRESH-GENESIS-ACTIVATION.md` and
+> `PARAMETER_MANIFEST_V2.json`; this historical genesis must never be reused.
+
 **Profile date:** 2026-09-09
 **Network path:** regular MAINNET, Qwertycoin block major version 17  
 **EPoSE protocol:** version 2 from genesis height 0  

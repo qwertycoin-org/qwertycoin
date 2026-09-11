@@ -8,6 +8,7 @@
 #include <string>
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
 #include "epose/coordinator_v2.h"
 #include "epose/record_codec_v2.h"
 #include "epose/service_receipt_v2.h"
@@ -310,11 +311,11 @@ TEST(epose_coordinator_v2, future_hardfork_continues_same_coordinator_state)
   EXPECT_EQ(at_hf17, result.state_hash);
 }
 
-TEST(epose_coordinator_v2, compiled_mainnet_rehearsal_profile_matches_manifest)
+TEST(epose_coordinator_v2, compiled_mainnet_final_profile_matches_manifest)
 {
   crypto::hash genesis{};
   ASSERT_TRUE(epee::string_tools::hex_to_pod(
-      "e791e506200ba3a221b87b6c78359c2bbb13c3ef622e1c90b3b3fbb52f4943f5",
+      "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
       genesis));
   consensus_parameters_v2 compiled{};
   ASSERT_TRUE(compiled_consensus_parameters_v2(
@@ -338,6 +339,19 @@ TEST(epose_coordinator_v2, compiled_mainnet_rehearsal_profile_matches_manifest)
   EXPECT_FALSE(compiled.valid());
   EXPECT_FALSE(compiled_consensus_parameters_v2(
       cryptonote::TESTNET, genesis, compiled));
+}
+
+TEST(epose_coordinator_v2, configured_mainnet_genesis_identity_is_final)
+{
+  cryptonote::block genesis{};
+  ASSERT_TRUE(cryptonote::generate_genesis_block(
+      genesis, config::GENESIS_TX, config::GENESIS_NONCE,
+      HF_VERSION_QWC_EPOSE, HF_VERSION_QWC_EPOSE));
+  EXPECT_EQ(10003u, config::GENESIS_NONCE);
+  EXPECT_EQ("515743324d41494e3230323646494e01",
+      epee::string_tools::pod_to_hex(config::NETWORK_ID));
+  EXPECT_EQ("906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+      epee::string_tools::pod_to_hex(cryptonote::get_block_hash(genesis)));
 }
 
 TEST(epose_coordinator_v2, genesis_bootstrap_and_empty_miner_fallback_are_deterministic)

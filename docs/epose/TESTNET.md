@@ -87,12 +87,12 @@ Current configured network constants:
 
 ```text
 mainnet:
-  network id: QWC2MAIN2026POC
+  network id: QWC2MAIN2026FIN
   p2p: 8196
   daemon rpc: 8197
   wallet rpc: 8198
   zmq rpc: 8199
-  genesis nonce: 10000
+  genesis nonce: 10003
 
 testnet:
   network id: QWC2TEST2026POC
