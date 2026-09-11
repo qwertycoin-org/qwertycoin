@@ -8,6 +8,8 @@ NODE_COUNT="${EPOSE_NODE_COUNT:-5}"
 SERVICE_NODE_COUNT="${EPOSE_SERVICE_NODE_COUNT:-${NODE_COUNT}}"
 STATE_DIR="${EPOSE_STATE_DIR:-${REPO_ROOT}/.epose-local-net}"
 IMAGE="${EPOSE_IMAGE:-qwertycoin-v2-node:epose-dev-tests}"
+NETTYPE="${EPOSE_NETTYPE:-testnet}"
+ISOLATE_NETWORK="${EPOSE_ISOLATE_NETWORK:-0}"
 RPC_BASE_PORT="${EPOSE_RPC_BASE_PORT:-18197}"
 P2P_BASE_PORT="${EPOSE_P2P_BASE_PORT:-18196}"
 PUBLISH_P2P="${EPOSE_PUBLISH_P2P:-0}"
@@ -19,17 +21,22 @@ FIXED_DIFFICULTY="${EPOSE_FIXED_DIFFICULTY:-1}"
 EPOCH_LENGTH="${EPOSE_EPOCH_LENGTH:-720}"
 MINE_TIMEOUT="${EPOSE_MINE_TIMEOUT:-900}"
 MINING_THREADS="${EPOSE_MINING_THREADS:-1}"
+MINE_BURST_SECONDS="${EPOSE_MINE_BURST_SECONDS:-2}"
+MINING_POLL_SECONDS="${EPOSE_MINING_POLL_SECONDS:-0.2}"
+PRODUCER_IDLE_SECONDS="${EPOSE_PRODUCER_IDLE_SECONDS:-5}"
 RELAY_MINE_BURST_BLOCKS="${EPOSE_RELAY_MINE_BURST_BLOCKS:-24}"
 RELAY_IDLE_SECONDS="${EPOSE_RELAY_IDLE_SECONDS:-5}"
 RANDOMX_UMASK="${EPOSE_RANDOMX_UMASK:-4}"
 OFFLINE="${EPOSE_OFFLINE:-0}"
+CHAOS_PREPARE_QUALIFIED="${EPOSE_CHAOS_PREPARE_QUALIFIED:-1}"
 NETWORK_PREFIX="${EPOSE_NETWORK_PREFIX:-$(basename "${STATE_DIR}" | tr -c '[:alnum:]' '-')}"
 NETWORK_NAME="${NETWORK_PREFIX}-qwc-epose-local-net"
 PARTITION_A_NETWORK="${NETWORK_PREFIX}-qwc-epose-partition-a"
 PARTITION_B_NETWORK="${NETWORK_PREFIX}-qwc-epose-partition-b"
 COMPOSE_FILE="${STATE_DIR}/docker-compose.yml"
+COMPOSE_PROJECT_NAME="${EPOSE_COMPOSE_PROJECT_NAME:-$(printf '%s' "$(basename "${STATE_DIR}")" | tr -c '[:alnum:]_-' '-')}"
 REWARD_ADDRESS="${EPOSE_SERVICE_REWARD_ADDRESS:-TBQmgSvK5rAJCLvPMLoJxJ7gVbKaSHqFDc3xva1Ggspn45TagaA3XCdTPw2cjU8szsVoXZbnwtBBcXPbSUJhrsZU9No7XHsNep}"
-REWARD_VIEW_KEY="${EPOSE_SERVICE_REWARD_VIEW_KEY:-}"
+MINER_ADDRESS="${EPOSE_MINER_ADDRESS:-${REWARD_ADDRESS}}"
 
 usage() {
   cat <<USAGE
@@ -67,9 +74,15 @@ Commands:
   assert-epoch-boundary-reorg
                   Mine to an EPoSE epoch boundary, split into competing branches,
                   heal, restart, and verify reward/state convergence
+  assert-seed-payout-reorg
+                  Rewind an already-qualified disposable chain to the seed boundary,
+                  cross the payout boundary on both forks, and prove canonical rollback
   assert-sigkill-recovery
                   Kill one daemon with SIGKILL, restart it with the same volume,
                   mine new blocks, and verify EPoSE state convergence
+  assert-sigkill-under-progress
+                  Kill one daemon while another node is actively extending the
+                  chain, then verify catch-up, EPoSE replay, and restart persistence
   partition       Split the network into A/B bridge networks
   heal            Reconnect every node to the shared bridge network
 
@@ -79,6 +92,9 @@ Environment:
                                 default matches EPOSE_NODE_COUNT
   EPOSE_STATE_DIR               Working directory for generated compose/data
   EPOSE_IMAGE                   Docker image, default ${IMAGE}
+  EPOSE_NETTYPE                 mainnet, testnet, or stagenet; default ${NETTYPE}
+  EPOSE_ISOLATE_NETWORK         Set to 1 for internal-only Docker bridges;
+                                required for disposable mainnet-profile tests
   EPOSE_RPC_BASE_PORT           First host RPC port, default ${RPC_BASE_PORT}
   EPOSE_P2P_BASE_PORT           First host P2P port, default ${P2P_BASE_PORT}
   EPOSE_PUBLISH_P2P             Set to 1 to publish P2P ports on 127.0.0.1
@@ -90,15 +106,27 @@ Environment:
   EPOSE_EPOCH_LENGTH            Blocks per EPoSE epoch, default ${EPOCH_LENGTH}
   EPOSE_MINE_TIMEOUT            Seconds to wait for mined registration, default ${MINE_TIMEOUT}
   EPOSE_MINING_THREADS          Miner threads per active node, default ${MINING_THREADS}
+  EPOSE_MINE_BURST_SECONDS      Seconds per controlled producer-carrying mining burst,
+                                default ${MINE_BURST_SECONDS}
+  EPOSE_MINING_POLL_SECONDS     Poll interval while targeting an exact mining height,
+                                default ${MINING_POLL_SECONDS}
+  EPOSE_PRODUCER_IDLE_SECONDS   Idle seconds between bursts so admission/receipt
+                                producers are not outrun, default ${PRODUCER_IDLE_SECONDS}
   EPOSE_RELAY_MINE_BURST_BLOCKS Blocks per non-service miner burst in relay tests,
                                 default ${RELAY_MINE_BURST_BLOCKS}
   EPOSE_RELAY_IDLE_SECONDS      Idle seconds between relay test mining bursts,
                                 default ${RELAY_IDLE_SECONDS}
   EPOSE_RANDOMX_UMASK           RandomX flag mask for test containers, default ${RANDOMX_UMASK}
   EPOSE_OFFLINE                 Set to 1 for isolated single-node mining smoke tests
+  EPOSE_CHAOS_PREPARE_QUALIFIED Set to 0 to run SIGKILL recovery against the existing
+                                non-empty EPoSE state without mining a new qualification epoch
   EPOSE_NETWORK_PREFIX          Prefix for explicit Docker network names
-  EPOSE_SERVICE_REWARD_ADDRESS  Testnet reward address for service-node mode
-  EPOSE_SERVICE_REWARD_VIEW_KEY Private view key matching EPOSE_SERVICE_REWARD_ADDRESS
+  EPOSE_COMPOSE_PROJECT_NAME    Stable Docker Compose project name. Defaults to
+                                the EPOSE_STATE_DIR basename.
+  EPOSE_SERVICE_REWARD_ADDRESS  Primary reward address matching EPOSE_NETTYPE
+  EPOSE_MINER_ADDRESS           Miner reward address matching EPOSE_NETTYPE. For
+                                mainnet-profile reward tests this must be set and
+                                must differ from EPOSE_SERVICE_REWARD_ADDRESS.
 USAGE
 }
 
@@ -117,10 +145,39 @@ require_node_count() {
     echo "EPOSE_SERVICE_NODE_COUNT must not exceed EPOSE_NODE_COUNT" >&2
     exit 2
   fi
+  case "${NETTYPE}" in
+    mainnet|testnet|stagenet) ;;
+    *) echo "EPOSE_NETTYPE must be mainnet, testnet, or stagenet" >&2; exit 2 ;;
+  esac
+  case "${ISOLATE_NETWORK}" in
+    0|1) ;;
+    *) echo "EPOSE_ISOLATE_NETWORK must be 0 or 1" >&2; exit 2 ;;
+  esac
+  if [ "${NETTYPE}" = "mainnet" ] && [ "${ISOLATE_NETWORK}" != "1" ]; then
+    echo "Disposable mainnet-profile tests require EPOSE_ISOLATE_NETWORK=1" >&2
+    exit 2
+  fi
+  if [ "${NETTYPE}" = "mainnet" ] && [ -z "${EPOSE_SERVICE_REWARD_ADDRESS:-}" ]; then
+    echo "Disposable mainnet-profile tests require an explicit EPOSE_SERVICE_REWARD_ADDRESS" >&2
+    exit 2
+  fi
+  if [ "${NETTYPE}" = "mainnet" ] && [ -z "${EPOSE_MINER_ADDRESS:-}" ]; then
+    echo "Disposable mainnet-profile tests require an explicit EPOSE_MINER_ADDRESS" >&2
+    exit 2
+  fi
+  if [ "${NETTYPE}" = "mainnet" ] && [ "${MINER_ADDRESS}" = "${REWARD_ADDRESS}" ]; then
+    echo "Disposable mainnet-profile reward tests require distinct miner and service-reward addresses" >&2
+    exit 2
+  fi
+  if [ "${ISOLATE_NETWORK}" = "1" ] && [ "${PUBLISH_P2P}" = "1" ]; then
+    echo "EPOSE_PUBLISH_P2P must remain 0 on an isolated Docker network" >&2
+    exit 2
+  fi
 }
 
 compose() {
-  COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT}" docker compose -f "${COMPOSE_FILE}" "$@"
+  COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT}" docker compose \
+    --project-name "${COMPOSE_PROJECT_NAME}" -f "${COMPOSE_FILE}" "$@"
 }
 
 node_name() {
@@ -138,7 +195,13 @@ node_p2p_port() {
 json_rpc() {
   local port="$1"
   local method="$2"
-  curl -fsS -X POST "http://127.0.0.1:${port}/json_rpc" \
+  local url="http://127.0.0.1:${port}"
+  if [ "${ISOLATE_NETWORK}" = "1" ] \
+      && [ "${port}" -ge "${RPC_BASE_PORT}" ] \
+      && [ "${port}" -lt "$((RPC_BASE_PORT + NODE_COUNT))" ]; then
+    url="$(node_rpc_url "$((port - RPC_BASE_PORT))")"
+  fi
+  curl -fsS -X POST "${url}/json_rpc" \
     -H "Content-Type: application/json" \
     -d "{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"${method}\",\"params\":{}}"
 }
@@ -147,7 +210,13 @@ json_rpc_params() {
   local port="$1"
   local method="$2"
   local params="$3"
-  curl -fsS -X POST "http://127.0.0.1:${port}/json_rpc" \
+  local url="http://127.0.0.1:${port}"
+  if [ "${ISOLATE_NETWORK}" = "1" ] \
+      && [ "${port}" -ge "${RPC_BASE_PORT}" ] \
+      && [ "${port}" -lt "$((RPC_BASE_PORT + NODE_COUNT))" ]; then
+    url="$(node_rpc_url "$((port - RPC_BASE_PORT))")"
+  fi
+  curl -fsS -X POST "${url}/json_rpc" \
     -H "Content-Type: application/json" \
     -d "{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"${method}\",\"params\":${params}}"
 }
@@ -156,7 +225,13 @@ daemon_rpc() {
   local port="$1"
   local path="$2"
   local params="$3"
-  curl -fsS -X POST "http://127.0.0.1:${port}/${path}" \
+  local url="http://127.0.0.1:${port}"
+  if [ "${ISOLATE_NETWORK}" = "1" ] \
+      && [ "${port}" -ge "${RPC_BASE_PORT}" ] \
+      && [ "${port}" -lt "$((RPC_BASE_PORT + NODE_COUNT))" ]; then
+    url="$(node_rpc_url "$((port - RPC_BASE_PORT))")"
+  fi
+  curl -fsS -X POST "${url}/${path}" \
     -H "Content-Type: application/json" \
     -d "${params}"
 }
@@ -168,6 +243,10 @@ now() {
 generate_compose() {
   require_node_count
   mkdir -p "${STATE_DIR}"
+  local internal_network_line=""
+  if [ "${ISOLATE_NETWORK}" = "1" ]; then
+    internal_network_line="    internal: true"
+  fi
 
   {
     cat <<YAML
@@ -183,7 +262,12 @@ YAML
     image: ${IMAGE}
     entrypoint: ["/usr/local/bin/qwertycoind"]
     command:
-      - --testnet
+YAML
+      case "${NETTYPE}" in
+        testnet) echo "      - --testnet" ;;
+        stagenet) echo "      - --stagenet" ;;
+      esac
+      cat <<YAML
       - --non-interactive
       - --p2p-bind-ip=0.0.0.0
       - --p2p-bind-port=8196
@@ -202,11 +286,22 @@ YAML
       fi
       if [ "${i}" -lt "${SERVICE_NODE_COUNT}" ]; then
         cat <<YAML
-      - --service-node
-      - --service-reward-address=${REWARD_ADDRESS}
-      - --service-reward-view-key=${REWARD_VIEW_KEY:?EPOSE_SERVICE_REWARD_VIEW_KEY is required for service-node mode}
-      - --service-node-advertise-address=${name}:8196
+      - --epose-v2-service
+      - --epose-v2-keystore=/service-node/epose-v2-keystore
+      - --epose-v2-reward-address=${REWARD_ADDRESS}
+      - --epose-v2-endpoint-host=${name}.epose.test
+      - --epose-v2-endpoint-port=8198
+      - --rpc-restricted-bind-ip=0.0.0.0
+      - --rpc-restricted-bind-port=8198
 YAML
+        local discovery_peer
+        for discovery_peer in $(seq 0 "$((NODE_COUNT - 1))"); do
+          if [ "${discovery_peer}" -ne "${i}" ]; then
+            cat <<YAML
+      - --epose-v2-discovery-endpoint=http://qwc-epose-node-${discovery_peer}.epose.test:8198
+YAML
+          fi
+        done
       fi
       local peer
       for peer in $(seq 0 "$((NODE_COUNT - 1))"); do
@@ -219,19 +314,40 @@ YAML
       cat <<YAML
     environment:
       MONERO_RANDOMX_UMASK: "${RANDOMX_UMASK}"
+YAML
+      if [ "${PUBLISH_P2P}" = "1" ] || [ "${ISOLATE_NETWORK}" = "0" ]; then
+        cat <<YAML
     ports:
 YAML
+      fi
       if [ "${PUBLISH_P2P}" = "1" ]; then
         cat <<YAML
       - "127.0.0.1:${p2p_port}:8196"
 YAML
       fi
-      cat <<YAML
+      if [ "${ISOLATE_NETWORK}" = "0" ]; then
+        cat <<YAML
       - "127.0.0.1:${rpc_port}:8197"
+YAML
+      fi
+      cat <<YAML
     volumes:
-      - ${name}-data:/root/.qwertycoin
+      # The runtime image runs as user qwertycoin.  Mount the durable chain
+      # volume at its actual default data directory; mounting /root here makes
+      # Docker silently allocate an anonymous /home/qwertycoin/.qwertycoin
+      # volume which is detached by container recreation.
+      - ${name}-data:/home/qwertycoin/.qwertycoin
+YAML
+      if [ "${i}" -lt "${SERVICE_NODE_COUNT}" ]; then
+        cat <<YAML
+      - ${name}-service-identity:/service-node
+YAML
+      fi
+      cat <<YAML
     networks:
-      - qwc-epose-local-net
+      qwc-epose-local-net:
+        aliases:
+          - ${name}.epose.test
 
 YAML
     done
@@ -241,17 +357,23 @@ networks:
   qwc-epose-local-net:
     driver: bridge
     name: ${NETWORK_NAME}
+${internal_network_line}
   qwc-epose-partition-a:
     driver: bridge
     name: ${PARTITION_A_NETWORK}
+${internal_network_line}
   qwc-epose-partition-b:
     driver: bridge
     name: ${PARTITION_B_NETWORK}
+${internal_network_line}
 
 volumes:
 YAML
     for i in $(seq 0 "$((NODE_COUNT - 1))"); do
       printf "  %s-data:\n" "$(node_name "${i}")"
+      if [ "${i}" -lt "${SERVICE_NODE_COUNT}" ]; then
+        printf "  %s-service-identity:\n" "$(node_name "${i}")"
+      fi
     done
   } > "${COMPOSE_FILE}"
 
@@ -397,6 +519,56 @@ node_tip_state_any_network() {
     <<<"${info_json}"
 }
 
+block_hash_at_height_any_network() {
+  local i="$1"
+  local height="$2"
+  json_rpc_node_params "${i}" "get_block_header_by_height" \
+    "{\"height\":${height}}" \
+    | jq -er '.result.block_header.hash'
+}
+
+service_reward_view_any_network() {
+  local i="$1"
+  local height="$2"
+  json_rpc_node_params "${i}" "get_service_rewards" \
+    "{\"height\":${height}}" \
+    | jq -er '.result | "\(.height):\(.epoch):\(.service_reward_active):\(.service_reward_bps):\(.qualified_count):\(.expected_payee_service_public_key):\(.expected_reward_view_public_key):\(.expected_reward_spend_public_key)"'
+}
+
+coinbase_service_payment_fingerprint_any_network() {
+  local i="$1"
+  local height="$2"
+  local reward_json bps row reward expected_service actual_service proof_bytes proof_hash
+  reward_json="$(json_rpc_node_params "${i}" "get_service_rewards" \
+    "{\"height\":${height}}")"
+  bps="$(printf '%s' "${reward_json}" | jq -er '.result.service_reward_bps')"
+  row="$(json_rpc_node_params "${i}" "get_block" \
+    "{\"height\":${height}}" | jq -er --argjson bps "${bps}" '
+      .result as $result
+      | ($result.json | fromjson) as $block
+      | ($result.block_header.reward | tonumber) as $reward
+      | (($reward * $bps / 10000) | floor) as $expected_service
+      | ($block.miner_tx.vout | map(.amount | tonumber)) as $amounts
+      | ($block.miner_tx.extra) as $extra
+      | first(
+          [range(0; (($extra | length) - 3)) as $offset
+            | select($extra[$offset:$offset + 4] == [81, 69, 80, 50])
+            | $offset]
+          | if length == 1 then .[0] else error("missing or ambiguous QEP2 payment proof") end
+        ) as $proof_offset
+      | if ($amounts | length) < 2 then error("missing service reward outputs") else . end
+      | if ($amounts | add) != $reward then error("coinbase outputs do not sum to reward") else . end
+      | ($amounts[1:] | add) as $actual_service
+      | if $actual_service != $expected_service then error("service reward amount mismatch") else . end
+      | [$reward, $expected_service, $actual_service,
+          ($extra[$proof_offset:] | map(tostring) | join(","))]
+      | @tsv')"
+  IFS=$'\t' read -r reward expected_service actual_service proof_bytes <<<"${row}"
+  proof_hash="$(printf '%s' "${proof_bytes}" | sha256sum | cut -d' ' -f1)"
+  printf '%s:%s:%s:%s' \
+    "${reward}" "${expected_service}" "${actual_service}" "${proof_hash}"
+}
+
 assert_restart_persists() {
   require_node_count
   local before after
@@ -423,7 +595,7 @@ start_mining_node() {
 
   while true; do
     response="$(daemon_rpc "${port}" "start_mining" \
-      "{\"miner_address\":\"${REWARD_ADDRESS}\",\"threads_count\":${threads},\"do_background_mining\":false,\"ignore_battery\":true}")"
+      "{\"miner_address\":\"${MINER_ADDRESS}\",\"threads_count\":${threads},\"do_background_mining\":false,\"ignore_battery\":true}")"
     status="$(printf "%s" "${response}" | jq -r '.status // .result.status // empty')"
     case "${status}" in
       OK|"Already mining")
@@ -568,7 +740,7 @@ mine_node_blocks() {
       echo "Mining on $(node_name "${i}") did not reach height ${target_height}" >&2
       exit 1
     fi
-    sleep 2
+    sleep "${MINING_POLL_SECONDS}"
   done
 }
 
@@ -617,7 +789,7 @@ start_mining_node_any_network() {
 
   while true; do
     response="$(daemon_rpc_node "${i}" "start_mining" \
-      "{\"miner_address\":\"${REWARD_ADDRESS}\",\"threads_count\":${threads},\"do_background_mining\":false,\"ignore_battery\":true}")"
+      "{\"miner_address\":\"${MINER_ADDRESS}\",\"threads_count\":${threads},\"do_background_mining\":false,\"ignore_battery\":true}")"
     status="$(printf "%s" "${response}" | jq -r '.status // .result.status // empty')"
     case "${status}" in
       OK|"Already mining")
@@ -679,7 +851,7 @@ mine_node_blocks_any_network() {
       echo "Mining on $(node_name "${i}") did not reach height ${target_height}" >&2
       exit 1
     fi
-    sleep 1
+    sleep "${MINING_POLL_SECONDS}"
   done
 }
 
@@ -910,16 +1082,26 @@ node_locally_registered() {
 }
 
 all_nodes_reward_active() {
-  local i
+  local i height block_height
   for i in $(seq 0 "$((NODE_COUNT - 1))"); do
-    local port rewards_json service_reward_active qualified_count
+    local port info_json rewards_json qualified_count
     port="$(node_rpc_port "${i}")"
-    if ! rewards_json="$(json_rpc "${port}" "get_service_rewards" 2>/dev/null)"; then
+    if ! info_json="$(json_rpc "${port}" "get_info" 2>/dev/null)"; then
       return 1
     fi
-    service_reward_active="$(printf "%s" "${rewards_json}" | jq -r '.result.service_reward_active')"
+    height="$(printf "%s" "${info_json}" | jq -r '.result.height')"
+    if [ "${height}" -lt 2 ]; then
+      return 1
+    fi
+    block_height="$((height - 1))"
+    if ! rewards_json="$(json_rpc_params "${port}" "get_service_rewards" \
+        "{\"height\":${block_height}}" 2>/dev/null)"; then
+      return 1
+    fi
     qualified_count="$(printf "%s" "${rewards_json}" | jq -r '.result.qualified_count')"
-    if [ "${service_reward_active}" != "true" ] || [ "${qualified_count}" -lt 1 ]; then
+    if [ "${qualified_count}" -lt 1 ] \
+        || ! coinbase_service_payment_fingerprint_any_network \
+          "${i}" "${block_height}" >/dev/null 2>&1; then
       return 1
     fi
   done
@@ -934,7 +1116,7 @@ all_nodes_current_epoch_qualified() {
       return 1
     fi
     qualified_count="$(printf "%s" "${epose_json}" | jq -r '.result.qualified_count')"
-    if [ "${qualified_count}" -lt 1 ]; then
+    if [ "${qualified_count}" -ne "${SERVICE_NODE_COUNT}" ]; then
       return 1
     fi
   done
@@ -968,8 +1150,18 @@ mine_node_until_registered() {
   done
 }
 
+mine_producer_burst() {
+  local anchor="${1:-0}"
+  start_mining_node "${anchor}" "${MINING_THREADS}"
+  sleep "${MINE_BURST_SECONDS}"
+  stop_mining_node "${anchor}"
+  wait_for_node_mining_stopped "${anchor}"
+  wait_for_same_tip_state
+  sleep "${PRODUCER_IDLE_SECONDS}"
+}
+
 mine_until_all_nodes_registered() {
-  local deadline i made_progress
+  local deadline
   deadline="$(($(now) + MINE_TIMEOUT))"
 
   while true; do
@@ -978,21 +1170,12 @@ mine_until_all_nodes_registered() {
       return
     fi
 
-    made_progress=0
-    for i in $(seq 0 "$((SERVICE_NODE_COUNT - 1))"); do
-      if ! node_locally_registered "${i}"; then
-        mine_node_until_registered "${i}"
-        made_progress=1
-        if all_nodes_locally_registered; then
-          wait_for_same_tip_state
-          return
-        fi
-      fi
-    done
-
-    if [ "${made_progress}" -eq 0 ]; then
-      converge_same_tip_state 0
-    fi
+    # Registrations are relayed EPoSE envelopes; the service node producing an
+    # admission proof does not need to mine it.  A single bounded miner avoids
+    # retaining one RandomX cache or dataset per service identity and the idle
+    # window prevents difficulty-1 integration chains from outrunning the
+    # real admission-proof workers before the enrollment cutoff.
+    mine_producer_burst 0
 
     if [ "$(now)" -gt "${deadline}" ]; then
       print_registration_status >&2
@@ -1003,7 +1186,7 @@ mine_until_all_nodes_registered() {
 }
 
 mine_until_current_epoch_qualified() {
-  local deadline i
+  local deadline
   deadline="$(($(now) + MINE_TIMEOUT))"
 
   while true; do
@@ -1012,16 +1195,7 @@ mine_until_current_epoch_qualified() {
       return
     fi
 
-    for i in $(seq 0 "$((NODE_COUNT - 1))"); do
-      start_mining_node "${i}" "${MINING_THREADS}"
-      sleep 5
-      stop_mining_node "${i}"
-      wait_for_node_mining_stopped "${i}"
-      converge_same_tip_state "${i}"
-      if all_nodes_current_epoch_qualified; then
-        return
-      fi
-    done
+    mine_producer_burst 0
 
     if [ "$(now)" -gt "${deadline}" ]; then
       print_registration_status >&2
@@ -1032,7 +1206,7 @@ mine_until_current_epoch_qualified() {
 }
 
 mine_until_rewards_active() {
-  local deadline i
+  local deadline
   deadline="$(($(now) + MINE_TIMEOUT))"
 
   while true; do
@@ -1041,16 +1215,7 @@ mine_until_rewards_active() {
       return
     fi
 
-    for i in $(seq 0 "$((NODE_COUNT - 1))"); do
-      start_mining_node "${i}" "${MINING_THREADS}"
-      sleep 5
-      stop_mining_node "${i}"
-      wait_for_node_mining_stopped "${i}"
-      converge_same_tip_state "${i}"
-      if all_nodes_reward_active; then
-        return
-      fi
-    done
+    mine_producer_burst 0
 
     if [ "$(now)" -gt "${deadline}" ]; then
       print_registration_status >&2
@@ -1160,32 +1325,44 @@ assert_service_reward_finalized_epoch() {
   require_node_count
   wait_for_rpc
 
-  local target_source_epoch target_height i port rewards_json reward_epoch active qualified
+  local target_source_epoch payout_block_height target_chain_height i port
+  local rewards_json reward_epoch qualified first_payment="" payment
   target_source_epoch="${EPOSE_TARGET_REWARD_SOURCE_EPOCH:-1}"
-  target_height="$(((target_source_epoch + 1) * EPOCH_LENGTH))"
+  payout_block_height="$(((target_source_epoch + 1) * EPOCH_LENGTH))"
+  target_chain_height="$((payout_block_height + 1))"
 
   mine_until_all_nodes_registered
   mine_until_rewards_active
   mine_until_height 0 "$((target_source_epoch * EPOCH_LENGTH))"
   mine_until_current_epoch_qualified
-  mine_until_height 0 "${target_height}"
+  mine_until_height 0 "${target_chain_height}"
   wait_for_same_tip_state
 
   for i in $(seq 0 "$((NODE_COUNT - 1))"); do
     port="$(node_rpc_port "${i}")"
-    rewards_json="$(json_rpc_params "${port}" "get_service_rewards" "{\"height\":${target_height}}")"
+    rewards_json="$(json_rpc_params "${port}" "get_service_rewards" \
+      "{\"height\":${payout_block_height}}")"
     reward_epoch="$(printf "%s" "${rewards_json}" | jq -r '.result.epoch')"
-    active="$(printf "%s" "${rewards_json}" | jq -r '.result.service_reward_active')"
     qualified="$(printf "%s" "${rewards_json}" | jq -r '.result.qualified_count')"
-    if [ "${reward_epoch}" != "${target_source_epoch}" ] || [ "${active}" != "true" ] || [ "${qualified}" -lt 1 ]; then
+    payment="$(coinbase_service_payment_fingerprint_any_network \
+      "${i}" "${payout_block_height}")"
+    if [ "${reward_epoch}" != "${target_source_epoch}" ] || [ "${qualified}" -lt 1 ]; then
       printf "%s\n" "${rewards_json}" >&2
-      echo "EPoSE reward RPC did not use finalized reward source epoch ${target_source_epoch}" >&2
+      echo "EPoSE payout did not use finalized reward source epoch ${target_source_epoch}" >&2
+      exit 1
+    fi
+    if [ -z "${first_payment}" ]; then
+      first_payment="${payment}"
+    elif [ "${payment}" != "${first_payment}" ]; then
+      echo "EPoSE payout coinbase differs across convergent nodes" >&2
       exit 1
     fi
   done
 
   print_registration_status
-  assert_same_service_rewards "${target_height}"
+  assert_same_service_rewards "${payout_block_height}"
+  printf 'payout_height=%s payment=%s\n' \
+    "${payout_block_height}" "${first_payment}"
 }
 
 assert_same_tip() {
@@ -1219,6 +1396,15 @@ json_rpc_url() {
     -d "{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"${method}\",\"params\":{}}"
 }
 
+daemon_rpc_url() {
+  local url="$1"
+  local path="$2"
+  local params="$3"
+  curl -fsS -X POST "${url}/${path}" \
+    -H "Content-Type: application/json" \
+    -d "${params}"
+}
+
 node_tip_state_from_url() {
   local url="$1"
   local info_json epose_json
@@ -1245,27 +1431,92 @@ wait_for_fresh_node_rpc() {
   done
 }
 
+rewind_stopped_node_offline() {
+  local i="$1"
+  local pop_count="$2"
+  local expected_height="$3"
+  local service original temporary container_ip url actual_height
+  local -a nettype_args=()
+  service="$(node_name "${i}")"
+  original="$(compose ps -q --all "${service}")"
+  if [ -z "${original}" ]; then
+    echo "Stopped Compose container is unavailable for ${service}" >&2
+    exit 1
+  fi
+  case "${NETTYPE}" in
+    testnet) nettype_args+=(--testnet) ;;
+    stagenet) nettype_args+=(--stagenet) ;;
+  esac
+  temporary="${NETWORK_PREFIX}-qwc-epose-rewind-${i}"
+  docker rm -f "${temporary}" >/dev/null 2>&1 || true
+  docker run -d \
+    --name "${temporary}" \
+    --network "${NETWORK_NAME}" \
+    --volumes-from "${original}" \
+    --entrypoint /usr/local/bin/qwertycoind \
+    "${IMAGE}" \
+    "${nettype_args[@]}" \
+    --non-interactive \
+    --offline \
+    --rpc-bind-ip=0.0.0.0 \
+    --rpc-bind-port=8197 \
+    --confirm-external-bind \
+    --no-igd \
+    --hide-my-port \
+    --disable-dns-checkpoints \
+    --log-level=0 >/dev/null
+  trap 'docker rm -f "${temporary}" >/dev/null 2>&1 || true' RETURN
+  container_ip="$(docker inspect -f \
+    "{{with index .NetworkSettings.Networks \"${NETWORK_NAME}\"}}{{.IPAddress}}{{end}}" \
+    "${temporary}")"
+  if [ -z "${container_ip}" ]; then
+    echo "Offline rewind container has no isolated-network address" >&2
+    exit 1
+  fi
+  url="http://${container_ip}:8197"
+  wait_for_fresh_node_rpc "${url}" "${temporary}"
+  daemon_rpc_url "${url}" "pop_blocks" "{\"nblocks\":${pop_count}}" \
+    | jq -e '.status == "OK"' >/dev/null
+  actual_height="$(json_rpc_url "${url}" "get_info" | jq -r '.result.height')"
+  if [ "${actual_height}" -ne "${expected_height}" ]; then
+    echo "EPoSE node ${i} rewound to ${actual_height}, expected ${expected_height}" >&2
+    exit 1
+  fi
+  docker rm -f "${temporary}" >/dev/null
+  trap - RETURN
+}
+
 assert_fresh_sync_matches() {
   require_node_count
   wait_for_rpc
   assert_same_tip >/dev/null
 
-  local name rpc_port url expected actual deadline
+  local name rpc_port url expected actual deadline container_ip
+  local -a publish_args=()
+  local -a nettype_args=()
+  case "${NETTYPE}" in
+    testnet) nettype_args+=(--testnet) ;;
+    stagenet) nettype_args+=(--stagenet) ;;
+  esac
   name="${NETWORK_PREFIX}-qwc-epose-fresh-sync"
   rpc_port="$((RPC_BASE_PORT + NODE_COUNT))"
   url="http://127.0.0.1:${rpc_port}"
   expected="$(node_tip_state 0)"
+
+  if [ "${ISOLATE_NETWORK}" = "0" ]; then
+    publish_args+=(-p "127.0.0.1:${rpc_port}:8197")
+  fi
 
   docker rm -f "${name}" >/dev/null 2>&1 || true
   docker run -d \
     --name "${name}" \
     --network "${NETWORK_NAME}" \
     --entrypoint /usr/local/bin/qwertycoind \
-    --tmpfs /root/.qwertycoin:rw,size=2g \
-    -p "127.0.0.1:${rpc_port}:8197" \
+    --tmpfs /home/qwertycoin/.qwertycoin:rw,size=2g,uid=100,gid=101,mode=0700 \
+    "${publish_args[@]}" \
     -e "MONERO_RANDOMX_UMASK=${RANDOMX_UMASK}" \
     "${IMAGE}" \
-      --testnet \
+      "${nettype_args[@]}" \
       --non-interactive \
       --p2p-bind-ip=0.0.0.0 \
       --p2p-bind-port=8196 \
@@ -1277,6 +1528,17 @@ assert_fresh_sync_matches() {
       --disable-dns-checkpoints \
       --fixed-difficulty="${FIXED_DIFFICULTY}" \
       --add-priority-node=qwc-epose-node-0:8196 >/dev/null
+
+  if [ "${ISOLATE_NETWORK}" = "1" ]; then
+    container_ip="$(docker inspect -f \
+      "{{with index .NetworkSettings.Networks \"${NETWORK_NAME}\"}}{{.IPAddress}}{{end}}" \
+      "${name}")"
+    if [ -z "${container_ip}" ]; then
+      echo "Fresh validator has no isolated-network address" >&2
+      exit 1
+    fi
+    url="http://${container_ip}:8197"
+  fi
 
   trap 'docker rm -f "${name}" >/dev/null 2>&1 || true' RETURN
   wait_for_fresh_node_rpc "${url}" "${name}"
@@ -1309,18 +1571,60 @@ assert_fresh_sync_matches() {
 partition() {
   require_node_count
   compose up -d --no-recreate
-  docker network inspect "${PARTITION_A_NETWORK}" >/dev/null 2>&1 || docker network create "${PARTITION_A_NETWORK}" >/dev/null
-  docker network inspect "${PARTITION_B_NETWORK}" >/dev/null 2>&1 || docker network create "${PARTITION_B_NETWORK}" >/dev/null
+  local -a network_create_args=()
+  if [ "${ISOLATE_NETWORK}" = "1" ]; then
+    network_create_args+=(--internal)
+  fi
+  docker network inspect "${PARTITION_A_NETWORK}" >/dev/null 2>&1 \
+    || docker network create "${network_create_args[@]}" "${PARTITION_A_NETWORK}" >/dev/null
+  docker network inspect "${PARTITION_B_NETWORK}" >/dev/null 2>&1 \
+    || docker network create "${network_create_args[@]}" "${PARTITION_B_NETWORK}" >/dev/null
+  local split b_start
+  split="$((NODE_COUNT / 2))"
+  b_start="${split}"
   for i in $(seq 0 "$((NODE_COUNT - 1))"); do
-    local name container target
+    local name container target missing
+    local -a alias_args=()
     name="$(node_name "${i}")"
     container="$(compose ps -q "${name}")"
     target="${PARTITION_A_NETWORK}"
-    if [ "${i}" -ge "$((NODE_COUNT / 2))" ]; then
+    if [ "${i}" -ge "${split}" ]; then
       target="${PARTITION_B_NETWORK}"
     fi
+    alias_args+=(--alias "${name}" --alias "${name}.epose.test")
+    # Every configured priority/discovery hostname must still resolve after a
+    # partition restart.  Missing-side names deliberately resolve to the local
+    # group anchor, where self/duplicate handshakes fail harmlessly instead of
+    # making p2p initialization fail before the partition test can run.
+    if [ "${i}" -eq 0 ]; then
+      for missing in $(seq "${b_start}" "$((NODE_COUNT - 1))"); do
+        alias_args+=(--alias "$(node_name "${missing}")" \
+          --alias "$(node_name "${missing}").epose.test")
+      done
+    elif [ "${i}" -eq "${b_start}" ]; then
+      for missing in $(seq 0 "$((split - 1))"); do
+        alias_args+=(--alias "$(node_name "${missing}")" \
+          --alias "$(node_name "${missing}").epose.test")
+      done
+    fi
     docker network disconnect "${NETWORK_NAME}" "${container}" >/dev/null 2>&1 || true
-    docker network connect --alias "${name}" "${target}" "${container}" >/dev/null 2>&1 || true
+    docker network connect "${alias_args[@]}" \
+      "${target}" "${container}" >/dev/null
+  done
+  # Docker can preserve established TCP sockets across a bridge disconnect.
+  # Restarting after every endpoint has moved ensures both groups form only
+  # fresh, group-local p2p connections.
+  docker restart $(compose ps -q) >/dev/null
+  local deadline
+  deadline="$(($(now) + RPC_READY_TIMEOUT))"
+  for i in $(seq 0 "$((NODE_COUNT - 1))"); do
+    while ! json_rpc_node "${i}" "get_epose_info" >/dev/null 2>&1; do
+      if [ "$(now)" -gt "${deadline}" ]; then
+        echo "Partitioned RPC did not recover for $(node_name "${i}")" >&2
+        exit 1
+      fi
+      sleep 2
+    done
   done
 }
 
@@ -1333,8 +1637,13 @@ heal() {
     container="$(compose ps -q "${name}")"
     docker network disconnect "${PARTITION_A_NETWORK}" "${container}" >/dev/null 2>&1 || true
     docker network disconnect "${PARTITION_B_NETWORK}" "${container}" >/dev/null 2>&1 || true
-    docker network connect --alias "${name}" "${NETWORK_NAME}" "${container}" >/dev/null 2>&1 || true
+    docker network connect --alias "${name}" --alias "${name}.epose.test" \
+      "${NETWORK_NAME}" "${container}" >/dev/null
   done
+  # Clear partition-local sockets and force deterministic full-mesh recovery
+  # through the original Compose peer configuration.
+  docker restart $(compose ps -q) >/dev/null
+  wait_for_rpc
 }
 
 assert_partition_heal() {
@@ -1402,7 +1711,8 @@ assert_epoch_boundary_reorg() {
   mine_until_all_nodes_registered
   mine_until_current_epoch_qualified
 
-  local boundary_height split b_start a_tip b_tip final_tip final_height
+  local boundary_height split b_start base_height a_height b_height
+  local a_tip b_tip final_tip final_height long_extra_blocks
   boundary_height="${EPOSE_REORG_BOUNDARY_HEIGHT:-${EPOCH_LENGTH}}"
   split="$((NODE_COUNT / 2))"
   b_start="${split}"
@@ -1410,10 +1720,20 @@ assert_epoch_boundary_reorg() {
   mine_until_height 0 "${boundary_height}"
   wait_for_same_tip_state
   assert_same_service_rewards "${boundary_height}"
+  base_height="$(json_rpc "$(node_rpc_port 0)" "get_info" | jq -r '.result.height')"
 
   partition
   mine_node_blocks_any_network 0 "${EPOSE_REORG_SHORT_BRANCH_BLOCKS:-1}"
-  mine_node_blocks_any_network "${b_start}" "${EPOSE_REORG_LONG_BRANCH_BLOCKS:-4}"
+  a_height="$(json_rpc_node 0 "get_info" | jq -r '.result.height')"
+  long_extra_blocks="${EPOSE_REORG_LONG_BRANCH_BLOCKS:-4}"
+  mine_node_blocks_any_network "${b_start}" \
+    "$((a_height + long_extra_blocks - base_height))"
+  b_height="$(json_rpc_node "${b_start}" "get_info" | jq -r '.result.height')"
+  if [ "${b_height}" -le "${a_height}" ]; then
+    status
+    echo "EPoSE epoch-boundary long branch did not exceed the short branch" >&2
+    exit 1
+  fi
 
   a_tip="$(node_tip_state_any_network 0)"
   b_tip="$(node_tip_state_any_network "${b_start}")"
@@ -1450,6 +1770,136 @@ assert_epoch_boundary_reorg() {
   assert_same_service_rewards "${final_height}"
 }
 
+assert_seed_payout_reorg() {
+  require_node_count
+  if [ "${NODE_COUNT}" -lt 4 ]; then
+    echo "assert-seed-payout-reorg requires at least 4 nodes" >&2
+    exit 2
+  fi
+
+  wait_for_rpc
+  stop_mining_all_nodes
+  wait_for_same_tip_state
+
+  local rewind_height="${EPOSE_REORG_SEED_REWIND_HEIGHT:-1380}"
+  local payout_height="${EPOSE_REORG_PAYOUT_HEIGHT:-1440}"
+  local short_target_height="${EPOSE_REORG_SHORT_TARGET_HEIGHT:-1442}"
+  local long_extra_blocks="${EPOSE_REORG_LONG_EXTRA_BLOCKS:-3}"
+  local max_overshoot="${EPOSE_REORG_MAX_OVERSHOOT:-64}"
+  local current_height pop_count i
+  current_height="$(json_rpc "$(node_rpc_port 0)" "get_info" | jq -r '.result.height')"
+  if [ "${current_height}" -le "${rewind_height}" ]; then
+    echo "Disposable chain height ${current_height} must exceed rewind height ${rewind_height}" >&2
+    exit 1
+  fi
+  pop_count="$((current_height - rewind_height))"
+  # Rewind each LMDB volume while every peer is stopped.  Leaving a rewound
+  # node attached to an unrewound peer would immediately resynchronize it and
+  # would not test the intended canonical disconnect path.
+  compose stop >/dev/null
+  for i in $(seq 0 "$((NODE_COUNT - 1))"); do
+    rewind_stopped_node_offline "${i}" "${pop_count}" "${rewind_height}"
+  done
+  start_network
+  wait_for_same_tip_state
+
+  current_height="$(json_rpc "$(node_rpc_port 0)" "get_info" | jq -r '.result.height')"
+  if [ "${current_height}" -ne "${rewind_height}" ]; then
+    status
+    echo "EPoSE rewind stopped at ${current_height}, expected ${rewind_height}" >&2
+    exit 1
+  fi
+  if ! all_nodes_current_epoch_qualified; then
+    status
+    echo "EPoSE qualification did not survive canonical rewind to ${rewind_height}" >&2
+    exit 1
+  fi
+
+  local split b_start a_height b_height a_tip b_tip final_tip
+  local a_seed_hash b_seed_hash final_seed_hash
+  local a_payout_hash b_payout_hash final_payout_hash
+  local a_reward_view b_reward_view final_reward_view
+  local a_payment_fingerprint b_payment_fingerprint final_payment_fingerprint
+  split="$((NODE_COUNT / 2))"
+  b_start="${split}"
+  partition
+
+  mine_node_blocks_any_network 0 "$((short_target_height - rewind_height))"
+  wait_for_group_same_tip_state_any_network 0 "$((split - 1))"
+  a_height="$(json_rpc_node 0 "get_info" | jq -r '.result.height')"
+  if [ "${a_height}" -lt "${short_target_height}" ] \
+      || [ "${a_height}" -gt "$((short_target_height + max_overshoot))" ]; then
+    echo "Short payout branch height ${a_height} is outside the bounded target range" >&2
+    exit 1
+  fi
+
+  mine_node_blocks_any_network "${b_start}" "$((a_height + long_extra_blocks - rewind_height))"
+  wait_for_group_same_tip_state_any_network "${b_start}" "$((NODE_COUNT - 1))"
+  b_height="$(json_rpc_node "${b_start}" "get_info" | jq -r '.result.height')"
+  if [ "${b_height}" -le "${a_height}" ] \
+      || [ "${b_height}" -gt "$((a_height + long_extra_blocks + max_overshoot))" ]; then
+    echo "Long payout branch height ${b_height} is not a bounded heavier branch" >&2
+    exit 1
+  fi
+
+  a_tip="$(node_tip_state_any_network 0)"
+  b_tip="$(node_tip_state_any_network "${b_start}")"
+  a_seed_hash="$(block_hash_at_height_any_network 0 "${rewind_height}")"
+  b_seed_hash="$(block_hash_at_height_any_network "${b_start}" "${rewind_height}")"
+  a_payout_hash="$(block_hash_at_height_any_network 0 "${payout_height}")"
+  b_payout_hash="$(block_hash_at_height_any_network "${b_start}" "${payout_height}")"
+  a_reward_view="$(service_reward_view_any_network 0 "${payout_height}")"
+  b_reward_view="$(service_reward_view_any_network "${b_start}" "${payout_height}")"
+  a_payment_fingerprint="$(coinbase_service_payment_fingerprint_any_network 0 "${payout_height}")"
+  b_payment_fingerprint="$(coinbase_service_payment_fingerprint_any_network "${b_start}" "${payout_height}")"
+  if [ "${a_tip}" = "${b_tip}" ] || [ "${a_seed_hash}" = "${b_seed_hash}" ] \
+      || [ "${a_payout_hash}" = "${b_payout_hash}" ] \
+      || [ "${a_payment_fingerprint}" = "${b_payment_fingerprint}" ]; then
+    echo "EPoSE seed/payout partition did not create distinct canonical candidates" >&2
+    exit 1
+  fi
+
+  printf 'short_branch height=%s seed_hash=%s payout_hash=%s reward_view=%s payment=%s\n' \
+    "${a_height}" "${a_seed_hash}" "${a_payout_hash}" "${a_reward_view}" \
+    "${a_payment_fingerprint}"
+  printf 'long_branch height=%s seed_hash=%s payout_hash=%s reward_view=%s payment=%s\n' \
+    "${b_height}" "${b_seed_hash}" "${b_payout_hash}" "${b_reward_view}" \
+    "${b_payment_fingerprint}"
+
+  heal
+  compose down
+  start_network
+  wait_for_same_tip_state_any_network
+
+  final_tip="$(node_tip_state_any_network 0)"
+  final_seed_hash="$(block_hash_at_height_any_network 0 "${rewind_height}")"
+  final_payout_hash="$(block_hash_at_height_any_network 0 "${payout_height}")"
+  final_reward_view="$(service_reward_view_any_network 0 "${payout_height}")"
+  final_payment_fingerprint="$(coinbase_service_payment_fingerprint_any_network 0 "${payout_height}")"
+  if [ "${final_tip}" = "${a_tip}" ] \
+      || [ "${final_seed_hash}" != "${b_seed_hash}" ] \
+      || [ "${final_payout_hash}" != "${b_payout_hash}" ] \
+      || [ "${final_reward_view}" != "${b_reward_view}" ] \
+      || [ "${final_payment_fingerprint}" != "${b_payment_fingerprint}" ]; then
+    status
+    echo "EPoSE seed/payout rollback did not converge to the heavier branch" >&2
+    exit 1
+  fi
+
+  compose down
+  start_network
+  wait_for_same_tip_state
+  if [ "$(block_hash_at_height_any_network 0 "${rewind_height}")" != "${b_seed_hash}" ] \
+      || [ "$(block_hash_at_height_any_network 0 "${payout_height}")" != "${b_payout_hash}" ] \
+      || [ "$(service_reward_view_any_network 0 "${payout_height}")" != "${b_reward_view}" ] \
+      || [ "$(coinbase_service_payment_fingerprint_any_network 0 "${payout_height}")" != "${b_payment_fingerprint}" ]; then
+    status
+    echo "EPoSE seed/payout rollback changed after restart" >&2
+    exit 1
+  fi
+  status
+}
+
 assert_sigkill_recovery() {
   require_node_count
   if [ "${NODE_COUNT}" -lt 2 ]; then
@@ -1458,8 +1908,25 @@ assert_sigkill_recovery() {
   fi
 
   wait_for_rpc
-  mine_until_all_nodes_registered
-  mine_until_current_epoch_qualified
+  case "${CHAOS_PREPARE_QUALIFIED}" in
+    0)
+      local existing_state_hash
+      existing_state_hash="$(json_rpc "$(node_rpc_port 0)" "get_epose_info" \
+        | jq -r '.result.state_hash // empty')"
+      if [ -z "${existing_state_hash}" ]; then
+        echo "Existing EPoSE state hash is unavailable for SIGKILL recovery" >&2
+        exit 1
+      fi
+      ;;
+    1)
+      mine_until_all_nodes_registered
+      mine_until_current_epoch_qualified
+      ;;
+    *)
+      echo "EPOSE_CHAOS_PREPARE_QUALIFIED must be 0 or 1" >&2
+      exit 2
+      ;;
+  esac
   wait_for_same_tip_state
 
   local victim="${EPOSE_CHAOS_VICTIM:-$((NODE_COUNT - 1))}"
@@ -1486,6 +1953,76 @@ assert_sigkill_recovery() {
   final_height="$(node_tip_state 0 | cut -d: -f1)"
   printf "%s\n" "${after_progress}"
   assert_same_service_rewards "${final_height}"
+}
+
+assert_sigkill_under_progress() {
+  require_node_count
+  if [ "${NODE_COUNT}" -lt 2 ]; then
+    echo "assert-sigkill-under-progress requires at least 2 nodes" >&2
+    exit 2
+  fi
+
+  wait_for_rpc
+  stop_mining_all_nodes
+  wait_for_same_tip_state
+
+  local victim="${EPOSE_CHAOS_VICTIM:-$((NODE_COUNT - 1))}"
+  local anchor="${EPOSE_CHAOS_ANCHOR:-0}"
+  local lag_blocks="${EPOSE_CHAOS_LAG_BLOCKS:-12}"
+  local before_height progressed_height target_height current_height deadline
+  local after_replay after_restart
+  if [ "${victim}" -eq "${anchor}" ]; then
+    echo "EPoSE SIGKILL victim and mining anchor must differ" >&2
+    exit 2
+  fi
+
+  before_height="$(json_rpc_node "${anchor}" "get_info" | jq -r '.result.height')"
+  start_mining_node "${anchor}" "${MINING_THREADS}"
+  trap 'stop_mining_all_nodes' EXIT
+  deadline="$(($(now) + MINE_TIMEOUT))"
+  while true; do
+    progressed_height="$(json_rpc_node "${anchor}" "get_info" | jq -r '.result.height')"
+    if [ "${progressed_height}" -gt "${before_height}" ]; then
+      break
+    fi
+    if [ "$(now)" -gt "${deadline}" ]; then
+      echo "EPoSE chain did not progress before SIGKILL" >&2
+      exit 1
+    fi
+    sleep "${MINING_POLL_SECONDS}"
+  done
+
+  docker kill --signal=KILL "$(compose ps -q "$(node_name "${victim}")")" >/dev/null
+  target_height="$((progressed_height + lag_blocks))"
+  while true; do
+    current_height="$(json_rpc_node "${anchor}" "get_info" | jq -r '.result.height')"
+    if [ "${current_height}" -ge "${target_height}" ]; then
+      break
+    fi
+    if [ "$(now)" -gt "${deadline}" ]; then
+      echo "EPoSE chain did not create the requested post-SIGKILL lag" >&2
+      exit 1
+    fi
+    sleep "${MINING_POLL_SECONDS}"
+  done
+  stop_mining_all_nodes
+  trap - EXIT
+
+  compose up -d --no-recreate "$(node_name "${victim}")" >/dev/null
+  wait_for_node_rpc "${victim}"
+  wait_for_same_tip_state
+  after_replay="$(network_fingerprint)"
+
+  compose down
+  start_network
+  wait_for_same_tip_state
+  after_restart="$(network_fingerprint)"
+  if [ "${after_restart}" != "${after_replay}" ]; then
+    printf '%s\n' "${after_restart}"
+    echo "EPoSE SIGKILL catch-up state changed after container recreation" >&2
+    exit 1
+  fi
+  printf '%s\n' "${after_restart}"
 }
 
 command="${1:-}"
@@ -1540,8 +2077,14 @@ case "${command}" in
   assert-epoch-boundary-reorg)
     assert_epoch_boundary_reorg
     ;;
+  assert-seed-payout-reorg)
+    assert_seed_payout_reorg
+    ;;
   assert-sigkill-recovery)
     assert_sigkill_recovery
+    ;;
+  assert-sigkill-under-progress)
+    assert_sigkill_under_progress
     ;;
   partition)
     partition
