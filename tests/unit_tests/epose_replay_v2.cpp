@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <map>
+#include <limits>
 
 #include "blockchain_db/blockchain_db.h"
 #include "epose/replay_v2.h"
@@ -97,14 +98,17 @@ namespace
     }
   };
 
-  replay_source make_source(uint64_t last_height)
+  replay_source make_source(
+      uint64_t last_height,
+      uint64_t future_hardfork_height = std::numeric_limits<uint64_t>::max())
   {
     replay_source source{};
     auto producer = transition();
     for (uint64_t height = 0; height <= last_height; ++height)
     {
       replay_block_v2 block{};
-      block.major_version = HF_VERSION_QWC_EPOSE;
+      block.major_version = height >= future_hardfork_height
+          ? HF_VERSION_QWC_EPOSE + 1 : HF_VERSION_QWC_EPOSE;
       block.height = height;
       block.block_hash = height == 0
           ? genesis : hash_text("replay-block-" + std::to_string(height));
@@ -116,7 +120,7 @@ namespace
           &source.blocks.at(height).transactions.front().transaction, true, nullptr};
       block_apply_summary_v2 summary{};
       EXPECT_EQ(block_transition_status_v2::accepted,
-          producer.apply_block(HF_VERSION_QWC_EPOSE, height, block.block_hash,
+          producer.apply_block(block.major_version, height, block.block_hash,
               {transaction}, source, summary));
       source.states.emplace(height, producer.state().state_hash());
       source.parameter_hashes.emplace(height, parameters);
@@ -124,6 +128,22 @@ namespace
     }
     return source;
   }
+}
+
+TEST(epose_replay_v2, future_hardfork_replays_without_state_reset)
+{
+  replay_source source = make_source(5, 3);
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE, source.blocks.at(2).major_version);
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE + 1, source.blocks.at(3).major_version);
+
+  auto rebuilt = transition();
+  replay_summary_v2 summary{};
+  ASSERT_EQ(replay_status_v2::accepted,
+      replay_and_verify_v2(rebuilt, source,
+          cryptonote::EPOSE_STATE_COMMITMENT_SCHEMA_V2,
+          parameters, 0, 5, summary));
+  EXPECT_EQ(6u, summary.blocks);
+  EXPECT_EQ(source.states.at(5), rebuilt.state().state_hash());
 }
 
 TEST(epose_replay_v2, streams_from_genesis_and_verifies_every_commitment)
@@ -190,7 +210,7 @@ TEST(epose_replay_v2, rejects_noncanonical_block_metadata_and_versions)
           parameters, 0, 0, summary));
 
   replay_source wrong_version = make_source(0);
-  wrong_version.blocks[0].major_version = 18;
+  wrong_version.blocks[0].major_version = HF_VERSION_MONERO_CURRENT_CONSENSUS;
   auto rebuilt_version = transition();
   EXPECT_EQ(replay_status_v2::transition_failed,
       replay_and_verify_v2(rebuilt_version, wrong_version,

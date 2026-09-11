@@ -941,7 +941,8 @@ crypto::hash Blockchain::get_block_id_by_height(uint64_t height) const
 //------------------------------------------------------------------
 bool Blockchain::is_epose_enabled_for_height(uint64_t height) const
 {
-  return m_hardfork && get_ideal_hard_fork_version(height) == HF_VERSION_QWC_EPOSE;
+  return m_hardfork
+      && is_qwc_epose_v2_hardfork(get_ideal_hard_fork_version(height));
 }
 //------------------------------------------------------------------
 bool Blockchain::is_epose_enabled() const
@@ -1554,8 +1555,9 @@ bool Blockchain::rebuild_epose_state()
   for (uint64_t height = 0; height < chain_height; ++height)
   {
     const block bl = m_db->get_block_from_height(height);
-    if (bl.major_version != HF_VERSION_QWC_EPOSE
-        || m_hardfork->get_ideal_version(height) != HF_VERSION_QWC_EPOSE)
+    const uint8_t ideal_version = m_hardfork->get_ideal_version(height);
+    if (!is_qwc_epose_v2_hardfork(bl.major_version)
+        || bl.major_version != ideal_version)
     {
       MERROR("Unexpected block version while replaying EPoSE-v2 at height " << height);
       return false;
@@ -2568,7 +2570,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   miner_service_payment_v2 service_payment{};
   const miner_service_payment_v2 *service_payment_ptr = nullptr;
   std::vector<qwertycoin::epose::envelope_record_v2> relay_records;
-  if (hf_version == HF_VERSION_QWC_EPOSE && m_epose_v2)
+  if (is_qwc_epose_v2_hardfork(hf_version) && m_epose_v2)
   {
     CHECK_AND_ASSERT_MES(
         plan_epose_reward_v2(
@@ -2592,7 +2594,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   }
   else
     CHECK_AND_ASSERT_MES(
-        hf_version != HF_VERSION_QWC_EPOSE || m_nettype == FAKECHAIN,
+        !is_qwc_epose_v2_hardfork(hf_version) || m_nettype == FAKECHAIN,
         false, "HF17 block template requires the EPoSE-v2 coordinator");
 
   const auto construct_template_miner_tx = [&](size_t current_weight) {

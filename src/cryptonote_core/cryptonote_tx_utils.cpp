@@ -201,7 +201,7 @@ namespace cryptonote
     if (service_payment_v2 != nullptr)
     {
       CHECK_AND_ASSERT_MES(
-          hard_fork_version == HF_VERSION_QWC_EPOSE
+          is_qwc_epose_v2_hardfork(hard_fork_version)
               && service_reward_address == nullptr
               && service_reward == 0
               && service_payment_v2->limits != nullptr

@@ -724,7 +724,10 @@ envelope format specified above. `tx_extra_epose_v2` is present in the generic
 variant so unrelated fields can be parsed and preserved, but the ordinary
 parser rejects it unless a version-aware caller opts in. The shared carrier
 adapter opts in only for exact QWC launch block version 17. Inherited Monero
-block version 16 and unscheduled version 18 therefore reject the field. EPoSE
+block version 16 rejects the field. An unscheduled version 18 is rejected by
+the hardfork schedule; once a future version is explicitly scheduled, it
+continues the same EPoSE-v2 carrier and state unless that fork defines a
+versioned migration. EPoSE
 protocol version 2 remains a separate wire-format domain.
 
 The parser accepts constructor-supplied limits only; no fallback mainnet values

@@ -283,9 +283,31 @@ TEST(epose_coordinator_v2, incomplete_or_wrong_version_configuration_fails_close
   coordinator_result_v2 result{};
   EXPECT_EQ(coordinator_status_v2::invalid_block,
       connect_empty(coordinator, source, 0, 1025, result, 16));
-  EXPECT_EQ(coordinator_status_v2::invalid_block,
-      connect_empty(coordinator, source, 0, 1025, result, 18));
   EXPECT_EQ(crypto::null_hash, result.state_hash);
+}
+
+TEST(epose_coordinator_v2, future_hardfork_continues_same_coordinator_state)
+{
+  consensus_coordinator_v2 coordinator(
+      parameters(empty_qualification_policy_v2::miner_fallback));
+  contexts source{};
+  coordinator_result_v2 result{};
+  ASSERT_EQ(coordinator_status_v2::accepted,
+      connect_empty(coordinator, source, 0, 1025, result,
+          HF_VERSION_QWC_EPOSE));
+  const crypto::hash at_hf17 = result.state_hash;
+  ASSERT_EQ(coordinator_status_v2::accepted,
+      connect_empty(coordinator, source, 1, 1025, result,
+          HF_VERSION_QWC_EPOSE + 1));
+  EXPECT_EQ(at_hf17, result.state_hash);
+  EXPECT_EQ(parameters(empty_qualification_policy_v2::miner_fallback).parameter_set_hash,
+      result.parameter_set_hash);
+  ASSERT_EQ(block_transition_status_v2::accepted, coordinator.disconnect_tip(1));
+  EXPECT_EQ(at_hf17, coordinator.state().state_hash());
+  ASSERT_EQ(coordinator_status_v2::accepted,
+      connect_empty(coordinator, source, 1, 1025, result,
+          HF_VERSION_QWC_EPOSE + 1));
+  EXPECT_EQ(at_hf17, result.state_hash);
 }
 
 TEST(epose_coordinator_v2, compiled_mainnet_rehearsal_profile_matches_manifest)

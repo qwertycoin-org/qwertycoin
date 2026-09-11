@@ -35,9 +35,11 @@ class TimingTests(unittest.TestCase):
         self.assertEqual(1379, self.timing.evidence_deadline(1))
         self.assertEqual(1380, self.timing.payout_seed_height(1))
 
-    def test_genesis_boundary_accepts_only_qwc_hf17(self):
+    def test_epose_starts_at_hf17_and_continues_across_future_hardforks(self):
         self.assertTrue(self.timing.block_version_allowed(0, 17))
-        for version in (0, 1, 16, 18, 19, 255):
+        self.assertTrue(self.timing.block_version_allowed(1, 18))
+        self.assertTrue(self.timing.block_version_allowed(2, 255))
+        for version in (0, 1, 16):
             self.assertFalse(self.timing.block_version_allowed(0, version))
 
     def test_payout_source_is_exactly_previous_epoch(self):

@@ -173,7 +173,7 @@ class Timing:
         checked_u64(height, "height")
         if not isinstance(major_version, int) or isinstance(major_version, bool) or not 0 <= major_version <= 0xFF:
             raise ModelError("major_version is outside uint8")
-        return height >= self.activation_height and major_version == 17
+        return height >= self.activation_height and major_version >= 17
 
 
 def encode_envelope(records: Iterable[Tuple[int, int, bytes]]) -> bytes:

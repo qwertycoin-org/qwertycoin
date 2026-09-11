@@ -451,7 +451,7 @@ namespace epose
   {
     records.clear();
     budget = {};
-    if (major_version != HF_VERSION_QWC_EPOSE)
+    if (!is_qwc_epose_v2_hardfork(major_version))
       return envelope_status_v2::inactive_protocol;
     if (!limits.valid() || max_envelopes_per_transaction == 0)
       return envelope_status_v2::invalid_limits;
@@ -492,7 +492,7 @@ namespace epose
       envelope_budget_v2 &budget)
   {
     budget = {};
-    if (major_version != HF_VERSION_QWC_EPOSE)
+    if (!is_qwc_epose_v2_hardfork(major_version))
       return envelope_status_v2::inactive_protocol;
     if (!limits.valid() || max_envelopes_per_transaction == 0)
       return envelope_status_v2::invalid_limits;
@@ -538,7 +538,7 @@ namespace epose
       envelope_budget_v2 &budget)
   {
     budget = {};
-    if (major_version != HF_VERSION_QWC_EPOSE)
+    if (!is_qwc_epose_v2_hardfork(major_version))
       return envelope_status_v2::inactive_protocol;
     std::vector<envelope_record_v2> records;
     envelope_budget_v2 parsed_budget{};
@@ -565,7 +565,7 @@ namespace epose
       size_t &removed_records)
   {
     removed_records = 0;
-    if (major_version != HF_VERSION_QWC_EPOSE)
+    if (!is_qwc_epose_v2_hardfork(major_version))
       return envelope_status_v2::inactive_protocol;
     if (!limits.valid() || max_envelopes_per_transaction == 0)
       return envelope_status_v2::invalid_limits;

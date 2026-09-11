@@ -221,7 +221,7 @@ namespace epose
     result = {};
     if (!valid_)
       return coordinator_status_v2::invalid_configuration;
-    if (block.major_version != HF_VERSION_QWC_EPOSE
+    if (!is_qwc_epose_v2_hardfork(block.major_version)
         || block.block_hash == crypto::null_hash
         || (block.height != parameters_.timing.activation_height
             && block.parent_hash == crypto::null_hash)

@@ -124,7 +124,8 @@ Results:
 - block-transition plus replay tests: **8/8 passed**;
 - LMDB atomic add/restart/pop and invalid-commitment test: **1/1 passed**;
 - full broad `unit_tests` target: built and linked successfully;
-- exact QWC HF17 is accepted; inherited version 16 and unscheduled version 18
+- QWC HF17 and a separately scheduled future version are accepted by the EPoSE
+  state machine; inherited version 16 and unscheduled version 18
   fail closed in the v2 adapter;
 - missing, wrong-state, wrong-parameter and wrong-schema commitments fail;
 - LMDB accepts only commitment schema version 1.

@@ -43,12 +43,16 @@ EPoSE protocol/format version 2 are separate version domains.
     v2 economic path is not release-ready until block/coinbase validation,
     atomic LMDB state, bounded transport, wallet funds safety, final parameters,
     and every mandatory release gate are complete.
+11. Future scheduled QWC block versions continue the parameter-bound EPoSE-v2
+    state by default.  ADR-0008 defines that no-op continuation rule; it does
+    not schedule a future fork or permit an implicit parameter migration.
 
 ## Consensus consequences
 
 - There is no Monero-HF16 operating phase or QWC-HF17 migration window.
 - There is no pre-activation height and no activation-block migration state.
-- Genesis and every descendant must use exact QWC block version 17 until a
+- Genesis and every descendant must use the block version selected by the
+  hardfork schedule. Version 17 remains the only scheduled version until a
   future separately approved protocol version.
 - Reorg handling remains required from genesis onward. A fresh genesis does not
   weaken replay, crash-recovery, or deterministic-state requirements.

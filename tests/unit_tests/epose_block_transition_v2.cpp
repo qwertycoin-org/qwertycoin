@@ -95,14 +95,15 @@ namespace
   block_transition_status_v2 apply_empty(
       block_transition_v2 &state,
       contexts &source,
-      uint64_t height)
+      uint64_t height,
+      uint8_t major_version = HF_VERSION_QWC_EPOSE)
   {
     cryptonote::transaction miner{};
     const crypto::hash block_hash = height == 0
         ? genesis : hash_text("block-" + std::to_string(height));
     source.blocks[height] = block_hash;
     block_apply_summary_v2 summary{};
-    return state.apply_block(HF_VERSION_QWC_EPOSE, height, block_hash,
+    return state.apply_block(major_version, height, block_hash,
         {{&miner, true, nullptr}}, source, summary);
   }
 
@@ -177,7 +178,7 @@ namespace
   }
 }
 
-TEST(epose_block_transition_v2, exact_hf17_dispatch_starts_at_genesis)
+TEST(epose_block_transition_v2, hf17_dispatch_starts_at_genesis)
 {
   contexts source{};
   cryptonote::transaction miner{};
@@ -187,14 +188,36 @@ TEST(epose_block_transition_v2, exact_hf17_dispatch_starts_at_genesis)
   auto inherited = transition();
   EXPECT_EQ(block_transition_status_v2::inactive_protocol,
       inherited.apply_block(16, 0, genesis, transactions, source, summary));
-  auto unscheduled = transition();
-  EXPECT_EQ(block_transition_status_v2::inactive_protocol,
-      unscheduled.apply_block(18, 0, genesis, transactions, source, summary));
   auto launch = transition();
   EXPECT_EQ(block_transition_status_v2::accepted,
       launch.apply_block(17, 0, genesis, transactions, source, summary));
   EXPECT_EQ(1u, summary.transactions);
   EXPECT_EQ(crypto::null_hash == launch.state().state_hash(), false);
+}
+
+TEST(epose_block_transition_v2, future_hardfork_continues_and_reorgs_same_state)
+{
+  auto state = transition();
+  contexts source{};
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_empty(state, source, 0, HF_VERSION_QWC_EPOSE));
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_empty(state, source, 1, HF_VERSION_QWC_EPOSE));
+  const crypto::hash at_hf17 = state.state().state_hash();
+
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_empty(state, source, 2, HF_VERSION_QWC_EPOSE + 1));
+  const crypto::hash at_hf18 = state.state().state_hash();
+  // Empty blocks do not enter the semantic commitment.  Equality here proves
+  // that the scheduled future block version continued the existing state
+  // instead of replacing it with a version-specific empty state.
+  EXPECT_EQ(at_hf17, at_hf18);
+
+  ASSERT_EQ(block_transition_status_v2::accepted, state.disconnect_tip(2));
+  EXPECT_EQ(at_hf17, state.state().state_hash());
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_empty(state, source, 2, HF_VERSION_QWC_EPOSE + 1));
+  EXPECT_EQ(at_hf18, state.state().state_hash());
 }
 
 TEST(epose_block_transition_v2, lifecycle_admission_freeze_and_close_follow_bootstrap_boundaries)

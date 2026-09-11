@@ -261,7 +261,7 @@ TEST(epose_envelope_v2, failed_operations_clear_all_outputs_atomically)
   EXPECT_EQ(0u, budget.bytes);
 }
 
-TEST(epose_envelope_v2, dedicated_tx_extra_carrier_is_exactly_version_gated)
+TEST(epose_envelope_v2, dedicated_tx_extra_carrier_starts_at_hf17_and_continues)
 {
   std::vector<uint8_t> extra;
   ASSERT_TRUE(cryptonote::add_tx_pub_key_to_extra(extra, crypto::null_pkey));
@@ -296,11 +296,11 @@ TEST(epose_envelope_v2, dedicated_tx_extra_carrier_is_exactly_version_gated)
           limits(), parsed, parsed_budget));
   EXPECT_TRUE(parsed.empty());
   EXPECT_EQ(0u, parsed_budget.bytes);
-  EXPECT_EQ(envelope_status_v2::inactive_protocol,
+  EXPECT_EQ(envelope_status_v2::accepted,
       parse_transaction_extra_v2(extra, 18, 1, limits(), parsed, parsed_budget));
-  EXPECT_TRUE(parsed.empty());
-  EXPECT_EQ(0u, parsed_budget.bytes);
-  EXPECT_EQ(envelope_status_v2::inactive_protocol,
+  ASSERT_EQ(1u, parsed.size());
+  EXPECT_EQ(expected.payload, parsed.front().payload);
+  EXPECT_EQ(envelope_status_v2::accepted,
       parse_transaction_extra_v2(extra, 19, 1, limits(), parsed, parsed_budget));
 }
 

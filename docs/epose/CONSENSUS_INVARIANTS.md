@@ -78,6 +78,7 @@ activated by CO-01.
 68. Disconnect restores descriptors, leases, snapshots, receipts, qualification, payouts, and accounting to the exact parent state.
 69. Reorg across any cutoff or anchor rebuilds all dependent objects from replacement canonical blocks.
 70. Index/cache loss never turns a required service allocation into an empty-set fallback.
+71. A later scheduled QWC block version continues the same EPoSE-v2 state and parameter commitment unless an explicit versioned migration replaces it.
 71. All epoch arithmetic is checked unsigned 64-bit arithmetic; overflow fails closed.
 72. A reserved but not fully specified record type is invalid in consensus.
 73. RandomX remains the sole chain-selection and block-production mechanism after v2 activation.

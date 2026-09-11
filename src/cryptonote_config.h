@@ -203,6 +203,16 @@
 // and EPoSE wire-format versions are separate domains.
 #define HF_VERSION_QWC_EPOSE                    17
 
+// EPoSE-v2 is the launch state machine, not a one-version feature flag.  A
+// later QWC hardfork continues processing the same parameter-bound state until
+// an explicitly versioned migration replaces it.  Keeping this predicate in
+// one place prevents a future HF from silently disabling registration,
+// receipts, qualification, or rewards.
+inline constexpr bool is_qwc_epose_v2_hardfork(const uint8_t version) noexcept
+{
+  return version >= HF_VERSION_QWC_EPOSE;
+}
+
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 #define CRYPTONOTE_SCALING_2021_FEE_ROUNDING_PLACES 2
 

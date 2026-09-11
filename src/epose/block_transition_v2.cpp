@@ -70,7 +70,7 @@ namespace epose
     summary = {};
     if (!valid_)
       return block_transition_status_v2::invalid_configuration;
-    if (major_version != HF_VERSION_QWC_EPOSE)
+    if (!is_qwc_epose_v2_hardfork(major_version))
       return block_transition_status_v2::inactive_protocol;
     if ((!have_tip_ && height != timing_.activation_height)
         || (have_tip_ && (tip_height_ == std::numeric_limits<uint64_t>::max()
