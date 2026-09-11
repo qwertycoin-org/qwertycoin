@@ -75,7 +75,7 @@ class ManifestV2Tests(unittest.TestCase):
         )
         return manifest
 
-    def test_checked_in_rehearsal_candidate_is_complete_and_activatable(self):
+    def test_checked_in_activation_candidate_is_complete_and_activatable(self):
         missing = validate_manifest(self.manifest)
         self.assertEqual(self.manifest["manifest_kind"], "activation-candidate")
         self.assertEqual(self.manifest["status"], "activatable")

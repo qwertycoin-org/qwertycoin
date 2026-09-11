@@ -91,7 +91,7 @@ class ManifestTests(unittest.TestCase):
         path = Path(__file__).parents[2] / "docs" / "epose" / "PARAMETER_MANIFEST_V2.json"
         self.manifest = json.loads(path.read_text(encoding="utf-8"))
 
-    def test_rehearsal_manifest_is_complete_but_not_a_release_gate_pass(self):
+    def test_activation_manifest_is_complete_but_not_a_release_gate_pass(self):
         self.assertEqual("activation-candidate", self.manifest["manifest_kind"])
         self.assertEqual("activatable", self.manifest["status"])
         MODEL.validate_manifest(self.manifest)
