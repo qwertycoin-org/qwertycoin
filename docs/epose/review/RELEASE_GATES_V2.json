@@ -1,10 +1,19 @@
 {
   "gates": [
     {
-      "evidence": [],
+      "evidence": [
+        {
+          "artifact_ref": "sha256:4b509264854a28c0bc0d9b784c6dedf3db4eb3d70f70fd7014ba31668588dae4",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/final_artifact_binding_v1.json",
+          "result": "pass",
+          "sha256": "4b509264854a28c0bc0d9b784c6dedf3db4eb3d70f70fd7014ba31668588dae4",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        }
+      ],
       "id": "source_and_invariant_baseline",
-      "state": "blocked",
-      "summary": "Baseline provenance is being reconciled against the declared Git tree and deployed binary identity remains unresolved.",
+      "state": "satisfied",
+      "summary": "The signed exact-source binding records the Git tree, canonical manifest, final genesis, runtime versions, binary hashes, image identity, and deterministic Linux bundle.",
       "references": null
     },
     {
@@ -15,17 +24,43 @@
       "references": null
     },
     {
-      "evidence": [],
+      "evidence": [
+        {
+          "artifact_ref": "sha256:19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/final_genesis_rehearsal_v1.json",
+          "result": "pass",
+          "sha256": "19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        }
+      ],
       "id": "consensus_handler_integration",
-      "state": "blocked",
-      "summary": "QWC HF17 now routes canonical block connect/disconnect, miner templates, Coinbase proof validation and state commitments through the hardened v2 coordinator; final integrated chain, adversarial and parameter-bound evidence is still missing.",
+      "state": "satisfied",
+      "summary": "The exact final-genesis candidate exercised canonical enrollment, qualification, the height-1440 reward path, state convergence, restart persistence, and replay through the integrated HF17 coordinator.",
       "references": null
     },
     {
-      "evidence": [],
+      "evidence": [
+        {
+          "artifact_ref": "sha256:19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/final_genesis_rehearsal_v1.json",
+          "result": "pass",
+          "sha256": "19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        },
+        {
+          "artifact_ref": "sha256:1d484a9a56e91b34d46dac58d3db1fba075ca6401ee6e37f080774a311a41d7d",
+          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
+          "path": "docs/epose/review/results/security_parameters_v1.json",
+          "result": "pass",
+          "sha256": "1d484a9a56e91b34d46dac58d3db1fba075ca6401ee6e37f080774a311a41d7d",
+          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+        }
+      ],
       "id": "approved_security_parameters",
-      "state": "blocked",
-      "summary": "A four-host rehearsal profile is complete and consensus-bound; final admission/committee values still require optimized multi-hardware measurements and an approved adversarial risk budget.",
+      "state": "satisfied",
+      "summary": "The frozen 18-bit admission, dynamic 2-of-3 bootstrap quorum, three-round/two-required profile, population ceiling, and reward ratio passed the exact-genesis four-node rehearsal; continuing measurements remain post-launch obligations.",
       "references": null
     },
     {
@@ -59,8 +94,8 @@
     {
       "evidence": [],
       "id": "four_node_consensus_convergence",
-      "state": "not_run",
-      "summary": "No final-protocol four-node enrollment, receipt, payout, partition, restart, and deep-reorg run exists.",
+      "state": "blocked",
+      "summary": "Exact-candidate four-node admission, enrollment, qualification, height-1440 reward convergence, restart persistence and fresh-genesis replay passed; exact-candidate partition/heal and payout-boundary deep-reorg evidence remain open.",
       "references": null
     },
     {
@@ -74,7 +109,7 @@
       "evidence": [],
       "id": "reproducible_release_matrix",
       "state": "not_run",
-      "summary": "Linux, Docker, macOS Apple Silicon, checksums, source-to-binary identity, and dependency manifest are incomplete.",
+      "summary": "Exact-source Linux binaries, Docker identity, checksums and a deterministic bundle are bound; macOS Apple Silicon and the complete dependency/release matrix remain open.",
       "references": null
     },
     {
@@ -88,7 +123,7 @@
       "evidence": [],
       "id": "signed_activation_manifest",
       "state": "blocked",
-      "summary": "The rehearsal activation manifest is complete and bound to a compiled genesis/parameter profile, but it is not the distinct final-launch genesis, is not signed as a release artifact, and has no final binary matrix.",
+      "summary": "The activation manifest now binds the final-launch genesis, exact source and Linux candidate artifacts, but a signed standalone release manifest and the complete final binary matrix remain open.",
       "references": null
     }
   ],

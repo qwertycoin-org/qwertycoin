@@ -4,7 +4,7 @@
 - **Date:** 2026-09-06
 - **Scope:** Public mainnet genesis, protocol version, and EPoSE warm-up
 - **Supersedes:** ADR-0001 chain-preserving activation decision
-- **Current implementation status:** Final identity bound; exact rehearsal pending
+- **Current implementation status:** Final identity bound; exact rehearsal passed; release NO-GO
 
 ## Context
 
@@ -65,7 +65,21 @@ The network ID prevents accidental P2P association with the disposable
 `QWC2MAIN2026POC` rehearsal network.  The genesis hash is independently
 recomputed by the focused C++ test through the same production constructor
 used by daemon and wallet.  Neither value authorizes announcement or mining;
-the exact-source isolated rehearsal and release-artifact binding remain gates.
+the exact-source isolated rehearsal and Linux release-artifact binding have now
+passed, while the independent reviews, full release matrix, wallet obligations
+and remaining release-ledger items still block activation.
+
+## Exact-genesis rehearsal result
+
+Source `2e118dd2cca468ae52fec5c9c30e33673e312043`, canonical manifest
+`385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be`
+and runtime `2.0.0-2e118dd2c` passed the isolated four-node final rehearsal.
+The run completed four genuine 18-bit admissions, converged on four qualified
+members from reward-source epoch 1, exercised the canonical reward at height
+1440, survived restart, and replayed from fresh genesis with matching tip and
+EPoSE state. The OOM guard did not fire, and a read-only check confirmed that
+the separately frozen production rehearsal remained at height 1505 and its
+previous tip. See `results/final_genesis_rehearsal_v1.json`.
 
 ## Consensus consequences
 

@@ -1,2 +1,3 @@
 .git* export-ignore
 version.cmake export-subst
+docs/epose/review/results/final_genesis_rehearsal_v1_artifacts/*.log -diff

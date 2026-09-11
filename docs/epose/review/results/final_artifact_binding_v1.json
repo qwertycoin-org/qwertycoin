@@ -61,6 +61,14 @@
     "remote_artifact_hashes_match": true,
     "all_runtime_versions_match": true
   },
+  "bundle": {
+    "name": "qwertycoin-2.0.0-linux-x86_64.tar.xz",
+    "size_bytes": 12584912,
+    "sha256": "4af734fae41711d4f2b4cac239b3405e4a6035d197c156d0bb087d4c54fc7f5b",
+    "deterministic_tar_metadata": true,
+    "identical_packaging_runs": 2,
+    "payload_checksums_verified": true
+  },
   "focused_validation": {
     "cpp_tests_passed": 238,
     "cpp_tests_failed": 0,

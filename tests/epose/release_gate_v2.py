@@ -65,7 +65,7 @@ def validate_evidence(
             raise GateError(f"{label} targets the wrong source revision")
         if item["manifest_sha256"] != manifest_sha256:
             raise GateError(f"{label} targets the wrong manifest")
-        if item["result"] not in {"passed", "approved"}:
+        if item["result"] not in {"pass", "passed", "approved"}:
             raise GateError(f"{label} has a non-satisfying result")
         artifact = evidence_root / relative_path
         if not artifact.is_file():

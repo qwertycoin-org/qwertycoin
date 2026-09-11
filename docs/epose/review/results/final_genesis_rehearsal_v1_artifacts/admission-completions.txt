@@ -1,0 +1,4 @@
+/final4-qwc-epose-node-2-1 2026-09-11 18:22:04.153	[P2P4]	INFO	global	src/cryptonote_core/cryptonote_core.cpp:972	Submitted EPoSE-v2 lifecycle and admission for epoch 1 and relayed it
+/final4-qwc-epose-node-1-1 2026-09-11 13:40:17.578	[P2P8]	INFO	global	src/cryptonote_core/cryptonote_core.cpp:972	Submitted EPoSE-v2 lifecycle and admission for epoch 1 and relayed it
+/final4-qwc-epose-node-0-1 2026-09-11 16:22:46.172	[P2P2]	INFO	global	src/cryptonote_core/cryptonote_core.cpp:972	Submitted EPoSE-v2 lifecycle and admission for epoch 1 and relayed it
+/final4-qwc-epose-node-3-1 2026-09-11 14:14:41.493	[P2P0]	INFO	global	src/cryptonote_core/cryptonote_core.cpp:972	Submitted EPoSE-v2 lifecycle and admission for epoch 1 and relayed it

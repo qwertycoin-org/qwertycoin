@@ -89,7 +89,8 @@ class ReleaseGateTests(unittest.TestCase):
         result = self.evaluate(self.manifest, self.ledger)
         self.assertEqual("no-go", result["overall_status"])
         self.assertEqual(13, result["total_gate_count"])
-        self.assertEqual(13, len(result["unresolved_gates"]))
+        self.assertEqual(3, result["satisfied_gate_count"])
+        self.assertEqual(10, len(result["unresolved_gates"]))
         self.assertNotIn("activation.block_hash", result["missing_manifest_fields"])
 
     def test_missing_unknown_and_duplicate_gate_ids_fail(self):
@@ -129,7 +130,7 @@ class ReleaseGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             artifact = root / "result.json"
-            artifact.write_text('{"result":"passed"}\n', encoding="utf-8")
+            artifact.write_text('{"result":"pass"}\n', encoding="utf-8")
             artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
             manifest_hash = MODULE.digest(manifest)
             evidence = {
@@ -137,7 +138,7 @@ class ReleaseGateTests(unittest.TestCase):
                 "sha256": artifact_hash,
                 "source_revision": manifest["release"]["source_revision"],
                 "manifest_sha256": manifest_hash,
-                "result": "passed",
+                "result": "pass",
                 "artifact_ref": f"sha256:{artifact_hash}",
             }
             for gate in ledger["gates"]:

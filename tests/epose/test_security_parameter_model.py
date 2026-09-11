@@ -84,12 +84,16 @@ class SecurityParameterModelTests(unittest.TestCase):
     def test_report_records_conditional_launch_candidate_and_labels_assumptions(self):
         report = build_report()
         self.assertEqual(
-            "launch_parameters_frozen_final_rehearsal_pending", report["status"]
+            "launch_parameters_frozen_exact_genesis_rehearsal_passed", report["status"]
         )
         self.assertEqual(18, report["launch_candidate"]["admission_leading_zero_bits"])
         self.assertEqual(9, report["launch_candidate"]["committee_size"])
         self.assertEqual(6, report["launch_candidate"]["threshold"])
         self.assertEqual(100, report["launch_candidate"]["max_active_population"])
+        self.assertEqual(
+            "final_selection_approved_subject_to_remaining_release_gates",
+            report["launch_candidate"]["selection_boundary"],
+        )
         self.assertEqual(
             [0, 1, 2, 3],
             report["launch_bootstrap_selective_withholding"]["qualified_subjects"],

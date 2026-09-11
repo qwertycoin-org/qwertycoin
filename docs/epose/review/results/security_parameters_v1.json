@@ -1329,7 +1329,7 @@
     "modeled_honest_success_two_of_three_independent_rounds": 0.9772428210832558,
     "round_count": 3,
     "rounds_required": 2,
-    "selection_boundary": "conditional_on_final_reset_risk_and_exact_genesis_rehearsal_gates",
+    "selection_boundary": "final_selection_approved_subject_to_remaining_release_gates",
     "service_reward_basis_points": 1000,
     "threshold": 6,
     "threshold_rule": "ceil_two_thirds_of_actual_committee"
@@ -1360,7 +1360,7 @@
     "threshold": 3,
     "withholding_verifier": 3
   },
-  "status": "launch_parameters_frozen_final_rehearsal_pending",
+  "status": "launch_parameters_frozen_exact_genesis_rehearsal_passed",
   "verification_duties": [
     {
       "committee": 9,

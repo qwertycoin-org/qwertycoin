@@ -360,7 +360,7 @@ def build_report() -> dict[str, object]:
 
     return {
         "model_version": MODEL_VERSION,
-        "status": "launch_parameters_frozen_final_rehearsal_pending",
+        "status": "launch_parameters_frozen_exact_genesis_rehearsal_passed",
         "labels": {
             "admission_hash_rates": "illustrative_not_hardware_measurements",
             "capture": "exact_hypergeometric_attacker_subject_excluded",
@@ -383,7 +383,7 @@ def build_report() -> dict[str, object]:
             "modeled_attacker_subject_capture_two_of_three_independent_rounds": selected_capture_two_of_three,
             "modeled_honest_success_per_round": selected_honest_round,
             "modeled_honest_success_two_of_three_independent_rounds": selected_honest_two_of_three,
-            "selection_boundary": "conditional_on_final_reset_risk_and_exact_genesis_rehearsal_gates",
+            "selection_boundary": "final_selection_approved_subject_to_remaining_release_gates",
         },
         "committees": committees,
         "grinding": grind,

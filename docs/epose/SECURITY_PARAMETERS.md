@@ -1,6 +1,6 @@
 # EPoSE v2 security parameter study
 
-Status: **launch parameters frozen; final-genesis gated rehearsal pending**
+Status: **launch parameters frozen; exact-genesis rehearsal passed**
 
 Model version: 2
 
@@ -18,6 +18,13 @@ The launch candidate uses the following bounded profile:
   required;
 - maximum active population: **100 identities per target epoch**;
 - reward: **10% of scheduled subsidy only**, with fees retained by the miner.
+
+The exact candidate at source `2e118dd2cca468ae52fec5c9c30e33673e312043`,
+canonical manifest
+`385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be`
+and genesis `906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0`
+passed the isolated four-node final rehearsal. Parameter selection is final,
+subject to the independent release gates; the overall release remains NO-GO.
 
 The actual committee is `min(9, frozen_population - 1)` because the subject
 cannot verify itself. This permits a four-identity bootstrap with a 2-of-3
@@ -161,8 +168,12 @@ Four concurrent real 16-bit admission jobs on the same 8 GiB host completed in
 approximately 157, 197, 464, and 2,020 seconds. The wide spread is expected
 for independent proof search. An 18-bit job has four times the mean search
 space; its actual completion time is not inferred from any single sample.
-The final 18-bit rehearsal must therefore use the exact launch candidate and
-retain the OOM/fail-closed guard.
+The final exact-genesis rehearsal completed four genuine 18-bit admissions.
+All four nodes converged on four qualified members in reward-source epoch 1,
+the height-1440 canonical reward path, restart persistence and fresh-genesis
+replay. The OOM guard recorded no event and at least 3,083 MiB available; the
+separately frozen production rehearsal remained unchanged. Immutable evidence
+is recorded in `review/results/final_genesis_rehearsal_v1.json`.
 
 ## Evidence capacity
 
@@ -229,17 +240,23 @@ population = 100, 1,000, 10,000
 
 ## Acceptance boundary
 
-The selected values become release-final only after all of the following pass
-on the exact parameter commitment and final genesis:
+The selected values are release-final after all of the following passed on the
+exact parameter commitment and final genesis:
 
 1. focused unit tests prove dynamic committee sizing, quorum calculation,
    selective-withholding symmetry, record bounds and deterministic replay;
-2. the isolated network rehearsal proves four-member bootstrap, qualification,
-   payout-boundary reorg, crash recovery and fresh sync;
+2. the isolated exact-genesis network rehearsal proves four-member bootstrap,
+   qualification, the canonical reward boundary, restart persistence and fresh
+   replay;
 3. the 100-identity limit remains within the enforced block, template and relay
    ceilings under the focused EPoSE resource tests;
-4. the signed manifest, compiled profile, source revision, genesis and release
-   artifacts bind the same values.
+4. the signed exact-source commit, compiled profile, canonical manifest,
+   genesis and Linux candidate artifacts bind the same values.
+
+This parameter decision does not satisfy independent consensus/payment-proof
+review, the complete release matrix, wallet funds-safety evidence, or the
+remaining exact-candidate partition and deep-reorg obligations. Those release
+gates keep the overall decision NO-GO.
 
 Optimized admission hardware, real operator correlation, large-population soak
 and seed-withholding economics remain post-launch measurement obligations.

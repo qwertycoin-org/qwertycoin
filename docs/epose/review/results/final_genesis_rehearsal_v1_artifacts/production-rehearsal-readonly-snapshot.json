@@ -1,0 +1,33 @@
+{
+  "checked_at_utc": "2026-09-11T19:08:18Z",
+  "expected_frozen_height": 1505,
+  "expected_frozen_top_hash": "d7962b050e3bc87f8b5f9d6da2e348671e59db668527d47b0273ad9181a4f40c",
+  "mutation_detected": false,
+  "nodes": [
+    {
+      "host": "seed-00",
+      "height": 1505,
+      "top_hash": "d7962b050e3bc87f8b5f9d6da2e348671e59db668527d47b0273ad9181a4f40c",
+      "version": "2.0.0-e12dc5c73"
+    },
+    {
+      "host": "seed-01",
+      "height": 1505,
+      "top_hash": "d7962b050e3bc87f8b5f9d6da2e348671e59db668527d47b0273ad9181a4f40c",
+      "version": "2.0.0-e12dc5c73"
+    },
+    {
+      "host": "seed-02",
+      "height": 1505,
+      "top_hash": "d7962b050e3bc87f8b5f9d6da2e348671e59db668527d47b0273ad9181a4f40c",
+      "version": "2.0.0-e12dc5c73"
+    },
+    {
+      "host": "seed-03",
+      "height": 1505,
+      "top_hash": "d7962b050e3bc87f8b5f9d6da2e348671e59db668527d47b0273ad9181a4f40c",
+      "version": "2.0.0-e12dc5c73"
+    }
+  ],
+  "scope": "Read-only post-rehearsal verification of the separately frozen production rehearsal"
+}
