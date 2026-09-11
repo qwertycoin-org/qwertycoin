@@ -31,7 +31,7 @@ class ManifestV2Tests(unittest.TestCase):
         manifest["release"]["source_revision"] = "22" * 20
         manifest["admission"].update({"lease_epochs": 1, "leading_zero_bits": 20})
         manifest["committee"].update(
-            {"round_offsets": [0, 200, 400], "rounds_required": 2, "size": 15, "threshold": 11}
+            {"round_offsets": [0, 200, 400], "rounds_required": 2, "size": 15, "threshold": 10}
         )
         manifest["resource_limits"].update(
             {
@@ -203,6 +203,7 @@ class ManifestV2Tests(unittest.TestCase):
             ("admission.lease_epochs", -1),
             ("admission.lease_epochs", "forever"),
             ("committee.round_offsets", [1, 200, 400]),
+            ("committee.threshold", 9),
             ("encoding.envelope_version", 999),
             ("encoding.envelope_magic_ascii", "QEP3"),
             ("encoding.integer_byte_order", "big-endian"),

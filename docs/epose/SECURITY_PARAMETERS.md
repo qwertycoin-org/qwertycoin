@@ -1,21 +1,50 @@
 # EPoSE v2 security parameter study
 
-Status: **CO-03 study in progress; no-go for economic activation**
+Status: **launch parameters frozen; final-genesis gated rehearsal pending**
 
 Model version: 2
 
 Generated results: `review/results/security_parameters_v1.json`
 
-## Decision
+## Launch decision
 
-No committee size, threshold, admission target, lease duration, round count, or
-supported population is approved for mainnet activation by this study.
+The launch candidate uses the following bounded profile:
 
-The earlier `16-bit / committee 9 / ceil(2/3)` choice was based on one slow
-light-mode solver and a simulator that allowed the quorum to shrink with the
-available committee. That evidence is insufficient for economic security. The
-HF17 constants remain historical behavior; the v2 parameter manifest remains
-`not-activatable` and its unresolved fields remain `null`.
+- RandomX admission target: **18 leading zero bits**, renewed every target epoch;
+- verifier committee target: **9**;
+- quorum: **`ceil(actual_committee_size * 2 / 3)`**, represented as 6-of-9
+  when the full target committee is available;
+- three receipt rounds at offsets `0 / 200 / 400`, with two passing rounds
+  required;
+- maximum active population: **100 identities per target epoch**;
+- reward: **10% of scheduled subsidy only**, with fees retained by the miner.
+
+The actual committee is `min(9, frozen_population - 1)` because the subject
+cannot verify itself. This permits a four-identity bootstrap with a 2-of-3
+quorum and prevents one outbound-withholding verifier from becoming the only
+qualified subject. It does not pretend that four founding identities provide
+the independence of a mature nine-verifier committee.
+
+For the documented 100-identity / 20%-controlled sensitivity case, 6-of-9 has
+a per-round controlled-subject capture probability of `0.001383297129`. Under
+the explicitly limited assumption that round committees are independent, the
+probability of capture in at least two of three rounds is `0.000005735239`.
+The corresponding honest qualification estimate is `0.977242821083` when
+honest verifier seats independently succeed with 99% probability. These are
+model bounds for the stated assumptions, not claims about real operator
+independence.
+
+The 100-identity ceiling is selected because its optimistic two-round minimum
+is 1,200 receipts at 6-of-9, within the 660-block evidence window and current
+template/relay limits. The previous ceiling of 1,000 is rejected: its 12,000
+minimum receipts exceed the 10,560-record window even at 16 receipts per block.
+
+The 18-bit admission target is an anti-spam work floor, not a substitute for
+stake or operator identity. It is four times the rehearsal work and remains
+operationally testable. Optimized attackers retain a material Sybil advantage;
+that residual risk is explicit and can be tightened only through a future
+consensus parameter hardfork. The tested HF17-to-future-version continuation
+path exists for that purpose.
 
 ## Reproduction
 
@@ -126,6 +155,15 @@ flags, RandomX mode, warm-up, trials, median, p95, throughput, variance, energy
 or rental assumptions, and exact source commit. Measurements from one host
 cannot approve a mainnet target.
 
+The isolated four-service-node reset-risk rehearsal on commit `f5521a0d7`
+provides a bounded operational observation, not a cross-hardware benchmark.
+Four concurrent real 16-bit admission jobs on the same 8 GiB host completed in
+approximately 157, 197, 464, and 2,020 seconds. The wide spread is expected
+for independent proof search. An 18-bit job has four times the mean search
+space; its actual completion time is not inferred from any single sample.
+The final 18-bit rehearsal must therefore use the exact launch candidate and
+retain the OOM/fail-closed guard.
+
 ## Evidence capacity
 
 For a three-round candidate requiring success in two rounds, the optimistic
@@ -167,13 +205,13 @@ answers inbound probes but withholds every outbound verifier receipt, each
 round deterministically produces the receipt counts `A=2, B=2, C=2, D=3`.
 Across two required rounds, D alone can qualify without forging a signature.
 
-`full_committee_selective_withholding(4, 3, 3)` reproduces this result in the
-machine-readable model and its unit test. This is a rule-level consequence,
-not yet an executed production-network exploit. It makes the 4-node/3-of-3
-profile unsuitable as an approved economic launch profile until the threat
-model, committee policy and incentive/fallback behavior are independently
-reviewed. Changing it to 2-of-3 without a corresponding collusion and false-
-qualification analysis is not an accepted fix.
+`full_committee_selective_withholding(4, 3, 3)` reproduces this historical
+rehearsal result. The launch rule no longer uses fixed 3-of-3: with four frozen
+members its actual committee is three and its quorum is two. Under the same
+single-withholder scenario every subject still has at least two receipts, so
+the withholder cannot qualify alone. Two colluding verifiers can nevertheless
+fabricate a bootstrap subject's availability; that is an explicit limitation
+of a four-identity bootstrap, not a claim of mature-network security.
 
 ## Candidate sets for further testing
 
@@ -189,21 +227,21 @@ lease epochs = 1 and 30
 population = 100, 1,000, 10,000
 ```
 
-## Activation gates
+## Acceptance boundary
 
-CO-03 cannot approve parameters until all of the following exist:
+The selected values become release-final only after all of the following pass
+on the exact parameter commitment and final genesis:
 
-1. Alex approves a numerical risk budget for false qualification, honest
-   qualification loss, operator cost, and evidence inclusion.
-2. The required optimized hardware matrix is measured and reproducible.
-3. Operator concentration and shared-backend assumptions are explicit.
-4. CO-05 measures final bytes, validation operations, sync cost, and inclusion
-   delay at target population.
-5. Seed-withholding value is compared with QWC PoW opportunity cost and service
-   rewards.
-6. Verification-duty incentives and inbound-only behavior are modeled against
-   the final receipt protocol.
-7. The selected parameter set is committed into the signed parameter manifest
-   through a separately reviewed activation decision.
+1. focused unit tests prove dynamic committee sizing, quorum calculation,
+   selective-withholding symmetry, record bounds and deterministic replay;
+2. the isolated network rehearsal proves four-member bootstrap, qualification,
+   payout-boundary reorg, crash recovery and fresh sync;
+3. the 100-identity limit remains within the enforced block, template and relay
+   ceilings under the focused EPoSE resource tests;
+4. the signed manifest, compiled profile, source revision, genesis and release
+   artifacts bind the same values.
 
-Until then, the only valid conclusion is **no-go for economic activation**.
+Optimized admission hardware, real operator correlation, large-population soak
+and seed-withholding economics remain post-launch measurement obligations.
+They may justify a future parameter hardfork, but they must not be represented
+as already measured or solved by this launch decision.

@@ -233,8 +233,12 @@ def validate_manifest(manifest: dict[str, Any], *, allow_test_fixture: bool = Fa
         committee_size = require_int(committee_size, "committee.size", 1, 65535)
     if threshold is not None:
         threshold = require_int(threshold, "committee.threshold", 1, 65535)
-    if committee_size is not None and threshold is not None and threshold > committee_size:
-        raise ManifestError("committee.threshold exceeds committee.size")
+    if committee_size is not None and threshold is not None:
+        required_threshold = committee_size - committee_size // 3
+        if threshold != required_threshold:
+            raise ManifestError(
+                "committee.threshold must equal ceil(2 * committee.size / 3)"
+            )
     if round_offsets is not None:
         if not isinstance(round_offsets, list) or not round_offsets:
             raise ManifestError("committee.round_offsets must be a nonempty list")

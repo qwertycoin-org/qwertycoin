@@ -8,22 +8,22 @@
 
 ## Constants
 
-Defined in `src/epose/service_node.h`:
+The public-launch v2 values are committed by
+`docs/epose/PARAMETER_MANIFEST_V2.json` and compiled by
+`src/epose/coordinator_v2.cpp`.  `src/epose/service_node.h` contains only the
+undispatched legacy-v1 defaults.
 
-- `EPOSE_PROTOCOL_VERSION = 1`
+Public-launch v2:
+
 - `EPOSE_EPOCH_LENGTH = 720`
 - `EPOSE_FINALITY_DEPTH = 60`
 - `EPOSE_REGISTRATION_TTL_EPOCHS = 30`
 - `EPOSE_VERIFIER_COMMITTEE_SIZE = 9`
 - `required_attestations = ceil(actual_committee_size * 2 / 3)`
 - `EPOSE_SERVICE_REWARD_BPS = 1000`
-- `EPOSE_ADMISSION_LEADING_ZERO_BITS = 16`
-- `EPOSE_IDENTITY_BLOB_SIZE = 249`
-- `EPOSE_ATTESTATION_BLOB_SIZE = 234`
-- `EPOSE_TX_EXTRA_NONCE_REGISTRATION = 0x70`
-- `EPOSE_TX_EXTRA_NONCE_ATTESTATION = 0x71`
-- `EPOSE_ATTESTATION_POOL_MAX_ENTRIES = 4096`
-- `EPOSE_ATTESTATION_RELAY_MAX_BATCH = 32`
+- `admission.leading_zero_bits = 18`
+- `committee.max_active_population = 100`
+- `EPOSE_PROTOCOL_VERSION_V2 = 2`
 
 QWC HF17 is scheduled from genesis as `HF_VERSION_QWC_EPOSE = 17`; EPoSE
 records on that fresh chain use `EPOSE_PROTOCOL_VERSION_V2 = 2` exclusively.
@@ -32,9 +32,9 @@ must not be dispatched by the public launch handler.
 
 Mainnet, testnet, and stagenet start directly at QWC protocol v17 from height 0. QWC v17 inherits Monero's current v16 consensus rules and adds EPoSE; historical Monero hardforks are not scheduled as later QWC activations. Low-height activation for deterministic regression tests uses local `HardFork` test fixtures.
 
-The current v1 parameters are committee target `9`, dynamic
-`ceil(actual_committee_size * 2 / 3)` quorum, and `16` admission leading-zero
-bits. Older documents that state `5`, `2`, or `8` describe superseded PoC
+The legacy-v1 prototype retains a 16-bit default only for old unit fixtures; it
+is not dispatched by the public-launch handler. Older documents that state
+committee `5`, threshold `2`, or 8-bit admission describe superseded PoC
 revisions and are not authoritative.
 
 ## Service Node Identity
@@ -112,7 +112,16 @@ RandomX(
 
 A proof is valid if the calculated RandomX hash equals `admission_hash` and meets the leading-zero target. Verification cost is one RandomX hash plus fixed-size parsing/signature checks.
 
-The current hardened target is `EPOSE_ADMISSION_LEADING_ZERO_BITS = 16`. This is intentionally lower than the initial 18/20/22/24-bit candidates because the current RandomX light-mode admission search measured on seed host A is too slow for those values. A 16-bit target is still 256x more expensive than the previous 8-bit target and remains inside the intended registration-cost corridor for the measured implementation.
+The launch target is `18` leading zero bits. It is four times the completed
+16-bit rehearsal work while remaining feasible inside the one-epoch admission
+window on the measured implementation. This proof is an anti-spam floor, not
+a stand-alone Sybil defense; the active-population ceiling and verifier quorum
+remain independently consensus enforced.
+
+The launch producer examines at most `2^24` nonces per asynchronous admission
+job. That is 64 mean search spaces at the 18-bit target. The worker remains
+cancellable on an epoch or reorg context change; exhausting the full bound is
+reported as a local producer failure and never weakens consensus validation.
 
 ## Attestation
 

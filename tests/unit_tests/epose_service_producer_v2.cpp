@@ -25,7 +25,7 @@ namespace
     out.parameter_set_hash = hash_text("producer-parameters");
     out.timing = {0, 720, 60};
     out.admission = {admission_work_algorithm_v2::randomx, difficulty, 1};
-    out.committee = {3, 3, 3, 2,
+    out.committee = {3, 2, 3, 2,
         static_cast<uint8_t>(service_kind_v2::canonical_object),
         {0, 200, 400}, 1000};
     out.limits.max_envelopes_per_transaction = 4;
@@ -151,6 +151,14 @@ TEST(epose_service_producer_v2, admission_search_is_bounded_and_atomic)
           policy, config, policy.genesis_hash, 1, enrollment));
   EXPECT_TRUE(enrollment.records.empty());
   EXPECT_EQ(crypto::null_hash, enrollment.admission.lease_hash);
+}
+
+TEST(epose_service_producer_v2, launch_worker_bound_covers_sixty_four_mean_search_spaces)
+{
+  EXPECT_EQ(UINT64_C(1) << 24,
+      EPOSE_V2_LAUNCH_ADMISSION_MAX_NONCE_ATTEMPTS);
+  EXPECT_EQ(UINT64_C(64),
+      EPOSE_V2_LAUNCH_ADMISSION_MAX_NONCE_ATTEMPTS / (UINT64_C(1) << 18));
 }
 
 TEST(epose_service_producer_v2, admission_search_honors_cancellation_atomically)

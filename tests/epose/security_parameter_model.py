@@ -2,7 +2,8 @@
 """Deterministic CO-03 security and capacity model for EPoSE v2.
 
 The model intentionally separates identity share from operator independence.
-It does not select mainnet parameters or claim hardware measurements.
+It records the bounded launch candidate selected from the model without
+claiming hardware measurements or real operator independence.
 """
 
 from __future__ import annotations
@@ -344,9 +345,22 @@ def build_report() -> dict[str, object]:
         for scenario in correlated_scenarios
     ]
 
+    selected_capture = capture_probability(
+        population, controlled, 9, 6, attacker_subject=True
+    )
+    selected_honest_round = honest_qualification_probability(
+        population, controlled, 9, 6, 0.99
+    )
+    selected_capture_two_of_three = probability_at_least_binomial(
+        3, 2, selected_capture
+    )
+    selected_honest_two_of_three = probability_at_least_binomial(
+        3, 2, selected_honest_round
+    )
+
     return {
         "model_version": MODEL_VERSION,
-        "status": "no_go_for_economic_activation",
+        "status": "launch_parameters_frozen_final_rehearsal_pending",
         "labels": {
             "admission_hash_rates": "illustrative_not_hardware_measurements",
             "capture": "exact_hypergeometric_attacker_subject_excluded",
@@ -356,6 +370,21 @@ def build_report() -> dict[str, object]:
             "capacity": "record_count_only_wire_bytes_owned_by_CO_05",
         },
         "baseline": {"population": population, "controlled_identities": controlled},
+        "launch_candidate": {
+            "admission_leading_zero_bits": 18,
+            "committee_size": 9,
+            "threshold": 6,
+            "threshold_rule": "ceil_two_thirds_of_actual_committee",
+            "round_count": 3,
+            "rounds_required": 2,
+            "max_active_population": 100,
+            "service_reward_basis_points": 1000,
+            "modeled_attacker_subject_capture_per_round": selected_capture,
+            "modeled_attacker_subject_capture_two_of_three_independent_rounds": selected_capture_two_of_three,
+            "modeled_honest_success_per_round": selected_honest_round,
+            "modeled_honest_success_two_of_three_independent_rounds": selected_honest_two_of_three,
+            "selection_boundary": "conditional_on_final_reset_risk_and_exact_genesis_rehearsal_gates",
+        },
         "committees": committees,
         "grinding": grind,
         "correlated_liveness": correlated,
@@ -365,11 +394,16 @@ def build_report() -> dict[str, object]:
         "rehearsal_selective_withholding": full_committee_selective_withholding(
             4, 3, 3
         ),
-        "unresolved_gates": [
-            "owner_approved_numeric_risk_budget",
+        "launch_bootstrap_selective_withholding": full_committee_selective_withholding(
+            4, 2, 3
+        ),
+        "pre_announcement_gates": [
+            "exact_candidate_reset_risk_network_rehearsal",
+            "final_genesis_manifest_and_artifact_binding",
+        ],
+        "post_launch_measurement_obligations": [
             "optimized_solver_measurements_on_supported_x86_64_and_arm64",
             "ordinary_operator_and_high_throughput_attacker_cost_measurements",
-            "CO_05_wire_size_and_minimum_inclusion_share",
             "operator_concentration_measurements",
             "PoW_security_budget_effect",
         ],

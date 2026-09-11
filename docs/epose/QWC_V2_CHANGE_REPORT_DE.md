@@ -139,7 +139,7 @@ Umgesetzt:
 - Proof ist gebunden an Netzwerk, Service Public Key, Reward-Adresse, Endpoint-Commitment, Epoch, Previous Epoch Hash und Nonce.
 - Benchmark- und Simulationscode wurde ergänzt.
 
-Aktuelle Testparameter:
+Historische PoC-Testparameter (nicht vom v2-Launch-Handler verwendet):
 
 - `EPOSE_ADMISSION_LEADING_ZERO_BITS = 8`
 - `EPOSE_VERIFIER_COMMITTEE_SIZE = 5`

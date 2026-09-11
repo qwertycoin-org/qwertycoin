@@ -312,7 +312,7 @@ namespace epose
   {
     return committee_size > 0
         && threshold > 0
-        && threshold <= committee_size
+        && threshold == required_receipts_for_committee_size_v2(committee_size)
         && round_count > 0
         && rounds_required > 0
         && rounds_required <= round_count
@@ -323,6 +323,11 @@ namespace epose
         && round_offsets.front() == 0
         && std::adjacent_find(round_offsets.begin(), round_offsets.end(),
             [](uint64_t left, uint64_t right) { return left >= right; }) == round_offsets.end();
+  }
+
+  size_t required_receipts_for_committee_size_v2(size_t actual_committee_size)
+  {
+    return actual_committee_size - actual_committee_size / 3;
   }
 
   membership_pipeline_v2::membership_pipeline_v2(
@@ -529,7 +534,7 @@ namespace epose
         || (round == 0 && round_anchor_hash != frozen->anchor_hash)
         || !contains_member(*frozen, subject_public_key))
       return result;
-    if (frozen->members.size() <= policy_.committee_size)
+    if (frozen->members.size() <= 1)
       return result;
 
     for (const frozen_member_v2 &candidate : frozen->members)
@@ -556,7 +561,8 @@ namespace epose
         return false;
       return bytes_less(left.verifier_public_key, right.verifier_public_key);
     });
-    result.resize(policy_.committee_size);
+    if (result.size() > policy_.committee_size)
+      result.resize(policy_.committee_size);
     return result;
   }
 
@@ -675,8 +681,12 @@ namespace epose
     closed.closed_height = height;
     closed.snapshot_hash = frozen->snapshot_hash;
 
-    if (frozen->members.size() > policy_.committee_size)
+    if (frozen->members.size() > 1)
     {
+      const size_t actual_committee_size = std::min(
+          policy_.committee_size, frozen->members.size() - 1);
+      const size_t required_receipts =
+          required_receipts_for_committee_size_v2(actual_committee_size);
       for (const frozen_member_v2 &subject : frozen->members)
       {
         uint64_t passing_rounds = 0;
@@ -690,7 +700,7 @@ namespace epose
                 && bytes_equal(stored.subject_public_key, subject.service_public_key))
               voters.emplace(reinterpret_cast<const char *>(&stored.verifier_public_key), sizeof(stored.verifier_public_key));
           }
-          if (voters.size() >= policy_.threshold)
+          if (voters.size() >= required_receipts)
             ++passing_rounds;
         }
         if (passing_rounds >= policy_.rounds_required)

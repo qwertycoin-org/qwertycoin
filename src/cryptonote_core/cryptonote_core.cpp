@@ -942,10 +942,12 @@ namespace cryptonote
               const auto status = renewal
                   ? qwertycoin::epose::build_service_renewal_enrollment_v2(
                       parameters, configuration, current_descriptor,
-                      context_hash, 1000000,
+                      context_hash,
+                      qwertycoin::epose::EPOSE_V2_LAUNCH_ADMISSION_MAX_NONCE_ATTEMPTS,
                       enrollment, &m_epose_v2_producer_cancel)
                   : qwertycoin::epose::build_initial_service_enrollment_v2(
-                      parameters, configuration, context_hash, 1000000,
+                      parameters, configuration, context_hash,
+                      qwertycoin::epose::EPOSE_V2_LAUNCH_ADMISSION_MAX_NONCE_ATTEMPTS,
                       enrollment, &m_epose_v2_producer_cancel);
               return std::make_pair(status, std::move(enrollment));
             });

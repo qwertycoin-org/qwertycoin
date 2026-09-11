@@ -70,10 +70,10 @@ is bound to:
 - previous finalized epoch hash,
 - nonce.
 
-Current target: `EPOSE_ADMISSION_LEADING_ZERO_BITS = 8`.
+Historical PoC target: `EPOSE_ADMISSION_LEADING_ZERO_BITS = 8`.
 
-That value is a bootstrap/validation value. It must be increased only after
-realistic solver/verification benchmarks and Sybil simulations.
+That value was a bootstrap/validation value. The v2 launch candidate is bound
+by `PARAMETER_MANIFEST_V2.json` and no longer uses this legacy-v1 default.
 
 ## Attestation Relay
 

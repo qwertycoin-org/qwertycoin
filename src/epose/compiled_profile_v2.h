@@ -12,6 +12,6 @@ namespace epose
   constexpr char MAINNET_REHEARSAL_GENESIS_HASH_V2[] =
       "e791e506200ba3a221b87b6c78359c2bbb13c3ef622e1c90b3b3fbb52f4943f5";
   constexpr char MAINNET_REHEARSAL_PARAMETER_SET_HASH_V2[] =
-      "16bde722b05071956f10be18530235be42b374228ead95e2b053d99d53f328ff";
+      "404be09ba6ec45b4124f348255c0bf9c2ab743d7b173132e678a691cf7cd97b3";
 } // namespace epose
 } // namespace qwertycoin

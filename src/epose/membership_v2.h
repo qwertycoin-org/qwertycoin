@@ -55,6 +55,12 @@ namespace epose
     bool valid() const;
   };
 
+  // Consensus quorum for the committee that can actually be formed after
+  // excluding the subject.  This is ceil(2n/3) without overflow-prone
+  // multiplication and deliberately scales during the small-network
+  // bootstrap phase.
+  size_t required_receipts_for_committee_size_v2(size_t actual_committee_size);
+
   // CO-02 deliberately freezes opaque commitments instead of guessing the
   // descriptor, reward-proof, or lifecycle wire formats owned by later COs.
   struct frozen_member_v2

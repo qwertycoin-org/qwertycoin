@@ -46,7 +46,7 @@ class ReleaseGateTests(unittest.TestCase):
         manifest["network"]["genesis_hash"] = "11" * 32
         manifest["release"]["source_revision"] = "22" * 20
         manifest["admission"].update({"lease_epochs": 1, "leading_zero_bits": 20})
-        manifest["committee"].update({"round_offsets": [0, 200, 400], "rounds_required": 2, "size": 15, "threshold": 11})
+        manifest["committee"].update({"round_offsets": [0, 200, 400], "rounds_required": 2, "size": 15, "threshold": 10})
         manifest["resource_limits"].update(
             {
                 "max_active_population": 1000,

@@ -18,6 +18,12 @@ namespace qwertycoin
 {
 namespace epose
 {
+  // Non-consensus launch-worker bound.  At the 18-bit launch target this is
+  // 64 times the mean search space, leaving a negligible exhaustion tail
+  // while the asynchronous worker remains cancellable at epoch/reorg changes.
+  constexpr uint64_t EPOSE_V2_LAUNCH_ADMISSION_MAX_NONCE_ATTEMPTS =
+      UINT64_C(1) << 24;
+
   struct service_enrollment_config_v2
   {
     service_keystore_v2 keystore{};

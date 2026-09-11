@@ -101,23 +101,6 @@ namespace
         policy};
   }
 
-  std::vector<frozen_member_v2> admit_and_freeze(
-      membership_pipeline_v2 &pipeline,
-      size_t count,
-      uint64_t target_epoch = 3)
-  {
-    std::vector<frozen_member_v2> members;
-    for (size_t i = 0; i < count; ++i)
-    {
-      members.push_back(make_member(i + 1));
-      EXPECT_EQ(pipeline_status_v2::accepted,
-          apply_lease(pipeline, make_lease(members.back(), target_epoch), 2000 + i));
-    }
-    EXPECT_EQ(pipeline_status_v2::accepted,
-        pipeline.freeze_membership(target_epoch, 2100, hash_text("committee-anchor")));
-    return members;
-  }
-
   struct keyed_member
   {
     frozen_member_v2 member{};
@@ -550,7 +533,7 @@ TEST(epose_v2, later_rounds_have_distinct_windows_and_fresh_canonical_anchors)
           receipt_context(), 2560, round_anchor));
 }
 
-TEST(epose_v2, qualification_closes_once_and_uses_fixed_threshold)
+TEST(epose_v2, qualification_closes_once_and_uses_configured_full_committee_quorum)
 {
   auto pipeline = make_pipeline({2, 2, 1, 1, 1, {0}});
   const auto members = admit_and_freeze_keyed(pipeline, 4);
@@ -573,15 +556,69 @@ TEST(epose_v2, qualification_closes_once_and_uses_fixed_threshold)
   EXPECT_EQ(pipeline_status_v2::qualification_already_closed, pipeline.close_qualification(3, 2819));
 }
 
-TEST(epose_v2, small_network_does_not_shrink_committee_or_threshold)
+TEST(epose_v2, small_network_uses_available_committee_and_dynamic_quorum)
 {
   auto pipeline = make_pipeline({3, 2, 1, 1, 1, {0}});
-  const auto members = admit_and_freeze(pipeline, 3);
-  EXPECT_TRUE(pipeline.committee(
-      3, 0, members[0].service_public_key, pipeline.snapshot(3)->anchor_hash).empty());
+  const auto members = admit_and_freeze_keyed(pipeline, 3);
+  const auto selected = pipeline.committee(
+      3, 0, members[0].member.service_public_key, pipeline.snapshot(3)->anchor_hash);
+  ASSERT_EQ(2u, selected.size());
+  EXPECT_EQ(2u, required_receipts_for_committee_size_v2(selected.size()));
+  for (size_t i = 0; i < selected.size(); ++i)
+  {
+    const auto &verifier = find_keyed_member(members, selected[i].verifier_public_key);
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        pipeline.apply_authenticated_receipt(
+            make_receipt(3, 0, members[0], verifier, *pipeline.snapshot(3), i),
+            receipt_context(), 2200 + i, pipeline.snapshot(3)->anchor_hash));
+  }
   EXPECT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
   ASSERT_NE(nullptr, pipeline.qualification(3));
-  EXPECT_TRUE(pipeline.qualification(3)->qualified_nodes.empty());
+  ASSERT_EQ(1u, pipeline.qualification(3)->qualified_nodes.size());
+  EXPECT_EQ(members[0].member.service_public_key,
+      pipeline.qualification(3)->qualified_nodes.front());
+}
+
+TEST(epose_v2, committee_policy_rejects_non_two_thirds_full_committee_threshold)
+{
+  EXPECT_TRUE((committee_policy_v2{9, 6, 3, 2, 1, {0, 200, 400}, 100}).valid());
+  EXPECT_FALSE((committee_policy_v2{9, 7, 3, 2, 1, {0, 200, 400}, 100}).valid());
+  EXPECT_FALSE((committee_policy_v2{9, 5, 3, 2, 1, {0, 200, 400}, 100}).valid());
+}
+
+TEST(epose_v2, bootstrap_dynamic_quorum_prevents_one_withholder_from_qualifying_alone)
+{
+  auto pipeline = make_pipeline({9, 6, 1, 1, 1, {0}, 100});
+  const auto members = admit_and_freeze_keyed(pipeline, 4);
+  const auto *snapshot = pipeline.snapshot(3);
+  ASSERT_NE(nullptr, snapshot);
+
+  for (size_t subject_index = 0; subject_index < members.size(); ++subject_index)
+  {
+    const auto selected = pipeline.committee(
+        3, 0, members[subject_index].member.service_public_key, snapshot->anchor_hash);
+    ASSERT_EQ(3u, selected.size());
+    size_t sequence = 0;
+    for (const auto &assignment : selected)
+    {
+      const auto &verifier = find_keyed_member(members, assignment.verifier_public_key);
+      // Member 3 answers inbound probes but withholds every outbound receipt.
+      if (key_equal(verifier.member.service_public_key,
+              members[3].member.service_public_key))
+        continue;
+      const size_t receipt_sequence = subject_index * 10 + sequence++;
+      ASSERT_EQ(pipeline_status_v2::accepted,
+          pipeline.apply_authenticated_receipt(
+              make_receipt(3, 0, members[subject_index], verifier, *snapshot,
+                  receipt_sequence),
+              receipt_context(), 2200 + receipt_sequence,
+              snapshot->anchor_hash));
+    }
+  }
+
+  ASSERT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  ASSERT_NE(nullptr, pipeline.qualification(3));
+  EXPECT_EQ(4u, pipeline.qualification(3)->qualified_nodes.size());
 }
 
 TEST(epose_v2, snapshot_anchor_changes_committee_context_and_state_hash)

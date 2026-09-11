@@ -35,7 +35,7 @@ class SecurityParameterModelTests(unittest.TestCase):
         honest_subject = capture_probability(100, 20, 9, 6, False)
         self.assertLess(attacker_subject, honest_subject)
 
-    def test_small_population_never_shrinks_committee(self):
+    def test_fixed_committee_probability_rejects_undersized_population(self):
         self.assertEqual(0.0, capture_probability(10, 2, 9, 6, True))
 
     def test_honest_liveness_decreases_for_stricter_threshold(self):
@@ -81,10 +81,23 @@ class SecurityParameterModelTests(unittest.TestCase):
             simulate_correlated_liveness(scenario), simulate_correlated_liveness(scenario)
         )
 
-    def test_report_remains_no_go_and_labels_assumptions(self):
+    def test_report_records_conditional_launch_candidate_and_labels_assumptions(self):
         report = build_report()
-        self.assertEqual("no_go_for_economic_activation", report["status"])
-        self.assertIn("owner_approved_numeric_risk_budget", report["unresolved_gates"])
+        self.assertEqual(
+            "launch_parameters_frozen_final_rehearsal_pending", report["status"]
+        )
+        self.assertEqual(18, report["launch_candidate"]["admission_leading_zero_bits"])
+        self.assertEqual(9, report["launch_candidate"]["committee_size"])
+        self.assertEqual(6, report["launch_candidate"]["threshold"])
+        self.assertEqual(100, report["launch_candidate"]["max_active_population"])
+        self.assertEqual(
+            [0, 1, 2, 3],
+            report["launch_bootstrap_selective_withholding"]["qualified_subjects"],
+        )
+        self.assertIn(
+            "exact_candidate_reset_risk_network_rehearsal",
+            report["pre_announcement_gates"],
+        )
         self.assertEqual(
             "illustrative_not_hardware_measurements", report["labels"]["admission_hash_rates"]
         )

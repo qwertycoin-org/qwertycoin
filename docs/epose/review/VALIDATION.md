@@ -205,7 +205,7 @@ Commands:
 python3 -m py_compile tests/epose/security_parameter_model.py tests/epose/test_security_parameter_model.py
 PYTHONPATH=tests/epose python3 tests/epose/test_security_parameter_model.py
 python3 tests/epose/security_parameter_model.py --output docs/epose/review/results/security_parameters_v1.json
-jq -e '.status == "no_go_for_economic_activation"' docs/epose/review/results/security_parameters_v1.json
+jq -e '.status == "launch_parameters_frozen_final_rehearsal_pending"' docs/epose/review/results/security_parameters_v1.json
 sha256sum docs/epose/review/results/security_parameters_v1.json
 ```
 

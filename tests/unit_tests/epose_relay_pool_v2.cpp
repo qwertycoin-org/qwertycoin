@@ -178,7 +178,7 @@ TEST(epose_relay_pool_v2, compiled_mainnet_rehearsal_policy_matches_manifest)
       "e791e506200ba3a221b87b6c78359c2bbb13c3ef622e1c90b3b3fbb52f4943f5",
       genesis));
   ASSERT_TRUE(epee::string_tools::hex_to_pod(
-      "16bde722b05071956f10be18530235be42b374228ead95e2b053d99d53f328ff",
+      "404be09ba6ec45b4124f348255c0bf9c2ab743d7b173132e678a691cf7cd97b3",
       parameters));
 
   relay_policy_v2 policy{};

@@ -324,10 +324,10 @@ TEST(epose_coordinator_v2, compiled_mainnet_rehearsal_profile_matches_manifest)
   EXPECT_EQ(0u, compiled.timing.activation_height);
   EXPECT_EQ(720u, compiled.timing.epoch_length);
   EXPECT_EQ(60u, compiled.timing.anchor_depth);
-  EXPECT_EQ(16u, compiled.admission.leading_zero_bits);
-  EXPECT_EQ(3u, compiled.committee.committee_size);
-  EXPECT_EQ(3u, compiled.committee.threshold);
-  EXPECT_EQ(1000u, compiled.committee.max_active_population);
+  EXPECT_EQ(18u, compiled.admission.leading_zero_bits);
+  EXPECT_EQ(9u, compiled.committee.committee_size);
+  EXPECT_EQ(6u, compiled.committee.threshold);
+  EXPECT_EQ(100u, compiled.committee.max_active_population);
   EXPECT_EQ((std::vector<uint64_t>{0, 200, 400}),
       compiled.committee.round_offsets);
 

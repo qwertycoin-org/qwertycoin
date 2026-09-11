@@ -8,7 +8,7 @@
     "algorithm": "RandomX",
     "context_epoch_offset": 1,
     "lease_epochs": 1,
-    "leading_zero_bits": 16,
+    "leading_zero_bits": 18,
     "target_epoch_required": true
   },
   "carrier": {
@@ -25,11 +25,11 @@
     ],
     "rounds_required": 2,
     "service_kind": "canonical-object",
-    "size": 3,
-    "threshold": 3
+    "size": 9,
+    "threshold": 6
   },
   "commitments": {
-    "parameter_set_sha256": "16bde722b05071956f10be18530235be42b374228ead95e2b053d99d53f328ff"
+    "parameter_set_sha256": "404be09ba6ec45b4124f348255c0bf9c2ab743d7b173132e678a691cf7cd97b3"
   },
   "dependencies": {
     "core_source_commit": "1c4c1bf10c387887a42243dc690a65abb6c6e786",
@@ -71,7 +71,7 @@
     "source_revision": "e12dc5c731eac6e1692274b4c742258877f94100"
   },
   "resource_limits": {
-    "max_active_population": 1000,
+    "max_active_population": 100,
     "max_admission_verifications_per_block": 8,
     "max_envelope_bytes_per_transaction": 65536,
     "max_envelopes_per_transaction": 4,

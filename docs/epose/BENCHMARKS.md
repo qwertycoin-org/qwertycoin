@@ -56,7 +56,7 @@ projection:
 | 8 | 3 | 595 | 23.376 s | 7.792 s | 39.0 ms | 25.45 |
 | 12 | 3 | 3963 | 153.256 s | 51.085 s | 39.3 ms | 25.86 |
 
-Decision for this branch:
+Historical rehearsal decision:
 
 ```text
 EPOSE_ADMISSION_LEADING_ZERO_BITS = 16
@@ -71,8 +71,11 @@ Rationale:
 - Verification remains one RandomX evaluation per registration and measured at
   roughly 39 ms in solved runs.
 
-This value should be revisited if QWC adds a dedicated optimized admission
-solver that uses a faster RandomX mode or precomputed dataset safely.
+The final v2 launch candidate supersedes this rehearsal value with 18 bits.
+The asynchronous v2 admission worker uses a cancellable `2^24` attempt bound,
+which is 64 mean search spaces at 18 bits; epoch or reorg context changes still
+cancel stale work.  Final isolated rehearsal evidence is required before this
+candidate is bound to the launch genesis.
 
 ## Sybil / Committee Simulation
 

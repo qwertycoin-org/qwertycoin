@@ -65,15 +65,15 @@ namespace epose
     parameters.parameter_set_hash = parameter_set_hash;
     parameters.timing = {0, 720, 60};
     parameters.admission = {
-        admission_work_algorithm_v2::randomx, 16, 1};
-    parameters.committee.committee_size = 3;
-    parameters.committee.threshold = 3;
+        admission_work_algorithm_v2::randomx, 18, 1};
+    parameters.committee.committee_size = 9;
+    parameters.committee.threshold = 6;
     parameters.committee.round_count = 3;
     parameters.committee.rounds_required = 2;
     parameters.committee.service_kind =
         static_cast<uint8_t>(service_kind_v2::canonical_object);
     parameters.committee.round_offsets = {0, 200, 400};
-    parameters.committee.max_active_population = 1000;
+    parameters.committee.max_active_population = 100;
 
     parameters.limits.max_envelopes_per_transaction = 4;
     parameters.limits.envelope.max_envelope_bytes = 65536;
