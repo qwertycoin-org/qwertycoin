@@ -28,7 +28,7 @@
 
 function (write_version tag)
   set(VERSIONTAG "${tag}" CACHE STRING "The tag portion of the Monero software version" FORCE)
-  configure_file("${CMAKE_CURRENT_LIST_DIR}/../src/version.cpp.in" "${CMAKE_BINARY_DIR}/version.cpp")
+  configure_file("${PROJECT_SOURCE_DIR}/src/version.cpp.in" "${PROJECT_BINARY_DIR}/version.cpp")
 endfunction ()
 
 find_package(Git QUIET)
@@ -48,9 +48,9 @@ else()
 endif ()
 add_custom_target(genversion ALL
   COMMAND "${CMAKE_COMMAND}"
-    -DSOURCE_DIR="${CMAKE_SOURCE_DIR}"
-    -DBINARY_DIR="${CMAKE_BINARY_DIR}"
+    -DSOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    -DBINARY_DIR="${PROJECT_BINARY_DIR}"
     -DGIT_EXECUTABLE="${GIT_EXECUTABLE}"
     -P "${CMAKE_CURRENT_LIST_DIR}/GenerateVersion.cmake"
-  BYPRODUCTS "${CMAKE_BINARY_DIR}/version.cpp"
+  BYPRODUCTS "${PROJECT_BINARY_DIR}/version.cpp"
   COMMENT "Refreshing the embedded source revision")
