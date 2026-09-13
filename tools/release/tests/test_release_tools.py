@@ -187,6 +187,13 @@ class ArchiveSecurityTests(unittest.TestCase):
 
 
 class RequestValidationTests(unittest.TestCase):
+    def test_macos_bundler_resolves_loader_siblings_from_configured_paths(self) -> None:
+        bundler = (ROOT / "bundle_macos_runtime.sh").read_text(encoding="utf-8")
+        self.assertIn(
+            'resolve_from_configured_paths "${dependency#@loader_path/}"', bundler
+        )
+        self.assertIn('resolve_from_configured_paths "$suffix"', bundler)
+
     def test_release_workflow_avoids_empty_arrays_under_macos_bash_3(self) -> None:
         workflow = (ROOT.parents[1] / ".github/workflows/release.yml").read_text(
             encoding="utf-8"
