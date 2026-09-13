@@ -30,8 +30,14 @@ on:
         default: draft
         type: choice
         options: [draft, prerelease, stable]
+      stable_gate_policy:
+        description: "Stable only: require the candidate-bound EPoSE gate, or publish an explicitly authorized public-test client release"
+        required: true
+        default: require-ready
+        type: choice
+        options: [require-ready, public-test]
       confirmation:
-        description: "Type CREATE-DRAFT, PUBLISH-PRERELEASE, or PUBLISH-STABLE"
+        description: "Type CREATE-DRAFT, PUBLISH-PRERELEASE, PUBLISH-STABLE, or PUBLISH-STABLE-PUBLIC-TEST"
         required: true
         type: string
 
@@ -55,6 +61,7 @@ jobs:
       MACOS_RUN_ID: ${{ inputs.macos_run_id }}
       WINDOWS_RUN_ID: ${{ inputs.windows_run_id }}
       RELEASE_KIND: ${{ inputs.release_kind }}
+      STABLE_GATE_POLICY: ${{ inputs.stable_gate_policy }}
       CONFIRMATION: ${{ inputs.confirmation }}
       GH_TOKEN: ${{ github.token }}
       LINUX_ARTIFACT: qwertycoin-${{ inputs.release_tag }}-linux-x86_64
@@ -90,17 +97,33 @@ jobs:
             --version-file source/src/version.cpp.in --release-tag "$RELEASE_TAG" \
             --expected-revision "$EXPECTED_REVISION" --target all --output request.json
           case "$RELEASE_KIND" in
-            draft) test "$CONFIRMATION" = CREATE-DRAFT ;;
-            prerelease) test "$CONFIRMATION" = PUBLISH-PRERELEASE ;;
-            stable) test "$CONFIRMATION" = PUBLISH-STABLE ;;
+            draft)
+              test "$STABLE_GATE_POLICY" = require-ready
+              test "$CONFIRMATION" = CREATE-DRAFT
+              ;;
+            prerelease)
+              test "$STABLE_GATE_POLICY" = require-ready
+              test "$CONFIRMATION" = PUBLISH-PRERELEASE
+              ;;
+            stable)
+              if [[ "$STABLE_GATE_POLICY" == require-ready ]]; then
+                test "$CONFIRMATION" = PUBLISH-STABLE
+              elif [[ "$STABLE_GATE_POLICY" == public-test ]]; then
+                test "$CONFIRMATION" = PUBLISH-STABLE-PUBLIC-TEST
+              else
+                echo "unsupported stable gate policy" >&2
+                exit 1
+              fi
+              ;;
             *) echo "unsupported release kind" >&2; exit 1 ;;
           esac
-          if [[ "$RELEASE_KIND" == stable ]]; then
+          if [[ "$RELEASE_KIND" == stable && "$STABLE_GATE_POLICY" == require-ready ]]; then
             [[ "$RELEASE_TAG" != *-rc* ]]
             gate_args=(--require-ready)
           else
             gate_args=()
           fi
+          [[ "$RELEASE_KIND" != stable || "$RELEASE_TAG" != *-rc* ]]
           control/tools/release/evaluate_release_gate.py --repository source \
             --expected-revision "$EXPECTED_REVISION" --output assembly-gate.json "${gate_args[@]}"
           echo "RELEASE_VERSION=$(jq -r .release_version request.json)" >> "$GITHUB_ENV"
@@ -186,7 +209,8 @@ jobs:
             test "$(find "incoming/$platform" -mindepth 1 -maxdepth 1 | wc -l)" -eq 2
             (cd "incoming/$platform" && sha256sum -c "$artifact.$archive_suffix.sha256")
             stable_args=()
-            [[ "$RELEASE_KIND" == stable ]] && stable_args+=(--require-stable-gate)
+            [[ "$RELEASE_KIND" == stable && "$STABLE_GATE_POLICY" == require-ready ]] \
+              && stable_args+=(--require-stable-gate)
             control/tools/release/verify_candidate_archive.py \
               --archive "incoming/$platform/$artifact.$archive_suffix" \
               --destination "verified/$platform" --root-name "$artifact" --platform "$platform" \
@@ -243,8 +267,10 @@ jobs:
           set -euo pipefail
           gate_status=$(jq -r .overall_status assembly-gate.json)
           gate_count=$(jq -r '"\(.satisfied_gate_count)/\(.total_gate_count)"' assembly-gate.json)
-          if [[ "$RELEASE_KIND" == stable ]]; then
+          if [[ "$RELEASE_KIND" == stable && "$STABLE_GATE_POLICY" == require-ready ]]; then
             status_text="Stable release. The candidate-bound EPoSE release gate is ready."
+          elif [[ "$RELEASE_KIND" == stable ]]; then
+            status_text="Stable Reset-1 client release for public testing. The EPoSE evidence gate below remains an audit/readiness status and is not a runtime feature switch."
           elif [[ "$RELEASE_KIND" == prerelease ]]; then
             status_text="Public prerelease for testing. It is not a stable activation release."
           else
