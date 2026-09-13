@@ -38,24 +38,25 @@ project support channel for swap-related questions.
 | Decimals | 8 |
 | Supply constant | 184,467,440.73709551 QWC |
 | Tail emission | 0.3 QWC per minute, equal to 0.6 QWC at the 120-second block target |
-| Current EPoSe service reward | 10% of the tested block reward path |
+| Current EPoSe service reward | 10% of actual issued subsidy; transaction fees remain with the miner |
 | Address scheme | Qwertycoin v2 address prefixes; not legacy-chain compatible |
 | P2P port | 8196 |
 | Daemon RPC port | 8197 |
 | Wallet RPC port | 8198 |
 | ZMQ RPC port | 8199 |
 
-The current EPoSE service reward value is implemented as `1000` basis points.
-The beta code path currently exercises the broadest reward-validation route by
-splitting the amount passed into coinbase generation and validation. Final
-mainnet tokenomics and the exact fee/subsidy split remain explicit review
-items before a public release.
+The current EPoSE service reward value is `1000` basis points of actual issued
+subsidy. Transaction fees are not shared with the service-node output. When no
+qualified service node exists, the service portion falls back to the miner.
 
 ## Downloads
 
-There are no official Qwertycoin v2 release downloads at the moment. Build from
-source when testing this branch, and treat produced binaries as development or
-beta artifacts unless a signed release is published by the project.
+Official Qwertycoin v2 Core downloads, when available, are published on the
+repository [Releases page](https://github.com/qwertycoin-org/qwertycoin/releases).
+Native candidates and releases are produced only by the manual, candidate-bound
+process in [docs/releases/RELEASE_PROCESS.md](docs/releases/RELEASE_PROCESS.md).
+If no matching release is visible there, build from source and treat other
+binaries as unverified development artifacts.
 
 ## Build From Source
 
@@ -147,7 +148,7 @@ cmake -S . -B build/macos-arm64-release \
   -DBUILD_TESTS=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DMANUAL_SUBMODULES=1 \
-  -DUSE_DEVICE_TREZOR=ON
+  -DUSE_DEVICE_TREZOR=OFF
 
 cmake --build build/macos-arm64-release \
   --parallel "$(sysctl -n hw.logicalcpu)"
@@ -241,16 +242,19 @@ Current EPoSE parameters:
 | Parameter | Value |
 | --- | --- |
 | Epoch length | 720 blocks |
-| Registration lifetime | 30 epochs |
-| Verifier committee size | 5 |
-| Minimum attestations | 2 |
+| Admission lease | 1 epoch |
+| Verifier committee size | 9 |
+| Committee threshold | 6 |
+| Required attestation rounds | 2 of 3 |
 | Service reward | 1000 bps |
-| Admission leading-zero bits | 8 |
+| Reward fee policy | Subsidy only |
+| Admission leading-zero bits | 18 |
 
-`1000 bps` means a 10% service-node share and a 90% miner share. The current
-code splits `base_reward + transaction_fees`; whether final public mainnet keeps
-fee sharing or switches to subsidy-only rewards remains an explicit tokenomics
-decision.
+`1000 bps` means a 10% service-node share of actual issued subsidy and a 90%
+miner subsidy share. Transaction fees remain with the miner. The machine-
+readable parameter manifest and release-gate ledger remain authoritative; the
+current ledger is a release **NO-GO** until every mandatory gate is satisfied
+by evidence bound to the selected candidate revision.
 
 Service reward outputs are no longer direct long-term spend-public-key outputs.
 The selected service node registers a normal QWC reward address plus the
@@ -314,7 +318,7 @@ register_service_node <funding_address> <amount>
 ```
 
 The wallet must be able to sign and relay transactions. Watch-only and multisig
-wallets are rejected by the current beta wrapper. After registration, monitor
+wallets are rejected by the current registration wrapper. After registration, monitor
 `get_epose_info` until the local service public key is registered, active, and
 qualified. Confirm `get_service_rewards` against multiple peers before treating
 the local reward view as healthy.
@@ -324,8 +328,7 @@ the local reward view as healthy.
 | Resource | URL |
 | --- | --- |
 | Website | https://qwertycoin.org/ |
-| Legacy repository | https://github.com/qwertycoin-org/qwertycoin |
-| Current Qwertycoin development repository | <repository-url> |
+| Core repository | https://github.com/qwertycoin-org/qwertycoin |
 | Bitcointalk ANN | https://bitcointalk.org/index.php?topic=2881418.0 |
 | CoinGecko | https://www.coingecko.com/en/coins/qwertycoin |
 | Discord | https://qwertycoin.org/discord |
