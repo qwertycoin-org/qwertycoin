@@ -201,6 +201,18 @@ class RequestValidationTests(unittest.TestCase):
         self.assertNotIn("gate_args", workflow)
         self.assertEqual(workflow.count("--require-ready"), 4)
 
+    def test_assemble_public_test_override_is_explicit_and_preserves_gate(self) -> None:
+        workflow = (
+            ROOT.parents[1] / ".github/workflows/assemble-release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("options: [require-ready, public-test]", workflow)
+        self.assertIn("PUBLISH-STABLE-PUBLIC-TEST", workflow)
+        self.assertIn(
+            '"$RELEASE_KIND" == stable && "$STABLE_GATE_POLICY" == require-ready',
+            workflow,
+        )
+        self.assertIn("EPoSE evidence gate below remains", workflow)
+
     def test_smoke_evidence_uses_platform_neutral_program_names(self) -> None:
         self.assertEqual(SMOKE.evidence_program_name(Path("qwertycoind")), "qwertycoind")
         self.assertEqual(

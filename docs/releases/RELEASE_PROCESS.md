@@ -58,7 +58,14 @@ After independently reviewing all three candidates, select **qwc/core-assemble-r
 
 - `draft` with confirmation `CREATE-DRAFT`;
 - `prerelease` with confirmation `PUBLISH-PRERELEASE`;
-- `stable` with confirmation `PUBLISH-STABLE`.
+- `stable` with gate policy `require-ready` and confirmation `PUBLISH-STABLE`;
+- an explicitly authorized public-test client release with `stable`, gate policy
+  `public-test` and confirmation `PUBLISH-STABLE-PUBLIC-TEST`.
+
+The `public-test` policy does not rewrite or satisfy EPoSE evidence. It preserves the
+evaluated gate status in every archive and in the release notes while allowing a
+versioned client compatibility release when the network identity changes. It is not
+an EPoSE audit or activation-readiness claim.
 
 Assembly compiles nothing. It verifies the repository, trusted workflow, job result, run attempt, unique unexpired artifact, external checksum, safe archive structure, complete inner manifest, exact metadata, required files and EPoSE gate. It generates `SHA256SUMS` from the final archive bytes.
 
