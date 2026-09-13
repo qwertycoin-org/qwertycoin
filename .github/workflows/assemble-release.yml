@@ -1,0 +1,362 @@
+name: qwc/core-assemble-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Exact release tag"
+        required: true
+        default: "v2.0.0-rc1"
+        type: string
+      expected_revision:
+        description: "Exact lowercase 40-character Core source SHA"
+        required: true
+        type: string
+      linux_run_id:
+        description: "Successful qwc/core-release-candidate Linux run ID"
+        required: true
+        type: string
+      macos_run_id:
+        description: "Successful qwc/core-release-candidate macOS run ID"
+        required: true
+        type: string
+      windows_run_id:
+        description: "Successful qwc/core-release-candidate Windows run ID"
+        required: true
+        type: string
+      release_kind:
+        description: "Retain a private draft, publish a prerelease, or publish stable"
+        required: true
+        default: draft
+        type: choice
+        options: [draft, prerelease, stable]
+      confirmation:
+        description: "Type CREATE-DRAFT, PUBLISH-PRERELEASE, or PUBLISH-STABLE"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: qwc-core-assemble-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  assemble:
+    name: Verify candidates and assemble Core release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      EXPECTED_REVISION: ${{ inputs.expected_revision }}
+      LINUX_RUN_ID: ${{ inputs.linux_run_id }}
+      MACOS_RUN_ID: ${{ inputs.macos_run_id }}
+      WINDOWS_RUN_ID: ${{ inputs.windows_run_id }}
+      RELEASE_KIND: ${{ inputs.release_kind }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      GH_TOKEN: ${{ github.token }}
+      LINUX_ARTIFACT: qwertycoin-${{ inputs.release_tag }}-linux-x86_64
+      MACOS_ARTIFACT: qwertycoin-${{ inputs.release_tag }}-macos-arm64
+      WINDOWS_ARTIFACT: qwertycoin-${{ inputs.release_tag }}-windows-x86_64
+    steps:
+      - name: Checkout trusted release-control code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          path: control
+          persist-credentials: false
+      - name: Checkout exact release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_revision }}
+          fetch-depth: 0
+          path: source
+          persist-credentials: false
+      - name: Validate immutable release request and current gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$EXPECTED_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$LINUX_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$MACOS_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$WINDOWS_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          test "$(git -C control rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C source rev-parse HEAD)" = "$EXPECTED_REVISION"
+          git -C control merge-base --is-ancestor "$EXPECTED_REVISION" "$GITHUB_SHA"
+          control/tools/release/validate_release_request.py \
+            --version-file source/src/version.cpp.in --release-tag "$RELEASE_TAG" \
+            --expected-revision "$EXPECTED_REVISION" --target all --output request.json
+          case "$RELEASE_KIND" in
+            draft) test "$CONFIRMATION" = CREATE-DRAFT ;;
+            prerelease) test "$CONFIRMATION" = PUBLISH-PRERELEASE ;;
+            stable) test "$CONFIRMATION" = PUBLISH-STABLE ;;
+            *) echo "unsupported release kind" >&2; exit 1 ;;
+          esac
+          if [[ "$RELEASE_KIND" == stable ]]; then
+            [[ "$RELEASE_TAG" != *-rc* ]]
+            gate_args=(--require-ready)
+          else
+            gate_args=()
+          fi
+          control/tools/release/evaluate_release_gate.py --repository source \
+            --expected-revision "$EXPECTED_REVISION" --output assembly-gate.json "${gate_args[@]}"
+          echo "RELEASE_VERSION=$(jq -r .release_version request.json)" >> "$GITHUB_ENV"
+      - name: Validate native build runs and unique artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          validate_run() {
+            local run_id=$1 artifact_name=$2 job_name=$3 platform=$4
+            local run run_head jobs artifacts attempt actual_names allowed_names unexpected
+            run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")
+            jq -e \
+              '.name == "qwc/core-release-candidate"
+               and .path == ".github/workflows/release.yml"
+               and .event == "workflow_dispatch"
+               and .head_branch == "main"
+               and .status == "completed"
+               and .conclusion == "success"' <<<"$run" >/dev/null
+            run_head=$(jq -er .head_sha <<<"$run")
+            attempt=$(jq -er '.run_attempt | tostring' <<<"$run")
+            [[ "$run_head" =~ ^[0-9a-f]{40}$ ]]
+            git -C control cat-file -e "${run_head}^{commit}"
+            git -C control merge-base --is-ancestor "$EXPECTED_REVISION" "$run_head"
+            test "$(git -C control rev-parse "${run_head}:.github/workflows/release.yml")" = \
+              "$(git -C control rev-parse "${GITHUB_SHA}:.github/workflows/release.yml")"
+            test "$(git -C control rev-parse "${run_head}:tools/release")" = \
+              "$(git -C control rev-parse "${GITHUB_SHA}:tools/release")"
+            jobs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")
+            jq -e --arg job "$job_name" \
+              'any(.jobs[]; .name == $job and .status == "completed" and .conclusion == "success")' \
+              <<<"$jobs" >/dev/null
+            artifacts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")
+            jq -e --arg name "$artifact_name" \
+              '[.artifacts[] | select(.name == $name and .expired == false)] | length == 1' \
+              <<<"$artifacts" >/dev/null
+            jq -e '[.artifacts[] | select(.expired == false) | .name] | length == (unique | length)' \
+              <<<"$artifacts" >/dev/null
+            actual_names=$(jq -r '.artifacts[] | select(.expired == false) | .name' <<<"$artifacts" | sort)
+            allowed_names=$(printf '%s\n' "$LINUX_ARTIFACT" "$MACOS_ARTIFACT" "$WINDOWS_ARTIFACT" | sort)
+            unexpected=$(comm -13 <(printf '%s\n' "$allowed_names") <(printf '%s\n' "$actual_names"))
+            [[ -z "$unexpected" ]] || { echo "run $run_id contains unexpected artifacts: $unexpected" >&2; exit 1; }
+            printf '%s\n' "$run_head" >"${platform}-workflow-revision"
+            printf '%s\n' "$attempt" >"${platform}-run-attempt"
+          }
+          validate_run "$LINUX_RUN_ID" "$LINUX_ARTIFACT" "Linux x86_64" linux
+          validate_run "$MACOS_RUN_ID" "$MACOS_ARTIFACT" "macOS Apple Silicon" macos
+          validate_run "$WINDOWS_RUN_ID" "$WINDOWS_ARTIFACT" "Windows x86_64" windows
+          test "$(cat linux-workflow-revision)" = "$(cat macos-workflow-revision)"
+          test "$(cat linux-workflow-revision)" = "$(cat windows-workflow-revision)"
+      - name: Self-test trusted archive verifier
+        run: python3 -m unittest control/tools/release/tests/test_release_tools.py
+      - name: Download Linux candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.LINUX_ARTIFACT }}
+          path: incoming/linux
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.linux_run_id }}
+      - name: Download macOS candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.MACOS_ARTIFACT }}
+          path: incoming/macos
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.macos_run_id }}
+      - name: Download Windows candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.WINDOWS_ARTIFACT }}
+          path: incoming/windows
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.windows_run_id }}
+      - name: Verify external hashes, archives and candidate metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify_candidate() {
+            local platform=$1 artifact=$2 archive_suffix=$3 run_id=$4 expected_os=$5 expected_arch=$6
+            test "$(find "incoming/$platform" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2
+            test "$(find "incoming/$platform" -mindepth 1 -maxdepth 1 | wc -l)" -eq 2
+            (cd "incoming/$platform" && sha256sum -c "$artifact.$archive_suffix.sha256")
+            stable_args=()
+            [[ "$RELEASE_KIND" == stable ]] && stable_args+=(--require-stable-gate)
+            control/tools/release/verify_candidate_archive.py \
+              --archive "incoming/$platform/$artifact.$archive_suffix" \
+              --destination "verified/$platform" --root-name "$artifact" --platform "$platform" \
+              --expected-tag "$RELEASE_TAG" --expected-revision "$EXPECTED_REVISION" \
+              --expected-workflow-name qwc/core-release-candidate \
+              --expected-workflow-revision "$(cat "$platform-workflow-revision")" \
+              --expected-run-id "$run_id" --expected-run-attempt "$(cat "$platform-run-attempt")" \
+              --expected-os "$expected_os" --expected-arch "$expected_arch" "${stable_args[@]}"
+          }
+          verify_candidate linux "$LINUX_ARTIFACT" tar.gz "$LINUX_RUN_ID" Linux x86_64
+          verify_candidate macos "$MACOS_ARTIFACT" tar.gz "$MACOS_RUN_ID" macOS arm64
+          verify_candidate windows "$WINDOWS_ARTIFACT" zip "$WINDOWS_RUN_ID" Windows x86_64
+          jq -e '.verification.epose_unit_tests == "238 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
+            "verified/linux/$LINUX_ARTIFACT/BUILD-INFO.json" >/dev/null
+          cmp assembly-gate.json "verified/linux/$LINUX_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json"
+          cmp assembly-gate.json "verified/macos/$MACOS_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json"
+          cmp assembly-gate.json "verified/windows/$WINDOWS_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json"
+      - name: Stage exact archives and generate final checksums
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          cp "incoming/linux/$LINUX_ARTIFACT.tar.gz" release-assets/
+          cp "incoming/macos/$MACOS_ARTIFACT.tar.gz" release-assets/
+          cp "incoming/windows/$WINDOWS_ARTIFACT.zip" release-assets/
+          (cd release-assets && sha256sum "$LINUX_ARTIFACT.tar.gz" "$MACOS_ARTIFACT.tar.gz" "$WINDOWS_ARTIFACT.zip" > SHA256SUMS)
+      - name: Generate release notes from verified metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          gate_status=$(jq -r .overall_status assembly-gate.json)
+          gate_count=$(jq -r '"\(.satisfied_gate_count)/\(.total_gate_count)"' assembly-gate.json)
+          if [[ "$RELEASE_KIND" == stable ]]; then
+            status_text="Stable release. The candidate-bound EPoSE release gate is ready."
+          elif [[ "$RELEASE_KIND" == prerelease ]]; then
+            status_text="Public prerelease for testing. It is not a stable activation release."
+          else
+            status_text="Private draft for native review. It is not publicly released."
+          fi
+          cat > release-assets/RELEASE-NOTES.md <<EOF
+          # Qwertycoin Core ${RELEASE_TAG#v}
+
+          ${status_text}
+
+          - Core source: \`${EXPECTED_REVISION}\`
+          - Linux x86_64 build: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${LINUX_RUN_ID}
+          - macOS Apple Silicon build: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${MACOS_RUN_ID}
+          - Windows x86_64 build: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${WINDOWS_RUN_ID}
+          - EPoSE release gate: \`${gate_status}\` (${gate_count} mandatory gates satisfied)
+
+          Each archive contains \`qwertycoind\`, \`qwertycoin-wallet-cli\`, \`qwertycoin-wallet-rpc\`, required portable runtime libraries, \`README-RELEASE.md\`, license notices, candidate-bound evidence and \`BUILD-INFO.json\`.
+
+          Compatibility:
+
+          - Linux x86_64: GLIBC 2.35 / GLIBCXX 3.4.30 ceiling
+          - macOS Apple Silicon: macOS 15 or newer
+          - Windows x86_64: tested on the Windows 2025 hosted runner; no broader legacy-Windows claim
+
+          Signing boundary:
+
+          - Linux and Windows archives are unsigned.
+          - macOS binaries are ad-hoc signed, not Developer ID signed or notarized.
+          - \`SHA256SUMS\` verifies file integrity, not publisher identity.
+
+          Verify with \`sha256sum -c SHA256SUMS\` (Linux), \`shasum -a 256 -c SHA256SUMS\` (macOS), or \`Get-FileHash -Algorithm SHA256\` (Windows), then extract the matching archive and run the included programs from its root directory.
+          EOF
+      - name: Detect exact release state and reject conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          releases=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq -s 'add')
+          matches=$(jq --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag)]' <<<"$releases")
+          count=$(jq length <<<"$matches")
+          (( count <= 1 )) || { echo "multiple releases use $RELEASE_TAG" >&2; exit 1; }
+          if (( count == 1 )); then
+            release=$(jq '.[0]' <<<"$matches")
+            jq -e --arg revision "$EXPECTED_REVISION" '.target_commitish == $revision' <<<"$release" >/dev/null
+            if jq -e '.draft == false' <<<"$release" >/dev/null; then
+              case "$RELEASE_KIND" in
+                stable) jq -e '.prerelease == false' <<<"$release" >/dev/null ;;
+                prerelease) jq -e '.prerelease == true' <<<"$release" >/dev/null ;;
+                *) echo "cannot turn an existing public release back into a draft" >&2; exit 1 ;;
+              esac
+            fi
+            echo "RELEASE_ID=$(jq -r .id <<<"$release")" >> "$GITHUB_ENV"
+            echo "RELEASE_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            remote=$(git -C control ls-remote --tags origin "refs/tags/$RELEASE_TAG" "refs/tags/$RELEASE_TAG^{}")
+            if [[ -n "$remote" ]]; then
+              git -C control fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+              test "$(git -C control rev-parse "$RELEASE_TAG^{}")" = "$EXPECTED_REVISION"
+            fi
+            echo "RELEASE_EXISTS=false" >> "$GITHUB_ENV"
+          fi
+      - name: Create private draft when needed
+        if: ${{ env.RELEASE_EXISTS == 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" release-assets/*.{tar.gz,zip} release-assets/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$EXPECTED_REVISION" --draft --prerelease \
+            --title "Qwertycoin Core ${RELEASE_TAG#v}" --notes-file release-assets/RELEASE-NOTES.md
+          release=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            | jq -s 'add' | jq -e --arg tag "$RELEASE_TAG" '.[] | select(.tag_name == $tag)')
+          echo "RELEASE_ID=$(jq -r .id <<<"$release")" >> "$GITHUB_ENV"
+      - name: Verify or safely complete matching draft assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_names=$(printf '%s\n' "$LINUX_ARTIFACT.tar.gz" "$MACOS_ARTIFACT.tar.gz" "$WINDOWS_ARTIFACT.zip" SHA256SUMS | sort)
+          release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}")
+          actual_names=$(jq -r '.assets[].name' <<<"$release" | sort)
+          unexpected=$(comm -13 <(printf '%s\n' "$expected_names") <(printf '%s\n' "$actual_names"))
+          [[ -z "$unexpected" ]] || { echo "release contains unexpected assets: $unexpected" >&2; exit 1; }
+          for path in release-assets/*.tar.gz release-assets/*.zip release-assets/SHA256SUMS; do
+            name=$(basename "$path")
+            expected_digest=$(sha256sum "$path" | awk '{print $1}')
+            asset=$(jq -c --arg name "$name" '.assets[]? | select(.name == $name)' <<<"$release" || true)
+            if [[ -n "$asset" ]]; then
+              asset_id=$(jq -r .id <<<"$asset")
+              mkdir -p downloaded-assets
+              gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"downloaded-assets/$name"
+              test "$(sha256sum "downloaded-assets/$name" | awk '{print $1}')" = "$expected_digest"
+            else
+              jq -e '.draft == true' <<<"$release" >/dev/null || { echo "public release is missing asset $name" >&2; exit 1; }
+              upload_url=$(jq -r '.upload_url | sub("\\{\\?name,label\\}"; "")' <<<"$release")
+              gh api --method POST -H 'Content-Type: application/octet-stream' \
+                "${upload_url}?name=${name}" --input "$path" >/dev/null
+              release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}")
+            fi
+          done
+      - name: Publish requested state only after exact draft verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_KIND" in
+            draft) desired_draft=true; desired_prerelease=true ;;
+            prerelease) desired_draft=false; desired_prerelease=true ;;
+            stable) desired_draft=false; desired_prerelease=false ;;
+          esac
+          notes=$(cat release-assets/RELEASE-NOTES.md)
+          jq -n --arg name "Qwertycoin Core ${RELEASE_TAG#v}" --arg body "$notes" \
+            --argjson draft "$desired_draft" --argjson prerelease "$desired_prerelease" \
+            '{name:$name, body:$body, draft:$draft, prerelease:$prerelease}' > release-update.json
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            --input release-update.json >/dev/null
+      - name: Read back release, tag and downloaded public bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}")
+          case "$RELEASE_KIND" in
+            draft) expected_draft=true; expected_prerelease=true ;;
+            prerelease) expected_draft=false; expected_prerelease=true ;;
+            stable) expected_draft=false; expected_prerelease=false ;;
+          esac
+          jq -e --arg tag "$RELEASE_TAG" --arg revision "$EXPECTED_REVISION" \
+            --argjson draft "$expected_draft" --argjson prerelease "$expected_prerelease" \
+            '.tag_name == $tag and .target_commitish == $revision and .draft == $draft and .prerelease == $prerelease' \
+            <<<"$release" >/dev/null
+          expected_names=$(printf '%s\n' "$LINUX_ARTIFACT.tar.gz" "$MACOS_ARTIFACT.tar.gz" "$WINDOWS_ARTIFACT.zip" SHA256SUMS | sort)
+          actual_names=$(jq -r '.assets[].name' <<<"$release" | sort)
+          test "$actual_names" = "$expected_names"
+          mkdir -p final-download
+          while IFS=$'\t' read -r asset_id name; do
+            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"final-download/$name"
+          done < <(jq -r '.assets[] | [.id, .name] | @tsv' <<<"$release")
+          cmp release-assets/SHA256SUMS final-download/SHA256SUMS
+          (cd final-download && sha256sum -c SHA256SUMS)
+          if [[ "$RELEASE_KIND" != draft ]]; then
+            git -C control fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            test "$(git -C control rev-parse "$RELEASE_TAG^{}")" = "$EXPECTED_REVISION"
+          fi
+          echo "Release $RELEASE_TAG verified by ID $RELEASE_ID with exact downloaded assets"
