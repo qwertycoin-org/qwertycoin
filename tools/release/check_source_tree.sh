@@ -28,7 +28,7 @@ if grep -Eq '^[+-U]' <<<"$submodule_status"; then
 fi
 
 git submodule foreach --quiet --recursive '
-  if ! git diff --quiet || ! git diff --cached --quiet || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+  if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
     echo "dirty submodule: $displaypath" >&2
     git status --short >&2
     exit 1
