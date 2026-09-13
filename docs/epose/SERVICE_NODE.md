@@ -2,7 +2,7 @@
 
 ## Operator Model
 
-A Qwertycoin EPoSE-v2 service node has:
+A Qwertycoin EPoSE service node has:
 
 - a genesis- and parameter-bound operator/service keystore,
 - a stable identity derived from the operator key,
@@ -12,10 +12,10 @@ A Qwertycoin EPoSE-v2 service node has:
 - an epoch-scoped descriptor lifecycle and RandomX admission lease.
 
 The keystore is not a wallet and contains no wallet spend or view key. It signs
-EPoSE-v2 lifecycle, admission, endpoint, and service records only. Keep it
+EPoSE lifecycle, admission, endpoint, and service records only. Keep it
 separate from the blockchain database, back it up securely, and do not share it.
 The daemon needs only the public reward address; no wallet secret belongs in an
-EPoSE-v2 configuration.
+EPoSE configuration.
 
 ## Network And Host Requirements
 
@@ -40,13 +40,13 @@ EPoSE work. The restricted listener must not expose `/submit_epose_envelope`.
 
 ```bash
 qwertycoind \
-  --epose-v2-service \
-  --epose-v2-keystore /secure/path/epose-v2-keystore \
-  --epose-v2-reward-address QWC... \
-  --epose-v2-endpoint-host node.example.org \
-  --epose-v2-endpoint-port 8198 \
-  --epose-v2-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
-  --epose-v2-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
+  --epose-service \
+  --epose-keystore /secure/path/epose-v2-keystore \
+  --epose-reward-address QWC... \
+  --epose-host node.example.org \
+  --epose-port 8198 \
+  --epose-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
+  --epose-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
   --p2p-bind-ip 0.0.0.0 \
   --p2p-bind-port 8196 \
   --rpc-bind-ip 127.0.0.1 \
@@ -56,16 +56,16 @@ qwertycoind \
   --confirm-external-bind
 ```
 
-Required EPoSE-v2 options:
+Required EPoSE options:
 
-- `--epose-v2-service` enables the v2 producer.
-- `--epose-v2-keystore` loads or creates the protected operator/service
+- `--epose-service` enables the v2 producer.
+- `--epose-keystore` loads or creates the protected operator/service
   keystore. A keystore is bound to the selected network genesis and parameter
   set; do not copy one from a different chain.
-- `--epose-v2-reward-address` sets the primary public QWC reward address.
-- `--epose-v2-endpoint-host` and `--epose-v2-endpoint-port` describe the public
+- `--epose-reward-address` sets the primary public QWC reward address.
+- `--epose-host` and `--epose-port` describe the public
   restricted-RPC probe endpoint.
-- `--epose-v2-discovery-endpoint` bootstraps signed endpoint discovery and may
+- `--epose-discovery-endpoint` bootstraps signed endpoint discovery and may
   be repeated. It is not an allowlist and does not grant admission.
 
 `--confirm-external-bind` is required when the restricted listener binds to a
@@ -87,7 +87,25 @@ No funded registration transaction is required. The wallet command
 `register_service_node`, the RPC `get_service_node_registration_payload`, and
 the `--service-node`/`--service-node-key`/`--service-reward-view-key` options are
 retired v1 compatibility surfaces. They are intentionally rejected and must not
-be used for EPoSE v2.
+be used for EPoSE.
+
+## Deprecated Input Aliases
+
+The earlier `--epose-v2-*` option names remain accepted as hidden migration
+aliases for existing installations. They are not shown by `--help` and are not
+emitted by maintained examples or wrappers. A process using any old name emits
+one value-free migration warning. If old and canonical names at the same input
+level disagree, the daemon exits before it can start EPoSE or create a
+keystore. Exact duplicate values are applied once; repeated discovery endpoint
+order is preserved.
+
+The same compatibility window applies to the old
+`QWC_EPOSE_V2_KEYSTORE_PATH`, `QWC_EPOSE_V2_ENDPOINT_HOST`,
+`QWC_EPOSE_V2_ENDPOINT_PORT`, and `QWC_EPOSE_V2_DISCOVERY_ENDPOINTS`
+environment variables. Maintained deployments use `QWC_EPOSE_KEYSTORE_PATH`,
+`QWC_EPOSE_HOST`, `QWC_EPOSE_PORT`, and `QWC_EPOSE_DISCOVERY_ENDPOINTS`.
+Removing the hidden aliases is a later, separately announced compatibility
+change; it is not part of this release.
 
 ## Inspect Status
 
@@ -113,7 +131,7 @@ The normal progression is `ready -> registered -> active -> qualified`, but it
 is governed by chain height, enrollment cutoffs, the two-epoch warm-up,
 admission proof, committee receipts, and current reachability. Starting the
 producer does not guarantee qualification or an immediate reward. Epoch zero
-has no EPoSE-v2 rewards.
+has no EPoSE rewards.
 
 ## Docker Mainnet Deployment
 
@@ -135,7 +153,7 @@ It separates chain data from service identity:
 ```text
 QWC_DATA_VOLUME=...
 QWC_IDENTITY_VOLUME=...
-QWC_EPOSE_V2_KEYSTORE_PATH=/service-node/epose-v2-keystore
+QWC_EPOSE_KEYSTORE_PATH=/service-node/epose-v2-keystore
 ```
 
 Keep the identity volume during normal restarts or chain-database recovery.
@@ -144,7 +162,7 @@ reward addresses, keystore contents, or private host configuration.
 
 ## Security And Recovery
 
-- Back up the EPoSE-v2 keystore and wallet seed separately.
+- Back up the EPoSE keystore and wallet seed separately.
 - Never place wallet private keys in node environment files.
 - Keep unrestricted RPC and ZMQ private.
 - Verify public DNS, firewall rules, and the restricted endpoint from an

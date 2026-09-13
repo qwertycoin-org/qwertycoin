@@ -1,7 +1,7 @@
 # Qwertycoin v2 Community Setup Guide
 
 This guide covers the public Qwertycoin v2 mainnet test: install a wallet,
-connect a node, mine, and run the current EPoSE-v2 service producer.
+connect a node, mine, and run the current EPoSE service producer.
 
 ## Verify Downloads First
 
@@ -35,9 +35,9 @@ For an EPoSE service node:
 - enough storage for an unpruned chain,
 - public TCP ports `8196` and `8198`,
 - a dedicated primary QWC reward address,
-- protected storage for the EPoSE-v2 keystore.
+- protected storage for the EPoSE keystore.
 
-An EPoSE-v2 node does not need a wallet private view key, wallet spend key, or a
+An EPoSE node does not need a wallet private view key, wallet spend key, or a
 funded registration transaction. Never place wallet secrets in node config.
 
 ## Ports
@@ -114,7 +114,7 @@ Replace `4` with a suitable thread count. Mining remains RandomX proof of work;
 EPoSE does not replace block production or chain selection. Coinbase outputs
 must mature before they can be spent.
 
-## Run An EPoSE-v2 Service Node
+## Run An EPoSE Service Node
 
 ### 1. Prepare The Host
 
@@ -146,15 +146,15 @@ machine and the public restricted endpoint must be reachable on port `8198`.
 
 ```bash
 ./qwertycoind \
-  --epose-v2-service \
-  --epose-v2-keystore /var/lib/qwertycoin-epose/keystore \
-  --epose-v2-reward-address QWC_REWARD_ADDRESS_HERE \
-  --epose-v2-endpoint-host node.example.org \
-  --epose-v2-endpoint-port 8198 \
-  --epose-v2-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
-  --epose-v2-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
-  --epose-v2-discovery-endpoint http://seed-02.qwertycoin.org:8198 \
-  --epose-v2-discovery-endpoint http://seed-03.qwertycoin.org:8198 \
+  --epose-service \
+  --epose-keystore /var/lib/qwertycoin-epose/keystore \
+  --epose-reward-address QWC_REWARD_ADDRESS_HERE \
+  --epose-host node.example.org \
+  --epose-port 8198 \
+  --epose-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
+  --epose-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
+  --epose-discovery-endpoint http://seed-02.qwertycoin.org:8198 \
+  --epose-discovery-endpoint http://seed-03.qwertycoin.org:8198 \
   --p2p-bind-ip 0.0.0.0 \
   --p2p-bind-port 8196 \
   --rpc-bind-ip 127.0.0.1 \
@@ -190,15 +190,15 @@ producer ready -> registered -> active -> qualified
 These states do not occur immediately. The producer waits for synchronization,
 an eligible enrollment window, the RandomX admission proof, the two-epoch
 warm-up, and sufficient canonical service receipts. Qualification and rewards
-are never guaranteed. Epoch zero has no EPoSE-v2 rewards.
+are never guaranteed. Epoch zero has no EPoSE rewards.
 
 ## Troubleshooting
 
 ### Legacy `--service-node` is rejected
 
-This is intentional. Use `--epose-v2-service` and the v2 options shown above.
+This is intentional. Use `--epose-service` and the EPoSE options shown above.
 The retired v1 path requested a wallet private view key and a funded
-registration transaction; those are not inputs to EPoSE v2.
+registration transaction; those are not inputs to EPoSE.
 
 ### `local_service_node_key_loaded` is false
 

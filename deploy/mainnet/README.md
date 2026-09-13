@@ -5,16 +5,16 @@ Compose definition and one host-specific env file. `QWC_REWARD_ADDRESS` is the
 public reward address embedded in new service registrations. The hardened v2
 path never takes or discloses a reward private view key.
 
-The release-candidate launch profile expects a node image built from the current
-release branch and tagged as:
+The maintained deployment profile expects a node image built from the matching
+Core release and tagged as:
 
 ```text
-qwertycoin-v2-node:v2.0.0-rc.1
+qwertycoin-v2-node:v2.0.0
 ```
 
 Do not start public mainnet nodes from older PR or testphase image tags.
 
-Build the release-candidate image from a clean worktree:
+Build the release image from a clean worktree:
 
 ```bash
 ./deploy/mainnet/build-rc-image.sh
@@ -61,7 +61,7 @@ addresses, wallet secrets, keystore contents, or private host details to this
 repository.
 
 The genesis- and parameter-bound v2 operator/service keystore is stored outside
-the chain volume at `QWC_EPOSE_V2_KEYSTORE_PATH`, mounted through
+the chain volume at `QWC_EPOSE_KEYSTORE_PATH`, mounted through
 `QWC_IDENTITY_VOLUME`. A distinct final-launch genesis requires a newly bound
 keystore; do not copy an older v1 identity into this path.
 
@@ -69,9 +69,16 @@ The unrestricted admin RPC is published only on loopback at port 8197. The
 restricted listener is intentionally public at port 8198 so assigned committee
 members can fetch signed endpoint descriptors and answer bounded service
 challenges. It must not expose `/submit_epose_envelope`; that method belongs only
-to the unrestricted listener. `QWC_EPOSE_V2_DISCOVERY_ENDPOINTS` is the
+to the unrestricted listener. `QWC_EPOSE_DISCOVERY_ENDPOINTS` is the
 comma-separated bootstrap list used to discover signed endpoint descriptors.
 It does not authorize participants and is not an admission allowlist.
+
+Maintained deployment files use `QWC_EPOSE_KEYSTORE_PATH`, `QWC_EPOSE_HOST`,
+`QWC_EPOSE_PORT`, and `QWC_EPOSE_DISCOVERY_ENDPOINTS`. Their former
+`QWC_EPOSE_V2_*` spellings remain accepted temporarily by the shared
+environment normalizer. Equal old/new values are applied once; conflicting or
+explicitly empty values stop before the container is replaced or started. The
+normalizer reports only variable names, never their values.
 
 ## Bootstrap Modes
 

@@ -55,10 +55,14 @@ The current published Core candidate is
 [`v2.0.0-rc1`](https://github.com/qwertycoin-org/qwertycoin/releases/tag/v2.0.0-rc1)
 for Linux x86_64, macOS Apple Silicon, and Windows x86_64. It is the public
 test release for the Qwertycoin v2 mainnet. The packaged daemon, wallet, mining,
-and EPoSE-v2 service-producer paths are enabled; no release-gate file is read by
+and EPoSE service-producer paths are enabled; no release-gate file is read by
 those programs at runtime. The separate EPoSE release gate remains `NO-GO` for
 a later stable/audit classification because several mandatory evidence items
 are incomplete or are not bound to this exact candidate revision.
+The `v2.0.0-rc1` binaries predate the canonical option spellings documented
+below and still use `--epose-v2-*`; do not pair the newer examples with that
+older archive. The compatible `v2.0.0` Core release will make `--epose-*`
+canonical while retaining the old names as hidden migration aliases.
 Native candidates and releases are produced only by the manual, candidate-bound
 process in [docs/releases/RELEASE_PROCESS.md](docs/releases/RELEASE_PROCESS.md).
 If no matching release is visible there, build from source and treat other
@@ -231,7 +235,7 @@ The current `main` implementation includes:
 - a public primary reward address without disclosure of wallet secrets,
 - signed public endpoint descriptors for the restricted probe RPC,
 - RandomX-bound admission proof,
-- P2P relay for signed EPoSE-v2 envelopes and endpoint descriptors,
+- P2P relay for signed EPoSE envelopes and endpoint descriptors,
 - deterministic verifier committee selection,
 - signed canonical-service receipts,
 - qualification snapshots,
@@ -270,17 +274,17 @@ to localhost. The public endpoint host must be a canonical public IPv4, IPv6,
 or lowercase DNS name. Both P2P port `8196` and the restricted probe RPC port
 `8198` must be reachable.
 
-Start the daemon with the EPoSE-v2 producer and at least one discovery endpoint:
+Start the daemon with the EPoSE producer and at least one discovery endpoint:
 
 ```bash
 qwertycoind \
-  --epose-v2-service \
-  --epose-v2-keystore /secure/path/epose-v2-keystore \
-  --epose-v2-reward-address <mainnet QWC primary address> \
-  --epose-v2-endpoint-host <public-host> \
-  --epose-v2-endpoint-port 8198 \
-  --epose-v2-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
-  --epose-v2-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
+  --epose-service \
+  --epose-keystore /secure/path/epose-v2-keystore \
+  --epose-reward-address <mainnet QWC primary address> \
+  --epose-host <public-host> \
+  --epose-port 8198 \
+  --epose-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
+  --epose-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
   --p2p-bind-ip 0.0.0.0 \
   --p2p-bind-port 8196 \
   --rpc-bind-ip 127.0.0.1 \
@@ -293,7 +297,7 @@ qwertycoind \
 The daemon creates or loads the genesis-bound keystore and, after it is fully
 synced, automatically produces and relays the lifecycle and RandomX admission
 records for the next eligible epoch. No funded registration transaction and no
-wallet private view key are used by EPoSE v2. Discovery endpoints bootstrap
+wallet private view key are used by EPoSE. Discovery endpoints bootstrap
 signed endpoint discovery; they are not a participant allowlist.
 
 Inspect local EPoSE status:
@@ -308,7 +312,7 @@ then `active`, and finally `qualified`. These transitions follow normal epoch,
 admission, committee, and warm-up rules; starting the process does not guarantee
 qualification or an immediate reward. The old `--service-node` options and the
 wallet `register_service_node` command belong to the retired v1 path and are not
-valid EPoSE-v2 enrollment mechanisms.
+valid EPoSE enrollment mechanisms.
 
 See [docs/epose/SERVICE_NODE.md](docs/epose/SERVICE_NODE.md) for the complete
 operator contract and [docs/epose/COMMUNITY_SETUP.md](docs/epose/COMMUNITY_SETUP.md)

@@ -15,15 +15,15 @@ fi
 # shellcheck disable=SC1090
 source "$env_file"
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=deploy/mainnet/epose-env-compat.sh
+source "$script_dir/epose-env-compat.sh"
+
 : "${QWC_IMAGE:?QWC_IMAGE is required}"
 : "${QWC_CONTAINER_NAME:=qwertycoin-mainnet}"
 : "${QWC_DATA_VOLUME:?QWC_DATA_VOLUME is required}"
 : "${QWC_IDENTITY_VOLUME:?QWC_IDENTITY_VOLUME is required}"
-: "${QWC_EPOSE_V2_KEYSTORE_PATH:=/service-node/epose-v2-keystore}"
 : "${QWC_REWARD_ADDRESS:?QWC_REWARD_ADDRESS is required}"
-: "${QWC_EPOSE_V2_ENDPOINT_HOST:?QWC_EPOSE_V2_ENDPOINT_HOST is required}"
-: "${QWC_EPOSE_V2_ENDPOINT_PORT:=8198}"
-: "${QWC_EPOSE_V2_DISCOVERY_ENDPOINTS:?QWC_EPOSE_V2_DISCOVERY_ENDPOINTS is required}"
 : "${QWC_P2P_PORT:=8196}"
 : "${QWC_RPC_PORT:=8197}"
 : "${QWC_RESTRICTED_RPC_PORT:=}"
@@ -54,11 +54,11 @@ docker volume create "$QWC_DATA_VOLUME" >/dev/null
 docker volume create "$QWC_IDENTITY_VOLUME" >/dev/null
 
 args=(
-  --epose-v2-service
-  "--epose-v2-keystore=$QWC_EPOSE_V2_KEYSTORE_PATH"
-  "--epose-v2-reward-address=$QWC_REWARD_ADDRESS"
-  "--epose-v2-endpoint-host=$QWC_EPOSE_V2_ENDPOINT_HOST"
-  "--epose-v2-endpoint-port=$QWC_EPOSE_V2_ENDPOINT_PORT"
+  --epose-service
+  "--epose-keystore=$QWC_EPOSE_KEYSTORE_PATH"
+  "--epose-reward-address=$QWC_REWARD_ADDRESS"
+  "--epose-host=$QWC_EPOSE_HOST"
+  "--epose-port=$QWC_EPOSE_PORT"
   --p2p-bind-ip=0.0.0.0
   "--p2p-bind-port=$QWC_P2P_PORT"
   --rpc-bind-ip=0.0.0.0
@@ -92,11 +92,11 @@ for node in "${priority_nodes[@]}"; do
   fi
 done
 
-IFS=',' read -r -a discovery_endpoints <<< "$QWC_EPOSE_V2_DISCOVERY_ENDPOINTS"
+IFS=',' read -r -a discovery_endpoints <<< "$QWC_EPOSE_DISCOVERY_ENDPOINTS"
 for endpoint in "${discovery_endpoints[@]}"; do
   endpoint="${endpoint//[[:space:]]/}"
   if [[ -n "$endpoint" ]]; then
-    args+=("--epose-v2-discovery-endpoint=$endpoint")
+    args+=("--epose-discovery-endpoint=$endpoint")
   fi
 done
 

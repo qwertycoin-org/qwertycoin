@@ -286,11 +286,11 @@ YAML
       fi
       if [ "${i}" -lt "${SERVICE_NODE_COUNT}" ]; then
         cat <<YAML
-      - --epose-v2-service
-      - --epose-v2-keystore=/service-node/epose-v2-keystore
-      - --epose-v2-reward-address=${REWARD_ADDRESS}
-      - --epose-v2-endpoint-host=${name}.epose.test
-      - --epose-v2-endpoint-port=8198
+      - --epose-service
+      - --epose-keystore=/service-node/epose-v2-keystore
+      - --epose-reward-address=${REWARD_ADDRESS}
+      - --epose-host=${name}.epose.test
+      - --epose-port=8198
       - --rpc-restricted-bind-ip=0.0.0.0
       - --rpc-restricted-bind-port=8198
 YAML
@@ -298,7 +298,7 @@ YAML
         for discovery_peer in $(seq 0 "$((NODE_COUNT - 1))"); do
           if [ "${discovery_peer}" -ne "${i}" ]; then
             cat <<YAML
-      - --epose-v2-discovery-endpoint=http://qwc-epose-node-${discovery_peer}.epose.test:8198
+      - --epose-discovery-endpoint=http://qwc-epose-node-${discovery_peer}.epose.test:8198
 YAML
           fi
         done

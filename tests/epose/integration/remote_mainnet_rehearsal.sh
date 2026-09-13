@@ -117,7 +117,7 @@ start_mining() {
   local i command_json reward_address payload
   for i in "${!SSH_TARGETS[@]}"; do
     command_json="$(ssh_host "$i" 'docker inspect qwertycoin-mainnet --format "{{json .Config.Cmd}}"')"
-    reward_address="$(jq -r '.[] | select(startswith("--epose-v2-reward-address=")) | sub("^--epose-v2-reward-address="; "")' <<<"$command_json")"
+    reward_address="$(jq -r '.[] | select(startswith("--epose-reward-address=")) | sub("^--epose-reward-address="; "")' <<<"$command_json")"
     if [[ -z "$reward_address" || "$reward_address" == null ]]; then
       echo "${HOST_NAMES[$i]} has no configured rehearsal reward address" >&2
       return 1

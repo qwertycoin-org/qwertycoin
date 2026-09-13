@@ -4,33 +4,38 @@ services:
     container_name: ${QWC_CONTAINER_NAME:-qwertycoin-mainnet}
     restart: unless-stopped
     environment:
-      QWC_EPOSE_V2_KEYSTORE_PATH: ${QWC_EPOSE_V2_KEYSTORE_PATH:-/service-node/epose-v2-keystore}
-      QWC_REWARD_ADDRESS: ${QWC_REWARD_ADDRESS:?set QWC_REWARD_ADDRESS}
-      QWC_EPOSE_V2_ENDPOINT_HOST: ${QWC_EPOSE_V2_ENDPOINT_HOST:?set QWC_EPOSE_V2_ENDPOINT_HOST}
-      QWC_EPOSE_V2_ENDPOINT_PORT: ${QWC_EPOSE_V2_ENDPOINT_PORT:-8198}
-      QWC_EPOSE_V2_DISCOVERY_ENDPOINTS: ${QWC_EPOSE_V2_DISCOVERY_ENDPOINTS:?set QWC_EPOSE_V2_DISCOVERY_ENDPOINTS}
-      QWC_P2P_PORT: ${QWC_P2P_PORT:-8196}
-      QWC_RPC_PORT: ${QWC_RPC_PORT:-8197}
-      QWC_RESTRICTED_RPC_PORT: ${QWC_RESTRICTED_RPC_PORT:-8198}
-      QWC_RESTRICTED_RPC_HOST_IP: ${QWC_RESTRICTED_RPC_HOST_IP:-0.0.0.0}
-      QWC_ZMQ_RPC_PORT: ${QWC_ZMQ_RPC_PORT:-8199}
-      QWC_MAX_CONNECTIONS_PER_IP: ${QWC_MAX_CONNECTIONS_PER_IP:-4}
-      QWC_PRIORITY_NODES: ${QWC_PRIORITY_NODES:-}
-      QWC_PRIORITY_NODE_1: ${QWC_PRIORITY_NODE_1:-}
-      QWC_PRIORITY_NODE_2: ${QWC_PRIORITY_NODE_2:-}
+      - QWC_EPOSE_KEYSTORE_PATH
+      - QWC_EPOSE_V2_KEYSTORE_PATH
+      - QWC_REWARD_ADDRESS=${QWC_REWARD_ADDRESS:?set QWC_REWARD_ADDRESS}
+      - QWC_EPOSE_HOST
+      - QWC_EPOSE_V2_ENDPOINT_HOST
+      - QWC_EPOSE_PORT
+      - QWC_EPOSE_V2_ENDPOINT_PORT
+      - QWC_EPOSE_DISCOVERY_ENDPOINTS
+      - QWC_EPOSE_V2_DISCOVERY_ENDPOINTS
+      - QWC_P2P_PORT=${QWC_P2P_PORT:-8196}
+      - QWC_RPC_PORT=${QWC_RPC_PORT:-8197}
+      - QWC_RESTRICTED_RPC_PORT=${QWC_RESTRICTED_RPC_PORT:-8198}
+      - QWC_RESTRICTED_RPC_HOST_IP=${QWC_RESTRICTED_RPC_HOST_IP:-0.0.0.0}
+      - QWC_ZMQ_RPC_PORT=${QWC_ZMQ_RPC_PORT:-8199}
+      - QWC_MAX_CONNECTIONS_PER_IP=${QWC_MAX_CONNECTIONS_PER_IP:-4}
+      - QWC_PRIORITY_NODES=${QWC_PRIORITY_NODES:-}
+      - QWC_PRIORITY_NODE_1=${QWC_PRIORITY_NODE_1:-}
+      - QWC_PRIORITY_NODE_2=${QWC_PRIORITY_NODE_2:-}
     entrypoint:
       - /bin/sh
       - -c
     command:
       - |
         set -eu
+        . /usr/local/lib/qwertycoin/epose-env-compat.sh
 
         set -- qwertycoind \
-          --epose-v2-service \
-          --epose-v2-keystore="$${QWC_EPOSE_V2_KEYSTORE_PATH:-/service-node/epose-v2-keystore}" \
-          --epose-v2-reward-address="$${QWC_REWARD_ADDRESS:?set QWC_REWARD_ADDRESS}" \
-          --epose-v2-endpoint-host="$${QWC_EPOSE_V2_ENDPOINT_HOST:?set QWC_EPOSE_V2_ENDPOINT_HOST}" \
-          --epose-v2-endpoint-port="$${QWC_EPOSE_V2_ENDPOINT_PORT:-8198}" \
+          --epose-service \
+          --epose-keystore="$${QWC_EPOSE_KEYSTORE_PATH}" \
+          --epose-reward-address="$${QWC_REWARD_ADDRESS:?set QWC_REWARD_ADDRESS}" \
+          --epose-host="$${QWC_EPOSE_HOST}" \
+          --epose-port="$${QWC_EPOSE_PORT}" \
           --p2p-bind-ip=0.0.0.0 \
           --p2p-bind-port="$${QWC_P2P_PORT:-8196}" \
           --rpc-bind-ip=0.0.0.0 \
@@ -63,14 +68,14 @@ services:
         done
         IFS="$$old_ifs"
 
-        discovery_endpoints="$${QWC_EPOSE_V2_DISCOVERY_ENDPOINTS:?set QWC_EPOSE_V2_DISCOVERY_ENDPOINTS}"
+        discovery_endpoints="$${QWC_EPOSE_DISCOVERY_ENDPOINTS}"
         old_ifs="$$IFS"
         IFS=,
         for endpoint in $$discovery_endpoints; do
           IFS="$$old_ifs"
           endpoint=$$(printf '%s' "$$endpoint" | tr -d '[:space:]')
           if [ -n "$$endpoint" ]; then
-            set -- "$$@" --epose-v2-discovery-endpoint="$$endpoint"
+            set -- "$$@" --epose-discovery-endpoint="$$endpoint"
           fi
           IFS=,
         done
@@ -85,6 +90,7 @@ services:
     volumes:
       - qwc-chain:/home/qwertycoin/.qwertycoin
       - qwc-service-identity:/service-node
+      - ./epose-env-compat.sh:/usr/local/lib/qwertycoin/epose-env-compat.sh:ro
 
 networks:
   default:
