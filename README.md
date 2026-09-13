@@ -51,8 +51,11 @@ qualified service node exists, the service portion falls back to the miner.
 
 ## Downloads
 
-Official Qwertycoin v2 Core downloads, when available, are published on the
-repository [Releases page](https://github.com/qwertycoin-org/qwertycoin/releases).
+The current published Core candidate is
+[`v2.0.0-rc1`](https://github.com/qwertycoin-org/qwertycoin/releases/tag/v2.0.0-rc1)
+for Linux x86_64, macOS Apple Silicon, and Windows x86_64. It is a prerelease
+for testing, not a stable activation release. Stable publication remains
+blocked while the candidate-bound EPoSE release gate reports NO-GO.
 Native candidates and releases are produced only by the manual, candidate-bound
 process in [docs/releases/RELEASE_PROCESS.md](docs/releases/RELEASE_PROCESS.md).
 If no matching release is visible there, build from source and treat other
