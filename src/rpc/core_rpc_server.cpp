@@ -725,7 +725,7 @@ namespace cryptonote
     const uint64_t epoch = blockchain.get_epose_current_epoch();
     res.ready = false;
     res.registration_epoch = epoch;
-    res.error_details = "Legacy v1 registration construction is retired; use the typed v2 lifecycle/admission wallet producer when available";
+    res.error_details = "Legacy v1 registration construction is retired; the EPoSE-v2 daemon producer enrolls automatically (see docs/epose/SERVICE_NODE.md)";
     res.expiry_epoch = 0;
     res.service_public_key.clear();
     res.reward_address.clear();

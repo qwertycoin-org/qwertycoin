@@ -70,7 +70,8 @@ restricted listener is intentionally public at port 8198 so assigned committee
 members can fetch signed endpoint descriptors and answer bounded service
 challenges. It must not expose `/submit_epose_envelope`; that method belongs only
 to the unrestricted listener. `QWC_EPOSE_V2_DISCOVERY_ENDPOINTS` is the
-comma-separated rehearsal allowlist.
+comma-separated bootstrap list used to discover signed endpoint descriptors.
+It does not authorize participants and is not an admission allowlist.
 
 ## Bootstrap Modes
 

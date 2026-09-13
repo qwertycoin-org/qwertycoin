@@ -53,9 +53,12 @@ qualified service node exists, the service portion falls back to the miner.
 
 The current published Core candidate is
 [`v2.0.0-rc1`](https://github.com/qwertycoin-org/qwertycoin/releases/tag/v2.0.0-rc1)
-for Linux x86_64, macOS Apple Silicon, and Windows x86_64. It is a prerelease
-for testing, not a stable activation release. Stable publication remains
-blocked while the candidate-bound EPoSE release gate reports NO-GO.
+for Linux x86_64, macOS Apple Silicon, and Windows x86_64. It is the public
+test release for the Qwertycoin v2 mainnet. The packaged daemon, wallet, mining,
+and EPoSE-v2 service-producer paths are enabled; no release-gate file is read by
+those programs at runtime. The separate EPoSE release gate remains `NO-GO` for
+a later stable/audit classification because several mandatory evidence items
+are incomplete or are not bound to this exact candidate revision.
 Native candidates and releases are produced only by the manual, candidate-bound
 process in [docs/releases/RELEASE_PROCESS.md](docs/releases/RELEASE_PROCESS.md).
 If no matching release is visible there, build from source and treat other
@@ -223,22 +226,21 @@ duplicate, wrong-recipient, or wrong-amount service rewards.
 
 The current `main` implementation includes:
 
-- service-node key generation and loading,
-- signed service-node registration payloads with reward address and disclosed
-  reward private view key,
-- epoch-based registration lifetime,
+- a genesis- and parameter-bound operator/service keystore,
+- signed descriptor lifecycle records with automatic enrollment and renewal,
+- a public primary reward address without disclosure of wallet secrets,
+- signed public endpoint descriptors for the restricted probe RPC,
 - RandomX-bound admission proof,
-- P2P relay for signed EPoSe registrations and attestations,
+- P2P relay for signed EPoSE-v2 envelopes and endpoint descriptors,
 - deterministic verifier committee selection,
-- signed attestations,
+- signed canonical-service receipts,
 - qualification snapshots,
 - deterministic service reward rotation,
-- governance-style service rewards as normal denominated CryptoNote one-time
-  outputs,
+- service rewards as normal CryptoNote one-time outputs,
 - separate service-node identity storage for Docker deployments,
-- `get_epose_info`, `get_epose_epoch`, `get_service_rewards`, and
-  `get_service_node_registration_payload` daemon RPCs,
-- a wallet CLI `register_service_node` helper.
+- `get_epose_info`, `get_epose_epoch`, `get_service_nodes`,
+  `get_service_node_status`, `get_service_rewards`, and
+  `get_epose_service_endpoint_v2` daemon RPCs.
 
 Current EPoSE parameters:
 
@@ -256,75 +258,61 @@ Current EPoSE parameters:
 `1000 bps` means a 10% service-node share of actual issued subsidy and a 90%
 miner subsidy share. Transaction fees remain with the miner. The machine-
 readable parameter manifest and release-gate ledger remain authoritative; the
-current ledger is a release **NO-GO** until every mandatory gate is satisfied
-by evidence bound to the selected candidate revision.
+current ledger is a **NO-GO for stable/audit classification** until every
+mandatory gate is satisfied by evidence bound to the selected candidate
+revision. It is not a runtime feature switch and does not prevent the public
+test release from operating.
 
-Service reward outputs are no longer direct long-term spend-public-key outputs.
-The selected service node registers a normal QWC reward address plus the
-matching private view key. Blocks derive standard one-time output keys from the
-coinbase transaction public key, and validation recomputes the expected keys
-from the disclosed view key. The 10% service reward is decomposed into normal
-amount denominations so wallet coin selection can find decoys after coinbase
-maturity.
+## Run An EPoSE Service Node
 
-## Register A Service Node
+Use a dedicated primary QWC reward address and keep the unrestricted RPC bound
+to localhost. The public endpoint host must be a canonical public IPv4, IPv6,
+or lowercase DNS name. Both P2P port `8196` and the restricted probe RPC port
+`8198` must be reachable.
 
-Start a fully synced daemon in service-node mode:
+Start the daemon with the EPoSE-v2 producer and at least one discovery endpoint:
 
 ```bash
 qwertycoind \
-  --service-node \
-  --service-node-key /secure/path/service-node.key \
-  --service-reward-address <mainnet QWC primary address> \
-  --service-reward-view-key <matching private view key> \
-  --service-node-advertise-address <public-host>:8196 \
+  --epose-v2-service \
+  --epose-v2-keystore /secure/path/epose-v2-keystore \
+  --epose-v2-reward-address <mainnet QWC primary address> \
+  --epose-v2-endpoint-host <public-host> \
+  --epose-v2-endpoint-port 8198 \
+  --epose-v2-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
+  --epose-v2-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
   --p2p-bind-ip 0.0.0.0 \
   --p2p-bind-port 8196 \
   --rpc-bind-ip 127.0.0.1 \
-  --rpc-bind-port 8197
+  --rpc-bind-port 8197 \
+  --rpc-restricted-bind-ip 0.0.0.0 \
+  --rpc-restricted-bind-port 8198 \
+  --confirm-external-bind
 ```
 
-The reward address must be a primary address for the selected network. The
-reward private view key must derive to that address' public view key. It is
-disclosed for consensus validation and reveals incoming activity for that
-reward wallet, but it cannot spend funds. The private spend key must stay
-secret and must not be placed in service-node env files.
+The daemon creates or loads the genesis-bound keystore and, after it is fully
+synced, automatically produces and relays the lifecycle and RandomX admission
+records for the next eligible epoch. No funded registration transaction and no
+wallet private view key are used by EPoSE v2. Discovery endpoints bootstrap
+signed endpoint discovery; they are not a participant allowlist.
 
 Inspect local EPoSE status:
 
 ```bash
 curl -s http://127.0.0.1:8197/get_epose_info
-curl -s http://127.0.0.1:8197/get_service_node_registration_payload
+curl -s http://127.0.0.1:8197/get_epose_service_endpoint_v2
 ```
 
-Open a funded wallet connected to that daemon:
+Monitor `get_epose_info` until the local service authority reports `registered`,
+then `active`, and finally `qualified`. These transitions follow normal epoch,
+admission, committee, and warm-up rules; starting the process does not guarantee
+qualification or an immediate reward. The old `--service-node` options and the
+wallet `register_service_node` command belong to the retired v1 path and are not
+valid EPoSE-v2 enrollment mechanisms.
 
-```bash
-qwertycoin-wallet-cli \
-  --daemon-address 127.0.0.1:8197 \
-  --wallet-file /path/to/operator-wallet
-```
-
-Inside the wallet, submit the registration transaction:
-
-```text
-refresh
-register_service_node
-```
-
-Without arguments, `register_service_node` creates a transaction that sends one
-atomic unit back to the wallet's primary address and attaches the daemon's
-signed EPoSE registration payload. To fund another address while registering:
-
-```text
-register_service_node <funding_address> <amount>
-```
-
-The wallet must be able to sign and relay transactions. Watch-only and multisig
-wallets are rejected by the current registration wrapper. After registration, monitor
-`get_epose_info` until the local service public key is registered, active, and
-qualified. Confirm `get_service_rewards` against multiple peers before treating
-the local reward view as healthy.
+See [docs/epose/SERVICE_NODE.md](docs/epose/SERVICE_NODE.md) for the complete
+operator contract and [docs/epose/COMMUNITY_SETUP.md](docs/epose/COMMUNITY_SETUP.md)
+for a first-time setup.
 
 ## Useful Links
 

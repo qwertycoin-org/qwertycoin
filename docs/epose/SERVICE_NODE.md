@@ -1,113 +1,127 @@
-# Service Node
+# EPoSE Service Node
 
 ## Operator Model
 
-A Qwertycoin EPoSE service node has:
+A Qwertycoin EPoSE-v2 service node has:
 
-- a service private key,
-- a service public key,
-- a standard QWC reward address,
-- the reward address private view key,
-- an endpoint commitment,
-- a registration epoch,
-- an expiry epoch,
-- an admission proof.
+- a genesis- and parameter-bound operator/service keystore,
+- a stable identity derived from the operator key,
+- a rotating online service key,
+- a standard primary QWC reward address,
+- a signed public endpoint descriptor,
+- an epoch-scoped descriptor lifecycle and RandomX admission lease.
 
-The service private key is not a wallet spend key. It signs registrations and
-attestations only. Service-node identity is the service public key, not an IP
-address and not the reward address.
+The keystore is not a wallet and contains no wallet spend or view key. It signs
+EPoSE-v2 lifecycle, admission, endpoint, and service records only. Keep it
+separate from the blockchain database, back it up securely, and do not share it.
+The daemon needs only the public reward address; no wallet secret belongs in an
+EPoSE-v2 configuration.
 
-The reward private view key is disclosed in the registration so validators can
-verify governance-style one-time reward outputs. It can reveal incoming reward
-activity for the dedicated reward wallet. It cannot spend funds. The reward
-private spend key must remain secret.
+## Network And Host Requirements
+
+The producer must run online on a fully synchronized, unpruned mainnet daemon.
+The public endpoint host must be a canonical public IPv4, IPv6, or lowercase
+DNS name. Loopback, private, link-local, multicast, unspecified, and malformed
+hosts are rejected.
+
+Default ports:
+
+| Purpose | Port | Exposure |
+| --- | ---: | --- |
+| P2P | `8196` | Public |
+| Unrestricted daemon RPC | `8197` | Local/private only |
+| Restricted EPoSE probe RPC | `8198` | Public |
+| ZMQ | `8199` | Local/private only |
+
+Expose `8196/tcp` and `8198/tcp`. Never expose unrestricted RPC merely to make
+EPoSE work. The restricted listener must not expose `/submit_epose_envelope`.
 
 ## Daemon CLI
 
 ```bash
 qwertycoind \
-  --service-node \
-  --service-node-key /service-node/service-node.key \
-  --service-reward-address QWC... \
-  --service-reward-view-key <matching private view key> \
-  --service-node-advertise-address node.example:8196
+  --epose-v2-service \
+  --epose-v2-keystore /secure/path/epose-v2-keystore \
+  --epose-v2-reward-address QWC... \
+  --epose-v2-endpoint-host node.example.org \
+  --epose-v2-endpoint-port 8198 \
+  --epose-v2-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
+  --epose-v2-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
+  --p2p-bind-ip 0.0.0.0 \
+  --p2p-bind-port 8196 \
+  --rpc-bind-ip 127.0.0.1 \
+  --rpc-bind-port 8197 \
+  --rpc-restricted-bind-ip 0.0.0.0 \
+  --rpc-restricted-bind-port 8198 \
+  --confirm-external-bind
 ```
 
-Implemented behavior:
+Required EPoSE-v2 options:
 
-- `--service-node` enables local EPoSE service-node mode.
-- `--service-node-key` loads or creates the service-node private key.
-- If the key file does not exist, the daemon generates a service key and writes
-  it with owner-only read/write permissions.
-- Operators should store the service-node key outside the chain database, for
-  example `/service-node/service-node.key`.
-- `--service-reward-address` is required in service-node mode and must be a
-  primary address for the selected network.
-- `--service-reward-view-key` is required in service-node mode and must derive
-  to the reward address public view key.
-- `--service-node-advertise-address` is required and is committed via
-  `endpoint_commitment`.
-- Service-node mode currently requires an unpruned chain database.
+- `--epose-v2-service` enables the v2 producer.
+- `--epose-v2-keystore` loads or creates the protected operator/service
+  keystore. A keystore is bound to the selected network genesis and parameter
+  set; do not copy one from a different chain.
+- `--epose-v2-reward-address` sets the primary public QWC reward address.
+- `--epose-v2-endpoint-host` and `--epose-v2-endpoint-port` describe the public
+  restricted-RPC probe endpoint.
+- `--epose-v2-discovery-endpoint` bootstraps signed endpoint discovery and may
+  be repeated. It is not an allowlist and does not grant admission.
 
-Implemented inspection surfaces:
+`--confirm-external-bind` is required when the restricted listener binds to a
+non-loopback address. The example intentionally keeps unrestricted RPC local.
 
-- `get_epose_info`,
-- `get_service_nodes`,
-- `get_service_node_status`,
-- `get_epose_epoch`,
-- `get_service_rewards`,
-- `get_service_node_registration_payload`,
-- daemon console `epose_status`,
-- daemon console `prepare_service_node_registration`.
+## Automatic Enrollment Flow
 
-## Non-Mining Flow
+After the daemon is synchronized, the producer:
 
-The current flow does not require a service node to mine.
+1. creates or loads the bound keystore;
+2. signs and relays its public endpoint descriptor;
+3. builds the lifecycle record for the next eligible epoch;
+4. performs the bounded RandomX admission search;
+5. submits and relays the accepted lifecycle and admission envelope;
+6. renews the descriptor and admission lease when required;
+7. answers canonical service challenges and produces eligible receipts.
 
-1. Start a synced daemon with service-node mode enabled.
-2. Let the daemon create or load the service-node key.
-3. Configure reward address and matching private view key.
-4. Configure the public P2P endpoint.
-5. Fetch or create the signed registration payload.
-6. Submit the registration through a normal wallet transaction, or let a miner
-   include a valid relayed registration payload.
-7. Wait for deterministic verifier attestations.
-8. Once enough valid attestations are on-chain for an epoch, the service node
-   qualifies for the next reward-source epoch.
-9. Rewards are paid as normal denominated one-time outputs to the reward wallet.
+No funded registration transaction is required. The wallet command
+`register_service_node`, the RPC `get_service_node_registration_payload`, and
+the `--service-node`/`--service-node-key`/`--service-reward-view-key` options are
+retired v1 compatibility surfaces. They are intentionally rejected and must not
+be used for EPoSE v2.
 
-Normal nodes can relay EPoSE payloads via `NOTIFY_NEW_EPOSE_PAYLOADS`, and
-normal miner daemons can include accepted relay-pool payloads in block
-templates. A miner does not need a service-node key.
+## Inspect Status
 
-## Wallet Registration Helper
+Use the local unrestricted RPC:
 
-`qwertycoin-wallet-cli` can register a service node through the daemon it is
-connected to:
-
-```text
-refresh
-register_service_node
+```bash
+curl -s http://127.0.0.1:8197/get_info
+curl -s http://127.0.0.1:8197/get_epose_info
+curl -s http://127.0.0.1:8197/get_epose_service_endpoint_v2
 ```
 
-Without arguments, `register_service_node` creates a transaction that sends one
-atomic unit back to the wallet's primary address and attaches the daemon's
-signed EPoSE registration payload. To fund another address while registering:
+`get_epose_info` distinguishes producer configuration from chain state:
 
-```text
-register_service_node <funding_address> <amount>
-```
+- `local_service_node`: the v2 producer was requested;
+- `local_service_node_key_loaded`: the bound keystore and endpoint passed local
+  validation;
+- `local_service_node_registered`: the identity descriptor is canonical;
+- `local_service_node_active`: the descriptor is active for the current epoch;
+- `local_service_node_qualified`: the service key is in the current qualified
+  set.
 
-The wallet must be able to sign and relay transactions. Watch-only and multisig
-wallets are rejected by the current wrapper. The daemon still exposes
-`get_service_node_registration_payload` for diagnostics and low-level testing.
+The normal progression is `ready -> registered -> active -> qualified`, but it
+is governed by chain height, enrollment cutoffs, the two-epoch warm-up,
+admission proof, committee receipts, and current reachability. Starting the
+producer does not guarantee qualification or an immediate reward. Epoch zero
+has no EPoSE-v2 rewards.
 
 ## Docker Mainnet Deployment
 
-Use `deploy/mainnet/docker-compose.yml` with one host-specific env file:
+The maintained deployment contract is in `deploy/mainnet/`:
 
 ```bash
-docker compose --env-file deploy/mainnet/seed-00.env -f deploy/mainnet/docker-compose.yml up -d
+docker compose --env-file deploy/mainnet/seed-00.env \
+  -f deploy/mainnet/docker-compose.yml up -d
 ```
 
 Hosts without the Docker Compose plugin can use:
@@ -116,32 +130,27 @@ Hosts without the Docker Compose plugin can use:
 ./deploy/mainnet/start-qwertycoin-node.sh deploy/mainnet/seed-00.env
 ```
 
-The deployment separates chain data from service identity:
+It separates chain data from service identity:
 
 ```text
 QWC_DATA_VOLUME=...
 QWC_IDENTITY_VOLUME=...
-QWC_SERVICE_NODE_KEY_PATH=/service-node/service-node.key
+QWC_EPOSE_V2_KEYSTORE_PATH=/service-node/epose-v2-keystore
 ```
 
-For a normal chain reset, delete only the chain volume and keep the identity
-volume. That preserves the same service public key. Delete the identity volume
-only when intentionally creating a new service-node identity.
+Keep the identity volume during normal restarts or chain-database recovery.
+Delete it only when intentionally creating a new identity. Never commit real
+reward addresses, keystore contents, or private host configuration.
 
-## Duplicate Registrations
+## Security And Recovery
 
-Current `main` rejects overlapping active registrations for:
-
-- the same service public key,
-- the same endpoint commitment.
-
-Endpoint-commitment uniqueness is an operational duplicate guard. It is not a
-complete Sybil-resistance rule and must not be described as IP-based identity.
-
-Currently implemented lifecycle:
-
-```text
-REGISTER -> ACTIVE -> EXPIRE
-```
-
-Explicit `RENEW`, `UPDATE`, and `DEREGISTER` semantics are open hardening work.
+- Back up the EPoSE-v2 keystore and wallet seed separately.
+- Never place wallet private keys in node environment files.
+- Keep unrestricted RPC and ZMQ private.
+- Verify public DNS, firewall rules, and the restricted endpoint from an
+  external network.
+- Preserve the same keystore while a descriptor is active; the daemon rejects
+  unexpected service-key, reward-address, or endpoint changes rather than
+  redirecting rewards silently.
+- Do not bypass admission, committee, epoch, or qualification rules during
+  testing.
