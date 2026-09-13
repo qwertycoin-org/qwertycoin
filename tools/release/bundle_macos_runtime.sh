@@ -14,6 +14,16 @@ mkdir -p "$library_dir"
 is_macho() { [[ -f "$1" && "$(file -Lb "$1")" == Mach-O* ]]; }
 is_system_dependency() { [[ "$1" == /System/Library/* || "$1" == /usr/lib/* ]]; }
 
+resolve_from_configured_paths() {
+  local suffix=$1 search_dir candidate
+  while IFS= read -r search_dir; do
+    [[ -n "$search_dir" ]] || continue
+    candidate="$search_dir/$suffix"
+    [[ -f "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
+  done < <(printf '%s' "${QWC_MACOS_LIBRARY_PATH:-}" | tr ':' '\n')
+  return 1
+}
+
 resolve_dependency() {
   local binary=$1 dependency=$2 candidate suffix rpath
   if [[ "$dependency" == /* ]]; then [[ -f "$dependency" ]] && printf '%s\n' "$dependency"; return; fi
@@ -21,6 +31,7 @@ resolve_dependency() {
   if [[ "$dependency" == @loader_path/* ]]; then
     candidate="$(dirname "$binary")/${dependency#@loader_path/}"
     [[ -f "$candidate" ]] && { printf '%s\n' "$candidate"; return; }
+    resolve_from_configured_paths "${dependency#@loader_path/}" && return
   elif [[ "$dependency" == @executable_path/* ]]; then
     candidate="$artifact_dir/${dependency#@executable_path/}"
     [[ -f "$candidate" ]] && { printf '%s\n' "$candidate"; return; }
@@ -31,12 +42,7 @@ resolve_dependency() {
       candidate="$rpath/$suffix"
       [[ -f "$candidate" ]] && { printf '%s\n' "$candidate"; return; }
     done < <(otool -l "$binary" | awk '$1=="cmd" && $2=="LC_RPATH"{want=1;next} want && $1=="path"{print $2;want=0}')
-    IFS=: read -ra search_dirs <<<"${QWC_MACOS_LIBRARY_PATH:-}"
-    for rpath in "${search_dirs[@]}"; do
-      [[ -n "$rpath" ]] || continue
-      candidate="$rpath/$suffix"
-      [[ -f "$candidate" ]] && { printf '%s\n' "$candidate"; return; }
-    done
+    resolve_from_configured_paths "$suffix" && return
   fi
 }
 
