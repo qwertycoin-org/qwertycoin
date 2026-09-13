@@ -36,6 +36,11 @@ commitment changes because its canonical projection intentionally includes the
 network ID and genesis hash; all other consensus parameter values are
 unchanged.
 
+The activation-candidate manifest binds this consensus change to source commit
+`5bd26e7044f00c0f99f21b468d92b169570edd1a`. The following metadata-only
+binding commit does not alter the consensus projection or its parameter
+commitment.
+
 ## Wallet and service identity consequences
 
 Mainnet address prefixes and wallet key derivation are unchanged. Existing

@@ -68,7 +68,7 @@
     "type": "mainnet"
   },
   "release": {
-    "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+    "source_revision": "5bd26e7044f00c0f99f21b468d92b169570edd1a"
   },
   "resource_limits": {
     "max_active_population": 100,
