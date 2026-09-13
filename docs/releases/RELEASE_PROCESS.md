@@ -26,6 +26,10 @@ From the Actions page, select **qwc/core-release-candidate** and provide:
 - `expected_revision`: the exact lowercase Core commit SHA;
 - `target`: `linux`, `macos`, `windows`, or `all`.
 
+For a non-RC public-test compatibility build whose EPoSE audit/readiness gate is
+still informational, explicitly select stable gate policy `public-test`. The default
+`require-ready` policy remains fail-closed. RC builds always use the default policy.
+
 Use one platform at a time for the first proof of a new workflow or toolchain. If one platform fails, keep successful candidates and rerun only the failed platform after a reviewable fix. Existing candidates may be reused only when source revision, tag, release workflow contract and packaged gate evidence remain identical.
 
 The native jobs build only:
