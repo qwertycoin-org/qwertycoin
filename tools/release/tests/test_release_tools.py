@@ -24,6 +24,7 @@ def load(name: str):
 
 VERIFY = load("verify_candidate_archive")
 VALIDATE = load("validate_release_request")
+SMOKE = load("smoke_core")
 
 
 class ArchiveSecurityTests(unittest.TestCase):
@@ -186,6 +187,13 @@ class ArchiveSecurityTests(unittest.TestCase):
 
 
 class RequestValidationTests(unittest.TestCase):
+    def test_smoke_evidence_uses_platform_neutral_program_names(self) -> None:
+        self.assertEqual(SMOKE.evidence_program_name(Path("qwertycoind")), "qwertycoind")
+        self.assertEqual(
+            SMOKE.evidence_program_name(Path("qwertycoin-wallet-cli.exe")),
+            "qwertycoin-wallet-cli",
+        )
+
     def test_version_parser_matches_current_format(self) -> None:
         text = '#define DEF_QWERTYCOIN_VERSION "2.0.0"\n'
         self.assertEqual(VALIDATE.VERSION_RE.search(text).groups(), ("2", "0", "0"))
