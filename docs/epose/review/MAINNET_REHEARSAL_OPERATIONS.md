@@ -54,6 +54,53 @@ operator, wallet or service secret is accepted by the public v2 endpoints.
 
 ## Evidence sequence
 
+SSH usernames and their host mapping are operational access metadata and are
+intentionally not stored in this repository. Before invoking the remote
+rehearsal helper, provide three absolute paths:
+
+- `QWC_REHEARSAL_SSH_KEY`: a readable, non-symlink private-key file;
+- `QWC_REHEARSAL_KNOWN_HOSTS`: a pinned, readable known-hosts file;
+- `QWC_REHEARSAL_INVENTORY_FILE`: an owner-only JSON file outside the checkout
+  (for example, mode 0600).
+
+The inventory schema is:
+
+```json
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "name": "node-a",
+      "ssh_target": "operator@node-a.example.invalid",
+      "public_endpoint": "node-a.example.invalid"
+    },
+    {
+      "name": "node-b",
+      "ssh_target": "operator@node-b.example.invalid",
+      "public_endpoint": "node-b.example.invalid"
+    },
+    {
+      "name": "node-c",
+      "ssh_target": "operator@node-c.example.invalid",
+      "public_endpoint": "node-c.example.invalid"
+    },
+    {
+      "name": "node-d",
+      "ssh_target": "operator@node-d.example.invalid",
+      "public_endpoint": "node-d.example.invalid"
+    }
+  ]
+}
+```
+
+Exactly four unique entries are required. The helper rejects extra fields,
+unsafe characters, symlinked access files and group/world-readable inventory
+files before opening a network connection. Run `validate-config` first; its
+output reports only the node count and never prints SSH targets or paths. In a
+future GitHub-hosted rehearsal, inject the inventory JSON through an encrypted
+Actions secret and materialize it as a temporary mode-0600 file. Do not store
+the mapping in repository variables or workflow logs.
+
 Run `tests/epose/integration/remote_mainnet_rehearsal.sh` for inventory, RPC
 separation, four-node convergence, restart and SIGKILL persistence. Archive its
 JSON output at each milestone. Mine through the manifest-derived boundaries:
