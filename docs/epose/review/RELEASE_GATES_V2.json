@@ -1,19 +1,10 @@
 {
   "gates": [
     {
-      "evidence": [
-        {
-          "artifact_ref": "sha256:4b509264854a28c0bc0d9b784c6dedf3db4eb3d70f70fd7014ba31668588dae4",
-          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
-          "path": "docs/epose/review/results/final_artifact_binding_v1.json",
-          "result": "pass",
-          "sha256": "4b509264854a28c0bc0d9b784c6dedf3db4eb3d70f70fd7014ba31668588dae4",
-          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
-        }
-      ],
+      "evidence": [],
       "id": "source_and_invariant_baseline",
-      "state": "satisfied",
-      "summary": "The signed exact-source binding records the Git tree, canonical manifest, final genesis, runtime versions, binary hashes, image identity, and deterministic Linux bundle.",
+      "state": "not_run",
+      "summary": "Reset-1 has no signed exact-source and artifact binding yet. The retained final_artifact_binding_v1 result targets the superseded genesis and is not evidence for this candidate.",
       "references": null
     },
     {
@@ -24,43 +15,17 @@
       "references": null
     },
     {
-      "evidence": [
-        {
-          "artifact_ref": "sha256:19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
-          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
-          "path": "docs/epose/review/results/final_genesis_rehearsal_v1.json",
-          "result": "pass",
-          "sha256": "19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
-          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
-        }
-      ],
+      "evidence": [],
       "id": "consensus_handler_integration",
-      "state": "satisfied",
-      "summary": "The exact final-genesis candidate exercised canonical enrollment, qualification, the height-1440 reward path, state convergence, restart persistence, and replay through the integrated HF17 coordinator.",
+      "state": "not_run",
+      "summary": "The integrated HF17 coordinator remains implemented, but enrollment, qualification, payout, restart and replay have not yet been rerun as candidate-bound Reset-1 evidence.",
       "references": null
     },
     {
-      "evidence": [
-        {
-          "artifact_ref": "sha256:19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
-          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
-          "path": "docs/epose/review/results/final_genesis_rehearsal_v1.json",
-          "result": "pass",
-          "sha256": "19e10b01f9a496a467d0e189c71489428037b783630818a8fd5631960ab64382",
-          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
-        },
-        {
-          "artifact_ref": "sha256:1d484a9a56e91b34d46dac58d3db1fba075ca6401ee6e37f080774a311a41d7d",
-          "manifest_sha256": "385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be",
-          "path": "docs/epose/review/results/security_parameters_v1.json",
-          "result": "pass",
-          "sha256": "1d484a9a56e91b34d46dac58d3db1fba075ca6401ee6e37f080774a311a41d7d",
-          "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
-        }
-      ],
+      "evidence": [],
       "id": "approved_security_parameters",
-      "state": "satisfied",
-      "summary": "The frozen 18-bit admission, dynamic 2-of-3 bootstrap quorum, three-round/two-required profile, population ceiling, and reward ratio passed the exact-genesis four-node rehearsal; continuing measurements remain post-launch obligations.",
+      "state": "blocked",
+      "summary": "The frozen parameter values are unchanged, but their prior exact-genesis artifact binding targets the superseded chain. Reset-1 candidate binding remains required.",
       "references": null
     },
     {
@@ -94,8 +59,8 @@
     {
       "evidence": [],
       "id": "four_node_consensus_convergence",
-      "state": "blocked",
-      "summary": "Exact-candidate four-node admission, enrollment, qualification, height-1440 reward convergence, restart persistence and fresh-genesis replay passed; exact-candidate partition/heal and payout-boundary deep-reorg evidence remain open.",
+      "state": "not_run",
+      "summary": "Reset-1 four-node convergence, restart and replay have not yet run. Superseded-chain rehearsal evidence remains historical only.",
       "references": null
     },
     {
@@ -109,7 +74,7 @@
       "evidence": [],
       "id": "reproducible_release_matrix",
       "state": "not_run",
-      "summary": "Exact-source Linux binaries, Docker identity, checksums and a deterministic bundle are bound; macOS Apple Silicon and the complete dependency/release matrix remain open.",
+      "summary": "No Reset-1 exact-source release matrix has been assembled. Older platform artifacts target a different genesis.",
       "references": null
     },
     {
@@ -123,7 +88,7 @@
       "evidence": [],
       "id": "signed_activation_manifest",
       "state": "blocked",
-      "summary": "The activation manifest now binds the final-launch genesis, exact source and Linux candidate artifacts, but a signed standalone release manifest and the complete final binary matrix remain open.",
+      "summary": "The Reset-1 activation manifest has no signed standalone artifact binding or complete binary matrix yet.",
       "references": null
     }
   ],

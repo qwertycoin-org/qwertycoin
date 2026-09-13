@@ -315,7 +315,7 @@ TEST(epose_coordinator_v2, compiled_mainnet_final_profile_matches_manifest)
 {
   crypto::hash genesis{};
   ASSERT_TRUE(epee::string_tools::hex_to_pod(
-      "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+      "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39",
       genesis));
   consensus_parameters_v2 compiled{};
   ASSERT_TRUE(compiled_consensus_parameters_v2(
@@ -347,10 +347,10 @@ TEST(epose_coordinator_v2, configured_mainnet_genesis_identity_is_final)
   ASSERT_TRUE(cryptonote::generate_genesis_block(
       genesis, config::GENESIS_TX, config::GENESIS_NONCE,
       HF_VERSION_QWC_EPOSE, HF_VERSION_QWC_EPOSE));
-  EXPECT_EQ(10003u, config::GENESIS_NONCE);
-  EXPECT_EQ("515743324d41494e3230323646494e01",
+  EXPECT_EQ(20000u, config::GENESIS_NONCE);
+  EXPECT_EQ("515743324d41494e3230323652303102",
       epee::string_tools::pod_to_hex(config::NETWORK_ID));
-  EXPECT_EQ("906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
+  EXPECT_EQ("4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39",
       epee::string_tools::pod_to_hex(cryptonote::get_block_hash(genesis)));
 }
 

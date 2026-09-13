@@ -1,6 +1,6 @@
 # EPoSE v2 Release Readiness
 
-**Assessment date:** 2026-09-11
+**Assessment date:** 2026-09-13
 
 **Status:** **NO-GO for economic activation**
 
@@ -9,16 +9,16 @@
 ## Decision
 
 The consolidated branch connects the hardened v2 coordinator to QWC HF17 from
-genesis. The complete embedded `activation-candidate` now binds source
-`2e118dd2cca468ae52fec5c9c30e33673e312043`, canonical manifest
-`385f7bfa3b568f04a931ffb9f91c3e3ec4d01f620c3d4ea1075504ae60ea96be`
-and genesis `906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0`.
+genesis. ADR-0009 defines the coordinated Reset-1 identity with genesis
+`4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39`
+and parameter commitment
+`2c26755094535871dd3ede7bd1b50aba82a9fb6831f0a17f32968eb0385145c6`.
 
-The isolated four-node exact-candidate rehearsal passed four genuine 18-bit
-admissions, epoch-1 qualification, the canonical height-1440 reward path,
-restart persistence and fresh-genesis replay without an OOM or mutation of the
-separately frozen production rehearsal. This closes only the evidence-ledger
-items listed below; it does not authorize economic launch.
+The previous isolated four-node rehearsal remains valid evidence for the
+superseded `90662948...` chain only. Because every satisfying gate is
+candidate-bound, none of those results is promoted to Reset-1. This is an
+evidence status, not a runtime feature switch; the activatable compiled profile
+still fails closed unless its exact Reset-1 genesis is present.
 
 ## Machine-readable gate
 
@@ -41,12 +41,12 @@ ignore the default failure.
 
 ## Current result
 
-- 3 of 13 top-level release gates are satisfied by candidate-bound evidence.
+- 0 of 13 top-level release gates are satisfied by Reset-1-bound evidence.
 - 0 required manifest values remain unset in the rehearsal candidate.
-- 10 gates remain blocked or not run.
-- The security-parameter study independently reports
-  `launch_parameters_frozen_exact_genesis_rehearsal_passed`, with final
-  selection still subject to the remaining release gates.
+- 13 gates remain blocked or not run.
+- The parameter values are unchanged. Their earlier study and rehearsal remain
+  historical input, but Reset-1 source/artifact binding and operational
+  evidence have not yet been recorded.
 
 The source/invariant baseline and normative transition reservation remain useful
 review material, but their earlier filename-only evidence is not a verified

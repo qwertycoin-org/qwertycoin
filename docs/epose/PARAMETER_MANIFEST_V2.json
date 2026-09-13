@@ -29,7 +29,7 @@
     "threshold": 6
   },
   "commitments": {
-    "parameter_set_sha256": "e5654b4f5fa27faa51a80ca1e93bb877c3bd3345d0a803b6e7ab55c05189c20d"
+    "parameter_set_sha256": "2c26755094535871dd3ede7bd1b50aba82a9fb6831f0a17f32968eb0385145c6"
   },
   "dependencies": {
     "core_source_commit": "1c4c1bf10c387887a42243dc690a65abb6c6e786",
@@ -63,12 +63,12 @@
   },
   "manifest_kind": "activation-candidate",
   "network": {
-    "genesis_hash": "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0",
-    "network_id": "515743324d41494e3230323646494e01",
+    "genesis_hash": "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39",
+    "network_id": "515743324d41494e3230323652303102",
     "type": "mainnet"
   },
   "release": {
-    "source_revision": "2e118dd2cca468ae52fec5c9c30e33673e312043"
+    "source_revision": "5bd26e7044f00c0f99f21b468d92b169570edd1a"
   },
   "resource_limits": {
     "max_active_population": 100,

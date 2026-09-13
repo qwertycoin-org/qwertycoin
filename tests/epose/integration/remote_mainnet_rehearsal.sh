@@ -1,17 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SSH_KEY="${QWC_REHEARSAL_SSH_KEY:-/home/node/.ssh/id_ed25519_quinn}"
-KNOWN_HOSTS="${QWC_REHEARSAL_KNOWN_HOSTS:-/home/node/.ssh/known_hosts}"
 EXPECTED_VERSION="${QWC_REHEARSAL_VERSION:-}"
-EXPECTED_GENESIS="${QWC_FINAL_GENESIS:-906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0}"
-HOST_NAMES=(seed-00 seed-01 seed-02 seed-03)
-SSH_TARGETS=(root@95.216.221.239 root@seed-01.qwertycoin.org codiki@159.195.216.239 fabian@159.195.194.92)
-PUBLIC_ENDPOINTS=(95.216.221.239 202.61.202.161 159.195.216.239 159.195.194.92)
+EXPECTED_GENESIS="${QWC_FINAL_GENESIS:-4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39}"
+
+fail_config() {
+  echo "invalid rehearsal access configuration: $1" >&2
+  exit 78
+}
 
 usage() {
-  echo "usage: $0 <inventory|status|assert-converged|assert-rpc-split|start-mining|stop-mining|mining-status|restart-smoke|sigkill-smoke>" >&2
+  echo "usage: $0 <validate-config|inventory|status|assert-converged|assert-rpc-split|start-mining|stop-mining|mining-status|restart-smoke|sigkill-smoke>" >&2
   exit 64
+}
+
+load_access_configuration() {
+  SSH_KEY="${QWC_REHEARSAL_SSH_KEY:-}"
+  KNOWN_HOSTS="${QWC_REHEARSAL_KNOWN_HOSTS:-}"
+  INVENTORY_FILE="${QWC_REHEARSAL_INVENTORY_FILE:-}"
+
+  [[ "$SSH_KEY" == /* && -f "$SSH_KEY" && ! -L "$SSH_KEY" && -r "$SSH_KEY" ]] \
+    || fail_config "QWC_REHEARSAL_SSH_KEY must name a readable absolute regular file"
+  [[ "$KNOWN_HOSTS" == /* && -f "$KNOWN_HOSTS" && ! -L "$KNOWN_HOSTS" && -r "$KNOWN_HOSTS" ]] \
+    || fail_config "QWC_REHEARSAL_KNOWN_HOSTS must name a readable absolute regular file"
+  [[ "$INVENTORY_FILE" == /* && -f "$INVENTORY_FILE" && ! -L "$INVENTORY_FILE" && -r "$INVENTORY_FILE" ]] \
+    || fail_config "QWC_REHEARSAL_INVENTORY_FILE must name a readable absolute regular file"
+
+  local inventory_mode
+  inventory_mode="$(stat -c '%a' "$INVENTORY_FILE" 2>/dev/null || stat -f '%Lp' "$INVENTORY_FILE" 2>/dev/null)" \
+    || fail_config "cannot inspect inventory file permissions"
+  (( (8#$inventory_mode & 077) == 0 )) \
+    || fail_config "inventory file must not be readable or writable by group/other"
+
+  jq -e '
+    .schema_version == 1 and
+    (.nodes | type == "array" and length == 4) and
+    all(.nodes[];
+      (keys | sort) == ["name", "public_endpoint", "ssh_target"] and
+      (.name | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")) and
+      (.ssh_target | type == "string" and test("^[A-Za-z_][A-Za-z0-9._-]{0,63}@([A-Za-z0-9][A-Za-z0-9.-]{0,252}|\\[[0-9A-Fa-f:]+\\])$")) and
+      (.public_endpoint | type == "string" and test("^([A-Za-z0-9][A-Za-z0-9.-]{0,252}|\\[[0-9A-Fa-f:]+\\])$"))) and
+    ([.nodes[].name] | unique | length == 4) and
+    ([.nodes[].ssh_target] | unique | length == 4) and
+    ([.nodes[].public_endpoint] | unique | length == 4)
+  ' "$INVENTORY_FILE" >/dev/null \
+    || fail_config "inventory JSON must contain four unique, strictly validated nodes"
+
+  HOST_NAMES=()
+  while IFS= read -r value; do HOST_NAMES+=("$value"); done \
+    < <(jq -r '.nodes[].name' "$INVENTORY_FILE")
+  SSH_TARGETS=()
+  while IFS= read -r value; do SSH_TARGETS+=("$value"); done \
+    < <(jq -r '.nodes[].ssh_target' "$INVENTORY_FILE")
+  PUBLIC_ENDPOINTS=()
+  while IFS= read -r value; do PUBLIC_ENDPOINTS+=("$value"); done \
+    < <(jq -r '.nodes[].public_endpoint' "$INVENTORY_FILE")
+}
+
+validate_config() {
+  echo "rehearsal access configuration valid for ${#HOST_NAMES[@]} nodes"
 }
 
 admin_http() {
@@ -169,7 +216,16 @@ sigkill_smoke() {
   assert_converged
 }
 
-case "${1:-}" in
+ACTION="${1:-}"
+case "$ACTION" in
+  validate-config|inventory|status|assert-converged|assert-rpc-split|start-mining|stop-mining|mining-status|restart-smoke|sigkill-smoke) ;;
+  *) usage ;;
+esac
+
+load_access_configuration
+
+case "$ACTION" in
+  validate-config) validate_config ;;
   inventory) inventory ;;
   status) status ;;
   assert-converged) assert_converged ;;
@@ -179,5 +235,4 @@ case "${1:-}" in
   mining-status) mining_status ;;
   restart-smoke) restart_smoke ;;
   sigkill-smoke) sigkill_smoke ;;
-  *) usage ;;
 esac
