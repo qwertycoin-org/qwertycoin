@@ -18,6 +18,12 @@ on:
         default: linux
         type: choice
         options: [all, linux, macos, windows]
+      stable_gate_policy:
+        description: "Non-RC only: require a ready candidate-bound EPoSE gate, or build an explicitly authorized public-test client"
+        required: true
+        default: require-ready
+        type: choice
+        options: [require-ready, public-test]
 
 permissions:
   contents: read
@@ -33,6 +39,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.release_tag }}
       EXPECTED_REVISION: ${{ inputs.expected_revision }}
       TARGET: ${{ inputs.target }}
+      STABLE_GATE_POLICY: ${{ inputs.stable_gate_policy }}
     steps:
       - name: Checkout trusted workflow code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,13 +72,19 @@ jobs:
           release_version=$(python3 -c 'import json; print(json.load(open("release-request.json"))["release_version"])')
           echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
           if [[ "$RELEASE_TAG" == *-rc* ]]; then
-            control/tools/release/evaluate_release_gate.py \
-              --repository source --expected-revision "$EXPECTED_REVISION" \
-              --output epose-release-gate.json
-          else
+            test "$STABLE_GATE_POLICY" = require-ready
+          elif [[ "$STABLE_GATE_POLICY" != require-ready && "$STABLE_GATE_POLICY" != public-test ]]; then
+            echo "unsupported stable gate policy" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_TAG" != *-rc* && "$STABLE_GATE_POLICY" == require-ready ]]; then
             control/tools/release/evaluate_release_gate.py \
               --repository source --expected-revision "$EXPECTED_REVISION" \
               --output epose-release-gate.json --require-ready
+          else
+            control/tools/release/evaluate_release_gate.py \
+              --repository source --expected-revision "$EXPECTED_REVISION" \
+              --output epose-release-gate.json
           fi
 
   linux-x86_64:
@@ -90,6 +103,7 @@ jobs:
       CCACHE_DIR: .ccache-linux
       QWC_LINUX_GLIBC_CEILING: "2.35"
       QWC_LINUX_GLIBCXX_CEILING: "3.4.30"
+      STABLE_GATE_POLICY: ${{ inputs.stable_gate_policy }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -145,12 +159,12 @@ jobs:
             test_release_gate_v2.py test_manifest_v2.py test_reference_model_v2.py test_security_parameter_model.py) \
             2>&1 | tee evidence/linux/EPoSE-PYTHON-TESTS.log
           grep -Eq '^Ran 43 tests in ' evidence/linux/EPoSE-PYTHON-TESTS.log
-          if [[ "$RELEASE_TAG" == *-rc* ]]; then
-            control/tools/release/evaluate_release_gate.py --repository source \
-              --expected-revision "$EXPECTED_REVISION" --output evidence/linux/epose-gate.json
-          else
+          if [[ "$RELEASE_TAG" != *-rc* && "$STABLE_GATE_POLICY" == require-ready ]]; then
             control/tools/release/evaluate_release_gate.py --repository source \
               --expected-revision "$EXPECTED_REVISION" --output evidence/linux/epose-gate.json --require-ready
+          else
+            control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/linux/epose-gate.json
           fi
           python3 - <<'PY'
           import json
@@ -235,6 +249,7 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       MACOSX_DEPLOYMENT_TARGET: "15.0"
       QWC_MACOS_MIN_VERSION: "15.0"
+      STABLE_GATE_POLICY: ${{ inputs.stable_gate_policy }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {fetch-depth: 0, path: control, persist-credentials: false}
@@ -276,12 +291,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p evidence/macos
-          if [[ "$RELEASE_TAG" == *-rc* ]]; then
-            control/tools/release/evaluate_release_gate.py --repository source \
-              --expected-revision "$EXPECTED_REVISION" --output evidence/macos/epose-gate.json
-          else
+          if [[ "$RELEASE_TAG" != *-rc* && "$STABLE_GATE_POLICY" == require-ready ]]; then
             control/tools/release/evaluate_release_gate.py --repository source \
               --expected-revision "$EXPECTED_REVISION" --output evidence/macos/epose-gate.json --require-ready
+          else
+            control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/macos/epose-gate.json
           fi
           python3 - <<'PY'
           import json
@@ -365,6 +380,7 @@ jobs:
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: core.autocrlf
       GIT_CONFIG_VALUE_0: "false"
+      STABLE_GATE_POLICY: ${{ inputs.stable_gate_policy }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {fetch-depth: 0, path: control, persist-credentials: false}
@@ -416,12 +432,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p evidence/windows
-          if [[ "$RELEASE_TAG" == *-rc* ]]; then
-            python3 control/tools/release/evaluate_release_gate.py --repository source \
-              --expected-revision "$EXPECTED_REVISION" --output evidence/windows/epose-gate.json
-          else
+          if [[ "$RELEASE_TAG" != *-rc* && "$STABLE_GATE_POLICY" == require-ready ]]; then
             python3 control/tools/release/evaluate_release_gate.py --repository source \
               --expected-revision "$EXPECTED_REVISION" --output evidence/windows/epose-gate.json --require-ready
+          else
+            python3 control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/windows/epose-gate.json
           fi
           python3 - <<'PY'
           import json

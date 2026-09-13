@@ -200,6 +200,8 @@ class RequestValidationTests(unittest.TestCase):
         )
         self.assertNotIn("gate_args", workflow)
         self.assertEqual(workflow.count("--require-ready"), 4)
+        self.assertIn("options: [require-ready, public-test]", workflow)
+        self.assertEqual(workflow.count("STABLE_GATE_POLICY"), 11)
 
     def test_assemble_public_test_override_is_explicit_and_preserves_gate(self) -> None:
         workflow = (
