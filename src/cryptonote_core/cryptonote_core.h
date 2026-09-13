@@ -38,6 +38,7 @@
 
 #include <boost/function.hpp>
 #include <boost/program_options/options_description.hpp>
+#include <boost/program_options/parsers.hpp>
 #include <boost/program_options/variables_map.hpp>
 
 #include "cryptonote_basic/fwd.h"
@@ -89,6 +90,18 @@ namespace cryptonote
   extern const command_line::arg_descriptor<std::string> arg_epose_v2_endpoint_host;
   extern const command_line::arg_descriptor<uint16_t> arg_epose_v2_endpoint_port;
   extern const command_line::arg_descriptor<std::vector<std::string>> arg_epose_v2_discovery_endpoint;
+
+  /** Add the deprecated public EPoSe option names to a hidden option set. */
+  void init_epose_compatibility_options(boost::program_options::options_description& desc);
+
+  /**
+   * Normalize deprecated EPoSe options to their canonical names within one
+   * input stage (command line or configuration file).
+   *
+   * @return true if at least one deprecated alias was present
+   * @throw boost::program_options::error if old and new names conflict
+   */
+  bool normalize_epose_option_aliases(boost::program_options::parsed_options& options);
 
   /************************************************************************/
   /*                                                                      */

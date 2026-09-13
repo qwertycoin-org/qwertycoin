@@ -51,6 +51,7 @@ set(unit_tests_sources
   epee_http_server.cpp
   epee_serialization.cpp
   epose.cpp
+  epose_public_options.cpp
   epose_canonical_service_v2.cpp
   epose_coordinator_v2.cpp
   epose_block_transition_v2.cpp

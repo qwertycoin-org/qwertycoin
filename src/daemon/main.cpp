@@ -138,6 +138,8 @@ int main(int argc, char const * argv[])
     po::options_description hidden_options("Hidden");
     po::options_description visible_options("Options");
     po::options_description core_settings("Settings");
+    po::options_description epose_compatibility_options("Deprecated EPoSE aliases");
+    po::options_description config_file_options("Config file settings");
     po::positional_options_description positional_options;
     {
       // Misc Options
@@ -165,13 +167,17 @@ int main(int argc, char const * argv[])
 
       daemonizer::init_options(hidden_options, visible_options);
       daemonize::t_executor::init_options(core_settings);
+      cryptonote::init_epose_compatibility_options(epose_compatibility_options);
 
       // Hidden options
       command_line::add_arg(hidden_options, daemon_args::arg_command);
+      hidden_options.add(epose_compatibility_options);
 
       visible_options.add(core_settings);
       all_options.add(visible_options);
       all_options.add(hidden_options);
+      config_file_options.add(core_settings);
+      config_file_options.add(epose_compatibility_options);
 
       // Positional
       positional_options.add(daemon_args::arg_command.name, -1); // -1 for unlimited arguments
@@ -179,13 +185,24 @@ int main(int argc, char const * argv[])
 
     // Do command line parsing
     po::variables_map vm;
+    bool warned_about_epose_aliases = false;
+    const auto warn_about_epose_aliases = [&warned_about_epose_aliases](const bool used_alias) {
+      if (!used_alias || warned_about_epose_aliases)
+        return;
+      std::cerr
+          << "Deprecated EPoSe option names were used; migrate to --epose-service, "
+             "--epose-keystore, --epose-reward-address, --epose-host, --epose-port "
+             "and --epose-discovery-endpoint."
+          << std::endl;
+      warned_about_epose_aliases = true;
+    };
     bool ok = command_line::handle_error_helper(visible_options, [&]()
     {
-      boost::program_options::store(
-        boost::program_options::command_line_parser(argc, argv)
-          .options(all_options).positional(positional_options).run()
-      , vm
-      );
+      auto parsed = boost::program_options::command_line_parser(argc, argv)
+          .options(all_options).positional(positional_options).run();
+      const bool used_alias = cryptonote::normalize_epose_option_aliases(parsed);
+      boost::program_options::store(parsed, vm);
+      warn_about_epose_aliases(used_alias);
 
       return true;
     });
@@ -220,7 +237,11 @@ int main(int argc, char const * argv[])
     {
       try
       {
-        po::store(po::parse_config_file<char>(config_path.string<std::string>().c_str(), core_settings), vm);
+        auto parsed = po::parse_config_file<char>(
+            config_path.string<std::string>().c_str(), config_file_options);
+        const bool used_alias = cryptonote::normalize_epose_option_aliases(parsed);
+        po::store(parsed, vm);
+        warn_about_epose_aliases(used_alias);
       }
       catch (const po::unknown_option &e)
       {

@@ -31,6 +31,8 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
+#include <boost/program_options/errors.hpp>
+#include <boost/program_options/value_semantic.hpp>
 #include <boost/uuid/nil_generator.hpp>
 
 #include <algorithm>
@@ -307,58 +309,185 @@ namespace cryptonote
   };
   const command_line::arg_descriptor<bool> arg_service_node = {
     "service-node"
-  , "Retired EPoSE-v1 option; use --epose-v2-service"
+  , "Retired EPoSE-v1 option; use --epose-service"
   , false
   };
   const command_line::arg_descriptor<std::string> arg_service_node_key = {
     "service-node-key"
-  , "Retired EPoSE-v1 option; use --epose-v2-keystore"
+  , "Retired EPoSE-v1 option; use --epose-keystore"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_service_reward_address = {
     "service-reward-address"
-  , "Retired EPoSE-v1 option; use --epose-v2-reward-address"
+  , "Retired EPoSE-v1 option; use --epose-reward-address"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_service_reward_view_key = {
     "service-reward-view-key"
-  , "Retired EPoSE-v1 option; EPoSE v2 never accepts a wallet private view key"
+  , "Retired EPoSE-v1 option; EPoSE never accepts a wallet private view key"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_service_node_advertise_address = {
     "service-node-advertise-address"
-  , "Retired EPoSE-v1 option; use --epose-v2-endpoint-host and --epose-v2-endpoint-port"
+  , "Retired EPoSE-v1 option; use --epose-host and --epose-port"
   , ""
   };
   const command_line::arg_descriptor<bool> arg_epose_v2_service = {
-    "epose-v2-service"
-  , "Run the genesis-bound QWC-HF17/EPoSE-v2 service producer"
+    "epose-service"
+  , "Run the genesis-bound QWC-HF17 EPoSE service producer"
   , false
   };
   const command_line::arg_descriptor<std::string> arg_epose_v2_keystore = {
-    "epose-v2-keystore"
-  , "Path to the genesis- and parameter-bound EPoSE-v2 operator/service keystore"
+    "epose-keystore"
+  , "Path to the genesis- and parameter-bound EPoSE operator/service keystore"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_epose_v2_reward_address = {
-    "epose-v2-reward-address"
-  , "Primary public Qwertycoin address receiving EPoSE-v2 service rewards"
+    "epose-reward-address"
+  , "Primary public Qwertycoin address receiving EPoSE service rewards"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_epose_v2_endpoint_host = {
-    "epose-v2-endpoint-host"
-  , "Canonical public IPv4, IPv6, or lowercase DNS host serving EPoSE-v2 probes"
+    "epose-host"
+  , "Canonical public IPv4, IPv6, or lowercase DNS host serving EPoSE probes"
   , ""
   };
   const command_line::arg_descriptor<uint16_t> arg_epose_v2_endpoint_port = {
-    "epose-v2-endpoint-port"
-  , "Public restricted-RPC port serving EPoSE-v2 probes"
+    "epose-port"
+  , "Public restricted-RPC port serving EPoSE probes"
   , 0
   };
   const command_line::arg_descriptor<std::vector<std::string>> arg_epose_v2_discovery_endpoint = {
-    "epose-v2-discovery-endpoint"
-  , "Public http://host:port endpoint used to discover signed EPoSE-v2 service descriptors (repeatable)"
+    "epose-discovery-endpoint"
+  , "Public http://host:port endpoint used to discover signed EPoSE service descriptors (repeatable)"
   };
+
+  namespace
+  {
+    constexpr const char *EPoseV2ServiceAlias = "epose-v2-service";
+    constexpr const char *EPoseV2KeystoreAlias = "epose-v2-keystore";
+    constexpr const char *EPoseV2RewardAddressAlias = "epose-v2-reward-address";
+    constexpr const char *EPoseV2EndpointHostAlias = "epose-v2-endpoint-host";
+    constexpr const char *EPoseV2EndpointPortAlias = "epose-v2-endpoint-port";
+    constexpr const char *EPoseV2DiscoveryEndpointAlias = "epose-v2-discovery-endpoint";
+
+    bool has_parsed_option(
+        const boost::program_options::parsed_options &options,
+        const char *name)
+    {
+      return std::any_of(
+          options.options.begin(), options.options.end(),
+          [name](const boost::program_options::option &option) {
+            return option.string_key == name;
+          });
+    }
+
+    template <typename T>
+    T parse_option_value(
+        const boost::program_options::parsed_options &options,
+        const char *name)
+    {
+      boost::any value;
+      for (const auto &option : options.options)
+      {
+        if (option.string_key == name)
+          boost::program_options::validate(value, option.value, static_cast<T *>(nullptr), 0);
+      }
+      return boost::any_cast<T>(value);
+    }
+
+    template <>
+    bool parse_option_value<bool>(
+        const boost::program_options::parsed_options &options,
+        const char *name)
+    {
+      boost::any value;
+      for (const auto &option : options.options)
+      {
+        if (option.string_key != name)
+          continue;
+        const std::vector<std::string> tokens =
+            option.value.empty() ? std::vector<std::string>{"true"} : option.value;
+        boost::program_options::validate(value, tokens, static_cast<bool *>(nullptr), 0);
+      }
+      return boost::any_cast<bool>(value);
+    }
+
+    template <typename T>
+    bool normalize_epose_option_pair(
+        boost::program_options::parsed_options &options,
+        const char *canonical_name,
+        const char *alias_name)
+    {
+      const bool has_canonical = has_parsed_option(options, canonical_name);
+      const bool has_alias = has_parsed_option(options, alias_name);
+      if (!has_alias)
+        return false;
+
+      if (has_canonical
+          && parse_option_value<T>(options, canonical_name)
+              != parse_option_value<T>(options, alias_name))
+      {
+        throw boost::program_options::error(
+            std::string("Conflicting EPoSe options '--") + canonical_name
+            + "' and deprecated '--" + alias_name
+            + "' were specified at the same input level");
+      }
+
+      if (has_canonical)
+      {
+        options.options.erase(
+            std::remove_if(
+                options.options.begin(), options.options.end(),
+                [alias_name](const boost::program_options::option &option) {
+                  return option.string_key == alias_name;
+                }),
+            options.options.end());
+      }
+      else
+      {
+        for (auto &option : options.options)
+        {
+          if (option.string_key == alias_name)
+            option.string_key = canonical_name;
+        }
+      }
+      return true;
+    }
+  }
+
+  void init_epose_compatibility_options(
+      boost::program_options::options_description &desc)
+  {
+    desc.add_options()
+        (EPoseV2ServiceAlias, boost::program_options::bool_switch(), "")
+        (EPoseV2KeystoreAlias, boost::program_options::value<std::string>(), "")
+        (EPoseV2RewardAddressAlias, boost::program_options::value<std::string>(), "")
+        (EPoseV2EndpointHostAlias, boost::program_options::value<std::string>(), "")
+        (EPoseV2EndpointPortAlias, boost::program_options::value<uint16_t>(), "")
+        (EPoseV2DiscoveryEndpointAlias,
+         boost::program_options::value<std::vector<std::string>>(), "");
+  }
+
+  bool normalize_epose_option_aliases(
+      boost::program_options::parsed_options &options)
+  {
+    bool used_alias = false;
+    used_alias |= normalize_epose_option_pair<bool>(
+        options, arg_epose_v2_service.name, EPoseV2ServiceAlias);
+    used_alias |= normalize_epose_option_pair<std::string>(
+        options, arg_epose_v2_keystore.name, EPoseV2KeystoreAlias);
+    used_alias |= normalize_epose_option_pair<std::string>(
+        options, arg_epose_v2_reward_address.name, EPoseV2RewardAddressAlias);
+    used_alias |= normalize_epose_option_pair<std::string>(
+        options, arg_epose_v2_endpoint_host.name, EPoseV2EndpointHostAlias);
+    used_alias |= normalize_epose_option_pair<uint16_t>(
+        options, arg_epose_v2_endpoint_port.name, EPoseV2EndpointPortAlias);
+    used_alias |= normalize_epose_option_pair<std::vector<std::string>>(
+        options, arg_epose_v2_discovery_endpoint.name,
+        EPoseV2DiscoveryEndpointAlias);
+    return used_alias;
+  }
 
   static const command_line::arg_descriptor<bool> arg_test_drop_download = {
     "test-drop-download"
@@ -662,7 +791,7 @@ namespace cryptonote
     // legacy registration objects. They are intentionally not an input to the
     // genesis-native v2 protocol. Keep the switches recognizable so operators
     // receive a deterministic error, but never load keys or construct v1 state.
-    MERROR("The legacy --service-node interface is retired for QWC-HF17/EPoSE-v2; use --epose-v2-service and the v2 operator guide in docs/epose/SERVICE_NODE.md");
+    MERROR("The legacy --service-node interface is retired for QWC-HF17 EPoSE; use --epose-service and the operator guide in docs/epose/SERVICE_NODE.md");
     return false;
   }
   //-----------------------------------------------------------------------------------------------
