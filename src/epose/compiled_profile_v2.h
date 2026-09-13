@@ -10,8 +10,8 @@ namespace epose
   // Generated from docs/epose/PARAMETER_MANIFEST_V2.json. Runtime files and
   // command-line flags are deliberately not consensus parameter sources.
   constexpr char MAINNET_FINAL_GENESIS_HASH_V2[] =
-      "906629482787e94cb00463696a0e95ec75a480da09257c6270c65ba1a74a76b0";
+      "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39";
   constexpr char MAINNET_FINAL_PARAMETER_SET_HASH_V2[] =
-      "e5654b4f5fa27faa51a80ca1e93bb877c3bd3345d0a803b6e7ab55c05189c20d";
+      "2c26755094535871dd3ede7bd1b50aba82a9fb6831f0a17f32968eb0385145c6";
 } // namespace epose
 } // namespace qwertycoin

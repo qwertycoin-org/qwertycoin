@@ -2,6 +2,12 @@
 
 Status: **launch parameters frozen; exact-genesis rehearsal passed**
 
+> **Reset-1 notice (2026-09-13):** The parameter values in this study remain
+> unchanged, but its exact-genesis rehearsal and artifact binding belong to the
+> superseded `90662948...` chain. The Reset-1 identity is defined by ADR-0009.
+> Historical evidence below is retained as evidence for its actual source and
+> must not be promoted to candidate-bound evidence for the new genesis.
+
 Model version: 2
 
 Generated results: `review/results/security_parameters_v1.json`

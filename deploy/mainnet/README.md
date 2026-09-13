@@ -14,6 +14,21 @@ qwertycoin-v2-node:v2.0.0-rc.1
 
 Do not start public mainnet nodes from older PR or testphase image tags.
 
+The coordinated Reset-1 mainnet identity is:
+
+```text
+network id:  QWC2MAIN2026R01 + 0x02
+genesis:     4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39
+start nonce: 20000
+```
+
+It supersedes the `QWC2MAIN2026FIN` / `90662948...` chain. Wallet seeds,
+private keys, reward addresses and the mainnet address prefixes are unchanged,
+but balances and transaction history from the superseded chain do not exist on
+Reset-1. Preserve wallet key files and rebuild their caches from the new
+genesis. Preserve the old chain and service-identity volumes as rollback
+archives; do not mount them into a Reset-1 node.
+
 Build the release-candidate image from a clean worktree:
 
 ```bash
@@ -62,8 +77,9 @@ repository.
 
 The genesis- and parameter-bound v2 operator/service keystore is stored outside
 the chain volume at `QWC_EPOSE_V2_KEYSTORE_PATH`, mounted through
-`QWC_IDENTITY_VOLUME`. A distinct final-launch genesis requires a newly bound
-keystore; do not copy an older v1 identity into this path.
+`QWC_IDENTITY_VOLUME`. Reset-1 requires a newly bound keystore on every node.
+The old keystore is expected to fail closed because its genesis and parameter
+commitment differ; do not copy it into the Reset-1 identity volume.
 
 The unrestricted admin RPC is published only on loopback at port 8197. The
 restricted listener is intentionally public at port 8198 so assigned committee

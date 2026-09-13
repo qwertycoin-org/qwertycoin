@@ -6,6 +6,10 @@
 - **Supersedes:** ADR-0001 chain-preserving activation decision
 - **Current implementation status:** Final identity bound; exact rehearsal passed; release NO-GO
 
+> **Superseded on 2026-09-13:** ADR-0009 replaces only the mainnet genesis and
+> P2P identity defined here. This document and its evidence remain the
+> historical record for the `90662948...` chain.
+
 ## Context
 
 ADR-0001 conservatively treated the observed HF17 pre-publication chain as
