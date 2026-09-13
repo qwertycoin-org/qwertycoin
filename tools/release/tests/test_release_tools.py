@@ -4,7 +4,9 @@ from importlib.util import module_from_spec, spec_from_file_location
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -193,6 +195,73 @@ class RequestValidationTests(unittest.TestCase):
         self.assertIsNotNone(VALIDATE.TAG_RE.fullmatch("v2.0.0-rc1"))
         self.assertIsNone(VALIDATE.TAG_RE.fullmatch("v2.0.0-rc0"))
         self.assertIsNone(VALIDATE.TAG_RE.fullmatch("v2.0.0-rc"))
+
+    def test_local_release_tag_needs_no_runner_identity_and_is_deterministic(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = root / "source"
+            origin = root / "origin.git"
+            repository.mkdir()
+            subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
+            subprocess.run(["git", "init", "--quiet", "--bare", str(origin)], check=True)
+            subprocess.run(
+                ["git", "remote", "add", "origin", str(origin)], cwd=repository, check=True
+            )
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "GIT_AUTHOR_NAME": "Candidate Author",
+                    "GIT_AUTHOR_EMAIL": "candidate@example.invalid",
+                    "GIT_AUTHOR_DATE": "2026-09-13T00:00:00Z",
+                    "GIT_COMMITTER_NAME": "Candidate Author",
+                    "GIT_COMMITTER_EMAIL": "candidate@example.invalid",
+                    "GIT_COMMITTER_DATE": "2026-09-13T00:00:00Z",
+                }
+            )
+            subprocess.run(
+                ["git", "commit", "--quiet", "--allow-empty", "-m", "candidate"],
+                cwd=repository,
+                env=env,
+                check=True,
+            )
+            revision = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repository, text=True
+            ).strip()
+
+            runner_env = os.environ.copy()
+            runner_env.update(
+                {
+                    "HOME": str(root / "empty-home"),
+                    "XDG_CONFIG_HOME": str(root / "empty-config"),
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                }
+            )
+            (root / "empty-home").mkdir()
+            (root / "empty-config").mkdir()
+            command = [str(ROOT / "prepare_source_tag.sh"), "v2.0.0-rc1", revision]
+            subprocess.run(command, cwd=repository, env=runner_env, check=True)
+            first_tag = subprocess.check_output(
+                ["git", "rev-parse", "refs/tags/v2.0.0-rc1"], cwd=repository, text=True
+            ).strip()
+            tagger = subprocess.check_output(
+                [
+                    "git",
+                    "for-each-ref",
+                    "--format=%(taggername)|%(taggeremail)",
+                    "refs/tags/v2.0.0-rc1",
+                ],
+                cwd=repository,
+                text=True,
+            ).strip()
+            self.assertEqual(tagger, "Qwertycoin Release Automation|<release@qwertycoin.org>")
+
+            subprocess.run(["git", "tag", "-d", "v2.0.0-rc1"], cwd=repository, check=True)
+            subprocess.run(command, cwd=repository, env=runner_env, check=True)
+            second_tag = subprocess.check_output(
+                ["git", "rev-parse", "refs/tags/v2.0.0-rc1"], cwd=repository, text=True
+            ).strip()
+            self.assertEqual(first_tag, second_tag)
 
 
 if __name__ == "__main__":

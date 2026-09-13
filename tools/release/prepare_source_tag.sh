@@ -20,7 +20,11 @@ if [[ -n "$remote_lines" ]]; then
     exit 1
   }
 else
-  git tag -a "$release_tag" -m "Local release build identity for $release_tag" "$expected_revision"
+  tagger_date=$(git show -s --format=%cI "$expected_revision")
+  GIT_COMMITTER_NAME="Qwertycoin Release Automation" \
+  GIT_COMMITTER_EMAIL="release@qwertycoin.org" \
+  GIT_COMMITTER_DATE="$tagger_date" \
+    git tag -a "$release_tag" -m "Local release build identity for $release_tag" "$expected_revision"
 fi
 [[ "$(git rev-parse "$release_tag^{}")" == "$expected_revision" ]] || exit 1
 echo "Release tag state prepared locally: $release_tag -> $expected_revision"
