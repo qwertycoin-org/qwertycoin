@@ -49,6 +49,11 @@ def binary(root: Path, name: str) -> Path:
     return candidate
 
 
+def evidence_program_name(path: Path) -> str:
+    """Return the platform-neutral program key used by release evidence."""
+    return path.stem if path.suffix.lower() == ".exe" else path.name
+
+
 def run_cli(path: Path, argument: str, environment: dict[str, str]) -> str:
     process = subprocess.run(
         [str(path), argument],
@@ -222,7 +227,10 @@ def main() -> None:
         expected_release_marker = f"v{args.expected_version}-release"
         if expected_release_marker not in version_output:
             fail(f"{program.name} does not report the expected tagged release marker {expected_release_marker}")
-        results["programs"][program.name] = {"version": "pass", "help": "pass"}
+        results["programs"][evidence_program_name(program)] = {
+            "version": "pass",
+            "help": "pass",
+        }
 
     with tempfile.TemporaryDirectory(prefix="qwc-core-release-smoke-") as temp_name:
         temp = Path(temp_name)
