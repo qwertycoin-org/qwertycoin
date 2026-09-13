@@ -282,12 +282,29 @@ jobs:
         run: |
           set -euo pipefail
           releases=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq -s 'add')
-          matches=$(jq --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag)]' <<<"$releases")
-          count=$(jq length <<<"$matches")
-          (( count <= 1 )) || { echo "multiple releases use $RELEASE_TAG" >&2; exit 1; }
-          if (( count == 1 )); then
-            release=$(jq '.[0]' <<<"$matches")
-            jq -e --arg revision "$EXPECTED_REVISION" '.target_commitish == $revision' <<<"$release" >/dev/null
+          title="Qwertycoin Core ${RELEASE_TAG#v}"
+          tag_matches=$(jq --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag)]' <<<"$releases")
+          draft_matches=$(jq --arg title "$title" '[.[] | select(.draft == true and .name == $title)]' <<<"$releases")
+          tag_count=$(jq length <<<"$tag_matches")
+          draft_count=$(jq length <<<"$draft_matches")
+          (( tag_count <= 1 )) || { echo "multiple releases use $RELEASE_TAG" >&2; exit 1; }
+          (( draft_count <= 1 )) || { echo "multiple drafts use title $title" >&2; exit 1; }
+          if (( tag_count == 1 && draft_count == 1 )); then
+            test "$(jq -r '.[0].id' <<<"$tag_matches")" = "$(jq -r '.[0].id' <<<"$draft_matches")"
+          fi
+          if (( tag_count == 1 )); then
+            release=$(jq '.[0]' <<<"$tag_matches")
+          elif (( draft_count == 1 )); then
+            release=$(jq '.[0]' <<<"$draft_matches")
+            jq -e --arg tag "$RELEASE_TAG" \
+              '.tag_name == $tag or (.tag_name | startswith("untagged-"))' <<<"$release" >/dev/null
+          else
+            release=""
+          fi
+          if [[ -n "$release" ]]; then
+            jq -e --arg revision "$EXPECTED_REVISION" --arg title "$title" \
+              '.target_commitish == $revision and .name == $title and (.body | contains($revision))' \
+              <<<"$release" >/dev/null
             if jq -e '.draft == false' <<<"$release" >/dev/null; then
               case "$RELEASE_KIND" in
                 stable) jq -e '.prerelease == false' <<<"$release" >/dev/null ;;
@@ -314,7 +331,12 @@ jobs:
             --repo "$GITHUB_REPOSITORY" --target "$EXPECTED_REVISION" --draft --prerelease \
             --title "Qwertycoin Core ${RELEASE_TAG#v}" --notes-file release-assets/RELEASE-NOTES.md
           release=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            | jq -s 'add' | jq -e --arg tag "$RELEASE_TAG" '.[] | select(.tag_name == $tag)')
+            | jq -s 'add' | jq -e --arg tag "$RELEASE_TAG" --arg revision "$EXPECTED_REVISION" \
+              --arg title "Qwertycoin Core ${RELEASE_TAG#v}" \
+              '[.[] | select(.draft == true and .name == $title and .target_commitish == $revision
+                and (.body | contains($revision))
+                and (.tag_name == $tag or (.tag_name | startswith("untagged-"))))]
+               | if length == 1 then .[0] else error("draft lookup failed") end')
           echo "RELEASE_ID=$(jq -r .id <<<"$release")" >> "$GITHUB_ENV"
       - name: Verify or safely complete matching draft assets
         shell: bash
@@ -352,9 +374,11 @@ jobs:
             stable) desired_draft=false; desired_prerelease=false ;;
           esac
           notes=$(cat release-assets/RELEASE-NOTES.md)
-          jq -n --arg name "Qwertycoin Core ${RELEASE_TAG#v}" --arg body "$notes" \
+          jq -n --arg tag "$RELEASE_TAG" --arg target "$EXPECTED_REVISION" \
+            --arg name "Qwertycoin Core ${RELEASE_TAG#v}" --arg body "$notes" \
             --argjson draft "$desired_draft" --argjson prerelease "$desired_prerelease" \
-            '{name:$name, body:$body, draft:$draft, prerelease:$prerelease}' > release-update.json
+            '{tag_name:$tag, target_commitish:$target, name:$name, body:$body,
+              draft:$draft, prerelease:$prerelease}' > release-update.json
           gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
             --input release-update.json >/dev/null
       - name: Read back release, tag and downloaded public bytes
