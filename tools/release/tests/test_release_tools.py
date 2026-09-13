@@ -187,6 +187,13 @@ class ArchiveSecurityTests(unittest.TestCase):
 
 
 class RequestValidationTests(unittest.TestCase):
+    def test_release_workflow_avoids_empty_arrays_under_macos_bash_3(self) -> None:
+        workflow = (ROOT.parents[1] / ".github/workflows/release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("gate_args", workflow)
+        self.assertEqual(workflow.count("--require-ready"), 4)
+
     def test_smoke_evidence_uses_platform_neutral_program_names(self) -> None:
         self.assertEqual(SMOKE.evidence_program_name(Path("qwertycoind")), "qwertycoind")
         self.assertEqual(

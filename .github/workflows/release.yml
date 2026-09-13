@@ -64,11 +64,15 @@ jobs:
             --output ../release-request.json)
           release_version=$(python3 -c 'import json; print(json.load(open("release-request.json"))["release_version"])')
           echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
-          gate_args=()
-          [[ "$RELEASE_TAG" == *-rc* ]] || gate_args+=(--require-ready)
-          control/tools/release/evaluate_release_gate.py \
-            --repository source --expected-revision "$EXPECTED_REVISION" \
-            --output epose-release-gate.json "${gate_args[@]}"
+          if [[ "$RELEASE_TAG" == *-rc* ]]; then
+            control/tools/release/evaluate_release_gate.py \
+              --repository source --expected-revision "$EXPECTED_REVISION" \
+              --output epose-release-gate.json
+          else
+            control/tools/release/evaluate_release_gate.py \
+              --repository source --expected-revision "$EXPECTED_REVISION" \
+              --output epose-release-gate.json --require-ready
+          fi
 
   linux-x86_64:
     name: Linux x86_64
@@ -141,10 +145,13 @@ jobs:
             test_release_gate_v2.py test_manifest_v2.py test_reference_model_v2.py test_security_parameter_model.py) \
             2>&1 | tee evidence/linux/EPoSE-PYTHON-TESTS.log
           grep -Eq '^Ran 43 tests in ' evidence/linux/EPoSE-PYTHON-TESTS.log
-          gate_args=()
-          [[ "$RELEASE_TAG" == *-rc* ]] || gate_args+=(--require-ready)
-          control/tools/release/evaluate_release_gate.py --repository source \
-            --expected-revision "$EXPECTED_REVISION" --output evidence/linux/epose-gate.json "${gate_args[@]}"
+          if [[ "$RELEASE_TAG" == *-rc* ]]; then
+            control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/linux/epose-gate.json
+          else
+            control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/linux/epose-gate.json --require-ready
+          fi
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -269,9 +276,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p evidence/macos
-          gate_args=(); [[ "$RELEASE_TAG" == *-rc* ]] || gate_args+=(--require-ready)
-          control/tools/release/evaluate_release_gate.py --repository source \
-            --expected-revision "$EXPECTED_REVISION" --output evidence/macos/epose-gate.json "${gate_args[@]}"
+          if [[ "$RELEASE_TAG" == *-rc* ]]; then
+            control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/macos/epose-gate.json
+          else
+            control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/macos/epose-gate.json --require-ready
+          fi
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -405,9 +416,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p evidence/windows
-          gate_args=(); [[ "$RELEASE_TAG" == *-rc* ]] || gate_args+=(--require-ready)
-          python3 control/tools/release/evaluate_release_gate.py --repository source \
-            --expected-revision "$EXPECTED_REVISION" --output evidence/windows/epose-gate.json "${gate_args[@]}"
+          if [[ "$RELEASE_TAG" == *-rc* ]]; then
+            python3 control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/windows/epose-gate.json
+          else
+            python3 control/tools/release/evaluate_release_gate.py --repository source \
+              --expected-revision "$EXPECTED_REVISION" --output evidence/windows/epose-gate.json --require-ready
+          fi
           python3 - <<'PY'
           import json
           from pathlib import Path
