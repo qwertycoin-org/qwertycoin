@@ -1,364 +1,233 @@
 # Qwertycoin v2 Community Setup Guide
 
-This guide explains how to install Qwertycoin v2, start a wallet, mine blocks,
-and register an EPoSE service node.
+This guide covers the public Qwertycoin v2 mainnet test: install a wallet,
+connect a node, mine, and run the current EPoSE-v2 service producer.
 
-EPoSE service nodes are intended to run on always-on Linux servers. Desktop
-wallets on Windows, macOS, and Linux can mine, receive funds, and submit the
-registration transaction once the wallet has spendable QWC.
+## Verify Downloads First
+
+Use only the published repositories:
+
+- Core CLI: <https://github.com/qwertycoin-org/qwertycoin/releases>
+- GUI wallet: <https://github.com/qwertycoin-org/qwertycoin-gui/releases>
+
+Download the archive for your operating system and verify it against the
+`SHA256SUMS` file in the same release before extracting it. The current Linux
+and Windows Core/GUI packages are unsigned. The current macOS Core and GUI
+packages are ad-hoc signed but are not Developer ID signed or notarized. A
+SHA-256 match verifies file integrity, not publisher identity.
+
+Qwertycoin v2 uses a new genesis block, network ID, address prefix, data
+directory, and consensus rules. Do not reuse an old-chain daemon database or
+wallet cache.
 
 ## What You Need
 
 For a normal wallet:
 
-- the Qwertycoin GUI or CLI package for your operating system,
-- a synced daemon connection,
-- a wallet with your recovery seed stored safely.
+- the Qwertycoin GUI or Core CLI package for your operating system,
+- a synced local daemon or an intended public node,
+- a wallet with its recovery seed stored offline.
 
 For an EPoSE service node:
 
-- a Linux server with a stable public IP address or DNS name,
-- Docker or native Qwertycoin binaries,
-- TCP port `8196` reachable from the internet,
-- a normal QWC reward wallet address,
-- the matching private view key for that reward address,
-- a funded wallet that can pay the service-node registration transaction.
+- an always-on Linux host with a stable public IP address or lowercase DNS name,
+- the Core CLI package or a locally built image from the same source revision,
+- enough storage for an unpruned chain,
+- public TCP ports `8196` and `8198`,
+- a dedicated primary QWC reward address,
+- protected storage for the EPoSE-v2 keystore.
 
-Never share your wallet private spend key. The service-node reward private view
-key is intentionally disclosed in the registration so the network can validate
-service rewards. It can see incoming reward activity, but it cannot spend coins.
+An EPoSE-v2 node does not need a wallet private view key, wallet spend key, or a
+funded registration transaction. Never place wallet secrets in node config.
 
 ## Ports
 
-Default ports:
-
-| Purpose | Port | Public? |
+| Purpose | Port | Exposure |
 | --- | ---: | --- |
-| P2P node traffic | `8196` | Yes |
-| unrestricted daemon RPC | `8197` | No, keep local/private |
-| restricted daemon RPC | `8198` | Optional |
-| ZMQ | `8199` | No, keep local/private |
+| P2P node traffic | `8196` | Public |
+| unrestricted daemon RPC | `8197` | Local/private only |
+| restricted EPoSE probe RPC | `8198` | Public for service nodes |
+| ZMQ | `8199` | Local/private only |
 
-Only expose P2P port `8196` unless you know why you need public RPC. For a
-public service node, firewall rules should allow inbound TCP `8196`.
+## Install A Desktop Wallet
 
-## Install On Windows
+### Windows x86_64
 
-1. Download the Windows release ZIP.
-2. Extract the ZIP into a folder such as `C:\Qwertycoin`.
+1. Download and verify the Windows GUI release ZIP.
+2. Extract it to a normal user-writable folder.
 3. Start `qwertycoin-gui.exe`.
-4. Create a new wallet or restore an existing wallet from seed.
-5. Let the wallet connect to a synced daemon.
-6. Save the 25-word recovery seed offline before receiving funds.
+4. Create a new wallet or restore one from seed.
+5. Record the recovery seed offline before receiving funds.
 
-If Windows Defender or SmartScreen warns about the binary, confirm that the file
-name and checksum match the official release. Early community builds may be
-unsigned.
+Windows may warn because the current public-test package is unsigned. Do not
+bypass a warning until the archive checksum matches the official release.
 
-## Install On macOS Apple Silicon
+### macOS Apple Silicon
 
-1. Download the macOS ARM64 release archive.
-2. Extract the archive.
-3. Start the `qwertycoin-gui` binary.
-4. Create a new wallet or restore an existing wallet from seed.
-5. Let the wallet connect to a synced daemon.
-6. Save the 25-word recovery seed offline before receiving funds.
+1. Download and verify the macOS ARM64 GUI release archive.
+2. Extract it and open `qwertycoin-gui`.
+3. Create or restore a wallet and record the seed offline.
 
-Early release-candidate builds may be unsigned and not notarized. If macOS
-blocks the app, open it once through Finder with right click and `Open`, or
-remove the quarantine attribute after verifying the checksum:
+The current app is ad-hoc signed and not notarized. After verifying its
+checksum, open it through Finder with right click and `Open` if Gatekeeper
+requests confirmation.
 
-```bash
-xattr -dr com.apple.quarantine /path/to/qwertycoin-gui
-```
+### Linux x86_64
 
-## Install On Linux Desktop
+1. Download and verify the Linux GUI release archive.
+2. Extract it and start the bundled launcher or `qwertycoin-gui` binary.
+3. Create or restore a wallet and record the seed offline.
 
-1. Download the Linux x86_64 release archive.
-2. Extract the archive.
-3. Make the binaries executable if needed:
+## Run A Normal Core Node
+
+From the extracted Core package:
 
 ```bash
-chmod +x qwertycoin-gui qwertycoind qwertycoin-wallet-cli
+./qwertycoind \
+  --p2p-bind-ip 0.0.0.0 \
+  --p2p-bind-port 8196 \
+  --rpc-bind-ip 127.0.0.1 \
+  --rpc-bind-port 8197
 ```
 
-4. Start the GUI:
+Keep unrestricted RPC on loopback. Check synchronization locally:
 
 ```bash
-./qwertycoin-gui
+curl -s http://127.0.0.1:8197/get_info
 ```
 
-5. Create or restore a wallet.
-6. Let the wallet connect to a synced daemon.
-7. Save the 25-word recovery seed offline before receiving funds.
+Open the CLI wallet against it:
 
-## Start Mining From A Desktop Wallet
-
-Mining can be started from the GUI when the wallet is connected to a daemon.
-For CLI users, open the wallet and use:
-
-```text
-start_mining <threads>
+```bash
+./qwertycoin-wallet-cli --daemon-address 127.0.0.1:8197
 ```
 
-Example:
+## Start Mining
+
+The GUI can start mining when it is connected to a daemon. In the CLI wallet:
 
 ```text
 start_mining 4
 ```
 
-Mining rewards are locked for `60` blocks. You can see mined coins before they
-are spendable, but you cannot use them for service-node registration until they
-are unlocked.
+Replace `4` with a suitable thread count. Mining remains RandomX proof of work;
+EPoSE does not replace block production or chain selection. Coinbase outputs
+must mature before they can be spent.
 
-## Run A Linux EPoSE Service Node With Docker
+## Run An EPoSE-v2 Service Node
 
-The recommended community setup is a Linux server with Docker.
+### 1. Prepare The Host
 
-### 1. Prepare The Server
-
-Install Docker and allow inbound P2P traffic:
+Allow inbound P2P and restricted probe traffic:
 
 ```bash
-sudo apt update
-sudo apt install -y ca-certificates curl docker.io
-sudo systemctl enable --now docker
 sudo ufw allow 8196/tcp
+sudo ufw allow 8198/tcp
 ```
 
-If your server uses a different firewall tool, open TCP `8196` there instead.
-
-### 2. Create A Reward Wallet
-
-Create a normal QWC wallet with the GUI or CLI. Use a dedicated reward wallet if
-possible.
-
-You need:
-
-- the primary QWC address, starting with `QWC...`,
-- the private view key for that address.
-
-In `qwertycoin-wallet-cli`, the private view key can be shown with:
-
-```text
-viewkey
-```
-
-Do not put the private spend key into any service-node configuration.
-
-### 3. Start The Service-Node Daemon
-
-Start `qwertycoind` in service-node mode:
+Create private storage for the service identity:
 
 ```bash
-docker run -d \
-  --name qwertycoin-mainnet \
-  --restart unless-stopped \
-  -p 8196:8196 \
-  -p 127.0.0.1:8197:8197 \
-  -p 127.0.0.1:8198:8198 \
-  -p 127.0.0.1:8199:8199 \
-  -v qwertycoin-mainnet-chain:/home/qwertycoin/.qwertycoin \
-  -v qwertycoin-service-node:/service-node \
-  -v qwertycoin-wallets:/wallet \
-  qwertycoin-v2-node:latest \
-  --service-node \
-  --service-node-key /service-node/service-node.key \
-  --service-reward-address QWC_REWARD_ADDRESS_HERE \
-  --service-reward-view-key PRIVATE_VIEW_KEY_HERE \
-  --service-node-advertise-address your-node.example.org:8196 \
+sudo install -d -m 700 /var/lib/qwertycoin-epose
+```
+
+Use an equivalent firewall and private directory on systems without `ufw`.
+
+### 2. Choose A Reward Address
+
+Create a dedicated normal QWC wallet and copy only its primary public address.
+Back up the wallet seed offline. Do not copy its private view or spend keys to
+the service host.
+
+### 3. Start The Producer
+
+Replace the reward address and public host below. The host must resolve to this
+machine and the public restricted endpoint must be reachable on port `8198`.
+
+```bash
+./qwertycoind \
+  --epose-v2-service \
+  --epose-v2-keystore /var/lib/qwertycoin-epose/keystore \
+  --epose-v2-reward-address QWC_REWARD_ADDRESS_HERE \
+  --epose-v2-endpoint-host node.example.org \
+  --epose-v2-endpoint-port 8198 \
+  --epose-v2-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
+  --epose-v2-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
+  --epose-v2-discovery-endpoint http://seed-02.qwertycoin.org:8198 \
+  --epose-v2-discovery-endpoint http://seed-03.qwertycoin.org:8198 \
   --p2p-bind-ip 0.0.0.0 \
   --p2p-bind-port 8196 \
-  --rpc-bind-ip 0.0.0.0 \
+  --rpc-bind-ip 127.0.0.1 \
   --rpc-bind-port 8197 \
-  --restricted-rpc-bind-ip 0.0.0.0 \
-  --restricted-rpc-bind-port 8198 \
-  --zmq-rpc-bind-ip 0.0.0.0 \
-  --zmq-rpc-bind-port 8199
+  --rpc-restricted-bind-ip 0.0.0.0 \
+  --rpc-restricted-bind-port 8198 \
+  --confirm-external-bind
 ```
 
-Replace:
+The discovery endpoints bootstrap signed service descriptors. They are not an
+operator allowlist: an external participant uses the same consensus admission,
+epoch, committee, and qualification rules as the project-operated nodes.
 
-- `QWC_REWARD_ADDRESS_HERE` with your reward wallet primary address,
-- `PRIVATE_VIEW_KEY_HERE` with the matching private view key,
-- `your-node.example.org:8196` with your public DNS name or IP address.
+The daemon creates or loads its bound keystore. Once fully synchronized, it
+automatically builds and relays its lifecycle and RandomX admission records for
+the next eligible epoch. Do not run `register_service_node`; that command and
+the old `--service-node` flags are retired v1 compatibility surfaces.
 
-The `qwertycoin-service-node` volume stores the service-node identity key. Keep
-this volume when resetting the blockchain database. Delete it only if you want a
-new service-node identity.
-
-The `qwertycoin-wallets` volume is optional, but useful if you want to run
-`qwertycoin-wallet-cli` inside the same container for a controlled test setup.
-
-### 4. Check That The Daemon Is Ready
-
-On the server, run:
+### 4. Inspect The State
 
 ```bash
 curl -s http://127.0.0.1:8197/get_info
 curl -s http://127.0.0.1:8197/get_epose_info
-curl -s http://127.0.0.1:8197/get_service_node_registration_payload
-```
-
-The node must be synced and the registration payload must be available. If the
-payload endpoint returns an error, fix the daemon configuration first. Common
-causes are an invalid reward address, a wrong private view key, or a missing
-advertise address.
-
-## Register The Service Node On-Chain
-
-Starting a service-node daemon is not enough. The node becomes registered only
-after a wallet submits a real registration transaction and that transaction is
-mined into a block.
-
-### Option A: Register From A Wallet On The Server
-
-Use this only for test deployments or if you are comfortable keeping the
-operator wallet on the server.
-
-Open a funded wallet against the local daemon:
-
-```bash
-docker exec -it qwertycoin-mainnet qwertycoin-wallet-cli \
-  --daemon-address 127.0.0.1:8197 \
-  --wallet-file /wallet/operator-wallet
-```
-
-Inside the wallet:
-
-```text
-refresh
-register_service_node
-```
-
-Confirm the transaction when prompted. The wallet creates a normal transaction,
-attaches the daemon's signed EPoSE registration payload, and relays it.
-
-### Option B: Register From Your Desktop Wallet Through SSH
-
-This keeps your wallet spend key on your desktop machine.
-
-Create an SSH tunnel from your desktop to the service-node server:
-
-```bash
-ssh -L 18197:127.0.0.1:8197 user@your-node.example.org
-```
-
-In another terminal, open your local funded wallet against the tunnel:
-
-```bash
-qwertycoin-wallet-cli \
-  --daemon-address 127.0.0.1:18197 \
-  --wallet-file /path/to/your-wallet
-```
-
-Inside the wallet:
-
-```text
-refresh
-register_service_node
-```
-
-Repeat this once for each service node, always tunneling to the daemon of the
-node you want to register.
-
-### Optional Funding Address
-
-By default, `register_service_node` sends one atomic unit back to the wallet's
-primary address and attaches the service-node registration payload.
-
-To send funds to another address while registering:
-
-```text
-register_service_node <funding_address> <amount>
-```
-
-Most operators should use the default command first.
-
-## Confirm Registration
-
-After the transaction is mined, check:
-
-```bash
-curl -s http://127.0.0.1:8197/get_epose_info
+curl -s http://127.0.0.1:8197/get_epose_service_endpoint_v2
 ```
 
 Expected progression:
 
 ```text
-not registered -> registered -> active -> qualified
+producer ready -> registered -> active -> qualified
 ```
 
-`registered` means the on-chain registration was accepted.
-
-`active` means the registration is valid for the current EPoSE epoch.
-
-`qualified` means enough valid attestations exist for the node to participate in
-service rewards.
-
-With too few registered service nodes, qualification may be delayed or fragile.
-For a small controlled test network, three service nodes can work. For healthier
-operation, run four or more. The target committee design is more comfortable
-with ten or more registered service nodes.
-
-## Register Multiple Service Nodes
-
-For three service nodes, repeat the same pattern three times:
-
-1. Start service-node daemon `A`.
-2. Register daemon `A` through a wallet connected to daemon `A`.
-3. Start service-node daemon `B`.
-4. Register daemon `B` through a wallet connected to daemon `B`.
-5. Start service-node daemon `C`.
-6. Register daemon `C` through a wallet connected to daemon `C`.
-
-The same funded operator wallet can submit all three registration transactions,
-but each registration must be created while connected to the daemon being
-registered. That is how the wallet gets the correct local signed payload.
+These states do not occur immediately. The producer waits for synchronization,
+an eligible enrollment window, the RandomX admission proof, the two-epoch
+warm-up, and sufficient canonical service receipts. Qualification and rewards
+are never guaranteed. Epoch zero has no EPoSE-v2 rewards.
 
 ## Troubleshooting
 
-### `No registered service nodes yet.`
+### Legacy `--service-node` is rejected
 
-This is normal on a fresh chain before registration transactions are mined.
-Start the service-node daemon, submit `register_service_node` from a funded
-wallet, mine the transaction, and check again.
+This is intentional. Use `--epose-v2-service` and the v2 options shown above.
+The retired v1 path requested a wallet private view key and a funded
+registration transaction; those are not inputs to EPoSE v2.
 
-### `Not enough unlocked money`
+### `local_service_node_key_loaded` is false
 
-Your wallet does not have spendable funds yet. Newly mined coins need `60`
-blocks before they can be spent.
+Check that the process can securely create/read the keystore path, the reward
+address belongs to mainnet, the public host is canonical, and the endpoint port
+is nonzero. A keystore copied from another genesis or parameter set is rejected.
 
-### Registration payload is not ready
+### The producer is ready but not registered
 
-Check that the daemon was started with:
+Confirm the daemon is fully synchronized and has peers. Enrollment targets a
+future eligible epoch and may wait for the current cutoff. Check logs for the
+bounded admission search and envelope relay; do not bypass the epoch rules.
 
-- `--service-node`,
-- `--service-node-key`,
-- `--service-reward-address`,
-- `--service-reward-view-key`,
-- `--service-node-advertise-address`.
+### Registered but not qualified
 
-Also confirm that the reward address is a primary QWC address and that the
-private view key belongs to that address.
+Confirm both public ports are reachable, the restricted RPC answers
+`get_epose_service_endpoint_v2`, and other service nodes are online. Normal
+committee and receipt thresholds still apply.
 
-### Node is registered but not qualified
+### Wallet cannot connect
 
-The node has an accepted registration, but it still needs valid attestations
-from other service nodes. Confirm that multiple service nodes are registered,
-online, reachable on P2P port `8196`, and synced to the same chain tip.
-
-### The desktop wallet cannot connect to the service-node daemon
-
-Do not expose unrestricted RPC publicly just to fix this. Use an SSH tunnel to
-reach `127.0.0.1:8197` on the server, or run the wallet on the server only for a
-controlled test deployment.
+Do not expose unrestricted RPC. Use a local daemon or an SSH tunnel to
+`127.0.0.1:8197` on a host you control.
 
 ## Safe Operating Notes
 
-- Back up wallet seeds before mining or registering.
-- Back up the service-node identity volume or key file.
-- Keep RPC ports private unless there is a clear operational reason.
-- Do not reuse public documentation examples as real keys or addresses.
-- Keep enough QWC in the operator wallet to pay transaction fees.
-- After any chain reset, service-node registrations must be submitted again.
+- Back up wallet seeds and the EPoSE keystore separately.
+- Keep wallet secrets off the service host.
+- Keep unrestricted RPC and ZMQ private.
+- Keep the unpruned chain and stable keystore across normal restarts.
+- Verify release checksums before running downloaded programs.
+- Report reproducible public-test issues through the relevant GitHub repository.

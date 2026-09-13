@@ -307,27 +307,27 @@ namespace cryptonote
   };
   const command_line::arg_descriptor<bool> arg_service_node = {
     "service-node"
-  , "Run this daemon as a Qwertycoin EPoSE service node"
+  , "Retired EPoSE-v1 option; use --epose-v2-service"
   , false
   };
   const command_line::arg_descriptor<std::string> arg_service_node_key = {
     "service-node-key"
-  , "Path to the EPoSE service-node private key file"
+  , "Retired EPoSE-v1 option; use --epose-v2-keystore"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_service_reward_address = {
     "service-reward-address"
-  , "Primary Qwertycoin address receiving EPoSE service rewards"
+  , "Retired EPoSE-v1 option; use --epose-v2-reward-address"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_service_reward_view_key = {
     "service-reward-view-key"
-  , "Private view key matching the EPoSE service reward address; it is disclosed in the on-chain registration for deterministic reward validation"
+  , "Retired EPoSE-v1 option; EPoSE v2 never accepts a wallet private view key"
   , ""
   };
   const command_line::arg_descriptor<std::string> arg_service_node_advertise_address = {
     "service-node-advertise-address"
-  , "Public host:port advertised by this EPoSE service node"
+  , "Retired EPoSE-v1 option; use --epose-v2-endpoint-host and --epose-v2-endpoint-port"
   , ""
   };
   const command_line::arg_descriptor<bool> arg_epose_v2_service = {
@@ -662,7 +662,7 @@ namespace cryptonote
     // legacy registration objects. They are intentionally not an input to the
     // genesis-native v2 protocol. Keep the switches recognizable so operators
     // receive a deterministic error, but never load keys or construct v1 state.
-    MERROR("The legacy --service-node interface is retired for QWC-HF17/EPoSE-v2; use the future v2 lifecycle/admission producer once its launch gate is complete");
+    MERROR("The legacy --service-node interface is retired for QWC-HF17/EPoSE-v2; use --epose-v2-service and the v2 operator guide in docs/epose/SERVICE_NODE.md");
     return false;
   }
   //-----------------------------------------------------------------------------------------------
