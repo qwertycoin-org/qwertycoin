@@ -201,9 +201,34 @@ jobs:
           verify_candidate windows "$WINDOWS_ARTIFACT" zip "$WINDOWS_RUN_ID" Windows x86_64
           jq -e '.verification.epose_unit_tests == "238 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
             "verified/linux/$LINUX_ARTIFACT/BUILD-INFO.json" >/dev/null
-          cmp assembly-gate.json "verified/linux/$LINUX_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json"
-          cmp assembly-gate.json "verified/macos/$MACOS_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json"
-          cmp assembly-gate.json "verified/windows/$WINDOWS_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json"
+          python3 - assembly-gate.json \
+            "verified/linux/$LINUX_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json" \
+            "verified/macos/$MACOS_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json" \
+            "verified/windows/$WINDOWS_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          def load_unique(path: str):
+              def reject_duplicates(pairs):
+                  result = {}
+                  for key, value in pairs:
+                      if key in result:
+                          raise ValueError(f"duplicate JSON key {key!r} in {path}")
+                      result[key] = value
+                  return result
+
+              return json.loads(
+                  Path(path).read_text(encoding="utf-8"),
+                  object_pairs_hook=reject_duplicates,
+              )
+
+          expected = load_unique(sys.argv[1])
+          for candidate in sys.argv[2:]:
+              if load_unique(candidate) != expected:
+                  raise SystemExit(f"EPoSE release gate differs: {candidate}")
+          print("EPoSE release gates match semantically across all candidates")
+          PY
       - name: Stage exact archives and generate final checksums
         run: |
           set -euo pipefail
