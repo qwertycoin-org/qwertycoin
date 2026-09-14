@@ -18,6 +18,7 @@ services:
       QWC_PRIORITY_NODES: ${QWC_PRIORITY_NODES:-}
       QWC_PRIORITY_NODE_1: ${QWC_PRIORITY_NODE_1:-}
       QWC_PRIORITY_NODE_2: ${QWC_PRIORITY_NODE_2:-}
+      QWC_RPC_BAN_EXEMPT_ADDRESSES: ${QWC_RPC_BAN_EXEMPT_ADDRESSES:-}
     entrypoint:
       - /bin/sh
       - -c
@@ -58,6 +59,19 @@ services:
           node=$$(printf '%s' "$$node" | tr -d '[:space:]')
           if [ -n "$$node" ]; then
             set -- "$$@" --add-priority-node="$$node"
+          fi
+          IFS=,
+        done
+        IFS="$$old_ifs"
+
+        rpc_ban_exempt_addresses="$${QWC_RPC_BAN_EXEMPT_ADDRESSES:-}"
+        old_ifs="$$IFS"
+        IFS=,
+        for address in $$rpc_ban_exempt_addresses; do
+          IFS="$$old_ifs"
+          address=$$(printf '%s' "$$address" | tr -d '[:space:]')
+          if [ -n "$$address" ]; then
+            set -- "$$@" --rpc-ban-exempt-address="$$address"
           fi
           IFS=,
         done

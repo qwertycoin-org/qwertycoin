@@ -108,6 +108,7 @@ set(unit_tests_sources
   is_hdd.cpp
   aligned.cpp
   rpc_version_str.cpp
+  rpc_args.cpp
   zmq_rpc.cpp)
 
 set(unit_tests_headers

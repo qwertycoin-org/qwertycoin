@@ -31,6 +31,7 @@
 #include <boost/optional/optional.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
+#include <set>
 #include <string>
 
 #include "common/command_line.h"
@@ -92,4 +93,9 @@ namespace cryptonote
     epee::net_utils::ssl_options_t ssl_options = epee::net_utils::ssl_support_t::e_ssl_support_enabled;
     bool disable_rpc_ban = false;
   };
+
+  //! Canonicalizes one exact IPv4/IPv6 literal used by --rpc-ban-exempt-address.
+  boost::optional<std::string> canonical_rpc_ban_exempt_address(const std::string& value);
+  bool rpc_ban_exempt_address_matches(const std::set<std::string>& addresses,
+                                      const std::string& remote_host);
 }

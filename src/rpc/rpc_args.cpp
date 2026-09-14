@@ -88,6 +88,21 @@ namespace cryptonote
     }
   } // anonymous
 
+  boost::optional<std::string> canonical_rpc_ban_exempt_address(const std::string& value)
+  {
+    boost::system::error_code ec{};
+    const auto parsed = boost::asio::ip::make_address(value, ec);
+    if (ec)
+      return boost::none;
+    return parsed.to_string();
+  }
+
+  bool rpc_ban_exempt_address_matches(const std::set<std::string>& addresses,
+                                      const std::string& remote_host)
+  {
+    return addresses.count(remote_host) != 0;
+  }
+
   rpc_args::descriptors::descriptors()
      : rpc_bind_ip({"rpc-bind-ip", rpc_args::tr("Specify IP to bind RPC server"), "127.0.0.1"})
      , rpc_bind_ipv6_address({"rpc-bind-ipv6-address", rpc_args::tr("Specify IPv6 address to bind RPC server"), "::1"})
