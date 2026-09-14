@@ -89,6 +89,15 @@ to the unrestricted listener. `QWC_EPOSE_V2_DISCOVERY_ENDPOINTS` is the
 comma-separated bootstrap list used to discover signed endpoint descriptors.
 It does not authorize participants and is not an admission allowlist.
 
+When a public wallet gateway multiplexes many untrusted clients through one
+private container address, configure that one stable address with repeatable
+`--rpc-ban-exempt-address=<exact-ip>` values (or the comma-separated deployment
+variable `QWC_RPC_BAN_EXEMPT_ADDRESSES`). This prevents one malformed wallet
+sync request from banning every wallet behind the proxy. Only exact IP literals
+are accepted; CIDRs and hostnames are rejected. Keep the gateway method/path
+allowlist and rate limits enabled, and never substitute global
+`--disable-rpc-ban`. Do not exempt a publicly reachable client address.
+
 ## Bootstrap Modes
 
 The host env files contain priority peers for controlled seed-cluster startup.

@@ -203,6 +203,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_rpc_max_connections_per_private_ip);
     command_line::add_arg(desc, arg_rpc_max_connections);
     command_line::add_arg(desc, arg_rpc_response_soft_limit);
+    command_line::add_arg(desc, arg_rpc_ban_exempt_address);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   core_rpc_server::core_rpc_server(
@@ -330,6 +331,17 @@ namespace cryptonote
       }
     }
     disable_rpc_ban = rpc_config->disable_rpc_ban;
+    m_rpc_ban_exempt_addresses.clear();
+    for (const std::string& value: command_line::get_arg(vm, arg_rpc_ban_exempt_address))
+    {
+      const auto canonical = canonical_rpc_ban_exempt_address(value);
+      if (!canonical)
+      {
+        MFATAL("Invalid exact IP address for --" << arg_rpc_ban_exempt_address.name << ": " << value);
+        return false;
+      }
+      m_rpc_ban_exempt_addresses.insert(*canonical);
+    }
     const std::string data_dir{command_line::get_arg(vm, cryptonote::arg_data_dir)};
     std::string address = command_line::get_arg(vm, arg_rpc_payment_address);
     if (!address.empty() && allow_rpc_payment)
@@ -495,7 +507,9 @@ namespace cryptonote
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::add_host_fail(const connection_context *ctx, unsigned int score)
   {
-    if(!ctx || !ctx->m_remote_address.is_blockable() || disable_rpc_ban)
+    if(!ctx || !ctx->m_remote_address.is_blockable() || disable_rpc_ban
+       || rpc_ban_exempt_address_matches(
+            m_rpc_ban_exempt_addresses, ctx->m_remote_address.host_str()))
       return false;
 
     CRITICAL_REGION_LOCAL(m_host_fails_score_lock);
@@ -4130,5 +4144,10 @@ namespace cryptonote
       "rpc-response-soft-limit"
     , "Max response bytes that can be queued, enforced at next response attempt"
     , DEFAULT_RPC_SOFT_LIMIT_SIZE
+  };
+
+  const command_line::arg_descriptor<std::vector<std::string>> core_rpc_server::arg_rpc_ban_exempt_address = {
+      "rpc-ban-exempt-address"
+    , "Do not accrue RPC failure bans for this exact trusted proxy IP (repeatable)"
   };
 }  // namespace cryptonote

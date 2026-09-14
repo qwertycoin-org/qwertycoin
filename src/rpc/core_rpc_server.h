@@ -31,6 +31,7 @@
 #pragma  once 
 
 #include <memory>
+#include <set>
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -76,6 +77,7 @@ namespace cryptonote
     static const command_line::arg_descriptor<std::size_t> arg_rpc_max_connections_per_private_ip;
     static const command_line::arg_descriptor<std::size_t> arg_rpc_max_connections;
     static const command_line::arg_descriptor<std::size_t> arg_rpc_response_soft_limit;
+    static const command_line::arg_descriptor<std::vector<std::string>> arg_rpc_ban_exempt_address;
 
     typedef epee::net_utils::connection_context_base connection_context;
 
@@ -324,6 +326,7 @@ private:
     bool m_restricted;
     epee::critical_section m_host_fails_score_lock;
     std::map<std::string, uint64_t> m_host_fails_score;
+    std::set<std::string> m_rpc_ban_exempt_addresses;
     std::unique_ptr<rpc_payment> m_rpc_payment;
     bool disable_rpc_ban;
     bool m_rpc_payment_allow_free_loopback;

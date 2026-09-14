@@ -34,6 +34,7 @@ source "$env_file"
 : "${QWC_PRIORITY_NODE_1:=}"
 : "${QWC_PRIORITY_NODE_2:=}"
 : "${QWC_NETWORK_NAME:=}"
+: "${QWC_RPC_BAN_EXEMPT_ADDRESSES:=}"
 : "${QWC_RESET_CHAIN:=0}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -79,6 +80,14 @@ if [[ -n "$QWC_RESTRICTED_RPC_PORT" ]]; then
     "--rpc-restricted-bind-port=$QWC_RESTRICTED_RPC_PORT"
   )
 fi
+
+IFS=',' read -r -a rpc_ban_exempt_addresses <<< "$QWC_RPC_BAN_EXEMPT_ADDRESSES"
+for address in "${rpc_ban_exempt_addresses[@]}"; do
+  address="${address//[[:space:]]/}"
+  if [[ -n "$address" ]]; then
+    args+=("--rpc-ban-exempt-address=$address")
+  fi
+done
 
 if [[ -z "$QWC_PRIORITY_NODES" ]]; then
   QWC_PRIORITY_NODES="${QWC_PRIORITY_NODE_1},${QWC_PRIORITY_NODE_2}"
