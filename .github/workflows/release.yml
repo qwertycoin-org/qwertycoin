@@ -60,7 +60,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = refs/heads/main
+          case "$GITHUB_REF" in
+            refs/heads/main) ;;
+            refs/heads/release/v2.0.1-rc1) test "$EXPECTED_REVISION" = "$GITHUB_SHA" ;;
+            *) echo "release workflow must run from main or the bound v2.0.1-rc1 release branch" >&2; exit 1 ;;
+          esac
           test "$(git -C control rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git -C source rev-parse HEAD)" = "$EXPECTED_REVISION"
           git -C control cat-file -e "${EXPECTED_REVISION}^{commit}"
