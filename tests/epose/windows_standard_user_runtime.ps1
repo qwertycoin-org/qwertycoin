@@ -15,6 +15,114 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+
+public static class QwcLsaRights
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LSA_OBJECT_ATTRIBUTES
+    {
+        public int Length;
+        public IntPtr RootDirectory;
+        public IntPtr ObjectName;
+        public uint Attributes;
+        public IntPtr SecurityDescriptor;
+        public IntPtr SecurityQualityOfService;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LSA_UNICODE_STRING
+    {
+        public ushort Length;
+        public ushort MaximumLength;
+        public IntPtr Buffer;
+    }
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaOpenPolicy(
+        IntPtr systemName,
+        ref LSA_OBJECT_ATTRIBUTES objectAttributes,
+        uint desiredAccess,
+        out IntPtr policyHandle);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaAddAccountRights(
+        IntPtr policyHandle,
+        IntPtr accountSid,
+        LSA_UNICODE_STRING[] userRights,
+        uint countOfRights);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaRemoveAccountRights(
+        IntPtr policyHandle,
+        IntPtr accountSid,
+        [MarshalAs(UnmanagedType.U1)]
+        bool allRights,
+        LSA_UNICODE_STRING[] userRights,
+        uint countOfRights);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaNtStatusToWinError(uint status);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaClose(IntPtr policyHandle);
+
+    public static void SetBatchLogonRight(string sidText, bool add)
+    {
+        const uint POLICY_CREATE_ACCOUNT = 0x00000010;
+        const uint POLICY_LOOKUP_NAMES = 0x00000800;
+        var attributes = new LSA_OBJECT_ATTRIBUTES();
+        attributes.Length = Marshal.SizeOf(attributes);
+        IntPtr policy;
+        uint status = LsaOpenPolicy(
+            IntPtr.Zero,
+            ref attributes,
+            POLICY_CREATE_ACCOUNT | POLICY_LOOKUP_NAMES,
+            out policy);
+        if (status != 0)
+            throw new Win32Exception((int)LsaNtStatusToWinError(status));
+
+        IntPtr sid = IntPtr.Zero;
+        IntPtr rightBuffer = IntPtr.Zero;
+        try
+        {
+            var securityIdentifier = new SecurityIdentifier(sidText);
+            var sidBytes = new byte[securityIdentifier.BinaryLength];
+            securityIdentifier.GetBinaryForm(sidBytes, 0);
+            sid = Marshal.AllocHGlobal(sidBytes.Length);
+            Marshal.Copy(sidBytes, 0, sid, sidBytes.Length);
+
+            const string rightName = "SeBatchLogonRight";
+            rightBuffer = Marshal.StringToHGlobalUni(rightName);
+            var right = new LSA_UNICODE_STRING
+            {
+                Length = checked((ushort)(rightName.Length * sizeof(char))),
+                MaximumLength = checked((ushort)((rightName.Length + 1) * sizeof(char))),
+                Buffer = rightBuffer
+            };
+            var rights = new[] { right };
+            status = add
+                ? LsaAddAccountRights(policy, sid, rights, 1)
+                : LsaRemoveAccountRights(policy, sid, false, rights, 1);
+            if (status != 0)
+                throw new Win32Exception((int)LsaNtStatusToWinError(status));
+        }
+        finally
+        {
+            if (rightBuffer != IntPtr.Zero)
+                Marshal.FreeHGlobal(rightBuffer);
+            if (sid != IntPtr.Zero)
+                Marshal.FreeHGlobal(sid);
+            LsaClose(policy);
+        }
+    }
+}
+'@
+
 if (-not (Test-Path -LiteralPath $DaemonPath -PathType Leaf)) {
     throw "daemon executable not found"
 }
@@ -35,6 +143,7 @@ $result = Join-Path $TestRoot "result.txt"
 $finished = Join-Path $TestRoot "finished.txt"
 $registered = $false
 $createdUser = $false
+$batchLogonGranted = $false
 
 function Quote-PowerShellLiteral([string]$Value) {
     return $Value.Replace("'", "''")
@@ -51,6 +160,8 @@ try {
     if ($administrators.SID.Value -contains $testUser.SID.Value) {
         throw "temporary test account unexpectedly belongs to Administrators"
     }
+    [QwcLsaRights]::SetBatchLogonRight($testUser.SID.Value, $true)
+    $batchLogonGranted = $true
 
     & icacls.exe $TestRoot /inheritance:r |
         Out-Null
@@ -138,6 +249,9 @@ try {
         Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false `
             -ErrorAction SilentlyContinue
+    }
+    if ($batchLogonGranted) {
+        [QwcLsaRights]::SetBatchLogonRight($testUser.SID.Value, $false)
     }
     if ($createdUser) {
         Remove-LocalUser -Name $userName -ErrorAction SilentlyContinue
