@@ -330,6 +330,7 @@ class RequestValidationTests(unittest.TestCase):
         self.assertIn("needs: assemble", workflow)
         self.assertIn("uses: ./.github/workflows/docker-publish.yml", workflow)
         self.assertIn("if: inputs.release_kind != 'draft'", workflow)
+        self.assertIn("confirmation: PUBLISH-DOCKER", workflow)
 
     def test_docker_packaging_uses_the_verified_archive_digest(self) -> None:
         workflow = (ROOT.parents[1] / ".github/workflows/docker-packaging.yml").read_text(
