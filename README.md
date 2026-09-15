@@ -200,9 +200,9 @@ The official `linux/amd64` release image packages the exact three programs and
 runtime libraries from one verified Core release archive:
 
 ```bash
-docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1-rc1 --version
-docker run --rm -it docker.io/qwertycoin/qwertycoin:2.0.1-rc1 wallet --help
-docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1-rc1 wallet-rpc --help
+docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1 --version
+docker run --rm -it docker.io/qwertycoin/qwertycoin:2.0.1 wallet --help
+docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1 wallet-rpc --help
 ```
 
 Mainnet is the default. Pin a complete version tag or digest in production.

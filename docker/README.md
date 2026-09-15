@@ -5,7 +5,7 @@ programs from one verified Linux Core release archive; Docker does not compile
 Core a second time. Images are currently published for `linux/amd64` only.
 
 Use an immutable version tag or digest in production. The examples below use
-the current prerelease tag; replace it with the release you have reviewed.
+the stable `2.0.1` tag; replace it with the release you have reviewed.
 
 ## Program selection
 
@@ -14,9 +14,9 @@ The daemon is the default. `daemon` is an optional explicit selector, while
 unchanged to the selected program.
 
 ```sh
-docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1-rc1 --version
-docker run --rm -it docker.io/qwertycoin/qwertycoin:2.0.1-rc1 wallet --help
-docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1-rc1 wallet-rpc --help
+docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1 --version
+docker run --rm -it docker.io/qwertycoin/qwertycoin:2.0.1 wallet --help
+docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1 wallet-rpc --help
 ```
 
 These commands only verify program selection. They do not persist data or run a
@@ -140,7 +140,7 @@ the same pinned Qwertycoin image (confirm the exact volume name first with
 mkdir -p backups
 docker run --rm --user 0:0 \
   -v qwertycoin_chain:/source:ro -v "$PWD/backups:/backup" \
-  --entrypoint tar docker.io/qwertycoin/qwertycoin:2.0.1-rc1 \
+  --entrypoint tar docker.io/qwertycoin/qwertycoin:2.0.1 \
   -C /source -czf /backup/qwertycoin-chain.tar.gz .
 ```
 

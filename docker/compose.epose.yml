@@ -1,6 +1,6 @@
 name: qwertycoin-epose
 
-x-qwc-image: &qwc-image ${QWC_IMAGE:-docker.io/qwertycoin/qwertycoin:2.0.1-rc1}
+x-qwc-image: &qwc-image ${QWC_IMAGE:-docker.io/qwertycoin/qwertycoin:2.0.1}
 
 services:
   volume-init:

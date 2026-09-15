@@ -5,9 +5,9 @@ the release-matched daemon, interactive CLI wallet and wallet RPC together with
 their verified runtime libraries.
 
 ```sh
-docker run --rm qwertycoin/qwertycoin:2.0.1-rc1 --version
-docker run --rm -it qwertycoin/qwertycoin:2.0.1-rc1 wallet --help
-docker run --rm qwertycoin/qwertycoin:2.0.1-rc1 wallet-rpc --help
+docker run --rm qwertycoin/qwertycoin:2.0.1 --version
+docker run --rm -it qwertycoin/qwertycoin:2.0.1 wallet --help
+docker run --rm qwertycoin/qwertycoin:2.0.1 wallet-rpc --help
 ```
 
 The daemon is the default. Mainnet is the default. Use immutable version tags or
