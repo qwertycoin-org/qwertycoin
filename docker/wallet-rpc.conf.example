@@ -1,0 +1,13 @@
+# Copy this file to docker/secrets/wallet-rpc.conf, set a unique password after
+# the colon and run: chmod 600 docker/secrets/wallet-rpc.conf
+wallet-file=/wallet/qwertycoin-wallet
+password-file=/run/secrets/wallet-password.txt
+daemon-address=http://daemon:8197
+trusted-daemon=1
+rpc-bind-ip=0.0.0.0
+rpc-bind-port=8198
+confirm-external-bind=1
+rpc-login=qwc-rpc:REPLACE_WITH_A_LONG_RANDOM_PASSWORD
+rpc-ssl=disabled
+daemon-ssl=disabled
+log-file=/tmp/wallet-rpc.log

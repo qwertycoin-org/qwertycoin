@@ -1,0 +1,130 @@
+name: qwc/core-docker-packaging
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/assemble-release.yml
+      - .github/workflows/docker-packaging.yml
+      - .github/workflows/docker-publish.yml
+      - docker/**
+      - tools/release/inspect_docker_release.py
+      - tools/release/prepare_docker_context.py
+      - tools/release/smoke_docker_image.sh
+      - tools/release/tests/test_release_tools.py
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: qwc-core-docker-packaging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-linux-amd64:
+    name: Package published Linux archive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v2.0.1-rc1
+      EXPECTED_REVISION: 92add6207f18ff51316b57c863cf3ae8b829d5fb
+      EXPECTED_WORKFLOW_REVISION: 92add6207f18ff51316b57c863cf3ae8b829d5fb
+      EXPECTED_RUN_ID: "35003491285"
+      EXPECTED_RUN_ATTEMPT: "1"
+      BASE_DIGEST: sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+      TEST_IMAGE: qwertycoin/qwertycoin:packaging-test
+    steps:
+      - name: Checkout packaging source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run focused release-tool tests
+        run: python3 -m unittest tools.release.tests.test_release_tools
+      - name: Download checksum-bound public Linux archive
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")
+          jq -e --arg revision "$EXPECTED_REVISION" \
+            '.draft == false and .target_commitish == $revision' \
+            <<<"$release" >/dev/null
+          mkdir -p public-release
+          for name in "qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz" SHA256SUMS; do
+            asset_id=$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .id' <<<"$release")
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"public-release/$name"
+          done
+          tools/release/inspect_docker_release.py \
+            --archive "public-release/qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz" \
+            --checksums public-release/SHA256SUMS \
+            --expected-tag "$RELEASE_TAG" --expected-revision "$EXPECTED_REVISION" \
+            --output docker-release.json
+          echo "archive_sha256=$(jq -r .archive_sha256 docker-release.json)" >> "$GITHUB_OUTPUT"
+      - name: Reverify and select only the runtime payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          root_name="qwertycoin-${RELEASE_TAG}-linux-x86_64"
+          tools/release/verify_candidate_archive.py \
+            --archive "public-release/${root_name}.tar.gz" --destination verified-linux \
+            --root-name "$root_name" --platform linux \
+            --expected-tag "$RELEASE_TAG" --expected-revision "$EXPECTED_REVISION" \
+            --expected-workflow-name qwc/core-release-candidate \
+            --expected-workflow-revision "$EXPECTED_WORKFLOW_REVISION" \
+            --expected-run-id "$EXPECTED_RUN_ID" --expected-run-attempt "$EXPECTED_RUN_ATTEMPT" \
+            --expected-os Linux --expected-arch x86_64
+          tools/release/prepare_docker_context.py prepare \
+            --package-root "verified-linux/$root_name" \
+            --dockerfile docker/Dockerfile --entrypoint docker/entrypoint.sh \
+            --output docker-context
+          tools/release/prepare_docker_context.py verify --context docker-context
+      - name: Set up pinned Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build runtime image without publishing
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: docker-context
+          file: docker-context/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.TEST_IMAGE }}
+          provenance: false
+          sbom: false
+          build-args: |
+            QWC_RELEASE_TAG=${{ env.RELEASE_TAG }}
+            QWC_RELEASE_VERSION=2.0.1-rc1
+            QWC_SOURCE_REVISION=${{ env.EXPECTED_REVISION }}
+            QWC_RELEASE_ARCHIVE_SHA256=${{ steps.release.outputs.archive_sha256 }}
+            QWC_BASE_IMAGE_DIGEST=${{ env.BASE_DIGEST }}
+            QWC_PACKAGING_REVISION=${{ github.sha }}
+            QWC_IMAGE_REVISION=1
+      - name: Run packaging-only container smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_archive_sha=$(jq -r .archive_sha256 docker-release.json)
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$TEST_IMAGE")" = linux/amd64
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.qwertycoin.release.archive.sha256" }}' "$TEST_IMAGE")" = "$expected_archive_sha"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$TEST_IMAGE")" = "$EXPECTED_REVISION"
+          for program in qwertycoind qwertycoin-wallet-cli qwertycoin-wallet-rpc; do
+            expected_program_sha=$(sha256sum "docker-context/release/$program" | awk '{print $1}')
+            actual_program_sha=$(docker run --rm --entrypoint sha256sum "$TEST_IMAGE" "/opt/qwertycoin/$program" | awk '{print $1}')
+            test "$actual_program_sha" = "$expected_program_sha"
+          done
+          tools/release/smoke_docker_image.sh "$TEST_IMAGE" 2.0.1-rc1
+          local_size=$(docker image inspect --format '{{.Size}}' "$TEST_IMAGE")
+          {
+            echo '## Docker packaging smoke'
+            echo
+            echo '- Source release: `v2.0.1-rc1`'
+            echo "- Linux archive SHA-256: \`$expected_archive_sha\`"
+            echo "- Linux archive bytes: \`$(jq -r .archive_size docker-release.json)\`"
+            echo "- Local unpacked image bytes: \`$local_size\`"
+            echo '- Native Core rebuilds: `0`'
+            echo '- External network during runtime smoke: `disabled`'
+            echo '- Target platform: `linux/amd64`'
+          } >> "$GITHUB_STEP_SUMMARY"

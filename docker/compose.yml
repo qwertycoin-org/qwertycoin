@@ -1,0 +1,99 @@
+name: qwertycoin
+
+x-qwc-image: &qwc-image ${QWC_IMAGE:-docker.io/qwertycoin/qwertycoin:2.0.1}
+x-qwc-security: &qwc-security
+  user: "10001:10001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=64m
+
+services:
+  volume-init:
+    image: *qwc-image
+    user: "0:0"
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        install -d -o 10001 -g 10001 -m 0700 /data /wallet
+    volumes:
+      - chain:/data
+      - wallets:/wallet
+    restart: "no"
+
+  daemon:
+    image: *qwc-image
+    <<: *qwc-security
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    command:
+      - daemon
+      - --data-dir=/data
+      - --p2p-bind-ip=0.0.0.0
+      - --p2p-bind-port=8196
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=8197
+      - --confirm-external-bind
+      - --no-zmq
+      - --non-interactive
+      - --no-igd
+    ports:
+      - "8196:8196"
+      - "127.0.0.1:8197:8197"
+    volumes:
+      - chain:/data
+    restart: unless-stopped
+    stop_grace_period: 2m
+
+  wallet-cli:
+    image: *qwc-image
+    <<: *qwc-security
+    profiles: [tools]
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+    command:
+      - wallet
+      - --daemon-address=http://daemon:8197
+      - --wallet-file=/wallet/qwertycoin-wallet
+    stdin_open: true
+    tty: true
+    volumes:
+      - wallets:/wallet
+    restart: "no"
+
+  wallet-rpc:
+    image: *qwc-image
+    <<: *qwc-security
+    profiles: [wallet-rpc]
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+    command:
+      - wallet-rpc
+      - --config-file=/run/secrets/wallet-rpc.conf
+    ports:
+      - "127.0.0.1:8198:8198"
+    volumes:
+      - wallets:/wallet
+    secrets:
+      - wallet-rpc.conf
+      - wallet-password.txt
+    restart: unless-stopped
+    stop_grace_period: 2m
+
+volumes:
+  chain:
+  wallets:
+
+secrets:
+  wallet-rpc.conf:
+    file: ./secrets/wallet-rpc.conf
+  wallet-password.txt:
+    file: ./secrets/wallet-password.txt
