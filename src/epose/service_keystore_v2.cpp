@@ -18,6 +18,7 @@
 #define NOMINMAX
 #endif
 #include <aclapi.h>
+#include <sddl.h>
 #include <windows.h>
 #endif
 
@@ -292,6 +293,33 @@ namespace
     }
   };
 
+  bool apply_private_windows_dacl(
+      HANDLE file,
+      windows_private_security &security,
+      std::string &error)
+  {
+    const DWORD result = SetSecurityInfo(
+        file, SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+        nullptr, nullptr, security.acl(), nullptr);
+    if (result != ERROR_SUCCESS)
+    {
+      error = "failed to apply private Windows keystore ACL: "
+          + windows_error(result);
+      return false;
+    }
+    return true;
+  }
+
+  std::string sid_string(PSID sid)
+  {
+    LPSTR raw = nullptr;
+    if (!ConvertSidToStringSidA(sid, &raw) || raw == nullptr)
+      return "unprintable SID";
+    std::unique_ptr<void, local_free> value(raw);
+    return static_cast<const char *>(value.get());
+  }
+
   bool regular_non_reparse_file(HANDLE file, std::string &error)
   {
     if (GetFileType(file) != FILE_TYPE_DISK)
@@ -443,7 +471,9 @@ namespace
           EqualSid(sid, administrators_sid.data()) != FALSE;
       if (!is_user && !is_system && !is_administrator)
       {
-        error = "v2 keystore ACL grants access outside the current account, LocalSystem, or built-in Administrators";
+        error = "v2 keystore ACL grants access to disallowed principal "
+            + sid_string(sid)
+            + "; only the current account, LocalSystem, and built-in Administrators are permitted";
         return false;
       }
       if (is_user)
@@ -527,7 +557,7 @@ namespace
     SECURITY_ATTRIBUTES attributes{
         sizeof(SECURITY_ATTRIBUTES), &security.descriptor, FALSE};
     windows_handle file(CreateFileW(
-        path_wide.c_str(), GENERIC_WRITE | READ_CONTROL,
+        path_wide.c_str(), GENERIC_WRITE | READ_CONTROL | WRITE_DAC,
         0, &attributes, CREATE_NEW,
         FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
     if (!file.valid())
@@ -536,6 +566,10 @@ namespace
           + windows_error(GetLastError());
       return false;
     }
+    if (!regular_non_reparse_file(file.get(), error)
+        || !apply_private_windows_dacl(file.get(), security, error)
+        || !safe_windows_acl(file.get(), error))
+      return false;
     DWORD offset = 0;
     while (offset < contents.size())
     {
@@ -811,13 +845,9 @@ namespace epose
     windows_private_security security;
     if (!security.initialize(error))
       return false;
-    const DWORD result = SetSecurityInfo(
-        file.get(), SE_FILE_OBJECT,
-        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-        nullptr, nullptr, security.acl(), nullptr);
-    if (result != ERROR_SUCCESS)
+    if (!apply_private_windows_dacl(file.get(), security, error))
     {
-      error = "failed to repair v2 keystore ACL: " + windows_error(result);
+      error = "failed to repair v2 keystore ACL: " + error;
       return false;
     }
     if (!safe_windows_acl(file.get(), error))
