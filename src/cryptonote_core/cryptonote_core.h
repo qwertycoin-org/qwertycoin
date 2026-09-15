@@ -85,6 +85,7 @@ namespace cryptonote
   extern const command_line::arg_descriptor<std::string> arg_service_node_advertise_address;
   extern const command_line::arg_descriptor<bool> arg_epose_v2_service;
   extern const command_line::arg_descriptor<std::string> arg_epose_v2_keystore;
+  extern const command_line::arg_descriptor<bool> arg_epose_v2_repair_keystore_permissions;
   extern const command_line::arg_descriptor<std::string> arg_epose_v2_reward_address;
   extern const command_line::arg_descriptor<std::string> arg_epose_v2_endpoint_host;
   extern const command_line::arg_descriptor<uint16_t> arg_epose_v2_endpoint_port;
@@ -1156,6 +1157,7 @@ namespace cryptonote
 
      qwertycoin::epose::local_service_node_config m_epose_local_service_node_config;
      bool m_epose_v2_service_enabled = false;
+     bool m_epose_v2_repair_keystore_permissions = false;
      bool m_epose_v2_service_ready = false;
      std::string m_epose_v2_keystore_path;
      std::string m_epose_v2_reward_address_string;

@@ -71,6 +71,50 @@ Required EPoSE-v2 options:
 `--confirm-external-bind` is required when the restricted listener binds to a
 non-loopback address. The example intentionally keeps unrestricted RPC local.
 
+## Keystore File Security
+
+The daemon validates the keystore as a file object before reading it. On Linux
+and macOS it must be a regular, non-symlink file with no group or other access
+(`0600`). On Windows it must be a regular, non-reparse, single-link file owned by the
+executing account and have a protected DACL with no inherited entries. Allow
+entries are accepted only for:
+
+- the executing account, with read/write and access-control rights;
+- `NT AUTHORITY\\SYSTEM` (optional); and
+- the built-in Administrators group (optional).
+
+The Windows file is created with this DACL before any key bytes are written.
+An ACL that grants access to `Users`, `Authenticated Users`, `Everyone`, an
+unrelated account, or an inherited principal is rejected. A missing, malformed,
+or unreadable DACL is also rejected; Windows ACL validation is never skipped.
+
+### Repair an older Windows keystore ACL
+
+Do **not** delete the keystore: deletion creates a new service identity. Stop
+the daemon, back up the existing file, then add this option to one start using
+the otherwise unchanged EPoSE-v2 configuration:
+
+```text
+--epose-v2-repair-keystore-permissions
+```
+
+The option requires `--epose-v2-service` and repairs only the configured
+keystore file DACL. It refuses files not owned by the executing account and
+refuses reparse points or non-regular files. It neither rewrites the file nor
+changes its parent directory. The normal loader then still verifies format,
+network/genesis/parameter binding, checksum, distinct authorities and key
+validity. After one successful start, confirm the same operator and service
+public keys and remove the repair option from subsequent starts.
+
+### Windows package impact
+
+The fix is part of the Core library and `qwertycoind`. Publish a rebuilt
+Windows Core/CLI archive from the fixed revision; treat the official archive
+as one release unit even though the keystore path is daemon-only. The desktop
+GUI repository pins this Core repository as a submodule and must update that
+pin before rebuilding its Windows package. Wallet seed files and existing
+EPoSE-v2 keystores are inputs to neither rebuild and must not be replaced.
+
 ## Automatic Enrollment Flow
 
 After the daemon is synchronized, the producer:
@@ -152,5 +196,7 @@ reward addresses, keystore contents, or private host configuration.
 - Preserve the same keystore while a descriptor is active; the daemon rejects
   unexpected service-key, reward-address, or endpoint changes rather than
   redirecting rewards silently.
+- Never delete a keystore to work around a permission error. Use the targeted
+  one-file repair option above and verify that the public identity is unchanged.
 - Do not bypass admission, committee, epoch, or qualification rules during
   testing.

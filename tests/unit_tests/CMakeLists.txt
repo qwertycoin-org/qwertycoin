@@ -158,6 +158,39 @@ add_test(
   NAME    unit_tests
   COMMAND unit_tests --data-dir "${TEST_DATA_DIR}")
 
+monero_add_minimal_executable(epose_keystore_v2_probe
+  epose_keystore_v2_probe.cpp)
+target_link_libraries(epose_keystore_v2_probe
+  PRIVATE
+    epose
+    cryptonote_basic
+    cncrypto
+    common
+    epee
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${EXTRA_LIBRARIES})
+set_property(TARGET epose_keystore_v2_probe PROPERTY FOLDER "tests")
+
+monero_add_minimal_executable(epose_keystore_v2_tests
+  epose_service_keystore_v2.cpp
+  epose_main.cpp)
+target_link_libraries(epose_keystore_v2_tests
+  PRIVATE
+    epose
+    cryptonote_basic
+    cncrypto
+    common
+    epee
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${GTEST_LIBRARIES}
+    ${EXTRA_LIBRARIES})
+set_property(TARGET epose_keystore_v2_tests PROPERTY FOLDER "tests")
+add_test(
+  NAME    epose_keystore_v2_tests
+  COMMAND epose_keystore_v2_tests)
+
 monero_add_minimal_executable(epose_unit_tests
   epose.cpp
   epose_block_transition_v2.cpp
