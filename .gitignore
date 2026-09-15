@@ -9,6 +9,8 @@ log/
 
 # vim swap files
 *.swp
+docker/.env
+docker/secrets/
 *.swo
 TAGS
 !TAGS/

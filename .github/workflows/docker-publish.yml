@@ -1,0 +1,381 @@
+name: qwc/core-docker-publish
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Exact public Core release tag
+        required: true
+        type: string
+      expected_revision:
+        description: Exact lowercase 40-character Core source SHA
+        required: true
+        type: string
+      image_revision:
+        description: Packaging revision (1 uses the release version tag)
+        required: false
+        default: "1"
+        type: string
+      confirmation:
+        description: Empty for the trusted assemble workflow
+        required: false
+        default: ""
+        type: string
+    secrets:
+      DOCKERHUB_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Exact already-public Core release tag
+        required: true
+        type: string
+      expected_revision:
+        description: Exact lowercase 40-character Core source SHA
+        required: true
+        type: string
+      image_revision:
+        description: Packaging revision; use 1 for the original release image
+        required: true
+        default: "1"
+        type: string
+      confirmation:
+        description: Type PUBLISH-DOCKER
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: qwc-core-docker-publish
+  cancel-in-progress: false
+
+jobs:
+  verify-release:
+    name: Verify public release and prepare minimal context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      archive_sha256: ${{ steps.metadata.outputs.archive_sha256 }}
+      archive_size: ${{ steps.metadata.outputs.archive_size }}
+      base_digest: ${{ steps.metadata.outputs.base_digest }}
+      full_version: ${{ steps.metadata.outputs.full_version }}
+      image_revision: ${{ steps.metadata.outputs.image_revision }}
+      image_tag: ${{ steps.metadata.outputs.image_tag }}
+      packaging_revision: ${{ steps.metadata.outputs.packaging_revision }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      EXPECTED_REVISION: ${{ inputs.expected_revision }}
+      IMAGE_REVISION: ${{ inputs.image_revision }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      GH_TOKEN: ${{ github.token }}
+      BASE_DIGEST: sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+    steps:
+      - name: Checkout trusted packaging controls
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate trusted retry request and immutable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[1-9][0-9]*)?$ ]]
+          [[ "$EXPECTED_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$IMAGE_REVISION" =~ ^[1-9][0-9]*$ ]]
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            test "$CONFIRMATION" = PUBLISH-DOCKER
+          fi
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse "$RELEASE_TAG^{}")" = "$EXPECTED_REVISION"
+      - name: Download exact public release bytes
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")
+          jq -e --arg tag "$RELEASE_TAG" --arg revision "$EXPECTED_REVISION" \
+            '.tag_name == $tag and .target_commitish == $revision and .draft == false' \
+            <<<"$release" >/dev/null
+          expected_names=$(printf '%s\n' \
+            "qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz" \
+            "qwertycoin-${RELEASE_TAG}-macos-arm64.tar.gz" \
+            "qwertycoin-${RELEASE_TAG}-windows-x86_64.zip" \
+            SHA256SUMS | sort)
+          actual_names=$(jq -r '.assets[].name' <<<"$release" | sort)
+          test "$actual_names" = "$expected_names"
+          mkdir -p public-release
+          for name in "qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz" SHA256SUMS; do
+            asset_id=$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .id' <<<"$release")
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"public-release/$name"
+          done
+          echo "release_prerelease=$(jq -r .prerelease <<<"$release")" >> "$GITHUB_OUTPUT"
+      - name: Inspect checksum-bound archive provenance
+        id: metadata
+        env:
+          RELEASE_PRERELEASE: ${{ steps.release.outputs.release_prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="public-release/qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz"
+          tools/release/inspect_docker_release.py \
+            --archive "$archive" --checksums public-release/SHA256SUMS \
+            --expected-tag "$RELEASE_TAG" --expected-revision "$EXPECTED_REVISION" \
+            --output docker-release.json
+          test "$(jq -r .prerelease docker-release.json)" = "$RELEASE_PRERELEASE"
+          full_version=$(jq -r .full_version docker-release.json)
+          if [[ "$IMAGE_REVISION" == 1 ]]; then
+            image_tag=$full_version
+          else
+            image_tag="${full_version}-image.${IMAGE_REVISION}"
+          fi
+          {
+            echo "archive_sha256=$(jq -r .archive_sha256 docker-release.json)"
+            echo "archive_size=$(jq -r .archive_size docker-release.json)"
+            echo "base_digest=$BASE_DIGEST"
+            echo "full_version=$full_version"
+            echo "image_revision=$IMAGE_REVISION"
+            echo "image_tag=$image_tag"
+            echo "packaging_revision=$GITHUB_SHA"
+            echo "prerelease=$(jq -r .prerelease docker-release.json)"
+          } >> "$GITHUB_OUTPUT"
+      - name: Verify referenced native Linux workflow run
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow_revision=$(jq -r .workflow_revision docker-release.json)
+          run_id=$(jq -r .workflow_run_id docker-release.json)
+          run_attempt=$(jq -r .workflow_run_attempt docker-release.json)
+          run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/attempts/${run_attempt}")
+          jq -e --arg revision "$workflow_revision" --argjson attempt "$run_attempt" \
+            '.name == "qwc/core-release-candidate"
+             and .path == ".github/workflows/release.yml"
+             and .event == "workflow_dispatch"
+             and .head_sha == $revision
+             and .run_attempt == $attempt
+             and .status == "completed"
+             and .conclusion == "success"' <<<"$run" >/dev/null
+          jobs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/attempts/${run_attempt}/jobs?per_page=100")
+          test "$(jq '[.jobs[] | select(.name == "Linux x86_64" and .status == "completed" and .conclusion == "success")] | length' <<<"$jobs")" = 1
+      - name: Reverify the complete candidate and prepare runtime-only context
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="public-release/qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz"
+          root_name=$(jq -r .root_name docker-release.json)
+          tools/release/verify_candidate_archive.py \
+            --archive "$archive" --destination verified-linux \
+            --root-name "$root_name" --platform linux \
+            --expected-tag "$RELEASE_TAG" --expected-revision "$EXPECTED_REVISION" \
+            --expected-workflow-name "$(jq -r .workflow_name docker-release.json)" \
+            --expected-workflow-revision "$(jq -r .workflow_revision docker-release.json)" \
+            --expected-run-id "$(jq -r .workflow_run_id docker-release.json)" \
+            --expected-run-attempt "$(jq -r .workflow_run_attempt docker-release.json)" \
+            --expected-os Linux --expected-arch x86_64
+          tools/release/prepare_docker_context.py prepare \
+            --package-root "verified-linux/$root_name" \
+            --dockerfile docker/Dockerfile --entrypoint docker/entrypoint.sh \
+            --output docker-context
+          tools/release/prepare_docker_context.py verify --context docker-context
+      - name: Upload verified minimal Docker context
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qwertycoin-docker-context-${{ inputs.release_tag }}-${{ inputs.image_revision }}
+          path: docker-context
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish immutable Docker Hub image
+    needs: verify-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      IMAGE: docker.io/qwertycoin/qwertycoin
+      TARGET_REF: docker.io/qwertycoin/qwertycoin:${{ needs.verify-release.outputs.image_tag }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      EXPECTED_REVISION: ${{ inputs.expected_revision }}
+      FULL_VERSION: ${{ needs.verify-release.outputs.full_version }}
+      ARCHIVE_SHA256: ${{ needs.verify-release.outputs.archive_sha256 }}
+      BASE_DIGEST: ${{ needs.verify-release.outputs.base_digest }}
+      PACKAGING_REVISION: ${{ needs.verify-release.outputs.packaging_revision }}
+      IMAGE_REVISION: ${{ needs.verify-release.outputs.image_revision }}
+      DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout trusted verification controls
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download verified minimal Docker context
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: qwertycoin-docker-context-${{ inputs.release_tag }}-${{ inputs.image_revision }}
+          path: docker-context
+      - name: Reverify context and required Docker Hub metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/release/prepare_docker_context.py verify --context docker-context
+          test "$DOCKERHUB_NAMESPACE" = qwertycoin
+          test -n "$DOCKERHUB_USERNAME"
+      - name: Log in to Docker Hub only in the publishing job
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up pinned Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Enforce immutable image tag
+        id: existing
+        shell: bash
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "$TARGET_REF" >/dev/null 2>&1; then
+            docker pull --platform linux/amd64 "$TARGET_REF" >/dev/null
+            check_label() {
+              local name=$1 expected=$2 actual
+              actual=$(docker image inspect --format "{{ index .Config.Labels \"$name\" }}" "$TARGET_REF")
+              test "$actual" = "$expected" || { echo "immutable tag has conflicting $name provenance" >&2; exit 1; }
+            }
+            check_label org.opencontainers.image.version "$FULL_VERSION"
+            check_label org.opencontainers.image.revision "$EXPECTED_REVISION"
+            check_label org.qwertycoin.release.tag "$RELEASE_TAG"
+            check_label org.qwertycoin.release.archive.sha256 "$ARCHIVE_SHA256"
+            check_label org.qwertycoin.runtime.base.digest "$BASE_DIGEST"
+            check_label org.qwertycoin.packaging.revision "$PACKAGING_REVISION"
+            check_label org.qwertycoin.image.revision "$IMAGE_REVISION"
+            digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$TARGET_REF" | sed 's/.*@//')
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build and push the exact release payload once
+        id: build
+        if: steps.existing.outputs.exists != 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: docker-context
+          file: docker-context/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.TARGET_REF }}
+          provenance: false
+          sbom: false
+          build-args: |
+            QWC_RELEASE_TAG=${{ inputs.release_tag }}
+            QWC_RELEASE_VERSION=${{ needs.verify-release.outputs.full_version }}
+            QWC_SOURCE_REVISION=${{ inputs.expected_revision }}
+            QWC_RELEASE_ARCHIVE_SHA256=${{ needs.verify-release.outputs.archive_sha256 }}
+            QWC_BASE_IMAGE_DIGEST=${{ needs.verify-release.outputs.base_digest }}
+            QWC_PACKAGING_REVISION=${{ needs.verify-release.outputs.packaging_revision }}
+            QWC_IMAGE_REVISION=${{ needs.verify-release.outputs.image_revision }}
+      - name: Resolve one published digest
+        id: published
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ '${{ steps.existing.outputs.exists }}' == true ]]; then
+            digest='${{ steps.existing.outputs.digest }}'
+            reused=true
+          else
+            digest='${{ steps.build.outputs.digest }}'
+            reused=false
+          fi
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "reused=$reused" >> "$GITHUB_OUTPUT"
+      - name: Log out and verify public pull by digest
+        id: measured
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker logout docker.io >/dev/null
+          public_ref="${IMAGE}@${{ steps.published.outputs.digest }}"
+          docker pull --platform linux/amd64 "$public_ref" >/dev/null
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$public_ref")" = linux/amd64
+          check_label() {
+            local name=$1 expected=$2 actual
+            actual=$(docker image inspect --format "{{ index .Config.Labels \"$name\" }}" "$public_ref")
+            test "$actual" = "$expected" || { echo "published digest has conflicting $name provenance" >&2; exit 1; }
+          }
+          check_label org.opencontainers.image.version "$FULL_VERSION"
+          check_label org.opencontainers.image.revision "$EXPECTED_REVISION"
+          check_label org.qwertycoin.release.tag "$RELEASE_TAG"
+          check_label org.qwertycoin.release.archive.sha256 "$ARCHIVE_SHA256"
+          check_label org.qwertycoin.runtime.base.digest "$BASE_DIGEST"
+          check_label org.qwertycoin.packaging.revision "$PACKAGING_REVISION"
+          check_label org.qwertycoin.image.revision "$IMAGE_REVISION"
+          for program in qwertycoind qwertycoin-wallet-cli qwertycoin-wallet-rpc; do
+            expected_program_sha=$(sha256sum "docker-context/release/$program" | awk '{print $1}')
+            actual_program_sha=$(docker run --rm --entrypoint sha256sum "$public_ref" "/opt/qwertycoin/$program" | awk '{print $1}')
+            test "$actual_program_sha" = "$expected_program_sha"
+          done
+          tools/release/smoke_docker_image.sh "$public_ref" '${{ needs.verify-release.outputs.full_version }}'
+          local_size=$(docker image inspect --format '{{.Size}}' "$public_ref")
+          raw=$(docker buildx imagetools inspect --raw "$public_ref")
+          jq -e '.schemaVersion == 2 and (.layers | type == "array") and (has("manifests") | not)' <<<"$raw" >/dev/null
+          compressed_size=$(jq '[.layers[].size] | add' <<<"$raw")
+          [[ "$local_size" =~ ^[1-9][0-9]*$ ]]
+          [[ "$compressed_size" =~ ^[1-9][0-9]*$ ]]
+          echo "local_size=$local_size" >> "$GITHUB_OUTPUT"
+          echo "compressed_size=$compressed_size" >> "$GITHUB_OUTPUT"
+      - name: Decide whether this is the newest stable release
+        id: latest
+        if: needs.verify-release.outputs.prerelease == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          newest=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [[ "$newest" == "$RELEASE_TAG" ]]; then
+            echo "move=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "move=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Log in only to move latest to the verified stable digest
+        if: steps.latest.outputs.move == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Move latest without rebuilding and verify its digest
+        if: steps.latest.outputs.move == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create --prefer-index=false \
+            --tag "${IMAGE}:latest" "${IMAGE}@${{ steps.published.outputs.digest }}"
+          latest_digest=$(docker buildx imagetools inspect "${IMAGE}:latest" \
+            | awk '$1 == "Digest:" {print $2; exit}')
+          test "$latest_digest" = '${{ steps.published.outputs.digest }}'
+          docker logout docker.io >/dev/null
+      - name: Record immutable publication evidence
+        shell: bash
+        run: |
+          {
+            echo '## Qwertycoin Docker publication'
+            echo
+            echo '- Image: `${{ env.TARGET_REF }}`'
+            echo '- Digest: `${{ steps.published.outputs.digest }}`'
+            echo '- Existing matching digest reused: `${{ steps.published.outputs.reused }}`'
+            echo '- Core revision: `${{ inputs.expected_revision }}`'
+            echo '- Linux archive SHA-256: `${{ needs.verify-release.outputs.archive_sha256 }}`'
+            echo '- Linux archive bytes: `${{ needs.verify-release.outputs.archive_size }}`'
+            echo '- Base image digest: `${{ needs.verify-release.outputs.base_digest }}`'
+            echo '- Compressed image bytes: `${{ steps.measured.outputs.compressed_size }}`'
+            echo '- Local unpacked image bytes: `${{ steps.measured.outputs.local_size }}`'
+            echo '- `latest` moved: `${{ steps.latest.outputs.move || 'false' }}`'
+          } >> "$GITHUB_STEP_SUMMARY"

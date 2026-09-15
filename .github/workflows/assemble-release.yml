@@ -448,3 +448,18 @@ jobs:
             test "$(git -C control rev-parse "$RELEASE_TAG^{}")" = "$EXPECTED_REVISION"
           fi
           echo "Release $RELEASE_TAG verified by ID $RELEASE_ID with exact downloaded assets"
+
+  publish-docker:
+    name: Publish verified Linux release to Docker Hub
+    needs: assemble
+    if: inputs.release_kind != 'draft'
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      release_tag: ${{ inputs.release_tag }}
+      expected_revision: ${{ inputs.expected_revision }}
+      image_revision: "1"
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

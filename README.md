@@ -196,13 +196,28 @@ qwertycoin-wallet-rpc
 
 ## Docker
 
-Build a local development image:
+The official `linux/amd64` release image packages the exact three programs and
+runtime libraries from one verified Core release archive:
+
+```bash
+docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1-rc1 --version
+docker run --rm -it docker.io/qwertycoin/qwertycoin:2.0.1-rc1 wallet --help
+docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1-rc1 wallet-rpc --help
+```
+
+Mainnet is the default. Pin a complete version tag or digest in production.
+[Docker quickstart and Compose examples](docker/README.md) cover a full node,
+interactive CLI, optional authenticated wallet RPC, EPoSe, persistence, backup,
+updates and rollback.
+
+The root `Dockerfile` remains a separate local development image that compiles
+Core from the current source tree. Build it with:
 
 ```bash
 docker build --build-arg NPROC=2 -t qwertycoin-node:local .
 ```
 
-Run a local daemon:
+Run that local development daemon:
 
 ```bash
 docker run --rm -it \

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import tarfile
 import unittest
 
 
@@ -25,6 +26,8 @@ def load(name: str):
 VERIFY = load("verify_candidate_archive")
 VALIDATE = load("validate_release_request")
 SMOKE = load("smoke_core")
+DOCKER_CONTEXT = load("prepare_docker_context")
+DOCKER_RELEASE = load("inspect_docker_release")
 
 
 class ArchiveSecurityTests(unittest.TestCase):
@@ -187,6 +190,122 @@ class ArchiveSecurityTests(unittest.TestCase):
 
 
 class RequestValidationTests(unittest.TestCase):
+    def test_docker_context_contains_only_runtime_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "package"
+            package.mkdir()
+            for program in DOCKER_CONTEXT.PROGRAMS:
+                path = package / program
+                path.write_bytes(b"binary")
+                path.chmod(0o755)
+            for document in DOCKER_CONTEXT.DOCUMENTS:
+                (package / document).write_text("notice\n", encoding="utf-8")
+            (package / "lib").mkdir()
+            (package / "lib/libexample.so").write_bytes(b"library")
+            (package / "BUILD-INFO.json").write_text("{}\n", encoding="utf-8")
+            dockerfile = root / "Dockerfile"
+            dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+            entrypoint = root / "entrypoint.sh"
+            entrypoint.write_text("#!/bin/sh\n", encoding="utf-8")
+            entrypoint.chmod(0o755)
+            output = root / "context"
+
+            manifest = DOCKER_CONTEXT.prepare(package, dockerfile, entrypoint, output)
+
+            paths = {item["path"] for item in manifest["files"]}
+            self.assertIn("release/qwertycoind", paths)
+            self.assertIn("release/lib/libexample.so", paths)
+            self.assertNotIn("release/BUILD-INFO.json", paths)
+            self.assertTrue((output / "CONTEXT-MANIFEST.json").is_file())
+            self.assertGreater(DOCKER_CONTEXT.verify_context(output), 0)
+
+            (output / "release/qwertycoind").write_bytes(b"changed")
+            with self.assertRaises(SystemExit):
+                DOCKER_CONTEXT.verify_context(output)
+
+    def test_docker_context_verification_rejects_injected_symlink(self) -> None:
+        if os.name == "nt":
+            self.skipTest("ordinary Windows test users cannot always create symlinks")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "package"
+            package.mkdir()
+            for program in DOCKER_CONTEXT.PROGRAMS:
+                path = package / program
+                path.write_bytes(b"binary")
+                path.chmod(0o755)
+            for document in DOCKER_CONTEXT.DOCUMENTS:
+                (package / document).write_text("notice\n", encoding="utf-8")
+            (package / "lib").mkdir()
+            (package / "lib/libexample.so").write_bytes(b"library")
+            dockerfile = root / "Dockerfile"
+            dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+            entrypoint = root / "entrypoint.sh"
+            entrypoint.write_text("#!/bin/sh\n", encoding="utf-8")
+            entrypoint.chmod(0o755)
+            output = root / "context"
+            DOCKER_CONTEXT.prepare(package, dockerfile, entrypoint, output)
+            (output / "injected-link").symlink_to("release/qwertycoind")
+
+            with self.assertRaises(SystemExit):
+                DOCKER_CONTEXT.verify_context(output)
+
+    def test_docker_context_rejects_symlinked_library(self) -> None:
+        if os.name == "nt":
+            self.skipTest("ordinary Windows test users cannot always create symlinks")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            library = root / "lib"
+            library.mkdir()
+            target = root / "target"
+            target.write_bytes(b"library")
+            (library / "libbad.so").symlink_to(target)
+            with self.assertRaises(SystemExit):
+                DOCKER_CONTEXT.validated_library_files(library)
+
+    def test_docker_release_inspection_binds_checksum_and_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tag = "v2.0.1-rc1"
+            revision = "1" * 40
+            root_name = f"qwertycoin-{tag}-linux-x86_64"
+            package = root / root_name
+            package.mkdir()
+            info = {
+                "release": {"tag": tag, "version": "2.0.1", "source_revision": revision},
+                "workflow": {
+                    "name": "qwc/core-release-candidate",
+                    "revision": "2" * 40,
+                    "run_id": "42",
+                    "run_attempt": "1",
+                },
+                "platform": {"os": "Linux", "architecture": "x86_64"},
+            }
+            (package / "BUILD-INFO.json").write_text(json.dumps(info), encoding="utf-8")
+            archive = root / f"{root_name}.tar.gz"
+            with tarfile.open(archive, "w:gz") as output:
+                output.add(package, arcname=root_name)
+            assets = {
+                archive.name: hashlib.sha256(archive.read_bytes()).hexdigest(),
+                f"qwertycoin-{tag}-macos-arm64.tar.gz": "a" * 64,
+                f"qwertycoin-{tag}-windows-x86_64.zip": "b" * 64,
+            }
+            checksums = root / "SHA256SUMS"
+            checksums.write_text(
+                "".join(f"{digest}  {name}\n" for name, digest in sorted(assets.items())),
+                encoding="utf-8",
+            )
+            result = DOCKER_RELEASE.inspect(archive, checksums, tag, revision)
+            self.assertEqual(result["full_version"], "2.0.1-rc1")
+            self.assertTrue(result["prerelease"])
+
+            checksums.write_text(checksums.read_text(encoding="utf-8").replace(
+                assets[archive.name], "0" * 64
+            ), encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                DOCKER_RELEASE.inspect(archive, checksums, tag, revision)
+
     def test_macos_bundler_resolves_loader_siblings_from_configured_paths(self) -> None:
         bundler = (ROOT / "bundle_macos_runtime.sh").read_text(encoding="utf-8")
         self.assertIn(
@@ -202,6 +321,26 @@ class RequestValidationTests(unittest.TestCase):
         self.assertEqual(workflow.count("--require-ready"), 4)
         self.assertIn("options: [require-ready, public-test]", workflow)
         self.assertEqual(workflow.count("STABLE_GATE_POLICY"), 11)
+
+    def test_docker_publish_is_called_after_release_verification(self) -> None:
+        workflow = (ROOT.parents[1] / ".github/workflows/assemble-release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("publish-docker:", workflow)
+        self.assertIn("needs: assemble", workflow)
+        self.assertIn("uses: ./.github/workflows/docker-publish.yml", workflow)
+        self.assertIn("if: inputs.release_kind != 'draft'", workflow)
+
+    def test_docker_runtime_keeps_mainnet_default_and_exec_dispatch(self) -> None:
+        repository = ROOT.parents[1]
+        entrypoint = (repository / "docker/entrypoint.sh").read_text(encoding="utf-8")
+        dockerfile = (repository / "docker/Dockerfile").read_text(encoding="utf-8")
+        self.assertNotIn("--testnet", entrypoint)
+        self.assertNotIn("--testnet", dockerfile)
+        self.assertNotIn("eval", entrypoint)
+        self.assertEqual(entrypoint.count("exec /opt/qwertycoin/"), 4)
+        self.assertIn('USER 10001:10001', dockerfile)
+        self.assertIn('STOPSIGNAL SIGINT', dockerfile)
 
     def test_assemble_public_test_override_is_explicit_and_preserves_gate(self) -> None:
         workflow = (
