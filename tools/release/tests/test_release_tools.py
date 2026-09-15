@@ -337,6 +337,8 @@ class RequestValidationTests(unittest.TestCase):
         )
         self.assertIn("QWC_RELEASE_ARCHIVE_SHA256=${{ steps.release.outputs.archive_sha256 }}", workflow)
         self.assertNotIn("QWC_RELEASE_ARCHIVE_SHA256=${{ hashFiles(", workflow)
+        self.assertIn(".draft == false and .target_commitish == $revision", workflow)
+        self.assertNotIn(".draft == false and .prerelease == true", workflow)
 
     def test_docker_runtime_keeps_mainnet_default_and_exec_dispatch(self) -> None:
         repository = ROOT.parents[1]

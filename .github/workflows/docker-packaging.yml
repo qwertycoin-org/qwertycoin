@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
           release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")
           jq -e --arg revision "$EXPECTED_REVISION" \
-            '.draft == false and .prerelease == true and .target_commitish == $revision' \
+            '.draft == false and .target_commitish == $revision' \
             <<<"$release" >/dev/null
           mkdir -p public-release
           for name in "qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz" SHA256SUMS; do
