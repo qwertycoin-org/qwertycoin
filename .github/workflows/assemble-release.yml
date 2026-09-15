@@ -461,5 +461,6 @@ jobs:
       release_tag: ${{ inputs.release_tag }}
       expected_revision: ${{ inputs.expected_revision }}
       image_revision: "1"
+      confirmation: PUBLISH-DOCKER
     secrets:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
