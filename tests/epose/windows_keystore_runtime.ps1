@@ -18,7 +18,7 @@ Set-StrictMode -Version Latest
 
 $RewardAddress = "QWC1h8SDGxBj74KgQDGKRKAjTfWJywnvM1ZRGv9yX9o89N8qGedHKLheKPmtkLpTmpBWGDT3ZuLUmNVvz3LmU5LrA3gGed58sq"
 $ReadyPattern = "EPoSE-v2 service authority ready: identity ([0-9a-f]{64}), service key ([0-9a-f]{64})"
-$PermissionPattern = "Failed to load EPoSE-v2 keystore: .*permissions"
+$PermissionPattern = "Failed to load EPoSE-v2 keystore: .*(permissions|ACL)"
 $RuntimeFailurePattern = "Failed to initialize EPoSE-v2 service runtime"
 
 if (-not (Test-Path -LiteralPath $DaemonPath -PathType Leaf)) {
@@ -196,7 +196,7 @@ function Start-EposeDaemon(
         }
         if ($process.HasExited) {
             $diagnostic = Get-SafeDiagnosticExcerpt @($stderr, $stdout, $log)
-            throw "daemon exited with code $($process.ExitCode) before the expected keystore outcome:`n$diagnostic"
+            throw "daemon run $Run exited with code $($process.ExitCode) before the expected keystore outcome:`n$diagnostic"
         }
         Start-Sleep -Milliseconds 250
     }
