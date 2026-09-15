@@ -157,7 +157,7 @@ jobs:
           mkdir -p evidence/linux
           build/linux/tests/unit_tests/epose_unit_tests --gtest_list_tests \
             | tee evidence/linux/EPoSE-UNIT-TEST-LIST.log
-          test "$(awk '/^  [^ ]/ {count++} END {print count+0}' evidence/linux/EPoSE-UNIT-TEST-LIST.log)" -eq 238
+          test "$(awk '/^  [^ ]/ {count++} END {print count+0}' evidence/linux/EPoSE-UNIT-TEST-LIST.log)" -eq 246
           ctest --test-dir build/linux -R '^epose_unit_tests$' --output-on-failure 2>&1 | tee evidence/linux/EPoSE-UNIT-TESTS.log
           (cd source/tests/epose && python3 -m unittest \
             test_release_gate_v2.py test_manifest_v2.py test_reference_model_v2.py test_security_parameter_model.py) \
@@ -177,7 +177,7 @@ jobs:
               "schema_version": 1,
               "build_targets": "pass",
               "source_integrity_before_and_after_build": "pass",
-              "epose_unit_tests": "238 tests pass",
+              "epose_unit_tests": "246 tests pass",
               "epose_python_tests": "43 tests pass",
           }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           PY
