@@ -59,6 +59,29 @@ function Read-Log([string]$Path) {
     }
 }
 
+function Get-SafeDiagnosticExcerpt([string[]]$Paths) {
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($path in $Paths) {
+        $text = Read-Log $path
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            continue
+        }
+        foreach ($line in ($text -split "`r?`n")) {
+            if ($line -match '(?i)operator_secret_key|service_secret_key') {
+                continue
+            }
+            $safe = $line -replace '(?i)\b[0-9a-f]{64}\b', '<redacted-hex64>'
+            if (-not [string]::IsNullOrWhiteSpace($safe)) {
+                $lines.Add($safe)
+            }
+        }
+    }
+    if ($lines.Count -eq 0) {
+        return "no safe daemon diagnostics were available"
+    }
+    return (($lines | Select-Object -Last 40) -join "`n")
+}
+
 function Wait-ForRpc([int]$Port, [System.Diagnostics.Process]$Process) {
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     while ([DateTime]::UtcNow -lt $deadline) {
@@ -172,7 +195,8 @@ function Start-EposeDaemon(
             return @()
         }
         if ($process.HasExited) {
-            throw "daemon exited before the expected keystore outcome"
+            $diagnostic = Get-SafeDiagnosticExcerpt @($stderr, $stdout, $log)
+            throw "daemon exited with code $($process.ExitCode) before the expected keystore outcome:`n$diagnostic"
         }
         Start-Sleep -Milliseconds 250
     }
