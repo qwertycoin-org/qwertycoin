@@ -56,3 +56,7 @@ target_link_libraries(epose
     cryptonote_basic
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY})
+
+if (WIN32)
+  target_link_libraries(epose PUBLIC advapi32)
+endif ()

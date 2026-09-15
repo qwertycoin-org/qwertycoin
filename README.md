@@ -296,6 +296,13 @@ records for the next eligible epoch. No funded registration transaction and no
 wallet private view key are used by EPoSE v2. Discovery endpoints bootstrap
 signed endpoint discovery; they are not a participant allowlist.
 
+Keystore permissions are validated using POSIX mode bits on Linux/macOS and
+native owner/DACL inspection on Windows. If an older Windows keystore has
+inherited or overly broad ACL entries, preserve the file and follow the
+one-file `--epose-v2-repair-keystore-permissions` procedure in
+[`docs/epose/SERVICE_NODE.md`](docs/epose/SERVICE_NODE.md). Never delete the
+keystore as a permissions workaround because that creates a new identity.
+
 Inspect local EPoSE status:
 
 ```bash

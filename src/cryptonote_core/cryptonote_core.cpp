@@ -340,6 +340,11 @@ namespace cryptonote
   , "Path to the genesis- and parameter-bound EPoSE-v2 operator/service keystore"
   , ""
   };
+  const command_line::arg_descriptor<bool> arg_epose_v2_repair_keystore_permissions = {
+    "epose-v2-repair-keystore-permissions"
+  , "Restrict only the configured EPoSE-v2 keystore file permissions before loading it (one-time recovery; key contents and parent directory are unchanged)"
+  , false
+  };
   const command_line::arg_descriptor<std::string> arg_epose_v2_reward_address = {
     "epose-v2-reward-address"
   , "Primary public Qwertycoin address receiving EPoSE-v2 service rewards"
@@ -573,6 +578,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_service_node_advertise_address);
     command_line::add_arg(desc, arg_epose_v2_service);
     command_line::add_arg(desc, arg_epose_v2_keystore);
+    command_line::add_arg(desc, arg_epose_v2_repair_keystore_permissions);
     command_line::add_arg(desc, arg_epose_v2_reward_address);
     command_line::add_arg(desc, arg_epose_v2_endpoint_host);
     command_line::add_arg(desc, arg_epose_v2_endpoint_port);
@@ -651,10 +657,17 @@ namespace cryptonote
     m_epose_local_service_node_config = config;
     m_epose_v2_service_enabled = command_line::get_arg(vm, arg_epose_v2_service);
     m_epose_v2_keystore_path = command_line::get_arg(vm, arg_epose_v2_keystore);
+    m_epose_v2_repair_keystore_permissions =
+        command_line::get_arg(vm, arg_epose_v2_repair_keystore_permissions);
     m_epose_v2_reward_address_string = command_line::get_arg(vm, arg_epose_v2_reward_address);
     m_epose_v2_endpoint_host = command_line::get_arg(vm, arg_epose_v2_endpoint_host);
     m_epose_v2_endpoint_port = command_line::get_arg(vm, arg_epose_v2_endpoint_port);
     m_epose_v2_discovery_endpoints = command_line::get_arg(vm, arg_epose_v2_discovery_endpoint);
+    if (m_epose_v2_repair_keystore_permissions && !m_epose_v2_service_enabled)
+    {
+      MERROR("--epose-v2-repair-keystore-permissions requires --epose-v2-service");
+      return false;
+    }
     if (!config.enabled)
       return true;
 
@@ -698,6 +711,16 @@ namespace cryptonote
     }
     const qwertycoin::epose::service_keystore_context_v2 context{
         m_nettype, parameters.genesis_hash, parameters.parameter_set_hash};
+    if (m_epose_v2_repair_keystore_permissions)
+    {
+      if (!qwertycoin::epose::repair_service_keystore_permissions_v2(
+              m_epose_v2_keystore_path, error))
+      {
+        MERROR("Failed to repair EPoSE-v2 keystore permissions: " << error);
+        return false;
+      }
+      MGINFO("Repaired only the EPoSE-v2 keystore file permissions; key material and parent directory were not changed. Remove --epose-v2-repair-keystore-permissions after this successful start.");
+    }
     const qwertycoin::epose::service_keystore_status_v2 status =
         qwertycoin::epose::load_or_create_service_keystore_v2(
             m_epose_v2_keystore_path, context, m_epose_v2_keystore, error);
