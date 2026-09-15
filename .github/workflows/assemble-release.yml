@@ -135,22 +135,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/heads/main) candidate_branch=main ;;
+            refs/heads/release/v2.0.1-rc1) candidate_branch=release/v2.0.1-rc1 ;;
+            *) echo "unsupported assembly source branch" >&2; exit 1 ;;
+          esac
           validate_run() {
             local run_id=$1 artifact_name=$2 job_name=$3 platform=$4
             local run run_head jobs artifacts attempt actual_names allowed_names unexpected
             run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")
-            jq -e \
+            jq -e --arg branch "$candidate_branch" \
               '.name == "qwc/core-release-candidate"
                and .path == ".github/workflows/release.yml"
                and .event == "workflow_dispatch"
-               and .head_branch == "main"
+               and .head_branch == $branch
                and .status == "completed"
                and .conclusion == "success"' <<<"$run" >/dev/null
             run_head=$(jq -er .head_sha <<<"$run")
             attempt=$(jq -er '.run_attempt | tostring' <<<"$run")
             [[ "$run_head" =~ ^[0-9a-f]{40}$ ]]
             git -C control cat-file -e "${run_head}^{commit}"
-            git -C control merge-base --is-ancestor "$EXPECTED_REVISION" "$run_head"
+            if [[ "$candidate_branch" == main ]]; then
+              git -C control merge-base --is-ancestor "$EXPECTED_REVISION" "$run_head"
+            else
+              test "$run_head" = "$EXPECTED_REVISION"
+            fi
             test "$(git -C control rev-parse "${run_head}:.github/workflows/release.yml")" = \
               "$(git -C control rev-parse "${GITHUB_SHA}:.github/workflows/release.yml")"
             test "$(git -C control rev-parse "${run_head}:tools/release")" = \
@@ -227,7 +236,7 @@ jobs:
           verify_candidate linux "$LINUX_ARTIFACT" tar.gz "$LINUX_RUN_ID" Linux x86_64
           verify_candidate macos "$MACOS_ARTIFACT" tar.gz "$MACOS_RUN_ID" macOS arm64
           verify_candidate windows "$WINDOWS_ARTIFACT" zip "$WINDOWS_RUN_ID" Windows x86_64
-          jq -e '.verification.epose_unit_tests == "238 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
+          jq -e '.verification.epose_unit_tests == "239 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
             "verified/linux/$LINUX_ARTIFACT/BUILD-INFO.json" >/dev/null
           python3 - assembly-gate.json \
             "verified/linux/$LINUX_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json" \
