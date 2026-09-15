@@ -331,6 +331,13 @@ class RequestValidationTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/docker-publish.yml", workflow)
         self.assertIn("if: inputs.release_kind != 'draft'", workflow)
 
+    def test_docker_packaging_uses_the_verified_archive_digest(self) -> None:
+        workflow = (ROOT.parents[1] / ".github/workflows/docker-packaging.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("QWC_RELEASE_ARCHIVE_SHA256=${{ steps.release.outputs.archive_sha256 }}", workflow)
+        self.assertNotIn("QWC_RELEASE_ARCHIVE_SHA256=${{ hashFiles(", workflow)
+
     def test_docker_runtime_keeps_mainnet_default_and_exec_dispatch(self) -> None:
         repository = ROOT.parents[1]
         entrypoint = (repository / "docker/entrypoint.sh").read_text(encoding="utf-8")

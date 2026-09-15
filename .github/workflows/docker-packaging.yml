@@ -43,6 +43,7 @@ jobs:
       - name: Run focused release-tool tests
         run: python3 -m unittest tools.release.tests.test_release_tools
       - name: Download checksum-bound public Linux archive
+        id: release
         shell: bash
         run: |
           set -euo pipefail
@@ -61,6 +62,7 @@ jobs:
             --checksums public-release/SHA256SUMS \
             --expected-tag "$RELEASE_TAG" --expected-revision "$EXPECTED_REVISION" \
             --output docker-release.json
+          echo "archive_sha256=$(jq -r .archive_sha256 docker-release.json)" >> "$GITHUB_OUTPUT"
       - name: Reverify and select only the runtime payload
         shell: bash
         run: |
@@ -96,7 +98,7 @@ jobs:
             QWC_RELEASE_TAG=${{ env.RELEASE_TAG }}
             QWC_RELEASE_VERSION=2.0.1-rc1
             QWC_SOURCE_REVISION=${{ env.EXPECTED_REVISION }}
-            QWC_RELEASE_ARCHIVE_SHA256=${{ hashFiles('public-release/qwertycoin-v2.0.1-rc1-linux-x86_64.tar.gz') }}
+            QWC_RELEASE_ARCHIVE_SHA256=${{ steps.release.outputs.archive_sha256 }}
             QWC_BASE_IMAGE_DIGEST=${{ env.BASE_DIGEST }}
             QWC_PACKAGING_REVISION=${{ github.sha }}
             QWC_IMAGE_REVISION=1
