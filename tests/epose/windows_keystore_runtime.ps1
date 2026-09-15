@@ -37,7 +37,26 @@ function Read-Log([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         return ""
     }
-    return [System.IO.File]::ReadAllText($Path)
+    $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+    try {
+        $stream = [System.IO.File]::Open(
+            $Path,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            $share)
+        try {
+            $reader = [System.IO.StreamReader]::new($stream)
+            try {
+                return $reader.ReadToEnd()
+            } finally {
+                $reader.Dispose()
+            }
+        } finally {
+            $stream.Dispose()
+        }
+    } catch [System.IO.IOException] {
+        return ""
+    }
 }
 
 function Wait-ForRpc([int]$Port, [System.Diagnostics.Process]$Process) {
