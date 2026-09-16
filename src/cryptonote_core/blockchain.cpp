@@ -1305,6 +1305,148 @@ bool Blockchain::plan_epose_reward_v2(
       == qwertycoin::epose::coordinator_status_v2::accepted;
 }
 //------------------------------------------------------------------
+bool Blockchain::get_epose_block_reward_mapping_v2(
+    const crypto::hash &block_hash,
+    epose_block_reward_mapping_v2 &mapping) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  mapping = {};
+  if (!m_db || !m_epose_v2 || block_hash == crypto::null_hash)
+    return false;
+
+  try
+  {
+    const uint64_t chain_height = m_db->height();
+    if (chain_height == 0 || !m_db->block_exists(block_hash))
+      return false;
+    const uint64_t height = m_db->get_block_height(block_hash);
+    if (height >= chain_height || m_db->get_block_hash_from_height(height) != block_hash)
+      return false;
+
+    const block bl = m_db->get_block_from_height(height);
+    if (get_block_hash(bl) != block_hash || bl.major_version != get_ideal_hard_fork_version(height))
+      return false;
+
+    std::vector<transaction> txs = m_db->get_tx_list(bl.tx_hashes);
+    if (txs.size() != bl.tx_hashes.size())
+      return false;
+    uint64_t fees = 0;
+    for (const transaction &tx : txs)
+    {
+      const uint64_t fee = get_tx_fee(tx);
+      if (fees > std::numeric_limits<uint64_t>::max() - fee)
+        return false;
+      fees += fee;
+    }
+
+    const uint8_t version = bl.major_version;
+    const size_t short_count = static_cast<size_t>(
+        std::min<uint64_t>(height, CRYPTONOTE_REWARD_BLOCKS_WINDOW));
+    const uint64_t short_start = height - short_count;
+    std::vector<uint64_t> short_weights = short_count == 0
+        ? std::vector<uint64_t>{}
+        : m_db->get_block_weights(short_start, short_count);
+    const uint64_t short_median = short_weights.empty()
+        ? 0 : epee::misc_utils::median(short_weights);
+    uint64_t median_weight = short_median;
+    if (version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
+    {
+      const size_t long_count = static_cast<size_t>(
+          std::min<uint64_t>(height, m_long_term_block_weights_window));
+      const uint64_t long_start = height - long_count;
+      std::vector<uint64_t> long_weights = long_count == 0
+          ? std::vector<uint64_t>{}
+          : m_db->get_long_term_block_weights(long_start, long_count);
+      const uint64_t long_median = long_weights.empty()
+          ? 0 : epee::misc_utils::median(long_weights);
+      const uint64_t effective_long_median = std::max<uint64_t>(
+          CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_median);
+      if (effective_long_median
+          > std::numeric_limits<uint64_t>::max()
+              / CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR)
+        return false;
+      const uint64_t upper = CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR
+          * effective_long_median;
+      median_weight = version >= HF_VERSION_2021_SCALING
+          ? std::min<uint64_t>(
+              std::max<uint64_t>(effective_long_median, short_median), upper)
+          : std::min<uint64_t>(
+              std::max<uint64_t>(
+                  CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
+                  short_median),
+              upper);
+    }
+    median_weight = std::max<uint64_t>(
+        median_weight, get_min_block_weight(version));
+
+    const uint64_t already_generated = height == 0
+        ? 0 : m_db->get_block_already_generated_coins(height - 1);
+    uint64_t scheduled_subsidy = 0;
+    if (!get_block_reward(
+            median_weight, m_db->get_block_weight(height),
+            already_generated, scheduled_subsidy, version))
+      return false;
+
+    qwertycoin::epose::coordinator_reward_plan_v2 plan{};
+    if (!plan_epose_reward_v2(
+            height, bl.prev_id, scheduled_subsidy, fees, plan))
+      return false;
+
+    uint64_t actual_coinbase_total = 0;
+    for (const tx_out &output : bl.miner_tx.vout)
+    {
+      if (actual_coinbase_total
+          > std::numeric_limits<uint64_t>::max() - output.amount)
+        return false;
+      actual_coinbase_total += output.amount;
+    }
+    if (actual_coinbase_total != plan.allocation.coinbase_total)
+      return false;
+
+    qwertycoin::epose::service_payment_context_v2 payment{};
+    if (plan.has_service_payee
+        && qwertycoin::epose::verify_coinbase_service_payment_v2(
+               bl.miner_tx, bl.major_version,
+               m_epose_v2_parameters.limits.max_envelopes_per_transaction,
+               m_epose_v2_parameters.limits.envelope,
+               plan.expectation, payment) !=
+            qwertycoin::epose::reward_status_v2::accepted)
+      return false;
+
+    uint64_t source_epoch = 0;
+    if (!get_epose_reward_source_epoch_v2(height, source_epoch))
+      return false;
+    const auto *qualification =
+        m_epose_v2->state().membership().qualification(source_epoch);
+    if (qualification == nullptr)
+      return false;
+    if (plan.has_service_payee
+        && qualification->qualification_hash != plan.expectation.qualification_hash)
+      return false;
+
+    mapping.height = height;
+    mapping.payout_epoch = plan.has_service_payee
+        ? plan.expectation.payout_epoch
+        : source_epoch + 1;
+    mapping.source_epoch = source_epoch;
+    mapping.qualified_count = qualification->qualified_nodes.size();
+    mapping.block_hash = block_hash;
+    mapping.parent_hash = bl.prev_id;
+    mapping.qualification_hash = qualification->qualification_hash;
+    mapping.allocation = plan.allocation;
+    mapping.has_service_payee = plan.has_service_payee;
+    mapping.payment = std::move(payment);
+    return true;
+  }
+  catch (const std::exception &error)
+  {
+    MWARNING("Failed to resolve canonical EPoSE-v2 block reward mapping: "
+        << error.what());
+    mapping = {};
+    return false;
+  }
+}
+//------------------------------------------------------------------
 bool Blockchain::select_epose_template_records_v2(
     uint64_t height,
     std::vector<qwertycoin::epose::envelope_record_v2> &records)

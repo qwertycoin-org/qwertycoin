@@ -88,7 +88,7 @@ namespace cryptonote
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 3
-#define CORE_RPC_VERSION_MINOR 19
+#define CORE_RPC_VERSION_MINOR 21
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -1158,6 +1158,7 @@ namespace cryptonote
       uint64_t epoch;
       uint64_t service_reward_bps;
       uint64_t qualified_count;
+      std::vector<std::string> qualified_service_public_keys;
       std::string expected_payee_service_public_key;
       std::string expected_reward_view_public_key;
       std::string expected_reward_spend_public_key;
@@ -1171,9 +1172,96 @@ namespace cryptonote
         KV_SERIALIZE(epoch)
         KV_SERIALIZE(service_reward_bps)
         KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(qualified_service_public_keys)
         KV_SERIALIZE(expected_payee_service_public_key)
         KV_SERIALIZE(expected_reward_view_public_key)
         KV_SERIALIZE(expected_reward_spend_public_key)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct epose_block_reward_output
+  {
+    uint64_t index;
+    uint64_t amount;
+    std::string public_key;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(index)
+      KV_SERIALIZE(amount)
+      KV_SERIALIZE(public_key)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct COMMAND_RPC_GET_EPOSE_BLOCK_REWARD
+  {
+    struct request_t: public rpc_request_base
+    {
+      std::string block_hash;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE(block_hash)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool mapping_available;
+      bool payment_proof_valid;
+      bool service_reward_active;
+      uint64_t protocol_version;
+      uint64_t height;
+      uint64_t payout_epoch;
+      uint64_t source_epoch;
+      uint64_t qualified_count;
+      uint64_t scheduled_subsidy;
+      uint64_t transaction_fees;
+      uint64_t miner_subsidy;
+      uint64_t miner_fees;
+      uint64_t issued_subsidy;
+      uint64_t emission_advance;
+      uint64_t coinbase_total;
+      uint64_t miner_reward;
+      uint64_t service_reward;
+      uint64_t permanently_unissued;
+      std::string block_hash;
+      std::string parent_hash;
+      std::string qualification_hash;
+      std::string payee_service_public_key;
+      std::string reward_view_public_key;
+      std::string reward_spend_public_key;
+      std::vector<epose_block_reward_output> service_outputs;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(mapping_available)
+        KV_SERIALIZE(payment_proof_valid)
+        KV_SERIALIZE(service_reward_active)
+        KV_SERIALIZE(protocol_version)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(payout_epoch)
+        KV_SERIALIZE(source_epoch)
+        KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(scheduled_subsidy)
+        KV_SERIALIZE(transaction_fees)
+        KV_SERIALIZE(miner_subsidy)
+        KV_SERIALIZE(miner_fees)
+        KV_SERIALIZE(issued_subsidy)
+        KV_SERIALIZE(emission_advance)
+        KV_SERIALIZE(coinbase_total)
+        KV_SERIALIZE(miner_reward)
+        KV_SERIALIZE(service_reward)
+        KV_SERIALIZE(permanently_unissued)
+        KV_SERIALIZE(block_hash)
+        KV_SERIALIZE(parent_hash)
+        KV_SERIALIZE(qualification_hash)
+        KV_SERIALIZE(payee_service_public_key)
+        KV_SERIALIZE(reward_view_public_key)
+        KV_SERIALIZE(reward_spend_public_key)
+        KV_SERIALIZE(service_outputs)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

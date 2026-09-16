@@ -198,6 +198,7 @@ Implemented daemon/operator surfaces include:
 - `get_service_node_status`,
 - `get_epose_epoch`,
 - `get_service_rewards`,
+- `get_epose_block_reward` for canonical block-hash-bound miner/service allocation and verified denomination outputs,
 - `get_service_node_registration_payload`,
 - daemon console helpers `epose_status` and `prepare_service_node_registration`,
 - wallet CLI helper `register_service_node`.

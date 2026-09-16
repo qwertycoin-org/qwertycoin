@@ -911,6 +911,117 @@ namespace cryptonote
     res.epoch = reward_source_epoch;
     res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS_V2;
     res.qualified_count = v2_context_available ? qualified_nodes.size() : 0;
+    res.qualified_service_public_keys.clear();
+    if (v2_context_available)
+    {
+      res.qualified_service_public_keys.reserve(qualified_nodes.size());
+      for (const auto &service_public_key : qualified_nodes)
+        res.qualified_service_public_keys.push_back(
+            epee::string_tools::pod_to_hex(service_public_key));
+    }
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_epose_block_reward(
+      const COMMAND_RPC_GET_EPOSE_BLOCK_REWARD::request& req,
+      COMMAND_RPC_GET_EPOSE_BLOCK_REWARD::response& res,
+      const connection_context *ctx)
+  {
+    RPC_TRACKER(get_epose_block_reward);
+    res.mapping_available = false;
+    res.payment_proof_valid = false;
+    res.service_reward_active = false;
+    res.protocol_version = qwertycoin::epose::EPOSE_PROTOCOL_VERSION_V2;
+    res.height = 0;
+    res.payout_epoch = 0;
+    res.source_epoch = 0;
+    res.qualified_count = 0;
+    res.scheduled_subsidy = 0;
+    res.transaction_fees = 0;
+    res.miner_subsidy = 0;
+    res.miner_fees = 0;
+    res.issued_subsidy = 0;
+    res.emission_advance = 0;
+    res.coinbase_total = 0;
+    res.miner_reward = 0;
+    res.service_reward = 0;
+    res.permanently_unissued = 0;
+    res.block_hash.clear();
+    res.parent_hash.clear();
+    res.qualification_hash.clear();
+    res.payee_service_public_key.clear();
+    res.reward_view_public_key.clear();
+    res.reward_spend_public_key.clear();
+    res.service_outputs.clear();
+
+    crypto::hash requested_hash{};
+    if (!epee::string_tools::hex_to_pod(req.block_hash, requested_hash)
+        || requested_hash == crypto::null_hash)
+    {
+      res.status = "Invalid canonical block hash";
+      return true;
+    }
+
+    Blockchain::epose_block_reward_mapping_v2 mapping{};
+    if (!m_core.get_blockchain_storage().get_epose_block_reward_mapping_v2(
+            requested_hash, mapping))
+    {
+      res.status = "Canonical EPoSE-v2 reward mapping unavailable";
+      return true;
+    }
+
+    if (mapping.allocation.miner_subsidy
+        > std::numeric_limits<uint64_t>::max() - mapping.allocation.miner_fees)
+    {
+      res.status = "EPoSE-v2 reward mapping overflow";
+      return true;
+    }
+
+    res.mapping_available = true;
+    res.payment_proof_valid = mapping.has_service_payee;
+    res.service_reward_active = mapping.has_service_payee;
+    res.height = mapping.height;
+    res.payout_epoch = mapping.payout_epoch;
+    res.source_epoch = mapping.source_epoch;
+    res.qualified_count = mapping.qualified_count;
+    res.scheduled_subsidy = mapping.allocation.scheduled_subsidy;
+    res.transaction_fees = mapping.allocation.transaction_fees;
+    res.miner_subsidy = mapping.allocation.miner_subsidy;
+    res.miner_fees = mapping.allocation.miner_fees;
+    res.issued_subsidy = mapping.allocation.issued_subsidy;
+    res.emission_advance = mapping.allocation.emission_advance;
+    res.coinbase_total = mapping.allocation.coinbase_total;
+    res.miner_reward = mapping.allocation.miner_subsidy
+        + mapping.allocation.miner_fees;
+    res.service_reward = mapping.allocation.service_reward;
+    res.permanently_unissued = mapping.allocation.permanently_unissued;
+    res.block_hash = epee::string_tools::pod_to_hex(mapping.block_hash);
+    res.parent_hash = epee::string_tools::pod_to_hex(mapping.parent_hash);
+    res.qualification_hash =
+        epee::string_tools::pod_to_hex(mapping.qualification_hash);
+
+    if (mapping.has_service_payee)
+    {
+      res.payee_service_public_key = epee::string_tools::pod_to_hex(
+          mapping.payment.payee_service_public_key);
+      res.reward_view_public_key = epee::string_tools::pod_to_hex(
+          mapping.payment.reward_address.m_view_public_key);
+      res.reward_spend_public_key = epee::string_tools::pod_to_hex(
+          mapping.payment.reward_address.m_spend_public_key);
+      res.service_outputs.reserve(mapping.payment.outputs.size());
+      for (const qwertycoin::epose::service_payment_output_v2 &output :
+           mapping.payment.outputs)
+      {
+        epose_block_reward_output entry{};
+        entry.index = output.output_index;
+        entry.amount = output.amount;
+        entry.public_key = epee::string_tools::pod_to_hex(
+            output.output_public_key);
+        res.service_outputs.push_back(std::move(entry));
+      }
+    }
+
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

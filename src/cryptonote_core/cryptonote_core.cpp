@@ -794,6 +794,15 @@ namespace cryptonote
       const qwertycoin::epose::consensus_parameters_v2 &parameters,
       const qwertycoin::epose::endpoint_descriptor_v2 &endpoint)
   {
+    cache_epose_v2_endpoint(parameters, endpoint);
+    const std::lock_guard<std::mutex> lock(m_epose_v2_endpoint_mutex);
+    m_epose_v2_endpoint = endpoint;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::cache_epose_v2_endpoint(
+      const qwertycoin::epose::consensus_parameters_v2 &parameters,
+      const qwertycoin::epose::endpoint_descriptor_v2 &endpoint)
+  {
     const uint64_t current_epoch =
         m_blockchain_storage.get_epose_current_epoch();
     const std::lock_guard<std::mutex> lock(m_epose_v2_endpoint_mutex);
@@ -802,8 +811,52 @@ namespace cryptonote
         parameters.parameter_set_hash, current_epoch, endpoint);
     if (status != qwertycoin::epose::resource_status_v2::accepted
         && status != qwertycoin::epose::resource_status_v2::idempotent_duplicate)
+    {
       MWARNING("EPoSE-v2 local endpoint was not admitted to the bounded discovery cache");
-    m_epose_v2_endpoint = endpoint;
+      return false;
+    }
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::restore_epose_v2_current_endpoint(
+      const qwertycoin::epose::consensus_parameters_v2 &parameters)
+  {
+    const uint64_t current_epoch =
+        m_blockchain_storage.get_epose_current_epoch();
+    const auto descriptors =
+        m_blockchain_storage.get_epose_identity_descriptors_v2(current_epoch);
+    const auto existing = std::find_if(
+        descriptors.begin(), descriptors.end(), [this](const auto &descriptor) {
+          return descriptor.identity_id == m_epose_v2_identity_id;
+        });
+    if (existing == descriptors.end())
+      return true;
+    if (existing->service_public_key
+            != m_epose_v2_keystore.service_public_key
+        || existing->reward_address.m_view_public_key
+            != m_epose_v2_reward_address.m_view_public_key
+        || existing->reward_address.m_spend_public_key
+            != m_epose_v2_reward_address.m_spend_public_key)
+    {
+      MERROR("EPoSE-v2 current descriptor is bound to unexpected local identity material");
+      return false;
+    }
+
+    qwertycoin::epose::endpoint_descriptor_v2 endpoint{};
+    if (!build_epose_v2_configured_endpoint(
+            parameters, existing->sequence, existing->expiry_epoch, endpoint))
+      return false;
+    const crypto::hash endpoint_hash =
+        qwertycoin::epose::hash_endpoint_descriptor_v2(
+            parameters.nettype, parameters.genesis_hash,
+            parameters.parameter_set_hash, endpoint);
+    if (endpoint_hash != existing->endpoint_descriptor_hash)
+    {
+      MERROR("EPoSE-v2 configured endpoint does not match the current canonical descriptor");
+      return false;
+    }
+    return cache_epose_v2_endpoint(parameters, endpoint)
+        && relay_local_epose_v2_endpoint(parameters, endpoint, true);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::update_epose_v2_service_producer()
@@ -817,6 +870,8 @@ namespace cryptonote
       return true;
     qwertycoin::epose::consensus_parameters_v2 parameters{};
     if (!m_blockchain_storage.get_epose_consensus_parameters_v2(parameters))
+      return false;
+    if (!restore_epose_v2_current_endpoint(parameters))
       return false;
 
     uint64_t target_epoch = m_blockchain_storage.get_epose_current_epoch() + 1;
@@ -1415,7 +1470,8 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::relay_local_epose_v2_endpoint(
       const qwertycoin::epose::consensus_parameters_v2 &parameters,
-      const qwertycoin::epose::endpoint_descriptor_v2 &endpoint)
+      const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,
+      const bool current_epoch_descriptor)
   {
     if (m_offline || !get_protocol() || !get_protocol()->is_synchronized())
       return true;
@@ -1428,9 +1484,15 @@ namespace cryptonote
     const auto now = std::chrono::steady_clock::now();
     {
       const std::lock_guard<std::mutex> lock(m_epose_v2_endpoint_mutex);
-      if (m_epose_v2_last_relayed_endpoint_hash == descriptor_hash
-          && m_epose_v2_last_endpoint_relay != std::chrono::steady_clock::time_point{}
-          && now - m_epose_v2_last_endpoint_relay < std::chrono::seconds(60))
+      const crypto::hash &last_hash = current_epoch_descriptor
+          ? m_epose_v2_last_relayed_current_endpoint_hash
+          : m_epose_v2_last_relayed_endpoint_hash;
+      const auto &last_relay = current_epoch_descriptor
+          ? m_epose_v2_last_current_endpoint_relay
+          : m_epose_v2_last_endpoint_relay;
+      if (last_hash == descriptor_hash
+          && last_relay != std::chrono::steady_clock::time_point{}
+          && now - last_relay < std::chrono::seconds(60))
         return true;
     }
 
@@ -1450,8 +1512,16 @@ namespace cryptonote
       return false;
     {
       const std::lock_guard<std::mutex> lock(m_epose_v2_endpoint_mutex);
-      m_epose_v2_last_relayed_endpoint_hash = descriptor_hash;
-      m_epose_v2_last_endpoint_relay = now;
+      if (current_epoch_descriptor)
+      {
+        m_epose_v2_last_relayed_current_endpoint_hash = descriptor_hash;
+        m_epose_v2_last_current_endpoint_relay = now;
+      }
+      else
+      {
+        m_epose_v2_last_relayed_endpoint_hash = descriptor_hash;
+        m_epose_v2_last_endpoint_relay = now;
+      }
     }
     return true;
   }
