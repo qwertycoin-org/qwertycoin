@@ -4,8 +4,9 @@ The public image is `docker.io/qwertycoin/qwertycoin`. It packages the three
 programs from one verified Linux Core release archive; Docker does not compile
 Core a second time. Images are currently published for `linux/amd64` only.
 
-Use an immutable version tag or digest in production. The examples below use
-the stable `2.0.1` tag; replace it with the release you have reviewed.
+The examples and Compose defaults use `latest`, which always follows the newest
+stable image. Pull it before recreating containers to receive an update. An
+audited production deployment may instead pin the resolved image digest.
 
 ## Program selection
 
@@ -14,9 +15,9 @@ The daemon is the default. `daemon` is an optional explicit selector, while
 unchanged to the selected program.
 
 ```sh
-docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1 --version
-docker run --rm -it docker.io/qwertycoin/qwertycoin:2.0.1 wallet --help
-docker run --rm docker.io/qwertycoin/qwertycoin:2.0.1 wallet-rpc --help
+docker run --rm docker.io/qwertycoin/qwertycoin:latest --version
+docker run --rm -it docker.io/qwertycoin/qwertycoin:latest wallet --help
+docker run --rm docker.io/qwertycoin/qwertycoin:latest wallet-rpc --help
 ```
 
 These commands only verify program selection. They do not persist data or run a
@@ -24,7 +25,7 @@ production node.
 
 ## Full node with Compose
 
-Copy the example files and pin the desired image in `.env`:
+Copy the example files. `QWC_IMAGE` defaults to `latest` in `.env`:
 
 ```sh
 cp docker/.env.example docker/.env
@@ -120,7 +121,7 @@ curl -s http://127.0.0.1:8197/get_epose_service_endpoint_v2
 Pull and recreate containers without removing volumes:
 
 ```sh
-# Set QWC_IMAGE in docker/.env to a reviewed version tag or image@sha256 digest.
+# QWC_IMAGE defaults to latest. Set an image@sha256 digest only to freeze an audited deployment.
 docker compose --env-file docker/.env -f docker/compose.yml pull
 docker compose --env-file docker/.env -f docker/compose.yml up -d daemon
 ```
@@ -133,14 +134,14 @@ secrets. Roll back binaries only when the older release supports the on-disk
 data formats; never remove volumes as an update or rollback step.
 
 For example, after stopping the matching Compose project, back up a volume with
-the same pinned Qwertycoin image (confirm the exact volume name first with
+the same Qwertycoin image (confirm the exact volume name first with
 `docker volume ls`):
 
 ```sh
 mkdir -p backups
 docker run --rm --user 0:0 \
   -v qwertycoin_chain:/source:ro -v "$PWD/backups:/backup" \
-  --entrypoint tar docker.io/qwertycoin/qwertycoin:2.0.1 \
+  --entrypoint tar docker.io/qwertycoin/qwertycoin:latest \
   -C /source -czf /backup/qwertycoin-chain.tar.gz .
 ```
 
