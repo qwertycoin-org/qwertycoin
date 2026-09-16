@@ -571,8 +571,16 @@ coinbase_service_payment_fingerprint_any_network() {
 
 assert_restart_persists() {
   require_node_count
-  local before after
+  local before after i endpoint_info endpoint_hash deadline endpoint_view
+  local -a current_endpoint_hashes=()
   before="$(network_fingerprint)"
+  if [ "${SERVICE_NODE_COUNT}" -gt 0 ]; then
+    for i in $(seq 0 "$((SERVICE_NODE_COUNT - 1))"); do
+      endpoint_info="$(json_rpc_node_params "${i}" "get_epose_info" '{}')"
+      current_endpoint_hashes["${i}"]="$(printf '%s' "${endpoint_info}" \
+        | jq -r '.result.local_service_endpoint_commitment // empty')"
+    done
+  fi
   compose down
   start_network
   after="$(network_fingerprint)"
@@ -582,6 +590,28 @@ assert_restart_persists() {
     echo "EPoSE local network state changed across container recreation" >&2
     exit 1
   fi
+
+  for endpoint_hash in "${current_endpoint_hashes[@]}"; do
+    [ -n "${endpoint_hash}" ] || continue
+    deadline="$(($(now) + RPC_READY_TIMEOUT))"
+    while true; do
+      endpoint_view="$(json_rpc_node_params 0 \
+        "get_epose_service_endpoint_v2" \
+        "{\"descriptor_hash\":\"${endpoint_hash}\"}" 2>/dev/null || true)"
+      if printf '%s' "${endpoint_view}" | jq -e \
+          --arg hash "${endpoint_hash}" \
+          '.result.ready == true and .result.descriptor_hash == $hash' \
+          >/dev/null 2>&1; then
+        break
+      fi
+      if [ "$(now)" -gt "${deadline}" ]; then
+        printf '%s\n' "${endpoint_view}" >&2
+        echo "EPoSE current endpoint descriptor was not restored and relayed after restart: ${endpoint_hash}" >&2
+        exit 1
+      fi
+      sleep 2
+    done
+  done
 
   printf "%s\n" "${after}"
 }
@@ -1326,7 +1356,7 @@ assert_service_reward_finalized_epoch() {
   wait_for_rpc
 
   local target_source_epoch payout_block_height target_chain_height i port
-  local rewards_json reward_epoch qualified first_payment="" payment
+  local rewards_json reward_epoch qualified qualified_keys first_payment="" payment
   target_source_epoch="${EPOSE_TARGET_REWARD_SOURCE_EPOCH:-1}"
   payout_block_height="$(((target_source_epoch + 1) * EPOCH_LENGTH))"
   target_chain_height="$((payout_block_height + 1))"
@@ -1344,11 +1374,25 @@ assert_service_reward_finalized_epoch() {
       "{\"height\":${payout_block_height}}")"
     reward_epoch="$(printf "%s" "${rewards_json}" | jq -r '.result.epoch')"
     qualified="$(printf "%s" "${rewards_json}" | jq -r '.result.qualified_count')"
+    qualified_keys="$(printf "%s" "${rewards_json}" | jq -r '
+      .result.qualified_service_public_keys as $keys
+      | if ($keys | type) != "array"
+          or ($keys | length) != .result.qualified_count
+          or ($keys | unique | length) != ($keys | length)
+          or any($keys[]; (test("^[0-9a-f]{64}$") | not))
+        then error("invalid qualified service public-key set")
+        else ($keys | join(","))
+        end')"
     payment="$(coinbase_service_payment_fingerprint_any_network \
       "${i}" "${payout_block_height}")"
     if [ "${reward_epoch}" != "${target_source_epoch}" ] || [ "${qualified}" -lt 1 ]; then
       printf "%s\n" "${rewards_json}" >&2
       echo "EPoSE payout did not use finalized reward source epoch ${target_source_epoch}" >&2
+      exit 1
+    fi
+    if [ -z "${qualified_keys}" ]; then
+      printf "%s\n" "${rewards_json}" >&2
+      echo "EPoSE payout did not expose its finalized qualified service public-key set" >&2
       exit 1
     fi
     if [ -z "${first_payment}" ]; then

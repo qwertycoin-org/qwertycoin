@@ -911,6 +911,14 @@ namespace cryptonote
     res.epoch = reward_source_epoch;
     res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS_V2;
     res.qualified_count = v2_context_available ? qualified_nodes.size() : 0;
+    res.qualified_service_public_keys.clear();
+    if (v2_context_available)
+    {
+      res.qualified_service_public_keys.reserve(qualified_nodes.size());
+      for (const auto &service_public_key : qualified_nodes)
+        res.qualified_service_public_keys.push_back(
+            epee::string_tools::pod_to_hex(service_public_key));
+    }
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

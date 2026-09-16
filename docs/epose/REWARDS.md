@@ -186,3 +186,21 @@ The RPC fails closed for unknown or non-canonical hashes and when historical
 planning or payment verification does not reproduce the stored block. Consumers
 must not infer EPoSE attribution from output position when the mapping is
 unavailable.
+
+## Reward-source qualification RPC
+
+`get_service_rewards` reports both `qualified_count` and the matching
+`qualified_service_public_keys` for the finalized reward-source epoch returned
+in `epoch`. Consumers must use that key set for per-node reward eligibility;
+the current epoch's evolving `qualified` flag is a different snapshot and must
+not be substituted for it.
+
+## Endpoint descriptor restart recovery
+
+Endpoint descriptors are signed discovery objects whose hashes are committed
+by the canonical identity lifecycle. A service node restarting during an active
+epoch reconstructs its own current committed descriptor from the unchanged
+keystore, reward address, configured endpoint, sequence, and expiry. Core
+verifies the reconstructed hash against canonical chain state before admitting
+and periodically re-relaying it. A configuration or identity mismatch fails
+closed; Core never substitutes a different endpoint for the committed hash.
