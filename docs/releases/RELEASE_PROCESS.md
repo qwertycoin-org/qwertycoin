@@ -120,6 +120,14 @@ revision, image revision, and confirmation `PUBLISH-DOCKER`. This repeats no
 native builds and changes no GitHub release assets. An existing target tag is
 reused only when every provenance label matches; a conflict fails closed.
 
+If a GitHub release and tag were intentionally deleted and recreated while its
+Docker tag remained, the old registry tag can be replaced only by a manual
+dispatch from `main`. Select `replace-exact-release`, use image revision `1`, and
+confirm with `REPLACE-DOCKER-vMAJOR.MINOR.PATCH`. The workflow still verifies the
+complete public release and records the replaced digest before pushing. Reusable
+workflow callers cannot enable this exception. Do not use it for a changed
+binary release; publish a new semantic version or an explicit `image.N` tag.
+
 Successful workflow summaries record the release archive checksum, base-image
 digest, published image digest, compressed registry size and local unpacked
 size. The workflow logs out before pulling and testing the public digest so a

@@ -28,10 +28,10 @@ jobs:
     timeout-minutes: 25
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: v2.0.1-rc1
-      EXPECTED_REVISION: 92add6207f18ff51316b57c863cf3ae8b829d5fb
-      EXPECTED_WORKFLOW_REVISION: 92add6207f18ff51316b57c863cf3ae8b829d5fb
-      EXPECTED_RUN_ID: "35003491285"
+      RELEASE_TAG: v2.0.1
+      EXPECTED_REVISION: 24d66aab67c96fb46806818bf26cc3615e8d507a
+      EXPECTED_WORKFLOW_REVISION: 24d66aab67c96fb46806818bf26cc3615e8d507a
+      EXPECTED_RUN_ID: "35103881865"
       EXPECTED_RUN_ATTEMPT: "1"
       BASE_DIGEST: sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
       TEST_IMAGE: qwertycoin/qwertycoin:packaging-test
@@ -96,7 +96,7 @@ jobs:
           sbom: false
           build-args: |
             QWC_RELEASE_TAG=${{ env.RELEASE_TAG }}
-            QWC_RELEASE_VERSION=2.0.1-rc1
+            QWC_RELEASE_VERSION=2.0.1
             QWC_SOURCE_REVISION=${{ env.EXPECTED_REVISION }}
             QWC_RELEASE_ARCHIVE_SHA256=${{ steps.release.outputs.archive_sha256 }}
             QWC_BASE_IMAGE_DIGEST=${{ env.BASE_DIGEST }}
@@ -115,12 +115,12 @@ jobs:
             actual_program_sha=$(docker run --rm --entrypoint sha256sum "$TEST_IMAGE" "/opt/qwertycoin/$program" | awk '{print $1}')
             test "$actual_program_sha" = "$expected_program_sha"
           done
-          tools/release/smoke_docker_image.sh "$TEST_IMAGE" 2.0.1-rc1
+          tools/release/smoke_docker_image.sh "$TEST_IMAGE" 2.0.1
           local_size=$(docker image inspect --format '{{.Size}}' "$TEST_IMAGE")
           {
             echo '## Docker packaging smoke'
             echo
-            echo '- Source release: `v2.0.1-rc1`'
+            echo '- Source release: `v2.0.1`'
             echo "- Linux archive SHA-256: \`$expected_archive_sha\`"
             echo "- Linux archive bytes: \`$(jq -r .archive_size docker-release.json)\`"
             echo "- Local unpacked image bytes: \`$local_size\`"

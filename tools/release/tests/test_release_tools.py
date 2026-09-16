@@ -332,10 +332,24 @@ class RequestValidationTests(unittest.TestCase):
         self.assertIn("if: inputs.release_kind != 'draft'", workflow)
         self.assertIn("confirmation: PUBLISH-DOCKER", workflow)
 
+    def test_conflicting_docker_tag_replacement_is_manual_and_release_bound(self) -> None:
+        workflow = (
+            ROOT.parents[1] / ".github/workflows/docker-publish.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("options: [require-match, replace-exact-release]", workflow)
+        self.assertIn('test "$GITHUB_EVENT_NAME" = workflow_dispatch', workflow)
+        self.assertIn('test "$CONFIRMATION" = "REPLACE-DOCKER-${RELEASE_TAG}"', workflow)
+        self.assertIn('test "$IMAGE_REVISION" = 1', workflow)
+        self.assertIn('test "$EXISTING_TAG_POLICY" = require-match', workflow)
+        self.assertIn("replaced_digest=$digest", workflow)
+
     def test_docker_packaging_uses_the_verified_archive_digest(self) -> None:
         workflow = (ROOT.parents[1] / ".github/workflows/docker-packaging.yml").read_text(
             encoding="utf-8"
         )
+        self.assertIn("RELEASE_TAG: v2.0.1", workflow)
+        self.assertIn("EXPECTED_REVISION: 24d66aab67c96fb46806818bf26cc3615e8d507a", workflow)
+        self.assertNotIn("v2.0.1-rc1", workflow)
         self.assertIn("QWC_RELEASE_ARCHIVE_SHA256=${{ steps.release.outputs.archive_sha256 }}", workflow)
         self.assertNotIn("QWC_RELEASE_ARCHIVE_SHA256=${{ hashFiles(", workflow)
         self.assertIn(".draft == false and .target_commitish == $revision", workflow)

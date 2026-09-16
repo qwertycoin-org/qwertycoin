@@ -21,6 +21,11 @@ on:
         required: false
         default: ""
         type: string
+      existing_tag_policy:
+        description: Existing-tag handling; workflow callers must keep require-match
+        required: false
+        default: require-match
+        type: string
     secrets:
       DOCKERHUB_TOKEN:
         required: true
@@ -40,9 +45,15 @@ on:
         default: "1"
         type: string
       confirmation:
-        description: Type PUBLISH-DOCKER
+        description: Type PUBLISH-DOCKER, or REPLACE-DOCKER-vX.Y.Z for an audited replacement
         required: true
         type: string
+      existing_tag_policy:
+        description: Fail on conflicting provenance, or explicitly replace this exact release tag
+        required: true
+        default: require-match
+        type: choice
+        options: [require-match, replace-exact-release]
 
 permissions:
   actions: read
@@ -71,6 +82,7 @@ jobs:
       EXPECTED_REVISION: ${{ inputs.expected_revision }}
       IMAGE_REVISION: ${{ inputs.image_revision }}
       CONFIRMATION: ${{ inputs.confirmation }}
+      EXISTING_TAG_POLICY: ${{ inputs.existing_tag_policy }}
       GH_TOKEN: ${{ github.token }}
       BASE_DIGEST: sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
     steps:
@@ -88,8 +100,24 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[1-9][0-9]*)?$ ]]
           [[ "$EXPECTED_REVISION" =~ ^[0-9a-f]{40}$ ]]
           [[ "$IMAGE_REVISION" =~ ^[1-9][0-9]*$ ]]
-          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-            test "$CONFIRMATION" = PUBLISH-DOCKER
+          case "$EXISTING_TAG_POLICY" in
+            require-match)
+              if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+                test "$CONFIRMATION" = PUBLISH-DOCKER
+              fi
+              ;;
+            replace-exact-release)
+              test "$GITHUB_EVENT_NAME" = workflow_dispatch
+              test "$CONFIRMATION" = "REPLACE-DOCKER-${RELEASE_TAG}"
+              test "$IMAGE_REVISION" = 1
+              ;;
+            *)
+              echo "unsupported existing-tag policy" >&2
+              exit 1
+              ;;
+          esac
+          if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
+            test "$EXISTING_TAG_POLICY" = require-match
           fi
           git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
           test "$(git rev-parse "$RELEASE_TAG^{}")" = "$EXPECTED_REVISION"
@@ -206,6 +234,7 @@ jobs:
       BASE_DIGEST: ${{ needs.verify-release.outputs.base_digest }}
       PACKAGING_REVISION: ${{ needs.verify-release.outputs.packaging_revision }}
       IMAGE_REVISION: ${{ needs.verify-release.outputs.image_revision }}
+      EXISTING_TAG_POLICY: ${{ inputs.existing_tag_policy }}
       DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
       DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
       GH_TOKEN: ${{ github.token }}
@@ -234,17 +263,22 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set up pinned Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - name: Enforce immutable image tag
+      - name: Enforce existing image-tag policy
         id: existing
         shell: bash
         run: |
           set -euo pipefail
           if docker buildx imagetools inspect "$TARGET_REF" >/dev/null 2>&1; then
             docker pull --platform linux/amd64 "$TARGET_REF" >/dev/null
+            digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$TARGET_REF" | sed 's/.*@//')
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            conflicts=()
             check_label() {
               local name=$1 expected=$2 actual
               actual=$(docker image inspect --format "{{ index .Config.Labels \"$name\" }}" "$TARGET_REF")
-              test "$actual" = "$expected" || { echo "immutable tag has conflicting $name provenance" >&2; exit 1; }
+              if [[ "$actual" != "$expected" ]]; then
+                conflicts+=("$name")
+              fi
             }
             check_label org.opencontainers.image.version "$FULL_VERSION"
             check_label org.opencontainers.image.revision "$EXPECTED_REVISION"
@@ -253,12 +287,26 @@ jobs:
             check_label org.qwertycoin.runtime.base.digest "$BASE_DIGEST"
             check_label org.qwertycoin.packaging.revision "$PACKAGING_REVISION"
             check_label org.qwertycoin.image.revision "$IMAGE_REVISION"
-            digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$TARGET_REF" | sed 's/.*@//')
-            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+            if (( ${#conflicts[@]} == 0 )); then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "digest=$digest" >> "$GITHUB_OUTPUT"
+              echo "replaced=false" >> "$GITHUB_OUTPUT"
+            elif [[ "$EXISTING_TAG_POLICY" == replace-exact-release ]]; then
+              printf 'Authorized replacement of %s at %s; conflicting labels:' "$TARGET_REF" "$digest" >&2
+              printf ' %s' "${conflicts[@]}" >&2
+              printf '\n' >&2
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              echo "replaced=true" >> "$GITHUB_OUTPUT"
+              echo "replaced_digest=$digest" >> "$GITHUB_OUTPUT"
+            else
+              printf 'immutable tag has conflicting provenance labels:' >&2
+              printf ' %s' "${conflicts[@]}" >&2
+              printf '\n' >&2
+              exit 1
+            fi
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "replaced=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Build and push the exact release payload once
         id: build
@@ -371,6 +419,10 @@ jobs:
             echo '- Image: `${{ env.TARGET_REF }}`'
             echo '- Digest: `${{ steps.published.outputs.digest }}`'
             echo '- Existing matching digest reused: `${{ steps.published.outputs.reused }}`'
+            echo '- Existing conflicting digest replaced: `${{ steps.existing.outputs.replaced || 'false' }}`'
+            if [[ '${{ steps.existing.outputs.replaced }}' == true ]]; then
+              echo '- Replaced digest: `${{ steps.existing.outputs.replaced_digest }}`'
+            fi
             echo '- Core revision: `${{ inputs.expected_revision }}`'
             echo '- Linux archive SHA-256: `${{ needs.verify-release.outputs.archive_sha256 }}`'
             echo '- Linux archive bytes: `${{ needs.verify-release.outputs.archive_size }}`'
