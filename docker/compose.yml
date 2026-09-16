@@ -1,6 +1,6 @@
 name: qwertycoin
 
-x-qwc-image: &qwc-image ${QWC_IMAGE:-docker.io/qwertycoin/qwertycoin:2.0.1}
+x-qwc-image: &qwc-image ${QWC_IMAGE:-docker.io/qwertycoin/qwertycoin:latest}
 x-qwc-security: &qwc-security
   user: "10001:10001"
   read_only: true
