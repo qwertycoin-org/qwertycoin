@@ -260,6 +260,12 @@ class Daemon(object):
             'client': client,
         })
 
+    def get_epose_block_reward(self, block_hash, client = ""):
+        return self.rpc.send_request('/get_epose_block_reward', {
+            'block_hash': block_hash,
+            'client': client,
+        })
+
     def hard_fork_info(self, client = ""):
         hard_fork_info = {
             'method': 'hard_fork_info',

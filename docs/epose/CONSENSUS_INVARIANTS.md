@@ -47,6 +47,7 @@
 43. The service reward amount must be decomposed into the exact standard denomination set expected by validation.
 44. A block with a qualified payee must not underpay or overpay the EPoSE service reward denomination set.
 45. Explorer/UI grouping of denominated service reward outputs must not change consensus interpretation of raw outputs.
+45a. A public block-reward mapping must be bound to an exact canonical block hash and must reuse the production EPoSE payment verifier; output position alone is never proof of attribution.
 
 ## QWC HF17 / EPoSE v2 launch invariants
 

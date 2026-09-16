@@ -172,3 +172,17 @@ duplicate-output-key, overpay, or underpay service rewards are invalid.
 For presentation, explorers may group these denominated outputs as one logical
 EPoSE service reward. That grouping is UI-only; on-chain there are multiple
 standard outputs when the service amount has multiple non-zero digits.
+
+## Canonical block reward RPC
+
+`get_epose_block_reward` accepts one canonical block hash. Core reconstructs
+the historical reward plan from chain state and then runs the production
+`verify_coinbase_service_payment_v2` verifier against the stored coinbase
+transaction. A successful response binds the height, parent, payout epoch,
+source epoch, qualification commitment, exact miner/service allocation, payee,
+and every matching denomination output to that block hash.
+
+The RPC fails closed for unknown or non-canonical hashes and when historical
+planning or payment verification does not reproduce the stored block. Consumers
+must not infer EPoSE attribution from output position when the mapping is
+unavailable.

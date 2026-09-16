@@ -107,6 +107,20 @@ namespace cryptonote
   class Blockchain
   {
   public:
+    struct epose_block_reward_mapping_v2
+    {
+      uint64_t height = 0;
+      uint64_t payout_epoch = 0;
+      uint64_t source_epoch = 0;
+      uint64_t qualified_count = 0;
+      crypto::hash block_hash{};
+      crypto::hash parent_hash{};
+      crypto::hash qualification_hash{};
+      qwertycoin::epose::reward_allocation_v2 allocation{};
+      bool has_service_payee = false;
+      qwertycoin::epose::service_payment_context_v2 payment{};
+    };
+
     /**
      * @brief container for passing a block and metadata about it on the blockchain
      */
@@ -945,6 +959,9 @@ namespace cryptonote
     uint64_t get_epose_epoch_start_height(uint64_t epoch) const;
     uint64_t get_epose_epoch_end_height(uint64_t epoch) const;
     bool get_epose_reward_source_epoch_v2(uint64_t height, uint64_t &epoch) const;
+    bool get_epose_block_reward_mapping_v2(
+        const crypto::hash &block_hash,
+        epose_block_reward_mapping_v2 &mapping) const;
     std::vector<qwertycoin::epose::service_node_identity> get_epose_service_nodes() const;
     std::vector<qwertycoin::epose::service_attestation> get_epose_attestations() const;
     std::vector<crypto::public_key> get_epose_qualified_service_nodes(uint64_t epoch) const;
