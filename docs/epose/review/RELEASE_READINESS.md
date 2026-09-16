@@ -87,9 +87,10 @@ following safety boundary remains authoritative for any later rehearsal:
 - pin one source commit, submodule set, compiler/toolchain, image digest, and
   parameter-manifest hash;
 - use newly generated worthless test wallets;
-- never perform host administration on shared seed-02 or seed-03; QWC actions on
-  those machines remain confined to Docker;
-- treat an unconfirmed SSH host-key replacement as unavailable infrastructure.
+- run only in an explicitly authorized isolated test environment and do not
+  administer unrelated host workloads;
+- treat any endpoint whose host identity cannot be confirmed out of band as
+  unavailable.
 
 Independent exact-candidate partition/deep-reorg, wallet maturity/spend/receive/
 rescan, release-matrix and review obligations remain in the release ledger even

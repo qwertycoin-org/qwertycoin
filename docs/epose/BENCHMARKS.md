@@ -9,16 +9,10 @@
 
 ## Admission Proof
 
-Measured on `seed host A` in Docker image
-`qwertycoin-v2-epose-hardening:quorum-pr`, built from
-`feature/epose-quorum-hardening` with:
-
-```bash
-docker build -f Dockerfile.epose-dev \
-  --build-arg NPROC=2 \
-  --build-arg EPOSE_BUILD_TARGETS="epose_unit_tests epose_admission_bench epose_sybil_sim" \
-  -t qwertycoin-v2-epose-hardening:quorum-pr .
-```
+Measured on one isolated amd64 test host with the historical development build.
+Host identity, image names, and operational deployment metadata are omitted;
+the numeric results and benchmark command shape are sufficient to interpret
+this superseded evidence.
 
 The admission hash uses RandomX with the previous finalized epoch hash as seed.
 The current implementation uses RandomX light-mode hashing through
@@ -66,16 +60,17 @@ Rationale:
 
 - 8 bits was too cheap for long-running mainnet assumptions.
 - 18/20/22/24 bits are not operationally practical with the current solver.
-- 16 bits is 256x harder than 8 bits and remains inside the desired
-  20-60 minute average-registration corridor on the measured seed host A path.
+- 16 bits is 256x harder than 8 bits and remained inside the desired
+  20-60 minute average-registration corridor in the historical test setup.
 - Verification remains one RandomX evaluation per registration and measured at
   roughly 39 ms in solved runs.
 
-The final v2 launch candidate supersedes this rehearsal value with 18 bits.
+The compiled v2 public-chain profile supersedes this rehearsal value with 18
+bits in `compiled_consensus_parameters_v2()`.
 The asynchronous v2 admission worker uses a cancellable `2^24` attempt bound,
 which is 64 mean search spaces at 18 bits; epoch or reorg context changes still
-cancel stale work.  Final isolated rehearsal evidence is required before this
-candidate is bound to the launch genesis.
+cancel stale work. This file records the parameter-selection evidence and does
+not override the compiled profile.
 
 ## Sybil / Committee Simulation
 
@@ -99,7 +94,7 @@ The simulator uses the production `select_verifiers` function. Expired/empty
 committees are excluded from threshold-success accounting, because a
 zero-sized committee cannot qualify a subject in consensus.
 
-Selected seed host A results from the corrected run:
+Selected results from the corrected historical run:
 
 | Total identities | Controlled share | Committee | Threshold | Attacker subjects meeting threshold | Full attacker committees |
 | ---: | ---: | ---: | --- | ---: | ---: |

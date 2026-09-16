@@ -1,206 +1,108 @@
-# EPoSE Rewards
+# EPoSE v2 rewards
 
-## Current Formula
+This document describes the reward path implemented by `reward_v2.cpp`,
+`coordinator_v2.cpp`, `cryptonote_tx_utils.cpp`, and block validation.
 
-```text
-total_reward = base_reward + transaction_fees
-service_reward = floor(total_reward * EPOSE_SERVICE_REWARD_BPS / 10000)
-miner_reward = total_reward - service_reward
-```
+## Allocation
 
-Current `main` value:
+The compiled service share is `1000` basis points (10%). It applies to the
+scheduled subsidy only. Transaction fees remain entirely with the miner.
 
-```text
-EPOSE_SERVICE_REWARD_BPS = 1000
-```
-
-This means 10% service reward and 90% miner reward in the current controlled
-mainnet validation chain.
-
-## Epoch Source
-
-Service rewards in epoch `E + 1` are paid only from the finalized qualified set of epoch `E`.
+When a qualified payee exists:
 
 ```text
-registrations / challenges / attestations in E
-=> qualification snapshot E
-=> rewards in E + 1
+service_subsidy = floor(scheduled_subsidy * 1000 / 10000)
+miner_subsidy   = scheduled_subsidy - service_subsidy
+miner_fees      = transaction_fees
+coinbase_total  = scheduled_subsidy + transaction_fees
 ```
 
-This means current-epoch attestation ordering, inclusion, or omission cannot change the current block's payee. Reorgs before finalization recompute the source epoch from the canonical chain; after convergence, the same canonical chain must produce the same qualified set and reward view.
+When the source qualification set is empty, the compiled policy is
+`miner_fallback`: the service allocation is zero and the miner receives the
+full scheduled subsidy and all fees. No extra coins are created.
 
-## Fee Split Status
+All arithmetic is checked. Overflow, an invalid basis-point value, an unset
+empty-set policy, or a disagreement between the reward plan and Coinbase fails
+block validation.
 
-The current implementation computes the service share from the amount passed
-into coinbase validation/template generation. In the current code path this is:
+## Reward-source epoch
 
-```text
-service_reward = floor((base_reward + transaction_fees) * bps / 10000)
-```
+Epoch `0` is not reward eligible. Epoch `1` is the first service epoch. The
+first payout height is the start of epoch `2`, height `1440` for the compiled
+720-block epoch.
 
-This is Model B below. It is acceptable for controlled mainnet validation
-because it stresses coinbase validation, reward rounding, and service-node
-payment paths under one simple rule. It is not a final public mainnet tokenomics
-decision.
+A block in payout epoch `E` reads only the qualification set closed for epoch
+`E - 1`. Records in the payout block or its current epoch cannot alter that
+source set.
 
-For mainnet, two candidates remain open and must be selected explicitly before
-activation:
+## Payee selection
 
-| Model | Subsidy | Fees | Assessment |
-| --- | --- | --- | --- |
-| A | 90% miner / 10% service node | 100% miner | Better miner incentive during fee spikes and simpler fee-market reasoning. Service-node income tracks tail/subsidy only. |
-| B | 90% miner / 10% service node | 90% miner / 10% service node | Better service-node upside during high usage, but takes part of the fee security budget from miners and can make high-fee blocks more contentious. |
+The qualified service public keys are canonically ordered. Selection is bound
+to the qualification commitment, network, genesis, parameter set, payout
+epoch, and canonical payout seed. Within the payout epoch, block position
+rotates deterministically over the qualified set. Every honest node with the
+same chain therefore derives the same payee.
 
-### Model A: Split Subsidy Only
+The selected service public key is resolved back to the frozen source-epoch
+member and its exact lifecycle descriptor. Core verifies the identity,
+descriptor sequence, descriptor hash, reward binding, and service key before
+constructing a payment expectation.
 
-```text
-service_reward = floor(base_reward * bps / 10000)
-miner_reward = base_reward - service_reward + transaction_fees
-```
+## Coinbase outputs
 
-Security properties:
+The reward address is a normal primary QWC address. Core creates normal
+CryptoNote one-time outputs with the Coinbase transaction secret key and the
+address's public view and spend keys. No wallet private view or spend key is
+part of consensus, registration, validation, or node configuration.
 
-- transaction inclusion incentives remain fully miner-owned,
-- high-fee blocks do not increase service-node reward capture,
-- fee-sniping incentives stay closest to the upstream miner-only fee model,
-- service-node budget becomes predictable from emission alone.
+The service amount is decomposed using the normal denomination rules. Each
+output uses its real Coinbase output index. Repeated payments to the same
+address therefore obtain distinct one-time output keys and can be detected and
+spent by an ordinary Qwertycoin wallet after normal Coinbase maturity.
 
-Risks:
+## Scoped payment proof
 
-- service-node income may be too low if tail/subsidy is low and operating costs
-  are high,
-- fee-heavy future usage would not automatically improve service-node rewards.
+When a service payment is required, Coinbase contains exactly one version-1
+service-payment-proof record. The proof commits to:
 
-### Model B: Split Subsidy And Fees
+- network, genesis, and parameter set;
+- block height and parent hash;
+- payout epoch and qualification hash;
+- selected service public key and reward address;
+- exact service amount;
+- Coinbase transaction public key;
+- every claimed service output index, amount, and public key;
+- a hash of canonical Coinbase bytes with only the payment-proof record
+  removed.
 
-```text
-service_reward = floor((base_reward + transaction_fees) * bps / 10000)
-miner_reward = base_reward + transaction_fees - service_reward
-```
+Removing only the proof avoids a circular commitment while preserving all
+unrelated Coinbase and EPoSE data. The proof cannot be transplanted to another
+height, parent, payee, output allocation, or Coinbase transaction.
 
-Security properties:
+Block validation reconstructs the expected plan from the pre-block canonical
+state, verifies the actual Coinbase total, validates the scoped proof, derives
+the expected one-time outputs, and requires the exact service allocation. A
+missing proof, extra proof, wrong recipient, wrong amount, duplicate output,
+underpayment, overpayment, or modified commitment invalidates the block.
 
-- service-node rewards grow with actual chain usage,
-- the rule is simple and already implemented in the current validation code
-  path.
+## Emission accounting
 
-Risks:
+For the compiled `miner_fallback` policy, issued subsidy and emission advance
+both equal scheduled subsidy. The code also models a versioned
+`permanent_nonissuance` policy, but it is not the compiled mainnet policy.
 
-- a portion of the fee security budget is redirected away from miners,
-- high-fee blocks become more valuable to the selected service-node payee,
-- fee-market analysis has to account for two recipient classes,
-- reward manipulation tests must cover high-fee blocks and rounding near
-  boundary values.
+Transaction fees never enter service subsidy or emission accounting.
 
-### Technical Recommendation
+## RPC views
 
-For mainnet review, prefer Model A unless measured service-node operating costs
-show that subsidy-only rewards are insufficient. Model A keeps miner fee
-incentives simpler and makes service-node rewards independent of short-term fee
-spikes.
+`get_service_rewards` previews the reward-source epoch and expected payee for a
+height. Its `qualified_service_public_keys` field is the closed source set; it
+must not be replaced with the evolving current-epoch `qualified` flags.
 
-Keep Model B as the current validation behavior because it exercises the
-broadest coinbase-validation path and makes reward bugs easier to observe
-during high-turnover testing.
+`get_epose_block_reward` accepts a canonical block hash. Core replays the
+historical reward plan and uses the production Coinbase verifier before it
+returns a mapping. Unknown, alternative, inconsistent, or unverifiable blocks
+fail closed. Consumers must not infer service attribution from output position
+alone.
 
-Before final public mainnet activation, add a consensus switch or hardfork-gated
-rule if the chosen mainnet model differs from the current implementation.
-
-## Tokenomics Status
-
-This is not a final public mainnet tokenomics decision. Final values require
-explicit approval because they affect emission, incentives, and possibly
-legacy-token expectations.
-
-## Bounded Coinbase
-
-EPoSE does not pay every service node in every block. One qualified node is selected per block using deterministic rotation over an epoch-seeded ranking. This prevents Coinbase output count from growing linearly with the service-node set.
-
-## Governance-Style Coinbase Outputs
-
-EPoSE service rewards are normal one-time CryptoNote outputs. The miner
-transaction creates its usual transaction key pair:
-
-```text
-r = coinbase tx secret key
-R = rG = coinbase tx public key
-```
-
-For the selected service-node reward address:
-
-```text
-A = reward public view key
-B = reward public spend key
-```
-
-the service output key is:
-
-```text
-derivation = rA
-P = derive_public_key(derivation, output_index, B)
-```
-
-The service reward amount is decomposed into standard amount digits before
-outputs are added to the coinbase transaction. This is deliberate: paying the
-whole 10% as one large non-RCT amount creates amount classes with too few
-decoys and can leave wallet coin selection unable to spend an otherwise
-unlocked reward. Denominated outputs repeat across blocks and are the spendable
-CryptoNote-compatible shape.
-
-Every denominated output uses the real output index in the coinbase
-transaction. Repeated rewards to the same reward wallet therefore receive
-different output keys because every coinbase transaction has a fresh transaction
-key and each output position is part of the derivation.
-
-## Coinbase Validation
-
-When a qualified payee exists, block validation reconstructs the expected payee
-and service amount from canonical chain state. The registration discloses the
-reward wallet private view key `a`, while the private spend key remains secret.
-Validators read `R` from the coinbase transaction extra, calculate:
-
-```text
-derivation = aR
-P_expected = derive_public_key(derivation, output_index, B)
-```
-
-and collect all outputs that match the derived keys for that payee. The sorted
-matching amounts must exactly equal the denomination decomposition of the
-expected service reward. Missing, wrong-recipient, wrong-amount, wrong-view-key,
-duplicate-output-key, overpay, or underpay service rewards are invalid.
-
-For presentation, explorers may group these denominated outputs as one logical
-EPoSE service reward. That grouping is UI-only; on-chain there are multiple
-standard outputs when the service amount has multiple non-zero digits.
-
-## Canonical block reward RPC
-
-`get_epose_block_reward` accepts one canonical block hash. Core reconstructs
-the historical reward plan from chain state and then runs the production
-`verify_coinbase_service_payment_v2` verifier against the stored coinbase
-transaction. A successful response binds the height, parent, payout epoch,
-source epoch, qualification commitment, exact miner/service allocation, payee,
-and every matching denomination output to that block hash.
-
-The RPC fails closed for unknown or non-canonical hashes and when historical
-planning or payment verification does not reproduce the stored block. Consumers
-must not infer EPoSE attribution from output position when the mapping is
-unavailable.
-
-## Reward-source qualification RPC
-
-`get_service_rewards` reports both `qualified_count` and the matching
-`qualified_service_public_keys` for the finalized reward-source epoch returned
-in `epoch`. Consumers must use that key set for per-node reward eligibility;
-the current epoch's evolving `qualified` flag is a different snapshot and must
-not be substituted for it.
-
-## Endpoint descriptor restart recovery
-
-Endpoint descriptors are signed discovery objects whose hashes are committed
-by the canonical identity lifecycle. A service node restarting during an active
-epoch reconstructs its own current committed descriptor from the unchanged
-keystore, reward address, configured endpoint, sequence, and expiry. Core
-verifies the reconstructed hash against canonical chain state before admitting
-and periodically re-relaying it. A configuration or identity mismatch fails
-closed; Core never substitutes a different endpoint for the committed hash.
+See [`RPC.md`](RPC.md) for request and exposure details.

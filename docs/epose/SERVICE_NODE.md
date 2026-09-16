@@ -47,6 +47,8 @@ qwertycoind \
   --epose-v2-endpoint-port 8198 \
   --epose-v2-discovery-endpoint http://seed-00.qwertycoin.org:8198 \
   --epose-v2-discovery-endpoint http://seed-01.qwertycoin.org:8198 \
+  --epose-v2-discovery-endpoint http://seed-02.qwertycoin.org:8198 \
+  --epose-v2-discovery-endpoint http://seed-03.qwertycoin.org:8198 \
   --p2p-bind-ip 0.0.0.0 \
   --p2p-bind-port 8196 \
   --rpc-bind-ip 127.0.0.1 \
@@ -158,6 +160,8 @@ is governed by chain height, enrollment cutoffs, the two-epoch warm-up,
 admission proof, committee receipts, and current reachability. Starting the
 producer does not guarantee qualification or an immediate reward. Epoch zero
 has no EPoSE-v2 rewards.
+
+See [`RPC.md`](RPC.md) for the complete method and exposure matrix.
 
 ## Docker Mainnet Deployment
 

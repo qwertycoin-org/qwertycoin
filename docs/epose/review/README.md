@@ -1,15 +1,20 @@
 # EPoSE Security Review
 
-This directory records the source-audited baseline and decisions that must
-precede a hardened EPoSE protocol revision. It is deliberately separate from
-the current protocol description: finding a weakness in EPoSE v1 does not
-authorize a node to reinterpret an already accepted block.
+> **Historical and evidentiary material.** This directory preserves the
+> source-audited baselines, decisions, vectors, and release evidence produced
+> during EPoSE v2 hardening. Its narrative files describe the source snapshot
+> named in each document; they are not the current protocol specification.
+> Use [`../PROTOCOL.md`](../PROTOCOL.md) and current source for implemented
+> behavior.
+
+The machine-readable release policy, evidence ledger, vectors, and results are
+still consumed by repository tooling and therefore remain operational inputs.
+Their retained verdicts apply to the release class and evidence snapshot they
+name; they do not silently change consensus or invalidate later explicitly
+approved public-test releases.
 
 ## Documents
 
-- [`SOURCE_BASELINE.md`](SOURCE_BASELINE.md) identifies the reviewed source,
-  upstream ancestry, active parameters, deployment observations, and reproduced
-  test surface.
 - [`FINDINGS.md`](FINDINGS.md) maps security-review findings F01 through F21 to
   concrete code and tests. `Open` means work is required; it does not by itself
   claim an exploitable vulnerability.
@@ -45,3 +50,7 @@ fallback, or final resource limits.
 CO-01 adds a normative transition, reservation manifest, and independent
 boundary/envelope vectors without making reserved records valid. Runtime
 implementation remains owned by CO-02 onward.
+
+Historical operational host inventories and access notes are deliberately not
+kept in the current public tree. Machine-readable evidence uses sanitized test
+labels and contains no credentials or private operations mapping.
