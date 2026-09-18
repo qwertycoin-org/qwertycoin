@@ -108,11 +108,11 @@ Actions**:
   or to the Docker ID that owns a personal token;
 - variable `DOCKERHUB_NAMESPACE`, exactly `qwertycoin`.
 
-The complete release version is immutable. Stable `v2.0.1` publishes `2.0.1`;
-prerelease `v2.0.2-rc1` publishes `2.0.2-rc1` and never moves `latest`. Only the
+The complete release version is immutable. Stable `v2.0.2` publishes `2.0.2`;
+prerelease `v2.0.3-rc1` publishes `2.0.3-rc1` and never moves `latest`. Only the
 highest public stable semantic version can move `latest`, and it does so by
 copying the already verified digest without rebuilding. A later packaging-only
-revision uses an explicit tag such as `2.0.1-image.2`.
+revision uses an explicit tag such as `2.0.2-image.2`.
 
 For a registry retry or a backfill of an already public release, dispatch
 `qwc/core-docker-publish` from `main` with the exact release tag, exact source
