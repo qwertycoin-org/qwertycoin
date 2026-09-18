@@ -29,9 +29,22 @@
 #pragma once 
 
 #include <string>
+#include <vector>
 
 namespace tools
 {
+  /**
+   * Selects the highest valid update record for an exact software/build target.
+   *
+   * Records use the DNS TXT format
+   *   <software>:<buildtag>:<version>:<lowercase-sha256>
+   *
+   * This parser is intentionally exposed so the security-sensitive record
+   * contract can be covered without depending on live DNS in unit tests.
+   */
+  bool select_update_record(const std::vector<std::string> &records, const std::string &software,
+      const std::string &buildtag, std::string &version, std::string &hash);
+
   bool check_updates(const std::string &software, const std::string &buildtag, std::string &version, std::string &hash);
   std::string get_update_url(const std::string &software, const std::string &subdir, const std::string &buildtag, const std::string &version, bool user);
 }
