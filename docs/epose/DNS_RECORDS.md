@@ -1,7 +1,7 @@
 # Qwertycoin DNS Records
 
-This document records the DNS records expected by the current QWC v2 / EPoSE
-testnet branch and separates safe placeholders from release-gated metadata.
+This document records QWC-owned DNS names used by current Core and separates
+safe placeholders from release-gated metadata.
 
 ## Update Metadata
 
@@ -83,6 +83,7 @@ hostnames:
 seed-00.qwertycoin.org
 seed-01.qwertycoin.org
 seed-02.qwertycoin.org
+seed-03.qwertycoin.org
 ```
 
 Each seed hostname should publish `A` and, where available, `AAAA` records for

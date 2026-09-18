@@ -1,96 +1,85 @@
-# EPoSE Documentation Inventory
+# EPoSE documentation inventory
 
-Date: 2026-09-04
-Branch source: `main` at `60ccc9d08`
+This inventory separates current operator/protocol documentation from retained
+security-review evidence. Source code and consensus tests remain authoritative
+if prose and implementation ever disagree.
 
-## CURRENT
+## Current reference
 
-These files are intended to describe the protocol and deployment behavior of
-the current `main` branch:
+These files describe the EPoSE v2 implementation on the current branch:
 
-- `README.md`
-- `PROTOCOL.md`
-- `REWARDS.md`
-- `SERVICE_NODE.md`
-- `CONSENSUS_INVARIANTS.md`
-- `THREAT_MODEL.md`
-- `HARDENING_STATUS.md`
-- `IMPLEMENTATION_REPORT.md`
-- `MAINNET_VALIDATION.md`
-- `ATTESTATION_RELAY.md`
-- `HISTORICAL_GOVERNANCE_REWARD_ANALYSIS.md`
-- `SERVICE_REWARD_OUTPUT_ANALYSIS.md`
-- `SERVICE_REWARD_PRIVACY.md`
-- `DUPLICATE_REGISTRATION_ANALYSIS.md`
-- `DNS_RECORDS.md`
-- `BENCHMARKS.md`
-- `MACOS_M1_TESTING.md`
-
-## HISTORICAL SNAPSHOT
-
-These files are retained for audit history and older PR context. They should
-not be used as current protocol reference without checking `README.md`,
-`PROTOCOL.md`, and the current source code first:
-
-- `PR2_OVERVIEW_DE.md`
-- `QWC_V2_CHANGE_REPORT_DE.md`
-- `MAINNET_TESTPHASE.md`
-- `TESTNET.md`
-- `CONSOLIDATION_RFC.md`
-
-## CURRENT OUTSIDE `docs/epose`
-
-- `../architecture/CURRENT_STATE.md`
-- `../../README.md`
-- `../../deploy/mainnet/README.md`
-
-## Current Code Source Of Truth Checked
-
-- `src/epose/service_node.h`
-- `src/epose/service_node.cpp`
-- `src/epose/service_epoch.h`
-- `src/epose/service_epoch.cpp`
-- `src/epose/attestation_pool.h`
-- `src/epose/attestation_pool.cpp`
-- `src/epose/service_registry.*`
-- `src/cryptonote_core/cryptonote_core.*`
-- `src/cryptonote_core/blockchain.*`
-- `src/cryptonote_core/cryptonote_tx_utils.cpp`
-- `src/cryptonote_config.h`
-- `tests/unit_tests/epose.cpp`
-- `tests/epose/integration/local_epose_network.sh`
-- `deploy/mainnet/*`
-
-## Current Parameter Snapshot
-
-| Parameter | Current `main` value |
+| Document | Purpose |
 | --- | --- |
-| EPoSE protocol version | `1` |
-| QWC launch rules | `HF_VERSION_QWC_EPOSE = 17` from genesis; EPoSE format version 2 |
-| Epoch length | `720` blocks |
-| Finality depth | `60` blocks |
-| Registration TTL | `30` epochs |
-| State retention | `2` epochs |
-| Verifier committee target | `5` |
-| Qualification threshold | `EPOSE_MIN_ATTESTATIONS = 2` |
-| Service reward | `1000 bps` / 10% |
-| Admission difficulty | `8` leading zero bits |
-| Identity blob | `249` bytes |
-| Attestation blob | `234` bytes |
-| Relay batch limit | `32` payloads |
-| Relay pool limit | `4096` entries |
-| QWC display decimals | `8` |
-| P2P / daemon RPC / restricted RPC / ZMQ | `8196` / `8197` / `8198` / `8199` |
-| Mainnet standard address prefix | `0x14820c` |
+| [`README.md`](README.md) | Entry point, implementation map, and documentation policy |
+| [`PROTOCOL.md`](PROTOCOL.md) | Consensus lifecycle, membership, receipts, rewards, and reorg behavior |
+| [`SECURITY_PARAMETERS.md`](SECURITY_PARAMETERS.md) | Exact compiled consensus and resource values |
+| [`CONSENSUS_INVARIANTS.md`](CONSENSUS_INVARIANTS.md) | Fail-closed invariants enforced by code and tests |
+| [`THREAT_MODEL.md`](THREAT_MODEL.md) | Assets, trust boundaries, mitigations, and residual risks |
+| [`REWARDS.md`](REWARDS.md) | Subsidy split, payee selection, Coinbase proof, and RPC interpretation |
+| [`RPC.md`](RPC.md) | EPoSE daemon RPC methods and exposure rules |
+| [`SERVICE_NODE.md`](SERVICE_NODE.md) | Service-node operation and keystore handling |
+| [`COMMUNITY_SETUP.md`](COMMUNITY_SETUP.md) | Community-node installation and validation checklist |
+| [`DNS_RECORDS.md`](DNS_RECORDS.md) | QWC-owned DNS names and publication constraints |
+| [`BENCHMARKS.md`](BENCHMARKS.md) | Historical measurement evidence; not a parameter source |
 
-## Known Pending Hardening
+The broader implementation overview is
+[`../architecture/CURRENT_STATE.md`](../architecture/CURRENT_STATE.md).
+Operator examples must remain portable: private deployment topology and access
+metadata are not documentation inputs.
 
-- Replace fixed `EPOSE_MIN_ATTESTATIONS = 2` with a dynamic 2/3 quorum after
-  simulation and tests.
-- Evaluate committee target `5/7/9/11`; `9` is the leading candidate but is not
-  implemented on `main`.
-- Benchmark and raise RandomX admission difficulty; `8` bits is the current
-  bootstrap value, not a final long-term anti-Sybil setting.
-- Decide final tokenomics for fee sharing versus subsidy-only service rewards.
-- Add longer fuzzing, larger multi-node runs, deeper reorg/partition coverage,
-  and clean broader sanitizer coverage.
+## Machine-readable activation and release artifacts
+
+The following files are intentionally retained because tests or release tools
+consume them:
+
+- [`PARAMETER_MANIFEST_V2.json`](PARAMETER_MANIFEST_V2.json) records the signed
+  activation-candidate parameter commitment and its source dependency snapshot.
+  Its historical `dependencies` and `release.source_revision` fields are not a
+  claim that the repository is still at those commits.
+- [`review/RELEASE_GATE_POLICY_V2.json`](review/RELEASE_GATE_POLICY_V2.json)
+  defines release-gate policy.
+- [`review/RELEASE_GATES_V2.json`](review/RELEASE_GATES_V2.json) is the retained
+  evidence ledger consumed by release checks.
+- Files under [`../../tests/epose/vectors/`](../../tests/epose/vectors/) and
+  [`review/results/`](review/results/) are deterministic review evidence.
+
+Changing a JSON artifact can invalidate hashes or release checks. Do not edit
+one merely to make narrative documentation look current.
+
+## Historical security review
+
+Markdown files under [`review/`](review/) preserve design decisions, threat
+findings, acceptance matrices, and validation snapshots from the v2 hardening
+work. They are audit history, not a second current protocol specification.
+Their dates, commit IDs, open findings, or release verdicts apply to the
+snapshot named in each file unless explicitly updated.
+
+Operational host inventories and access notes are intentionally not retained in
+the current public tree. Git history preserves prior snapshots for authorized
+archaeology without presenting them as current runbooks.
+
+## Removed development notes
+
+The documentation set previously contained German change reports, PR
+summaries, test-phase diaries, duplicate design descriptions, and analyses that
+mixed retired EPoSE v1 behavior with v2 plans. They were removed from the
+current tree because later implementation made their instructions misleading.
+Git history remains the audit source for those development snapshots.
+
+## Code source of truth
+
+When reviewing or updating these documents, start with:
+
+- `src/epose/coordinator_v2.cpp` and `src/epose/compiled_profile_v2.h`;
+- `src/epose/block_transition_v2.cpp` and `src/epose/semantic_batch_v2.cpp`;
+- `src/epose/membership_v2.cpp`, `lifecycle_v2.cpp`, and `reward_v2.cpp`;
+- `src/epose/envelope_v2.cpp`, `record_codec_v2.cpp`, and
+  `resource_policy_v2.cpp`;
+- `src/cryptonote_core/blockchain.cpp` and
+  `src/cryptonote_core/cryptonote_tx_utils.cpp`;
+- `src/rpc/core_rpc_server.{h,cpp}`;
+- `tests/unit_tests/epose_v2.cpp`, related EPoSE tests, and
+  `tests/epose/integration/`.
+
+The legacy files without a `_v2` suffix remain in the tree for compatibility
+and test coverage. They do not define the active public-chain EPoSE profile.

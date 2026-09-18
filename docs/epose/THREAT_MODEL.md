@@ -1,137 +1,147 @@
-# EPoSE v2 Threat Model
+# EPoSE v2 threat model
 
-## Sybil Nodes
+## Security objective
 
-Attack: one operator starts 10, 100, or 10,000 service identities on one machine, many containers, many IPv4/IPv6 addresses, cloud servers, proxies, or VPNs.
+EPoSE should reward service identities that provide the implemented canonical
+object service without weakening RandomX chain security, changing supply,
+exposing wallet secrets, or allowing local/off-chain observations to decide
+consensus.
 
-Precondition: service identities are cheap.
+Protected assets include:
 
-Impact: service rewards concentrate with the attacker.
+- canonical chain and deterministic EPoSE state;
+- scheduled subsidy and service-reward recipient;
+- operator and online service authorities;
+- wallet spend/view keys and reward funds;
+- daemon CPU, memory, disk, and network capacity;
+- reorg-safe persistent state.
 
-Current Protection: HF17 uses RandomX-bound, identity-scoped admission work and
-counts duplicate attestations once. The non-activating v2 pipeline freezes
-future-epoch membership before selection.
+## Trust boundaries
 
-Residual Risk: the current 16-leading-zero-bit target was measured only with a
-slow light-mode solver and can buy a long eligibility interval. It is not an
-approved economic Sybil cost. Optimized steady-state x86-64/ARM64 and shared
-dataset measurements remain mandatory.
+Untrusted inputs include blocks, transactions, tx-extra bytes, P2P relay
+messages, endpoint descriptors, DNS answers, service responses, RPC requests,
+and peer timing. Explorer, monitoring, discovery endpoints, and relay queues are
+not consensus authorities.
 
-Test: simulate large identity sets and verify reward rotation, bounded state, and cost assumptions.
+The offline operator key authorizes identity lifecycle. The online service key
+answers challenges and participates as verifier. A normal QWC reward address
+receives funds; its wallet secrets are outside the service node.
 
-## Fake Uptime
+## Threats and implemented mitigations
 
-Attack: a node claims uptime without serving chain data.
+### Free identity/Sybil creation
 
-Precondition: self-reported uptime is accepted.
+Admission requires epoch- and context-bound RandomX work at the compiled
+18-leading-zero-bit target. Membership is capped at 100 identities, leases are
+target-epoch scoped, service keys are unique, and admission verification is
+bounded per envelope and block.
 
-Impact: rewards are paid to non-service nodes.
+Residual risk: 18 bits is a public-test launch parameter, not proof that one
+economic operator controls only one identity. Optimized hardware and parallel
+search reduce admission cost. A future change requires measurement and an
+explicit parameter activation.
 
-Current Protection: self-attestation is invalid; qualification requires independent signed attestations. The attestation response hash is derived from the challenge, observed tip, subject, verifier, and epoch, so arbitrary or stale response blobs are rejected by consensus.
+### Committee collusion and false availability
 
-Residual Risk: colluding verifiers can still lie, and the current tx-extra format does not carry a subject-signed live service response. Mainnet needs a subject-authenticated proof-of-service path or an explicitly documented replacement design.
+Verifier committees are selected deterministically from a frozen snapshot.
+Receipts require independent subject and selected-verifier signatures and are
+bound to a canonical block-object challenge. Quorum is two thirds of the
+actual committee and two of three rounds must pass.
 
-Test: invalid responses and self-attestations must not qualify.
+Residual risk: colluding identities can attest to each other. Small bootstrap
+populations provide materially less operator diversity than a full nine-member
+committee. EPoSE proves the implemented signed canonical-object exchange, not
+legal identity, dedicated hardware, continuous uptime, latency SLA, or
+geographic independence.
 
-## Colluding Committees
+### Miner manipulation and censorship
 
-Attack: selected verifiers attest each other falsely.
+Reward eligibility comes from a qualification set closed before its payout
+epoch. A miner cannot choose the current block's payee or fabricate a receipt
+without the required keys. Full nodes validate the expected payment.
 
-Precondition: committee selection can be predicted or dominated.
+Residual risk: miners can censor otherwise valid enrollment/evidence records
+from their templates. Reserved relay/template capacity reduces accidental
+starvation but cannot force an adversarial miner to include a record. Continued
+network-wide censorship can prevent qualification; it cannot redirect a
+qualified identity's payment.
 
-Impact: unserved identities earn rewards.
+### Replay and cross-context substitution
 
-Current Protection: HF17 derives its seed from delayed block data. The
-non-activating v2 pipeline freezes membership before its anchor and refuses to
-shrink committee or threshold when the eligible set is too small.
+Hashes and signatures bind the network, genesis, parameter set, epoch,
+snapshot, anchors, roles, endpoint, nonce, and record-specific context.
+Lifecycle sequence numbers and semantic slot keys reject stale conflicts.
 
-Residual Risk: a delayed PoW hash is not final or unbiased, and identities are
-not independent operators. The previous committee-9 dynamic-quorum conclusion
-is superseded for parameter selection. `SECURITY_PARAMETERS.md` quantifies the
-capture/liveness trade-off and leaves all v2 constants unapproved.
+An object valid on another chain, genesis, parameter set, epoch, round,
+identity, or endpoint is invalid here.
 
-Test: collusion simulation with attacker-controlled fractions of the registered set.
+### Malformed-input and resource exhaustion
 
-Tooling: `qwertycoin-epose-sybil-sim` runs deterministic committee exposure scenarios with 10, 25, 50, and 100 total identities and controlled-identity shares around 10%, 20%, 25%, 33%, 40%, and 50%.
+Canonical envelope parsing rejects overlong/overflowing varints, malformed
+lengths, unknown types, unsupported versions, nonzero flags, trailing bytes,
+and context-invalid records. Per-envelope and per-block byte, record,
+signature, and RandomX budgets are charged before expensive verification or
+duplicate elimination. P2P batches, endpoint cache, DNS resolution, probe
+concurrency, relay queue, RPC pages, and template selection are bounded.
 
-## Replay
+Residual risk: limits bound one validation path but do not remove ordinary
+network volumetric DoS. Operators still need firewall, connection, and RPC
+rate limits.
 
-Attack: old registrations, challenges, or attestations are replayed.
+### Endpoint and DNS attacks
 
-Precondition: messages are not epoch- or network-bound.
+Descriptors are signed and their hashes are committed by lifecycle state.
+Hosts must be canonical and public; private, loopback, link-local, multicast,
+mapped, or malformed targets are rejected. Resolution is bounded and targets
+are revalidated before probing. Consensus validation never resolves DNS.
 
-Impact: stale proofs affect current rewards.
+Residual risk: DNS and routing remain availability dependencies for live
+probing. A valid signature proves descriptor authorization, not control of the
+network path at every instant.
 
-Current Protection: signatures include network ID and epoch-bound fields. Admission proof verification is bound to the previous finalized epoch seed. Challenges are epoch-bound, response hashes are challenge- and tip-bound, and block application rejects EPoSE payloads whose embedded epoch does not match the block epoch.
+### Key compromise
 
-Residual Risk: on-chain storage must reject duplicate or expired entries.
+The keystore separates the stable operator authority from the online service
+key and is bound to the chain/profile. Lifecycle recovery can rotate the
+service key without changing identity. POSIX mode and Windows owner/DACL checks
+reject broadly readable, inherited, symlink/reparse, and wrong-owner files.
 
-Test: replay registration/proof/attestation across epoch, nettype, and previous finalized epoch seed. Focused unit tests now reject registration proof replay under a different epoch seed, attestation replay under a different epoch seed, tampered registration signatures, tampered attestation signatures, offline attestations, and inactive-subject attestations without retaining partial state.
+Residual risk: compromise of the operator authority can authorize lifecycle
+changes. Compromise of the online service key can answer/sign service records
+until recovery takes effect. Operators must back up the keystore securely and
+protect the host; there is no remote revocation service.
 
-## Reward Theft
+### Wallet-funds compromise
 
-Attack: a miner replaces the service reward address or payee.
+The daemon receives only a public primary reward address. The EPoSE keystore
+contains no wallet secret. Coinbase uses normal one-time outputs and a scoped
+payment proof validated by every full node.
 
-Precondition: Coinbase validation does not bind payout to deterministic service state.
+Residual risk: public lifecycle/reward data can link a service identity,
+endpoint, and reward address. Use of a dedicated reward wallet limits linkage
+to other wallet activity but does not make service rewards private.
 
-Impact: service rewards are stolen or omitted.
+### Reorg and state corruption
 
-Current Protection: deterministic payee selection exists, block template
-creation adds service reward outputs when a qualified payee exists, and block
-validation rejects missing, wrong-amount, wrong-payee, duplicate-output-key,
-overpay, or underpay service rewards. Outputs are normal wallet-compatible
-one-time outputs derived from the coinbase transaction key and the registered
-reward address.
+Transitions are fail-atomic, recent disconnects use bounded undo, and deeper
+recovery replays canonical blocks. LMDB commitments bind the derived state to
+the same database transaction as the block. Genesis/profile mismatches and
+missing or corrupt commitments fail closed.
 
-Residual Risk: validators can verify the one-time outputs because each
-registration discloses the reward wallet private view key. That makes incoming
-activity of the dedicated reward wallet observable to anyone who reads the
-registration data. The spend key remains secret and is not disclosed.
+Residual risk: deep replay is operationally expensive. Pruned validation is
+declared unsupported/fail-closed for this profile; service producers should run
+an unpruned daemon.
 
-Test: block validation must reject wrong service payee after hardfork activation.
+## Explicit non-goals
 
-## Reorg
+EPoSE v2 does not prove:
 
-Attack: a competing chain crosses epoch boundaries and changes qualified sets.
+- that one identity equals one human or one machine;
+- permanent uptime or a latency/bandwidth SLA;
+- geographic, ASN, hosting-provider, or operator independence;
+- immunity to majority mining censorship;
+- privacy of service endpoint or reward-address relationships;
+- protection of an operator key after host compromise.
 
-Precondition: EPoSE state is stored off-chain or not rollback-safe.
-
-Impact: consensus divergence or duplicate rewards.
-
-Current Protection: EPoSE state is derived deterministically from canonical
-on-chain registrations, attestations, and block headers. Block application uses
-state snapshots and can rebuild from canonical chain data after rollback.
-
-Residual Risk: dedicated LMDB indexes for derived EPoSE state are still not the
-primary storage model. Deep reorg, restart/rejoin, and epoch-boundary tests must
-remain part of release validation.
-
-Test: reorg A -> B -> A must restore the exact original EPoSE state.
-
-## Oversized Messages
-
-Attack: malformed P2P/RPC payloads allocate unbounded memory.
-
-Precondition: dynamic vectors or strings are accepted before validation.
-
-Impact: memory exhaustion or crash.
-
-Current Protection: EPoSE registration and attestation payloads are fixed-size, parser/state-apply fuzz coverage exists for service-node identities, registration tx-extra payloads, attestations, attestation tx-extra payloads, EPoSE tx-extra extraction, and fail-closed chain-state application. No EPoSE P2P parser exists yet.
-
-Residual Risk: medium until long-running fuzz campaigns, a clean UBSan run, and any future EPoSE P2P/RPC write parsers are covered.
-
-Test: fuzz registration, proof, attestation, P2P and RPC parsers. The current 11-seed EPoSE parser/state-apply corpus passed on seed host A under normal execution, AddressSanitizer, and UBSan, including truncated tx-extra, wrong-network/epoch replay noise, and oversized/noisy EPoSE inputs. ASan execution on seed host A requires the documented unconfined seccomp plus `setarch -R` wrapper because Ubuntu 20 `libasan.so.5` can otherwise crash intermittently during loader-side ASan allocator initialization with host `vm.mmap_rnd_bits=32`. UBSan still reports an inherited Boost serialization static-initialization issue in the `epose_unit_tests` binary before GTest execution, so no clean unit-test UBSan pass is claimed yet.
-
-## Consensus Oracle
-
-Attack: Explorer, Sentinel, DNS, GeoIP, or a foundation service controls reward eligibility.
-
-Precondition: external API results are accepted in block validation.
-
-Impact: centralization and consensus failure.
-
-Current Protection: design forbids external consensus oracles.
-
-Residual Risk: implementation review must keep Sentinel v2 read-only.
-
-Test: block validation must not call external services.
+Any future service kind, slashing rule, collateral system, privacy scheme, or
+new admission economy requires a separately versioned design and threat model.

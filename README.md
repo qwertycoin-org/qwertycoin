@@ -394,12 +394,11 @@ docs/epose/PROTOCOL.md
 docs/epose/THREAT_MODEL.md
 docs/epose/CONSENSUS_INVARIANTS.md
 docs/epose/REWARDS.md
+docs/epose/SECURITY_PARAMETERS.md
+docs/epose/RPC.md
 docs/epose/SERVICE_NODE.md
 docs/epose/COMMUNITY_SETUP.md
-docs/epose/MACOS_M1_TESTING.md
-docs/epose/SERVICE_REWARD_PRIVACY.md
-docs/epose/MAINNET_TESTPHASE.md
-docs/epose/IMPLEMENTATION_REPORT.md
+docs/epose/DOCUMENTATION_INVENTORY.md
 ```
 
 ## License
