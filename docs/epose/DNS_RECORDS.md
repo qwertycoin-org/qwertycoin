@@ -7,9 +7,10 @@ safe placeholders from release-gated metadata.
 
 Do not copy inherited `updates.moneropulse.org` TXT records.
 
-Current code deliberately disables runtime update checks until QWC-owned signed
-release metadata exists. Publishing inherited Monero records would make QWC
-tooling point at unrelated binaries and hashes.
+Core and GUI update checks use this QWC-owned name only. Records are accepted
+only when the complete DNS response validates through DNSSEC. The selected
+artifact URL is not read from DNS: code maps a strict software/build-tag
+allowlist to the corresponding `qwertycoin-org` GitHub release repository.
 
 Recommended current state:
 
@@ -17,25 +18,53 @@ Recommended current state:
 updates.qwertycoin.org. 300 IN TXT "qwc:update-metadata-not-yet-published"
 ```
 
-The placeholder is informational only. Current QWC update code does not consume
-it for update decisions.
+The placeholder is informational only and is ignored by the updater. Keep it
+until the zone has a working DNSSEC chain and the first updater-enabled release
+has been built and verified. Existing v2.0.1 binaries do not contain the active
+updater and therefore require one manual update to enter this release channel.
 
-Future release-gated records should only be published after QWC release
-artifacts exist and their SHA-256 hashes are known. Candidate format:
+Release records must only be published after the corresponding public artifact
+exists and its SHA-256 has been independently verified. Core metadata uses:
 
 ```text
-updates.qwertycoin.org. 300 IN TXT "qwertycoin:source:<version>:<sha256>"
 updates.qwertycoin.org. 300 IN TXT "qwertycoin:linux-x64:<version>:<sha256>"
 updates.qwertycoin.org. 300 IN TXT "qwertycoin:mac-armv8:<version>:<sha256>"
-updates.qwertycoin.org. 300 IN TXT "qwertycoin:mac-x64:<version>:<sha256>"
 updates.qwertycoin.org. 300 IN TXT "qwertycoin:win-x64:<version>:<sha256>"
 ```
 
-Do not publish fake hashes, inherited Monero version numbers, or records for
-artifacts that were not built and verified.
+GUI metadata uses distinct software and installed/portable Windows tags:
+
+```text
+updates.qwertycoin.org. 300 IN TXT "qwertycoin-gui:linux-x64:<version>:<sha256>"
+updates.qwertycoin.org. 300 IN TXT "qwertycoin-gui:mac-armv8:<version>:<dmg-sha256>"
+updates.qwertycoin.org. 300 IN TXT "qwertycoin-gui:install-win-x64:<version>:<setup-sha256>"
+updates.qwertycoin.org. 300 IN TXT "qwertycoin-gui:win-x64:<version>:<portable-zip-sha256>"
+```
+
+`<version>` is the public three-component release version, for example
+`2.0.2`, and maps to GitHub tag `v2.0.2`. Hashes are exactly 64 lowercase
+hexadecimal characters. The macOS GUI channel deliberately selects the DMG as
+the preferred package.
+
+Source builds and macOS Intel currently have no supported update artifact.
+Do not publish `source` or `mac-x64` records until release workflows produce and
+verify matching public assets and the code allowlist is updated.
+
+Do not publish fake hashes, inherited Monero version numbers, conflicting
+hashes for the same version, or records for artifacts that were not built and
+verified. The updater fails closed on malformed or conflicting matching
+records.
 
 Records with empty version or hash fields, such as `qwertycoin:mac-armv8::`,
 are invalid release metadata and must not be published.
+
+Operational activation order:
+
+1. enable DNSSEC at the registrar and authoritative DNS provider;
+2. verify `DS`/`DNSKEY` and an authenticated (`AD`) TXT response externally;
+3. publish all records for one completed release with TTL 300;
+4. verify every record against the public release asset again;
+5. remove the placeholder only after the authenticated records are visible.
 
 ## OpenAlias Donation Record
 
