@@ -39,6 +39,7 @@
   - [ ] Update README.md with the Qwertycoin release status
   - [ ] Update contrib/gitian/README.md so that the instructions reflect the current version
   - [ ] Update src/checkpoints/checkpoints.cpp with a recent hardcoded checkpoint
+  - [ ] Record checkpoint provenance, activation, and reorg behavior in docs/MAINNET_CHECKPOINTS.md
   - [ ] Update src/blocks/checkpoints.dat with ./qwertycoin-blockchain-export --output-file checkpoints.dat --block-stop <recent block height> --blocksdat
   - [ ] Update expected_block_hashes_hash in src/cryptonote_core/blockchain.cpp with checkpoints.dat sha256 hash
 - [ ] Testnet forked
