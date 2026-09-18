@@ -198,6 +198,13 @@ namespace cryptonote
       return true;
     }
     ADD_CHECKPOINT2(0, "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39", "0x1");
+
+    // Reset-1 mainnet: completed 720-block EPoSE epoch boundaries.
+    ADD_CHECKPOINT2(719,  "69cf9a283099298d1ea9c71b14b0f1d73c7ca81c87e4a2303c1ea91ff8c5b68d", "0xde51cae4");
+    ADD_CHECKPOINT2(1439, "019b6a911b0fd41f6e83740f1c4c3fc83f5299339b62cb532b48c97b1e2c35f1", "0x3705926df");
+    ADD_CHECKPOINT2(2159, "011bdb8505cc457a3b4be6deccd8fb7fcd55849075b67cbac1f1601b034860a0", "0x7a9125791");
+    ADD_CHECKPOINT2(2879, "cc954d4cb4352affc224a9191fb356932e4a9ec405e89b4932654fb1737a50d0", "0x13e28e554a");
+    ADD_CHECKPOINT2(3599, "75c7cff8db59f803962fa86ab79a7429ebd3cd2025968bbe80d5744554ba35db", "0x246cae087a");
     return true;
   }
 
