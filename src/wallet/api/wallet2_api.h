@@ -103,6 +103,7 @@ struct PendingTransaction
     virtual uint64_t txCount() const = 0;
     virtual std::vector<uint32_t> subaddrAccount() const = 0;
     virtual std::vector<std::set<uint32_t>> subaddrIndices() const = 0;
+    virtual std::string qmsJournalData() const = 0;
 
     /**
      * @brief multisigSignData
@@ -884,6 +885,7 @@ struct Wallet
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low,
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
+    virtual PendingTransaction * restoreQmsCarrierTransactions(const std::string &encryptedJournal) = 0;
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.

@@ -206,6 +206,11 @@ uint64_t PendingTransactionImpl::txCount() const
     return m_pending_tx.size();
 }
 
+std::string PendingTransactionImpl::qmsJournalData() const
+{
+    return m_wallet.m_wallet->dump_qms_pending_to_str(m_pending_tx);
+}
+
 std::vector<uint32_t> PendingTransactionImpl::subaddrAccount() const
 {
     std::vector<uint32_t> result;
