@@ -53,6 +53,7 @@ public:
     uint64_t txCount() const override;
     std::vector<uint32_t> subaddrAccount() const override;
     std::vector<std::set<uint32_t>> subaddrIndices() const override;
+    std::string qmsJournalData() const override;
     // TODO: continue with interface;
 
     std::string multisigSignData() override;

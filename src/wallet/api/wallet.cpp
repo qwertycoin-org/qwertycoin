@@ -1921,6 +1921,35 @@ PendingTransaction *WalletImpl::createQmsCarrierTransactions(
     return transaction;
 }
 
+PendingTransaction *WalletImpl::restoreQmsCarrierTransactions(const std::string &encryptedJournal)
+{
+    clearStatus();
+    PendingTransactionImpl *transaction = new PendingTransactionImpl(*this);
+    try {
+        if (!m_wallet->parse_qms_pending_from_str(encryptedJournal, transaction->m_pending_tx) ||
+            transaction->m_pending_tx.empty() || transaction->m_pending_tx.size() > qwertycoin::qms::MAX_FRAGMENTS)
+            throw std::runtime_error("invalid encrypted QMS pending journal");
+        std::set<size_t> selected;
+        for (const auto &pending : transaction->m_pending_tx) {
+            if (pending.tx.extra.size() > MAX_TX_EXTRA_SIZE ||
+                qwertycoin::qms::extract_carrier_fragments(pending.tx.extra).size() != 1)
+                throw std::runtime_error("journal contains a non-QMS or oversized transaction");
+            for (const size_t index : pending.selected_transfers) {
+                if (!selected.insert(index).second)
+                    throw std::runtime_error("journal reuses a carrier input");
+                m_wallet->freeze(index);
+                transaction->m_reserved_transfers.push_back(index);
+            }
+        }
+    } catch (const std::exception &e) {
+        transaction->releaseReservations();
+        transaction->m_pending_tx.clear();
+        setStatusError(string(tr("QMS journal restore failed: ")) + e.what());
+    }
+    statusWithErrorString(transaction->m_status, transaction->m_errorString);
+    return transaction;
+}
+
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
 
 {

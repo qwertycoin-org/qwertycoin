@@ -7684,6 +7684,37 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
   return save_to_file(filename, ciphertext);
 }
 //----------------------------------------------------------------------------------------------------
+std::string wallet2::dump_qms_pending_to_str(const std::vector<pending_tx> &ptx_vector) const
+{
+  std::ostringstream stream;
+  binary_archive<true> archive(stream);
+  std::vector<pending_tx> copy = ptx_vector;
+  if (!::serialization::serialize(archive, copy))
+    return {};
+  return std::string("QMS-PENDING-V1") + encrypt_with_view_secret_key(stream.str());
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::parse_qms_pending_from_str(const std::string &data, std::vector<pending_tx> &ptx_vector) const
+{
+  static const std::string prefix = "QMS-PENDING-V1";
+  if (data.compare(0, prefix.size(), prefix) != 0)
+    return false;
+  try
+  {
+    const std::string plaintext = decrypt_with_view_secret_key(data.substr(prefix.size()));
+    binary_archive<false> archive{epee::strspan<std::uint8_t>(plaintext)};
+    std::vector<pending_tx> parsed;
+    if (!::serialization::serialize(archive, parsed) || !::serialization::check_stream_state(archive))
+      return false;
+    ptx_vector = std::move(parsed);
+    return true;
+  }
+  catch (...)
+  {
+    return false;
+  }
+}
+//----------------------------------------------------------------------------------------------------
 std::string wallet2::dump_tx_to_str(const std::vector<pending_tx> &ptx_vector) const
 {
   LOG_PRINT_L0("saving " << ptx_vector.size() << " transactions");
