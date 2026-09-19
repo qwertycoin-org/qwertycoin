@@ -106,3 +106,34 @@ TEST(qms, incomplete_conflicting_and_bad_mac_rejected)
   auto conflicting = fragments; conflicting.push_back(fragments.front()); conflicting.back().data[0] ^= 1; EXPECT_THROW(qwertycoin::qms::reassemble(conflicting), std::runtime_error);
 }
 
+TEST(qms, existing_nonce_varint_boundaries_and_extra_limit_are_unchanged)
+{
+  for (const size_t size : {size_t(127), size_t(128), size_t(255)})
+  {
+    std::vector<uint8_t> extra;
+    const std::string nonce(size, '\x42');
+    ASSERT_TRUE(cryptonote::add_extra_nonce_to_tx_extra(extra, nonce));
+    std::vector<cryptonote::tx_extra_field> fields;
+    ASSERT_TRUE(cryptonote::parse_tx_extra(extra, fields));
+    ASSERT_EQ(1u, fields.size());
+    EXPECT_EQ(nonce, boost::get<cryptonote::tx_extra_nonce>(fields[0]).nonce);
+  }
+  std::vector<uint8_t> extra;
+  EXPECT_FALSE(cryptonote::add_extra_nonce_to_tx_extra(extra, std::string(256, '\x42')));
+  EXPECT_EQ(1060, MAX_TX_EXTRA_SIZE);
+}
+
+TEST(qms, malformed_segments_and_trailing_bytes_are_rejected)
+{
+  const auto network = genesis(12); const auto id = message_id(3);
+  const auto alice = qwertycoin::qms::generate_identity(); const auto bob = qwertycoin::qms::generate_identity();
+  const auto bob_invite = qwertycoin::qms::create_invitation(bob, network);
+  const auto ciphertext = qwertycoin::qms::seal_text(alice, bob_invite, network, id, std::string(900, 'q'));
+  auto fragment = qwertycoin::qms::fragment_ciphertext(bob_invite, network, id, ciphertext).front();
+  auto segments = qwertycoin::qms::encode_segments(fragment); ASSERT_GT(segments.size(), 1u);
+  auto missing = segments; missing.pop_back(); EXPECT_THROW(qwertycoin::qms::decode_segments(missing), std::runtime_error);
+  auto duplicate = segments; duplicate[1][5] = duplicate[0][5]; EXPECT_THROW(qwertycoin::qms::decode_segments(duplicate), std::runtime_error);
+  auto bad_count = segments; bad_count[0][6] = 4; EXPECT_THROW(qwertycoin::qms::decode_segments(bad_count), std::runtime_error);
+  auto trailing = qwertycoin::qms::encode_fragment(fragment); trailing.push_back(0);
+  EXPECT_THROW(qwertycoin::qms::decode_fragment(trailing), std::runtime_error);
+}
