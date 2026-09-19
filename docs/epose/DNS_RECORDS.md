@@ -12,16 +12,10 @@ only when the complete DNS response validates through DNSSEC. The selected
 artifact URL is not read from DNS: code maps a strict software/build-tag
 allowlist to the corresponding `qwertycoin-org` GitHub release repository.
 
-Recommended current state:
-
-```text
-updates.qwertycoin.org. 300 IN TXT "qwc:update-metadata-not-yet-published"
-```
-
-The placeholder is informational only and is ignored by the updater. Keep it
-until the zone has a working DNSSEC chain and the first updater-enabled release
-has been built and verified. Existing v2.0.1 binaries do not contain the active
-updater and therefore require one manual update to enter this release channel.
+The live RRset contains exactly seven records: three Core channels and four GUI
+channels.  The placeholder used before updater activation must not coexist with
+them. Existing v2.0.1 binaries do not contain the active updater and therefore
+require one manual update to enter this release channel.
 
 Release records must only be published after the corresponding public artifact
 exists and its SHA-256 has been independently verified. Core metadata uses:
@@ -58,13 +52,47 @@ records.
 Records with empty version or hash fields, such as `qwertycoin:mac-armv8::`,
 are invalid release metadata and must not be published.
 
-Operational activation order:
+## Automated publication
+
+`.github/workflows/update-release-dns.yml` owns the updater RRset. It runs when
+a Core release is published and on a 30-minute reconciliation schedule. The
+schedule is required because Core and GUI are separate repositories and their
+release workflows may finish at different times. Publication waits until both
+repositories expose the same stable `vMAJOR.MINOR.PATCH` tag.
+
+The workflow:
+
+1. selects the latest common stable Core/GUI release (or an exact tag supplied
+   by a manual dispatch);
+2. requires the complete, exact release asset set from both repositories;
+3. downloads each `SHA256SUMS` file and compares every selected digest with
+   GitHub's release-asset digest metadata;
+4. requires exactly the seven compiled updater channels in Cloudflare;
+5. rejects prereleases, downgrades, mixed versions and changed bytes under a
+   version that is already published in DNS;
+6. changes only the seven `updates.qwertycoin.org` TXT records, with automatic
+   rollback on an API or verification failure; and
+7. requires the exact new RRset with DNSSEC `AD=true` from both Cloudflare and
+   Google public resolvers.
+
+The publishing job uses the protected GitHub Environment `release-dns`. Its
+only credential is the Environment secret `CLOUDFLARE_API_TOKEN`. The token
+must be a scoped API token limited to `Zone:Read` and `DNS:Edit` for the
+`qwertycoin.org` zone; never use a Cloudflare Global API Key. The zone and
+record names are fixed in reviewed source, and the token is never accepted as a
+workflow input, command-line argument or repository file.
+
+Manual verification or recovery can dispatch `qwc/update-release-dns` with an
+exact stable tag. Leave `apply` disabled for a release-only plan; enable it only
+to run the same guarded publication path used by the schedule.
+
+Initial activation order:
 
 1. enable DNSSEC at the registrar and authoritative DNS provider;
 2. verify `DS`/`DNSKEY` and an authenticated (`AD`) TXT response externally;
-3. publish all records for one completed release with TTL 300;
-4. verify every record against the public release asset again;
-5. remove the placeholder only after the authenticated records are visible.
+3. configure the `release-dns` Environment and its scoped token;
+4. dispatch a plan for the intended stable tag;
+5. dispatch with `apply` enabled and verify all seven authenticated records.
 
 ## OpenAlias Donation Record
 
