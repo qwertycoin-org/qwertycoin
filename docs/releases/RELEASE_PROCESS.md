@@ -85,6 +85,32 @@ New releases are first created as private drafts. An interrupted matching draft 
 
 After upload, the workflow reads the release by immutable release ID, downloads all assets again, verifies `SHA256SUMS`, and for published releases resolves the public tag back to the exact source revision. Only then is the assemble run successful.
 
+## Update metadata publication
+
+`qwc/update-release-dns` reconciles `updates.qwertycoin.org` after public
+releases. It is intentionally separate from Core assembly because the updater
+RRset is complete only when Core and GUI expose the same stable tag. A Core
+`release.published` event starts an immediate reconciliation, and a 30-minute
+schedule covers GUI releases and releases created with `GITHUB_TOKEN` that do
+not emit a downstream release workflow event.
+
+The job runs in the protected GitHub Environment `release-dns` and reads only
+the Environment secret `CLOUDFLARE_API_TOKEN`. Configure a Cloudflare API token
+with `Zone:Read` and `DNS:Edit` restricted to `qwertycoin.org`; do not configure
+a Global API Key or account-wide token. The job has only `contents: read`
+GitHub permissions.
+
+Before changing DNS, the publisher proves the exact stable Core and GUI release
+asset sets, both `SHA256SUMS` files and GitHub's per-asset SHA-256 metadata. It
+then updates only the seven updater channels, rejects downgrades and same-version
+asset replacement, and verifies the final DNSSEC-authenticated RRset through
+Cloudflare and Google. API or external-verification failure restores the
+original Cloudflare records.
+
+For a dry run, manually dispatch the workflow with `apply` disabled. An empty
+tag selects the latest common stable Core/GUI version; an explicit tag must be
+exactly `vMAJOR.MINOR.PATCH`.
+
 ## Docker Hub publication
 
 Published Core releases are repackaged as one `linux/amd64` image at
