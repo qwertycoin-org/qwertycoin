@@ -39,6 +39,7 @@
 #include "subaddress_account.h"
 #include "common_defines.h"
 #include "common/util.h"
+#include "qms/protocol.h"
 
 #include "mnemonics/electrum-words.h"
 #include "mnemonics/english.h"
@@ -187,6 +188,24 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
                 m_listener->newBlock(height);
             }
         }
+    }
+
+    void on_qms_carrier(uint64_t height, const crypto::hash &block_hash,
+                        const crypto::hash &txid, const cryptonote::transaction& tx) override
+    {
+        if (m_listener) {
+            m_listener->qmsCarrier(height,
+                    epee::string_tools::pod_to_hex(block_hash),
+                    epee::string_tools::pod_to_hex(txid),
+                    epee::string_tools::buff_to_hex_nodelimer(
+                        std::string(tx.extra.begin(), tx.extra.end())));
+        }
+    }
+
+    void on_reorg(uint64_t height, uint64_t blocks_detached, size_t) override
+    {
+        if (m_listener)
+            m_listener->qmsReorg(height, blocks_detached);
     }
 
     virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, uint64_t burnt, const cryptonote::subaddress_index& subaddr_index, bool is_change, uint64_t unlock_time)
@@ -1831,6 +1850,75 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
 
 {
     return createTransactionMultDest(std::vector<string> {dst_addr}, payment_id, amount ? (std::vector<uint64_t> {*amount}) : (optional<std::vector<uint64_t>>()), mixin_count, priority, subaddr_account, subaddr_indices);
+}
+
+PendingTransaction *WalletImpl::createQmsCarrierTransactions(
+        const std::vector<std::vector<uint8_t>> &fragment_extras,
+        uint64_t self_amount, uint32_t mixin_count, PendingTransaction::Priority priority,
+        uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
+{
+    clearStatus();
+    pauseRefresh();
+    PendingTransactionImpl *transaction = new PendingTransactionImpl(*this);
+
+    try {
+        if (checkBackgroundSync("cannot prepare QMS carriers"))
+            throw std::runtime_error("background sync prevents QMS preparation");
+        if (fragment_extras.empty() || fragment_extras.size() > qwertycoin::qms::MAX_FRAGMENTS)
+            throw std::runtime_error("QMS requires between 1 and 16 carrier transactions");
+        if (self_amount == 0)
+            throw std::runtime_error("QMS self-payment amount must be non-zero");
+        if (m_wallet->watch_only() || m_wallet->key_on_device() || m_wallet->light_wallet() || multisig().isMultisig)
+            throw std::runtime_error("QMS MVP does not support watch-only, hardware, light, or multisig wallets");
+
+        const cryptonote::account_public_address own_address = m_wallet->get_subaddress({subaddr_account, 0});
+        cryptonote::tx_destination_entry destination;
+        destination.original = cryptonote::get_account_address_as_str(m_wallet->nettype(), false, own_address);
+        destination.addr = own_address;
+        destination.amount = self_amount;
+        destination.is_subaddress = subaddr_account != 0;
+        destination.is_integrated = false;
+        const size_t fake_outs_count = m_wallet->adjust_mixin(mixin_count > 0 ? mixin_count : m_wallet->default_mixin());
+        const uint32_t adjusted_priority = m_wallet->adjust_priority(static_cast<uint32_t>(priority));
+        std::set<size_t> all_selected;
+
+        for (const auto &extra : fragment_extras) {
+            if (extra.size() > MAX_TX_EXTRA_SIZE)
+                throw std::runtime_error("planned QMS tx_extra exceeds the unchanged relay limit");
+            const auto expected = qwertycoin::qms::extract_carrier_fragments(extra);
+            if (expected.size() != 1)
+                throw std::runtime_error("planned QMS carrier must contain exactly one fragment");
+
+            auto prepared = m_wallet->create_transactions_2({destination}, fake_outs_count,
+                    adjusted_priority, extra, subaddr_account, subaddr_indices);
+            if (prepared.size() != 1)
+                throw std::runtime_error("wallet split a QMS carrier; provide more mature independent outputs");
+            const auto actual = qwertycoin::qms::extract_carrier_fragments(prepared[0].tx.extra);
+            if (actual.size() != 1 || qwertycoin::qms::encode_fragment(actual[0]) != qwertycoin::qms::encode_fragment(expected[0]))
+                throw std::runtime_error("wallet construction did not preserve the planned QMS fragment");
+            if (prepared[0].tx.extra.size() > MAX_TX_EXTRA_SIZE)
+                throw std::runtime_error("final QMS tx_extra exceeds the unchanged relay limit");
+
+            for (const size_t selected : prepared[0].selected_transfers) {
+                if (!all_selected.insert(selected).second)
+                    throw std::runtime_error("QMS batch attempted to reuse an input");
+                m_wallet->freeze(selected);
+                transaction->m_reserved_transfers.push_back(selected);
+            }
+            transaction->m_pending_tx.push_back(std::move(prepared[0]));
+        }
+        pendingTxPostProcess(transaction);
+    } catch (const std::exception &e) {
+        transaction->releaseReservations();
+        setStatusError(string(tr("QMS preparation failed: ")) + e.what());
+    } catch (...) {
+        transaction->releaseReservations();
+        setStatusError(tr("QMS preparation failed with an unknown error"));
+    }
+
+    statusWithErrorString(transaction->m_status, transaction->m_errorString);
+    startRefresh();
+    return transaction;
 }
 
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()

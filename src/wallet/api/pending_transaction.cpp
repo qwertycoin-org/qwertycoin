@@ -57,7 +57,15 @@ PendingTransactionImpl::PendingTransactionImpl(WalletImpl &wallet)
 
 PendingTransactionImpl::~PendingTransactionImpl()
 {
+    releaseReservations();
+}
 
+void PendingTransactionImpl::releaseReservations()
+{
+    for (const size_t index : m_reserved_transfers) {
+        try { m_wallet.m_wallet->thaw(index); } catch (...) {}
+    }
+    m_reserved_transfers.clear();
 }
 
 int PendingTransactionImpl::status() const
@@ -159,6 +167,8 @@ bool PendingTransactionImpl::commit(const std::string &filename, bool overwrite)
     }
 
     m_wallet.startRefresh();
+    if (m_status != Status_Ok || m_pending_tx.empty())
+        releaseReservations();
     return m_status == Status_Ok;
 }
 

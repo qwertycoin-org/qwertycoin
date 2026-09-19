@@ -162,6 +162,12 @@ public:
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
+    PendingTransaction * createQmsCarrierTransactions(
+                                        const std::vector<std::vector<uint8_t>> &fragment_extras,
+                                        uint64_t self_amount, uint32_t mixin_count,
+                                        PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
+                                        uint32_t subaddr_account = 0,
+                                        std::set<uint32_t> subaddr_indices = {}) override;
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) override;

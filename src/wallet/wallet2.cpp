@@ -52,6 +52,7 @@ using namespace epee;
 #include "cryptonote_core/tx_sanity_check.h"
 #include "wallet_rpc_helpers.h"
 #include "wallet2.h"
+#include "qms/protocol.h"
 #include "wallet_args.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "net/parse.h"
@@ -3043,7 +3044,20 @@ void wallet2::process_new_blockchain_entry(const cryptonote::block& b, const cry
     THROW_WALLET_EXCEPTION_IF(bche.txs.size() != parsed_block.txes.size(), error::wallet_internal_error, "Wrong amount of transactions for block");
     for (size_t idx = 0; idx < b.tx_hashes.size(); ++idx)
     {
-      process_new_transaction(b.tx_hashes[idx], parsed_block.txes[idx], parsed_block.o_indices.indices[idx+1].indices, height, b.major_version, b.timestamp, false, false, false, tx_cache_data[tx_cache_data_offset++], output_tracker_cache);
+      const cryptonote::transaction &tx = parsed_block.txes[idx];
+      process_new_transaction(b.tx_hashes[idx], tx, parsed_block.o_indices.indices[idx+1].indices, height, b.major_version, b.timestamp, false, false, false, tx_cache_data[tx_cache_data_offset++], output_tracker_cache);
+      if (m_callback)
+      {
+        try
+        {
+          if (!qwertycoin::qms::extract_carrier_fragments(tx.extra).empty())
+            m_callback->on_qms_carrier(height, bl_id, b.tx_hashes[idx], tx);
+        }
+        catch (...)
+        {
+          // Malformed unauthenticated carrier data is ignored by the wallet sync path.
+        }
+      }
     }
     TIME_MEASURE_FINISH(txs_handle_time);
     m_last_block_reward = cryptonote::get_outs_money_amount(b.miner_tx);

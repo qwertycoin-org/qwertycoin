@@ -375,6 +375,13 @@ struct WalletListener
      */
     virtual void newBlock(uint64_t height) = 0;
 
+    // Called for authenticated-candidate QMS carrier transactions observed by the
+    // full wallet sync path. The application must still validate discovery/MAC/signature.
+    virtual void qmsCarrier(uint64_t height, const std::string &blockHash,
+                            const std::string &txId, const std::string &extraHex) {}
+
+    virtual void qmsReorg(uint64_t height, uint64_t blocksDetached) {}
+
     /**
      * @brief updated  - generic callback, called when any event (sent/received/block reveived/etc) happened with the wallet;
      */
@@ -867,6 +874,13 @@ struct Wallet
 
     virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                                    optional<uint64_t> amount, uint32_t mixin_count,
+                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low,
+                                                   uint32_t subaddr_account = 0,
+                                                   std::set<uint32_t> subaddr_indices = {}) = 0;
+
+    virtual PendingTransaction * createQmsCarrierTransactions(
+                                                   const std::vector<std::vector<uint8_t>> &fragment_extras,
+                                                   uint64_t self_amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low,
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
