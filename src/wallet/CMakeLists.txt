@@ -53,6 +53,7 @@ target_link_libraries(wallet
     multisig
     common
     cryptonote_core
+    qms
     mnemonics
     device_trezor
     net

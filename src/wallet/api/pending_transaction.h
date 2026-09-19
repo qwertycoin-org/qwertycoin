@@ -61,6 +61,7 @@ public:
 
 private:
     friend class WalletImpl;
+    void releaseReservations();
     WalletImpl &m_wallet;
 
     int  m_status;
@@ -69,6 +70,7 @@ private:
     std::unordered_set<crypto::public_key> m_signers;
     std::vector<std::string> m_tx_device_aux;
     std::vector<crypto::key_image> m_key_images;
+    std::vector<size_t> m_reserved_transfers;
 };
 
 
