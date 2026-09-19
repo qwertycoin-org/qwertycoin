@@ -7,7 +7,7 @@ Date: 2026-09-19
 - Paper Core: `54308d8473dc5606d054c0ba428cfb2d64e758c1`
 - Implementation Core base: `361b1fa003c749275a19ea7b889687c5a90379c9`
 - Paper/current GUI base: `ecd1844f1b2e3416dec16c07a21e6850e11b630c`
-- GUI submodule after implementation: feature commit containing the QMS Core commits
+- GUI submodule after implementation: `82cf8703c895663cbe69347188448b5f00f7a0e8`
 
 The current Core base adds work after the paper baseline but retains outer nonce tag
 `0x02`, 255-byte nonce payloads and the 1,060-byte normal relay extra limit. It also
@@ -70,4 +70,3 @@ addresses, user payment IDs and light-wallet services are rejected by the MVP pa
 
 **No node was started, no QWC network connection was opened, and no real transaction
 was sent.**
-
