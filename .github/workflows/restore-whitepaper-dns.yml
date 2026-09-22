@@ -1,0 +1,178 @@
+name: ops/restore-whitepaper-dns
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/restore-whitepaper-dns.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qwc-whitepaper-dns
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Restore and verify wp.qwertycoin.org
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'ops/restore-wp-dns'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release-dns
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Restore exact GitBook CNAME and verify public DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import ssl
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          API = "https://api.cloudflare.com/client/v4"
+          TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+          ZONE_NAME = "qwertycoin.org"
+          RECORD_NAME = "wp.qwertycoin.org"
+          RECORD_VALUE = "hosting.gitbook.io"
+          RECORD_TTL = 300
+
+          if not TOKEN:
+              raise SystemExit("CLOUDFLARE_API_TOKEN is not configured")
+
+          def cloudflare(method, path, payload=None):
+              body = None if payload is None else json.dumps(payload).encode()
+              request = urllib.request.Request(
+                  API + path,
+                  data=body,
+                  method=method,
+                  headers={
+                      "Authorization": "Bearer " + TOKEN,
+                      "Content-Type": "application/json",
+                      "User-Agent": "qwertycoin-whitepaper-dns-restore/1",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30, context=ssl.create_default_context()) as response:
+                  result = json.load(response)
+              if not result.get("success"):
+                  raise RuntimeError("Cloudflare API rejected the request")
+              return result["result"]
+
+          zones = cloudflare(
+              "GET",
+              "/zones?" + urllib.parse.urlencode({"name": ZONE_NAME, "status": "active", "per_page": 50}),
+          )
+          if len(zones) != 1 or zones[0].get("name") != ZONE_NAME:
+              raise SystemExit("Expected exactly one active qwertycoin.org zone")
+          zone_id = zones[0]["id"]
+
+          records = cloudflare(
+              "GET",
+              f"/zones/{zone_id}/dns_records?" + urllib.parse.urlencode({"name": RECORD_NAME, "per_page": 100}),
+          )
+          if any(record.get("type") != "CNAME" for record in records):
+              raise SystemExit("Refusing to replace a non-CNAME wp.qwertycoin.org record")
+          if len(records) > 1:
+              raise SystemExit("Refusing to modify duplicate wp.qwertycoin.org records")
+
+          desired = {
+              "type": "CNAME",
+              "name": RECORD_NAME,
+              "content": RECORD_VALUE,
+              "ttl": RECORD_TTL,
+              "proxied": False,
+              "comment": "Qwertycoin GitBook whitepaper",
+          }
+          created_id = None
+          previous = records[0] if records else None
+          try:
+              if previous:
+                  cloudflare("PUT", f"/zones/{zone_id}/dns_records/{previous['id']}", desired)
+                  record_id = previous["id"]
+                  print("Updated existing GitBook CNAME")
+              else:
+                  created = cloudflare("POST", f"/zones/{zone_id}/dns_records", desired)
+                  record_id = created["id"]
+                  created_id = record_id
+                  print("Created GitBook CNAME")
+
+              verified = cloudflare("GET", f"/zones/{zone_id}/dns_records/{record_id}")
+              actual = {
+                  "type": verified.get("type"),
+                  "name": verified.get("name"),
+                  "content": verified.get("content", "").rstrip("."),
+                  "ttl": verified.get("ttl"),
+                  "proxied": verified.get("proxied"),
+              }
+              expected = {
+                  "type": "CNAME",
+                  "name": RECORD_NAME,
+                  "content": RECORD_VALUE,
+                  "ttl": RECORD_TTL,
+                  "proxied": False,
+              }
+              if actual != expected:
+                  raise RuntimeError("Cloudflare read-back did not match the exact desired record")
+
+              resolvers = {
+                  "cloudflare": "https://cloudflare-dns.com/dns-query?",
+                  "google": "https://dns.google/resolve?",
+              }
+              pending = set(resolvers)
+              deadline = time.monotonic() + 360
+              while pending and time.monotonic() < deadline:
+                  for resolver in list(pending):
+                      query = urllib.parse.urlencode({"name": RECORD_NAME, "type": "CNAME", "cd": 0})
+                      request = urllib.request.Request(
+                          resolvers[resolver] + query,
+                          headers={"Accept": "application/dns-json", "User-Agent": "qwertycoin-dns-check/1"},
+                      )
+                      try:
+                          with urllib.request.urlopen(request, timeout=20, context=ssl.create_default_context()) as response:
+                              reply = json.load(response)
+                      except (OSError, urllib.error.URLError):
+                          continue
+                      answers = {
+                          answer.get("data", "").rstrip(".")
+                          for answer in reply.get("Answer", [])
+                          if answer.get("type") == 5
+                      }
+                      if reply.get("Status") == 0 and answers == {RECORD_VALUE}:
+                          pending.remove(resolver)
+                  if pending:
+                      time.sleep(10)
+              if pending:
+                  raise RuntimeError("Public CNAME verification timed out: " + ", ".join(sorted(pending)))
+
+              request = urllib.request.Request(
+                  "https://" + RECORD_NAME + "/",
+                  headers={"User-Agent": "qwertycoin-whitepaper-check/1"},
+              )
+              with urllib.request.urlopen(request, timeout=30, context=ssl.create_default_context()) as response:
+                  page = response.read(262144).decode("utf-8", "replace")
+                  if response.status != 200 or "Qwertycoin Whitepaper" not in page:
+                      raise RuntimeError("Published GitBook whitepaper did not pass the HTTPS content check")
+              print("Verified Cloudflare read-back, two public resolvers, TLS and GitBook content")
+          except Exception:
+              if created_id:
+                  cloudflare("DELETE", f"/zones/{zone_id}/dns_records/{created_id}")
+              elif previous:
+                  rollback = {
+                      "type": previous["type"],
+                      "name": previous["name"],
+                      "content": previous["content"],
+                      "ttl": previous["ttl"],
+                      "proxied": previous.get("proxied", False),
+                      "comment": previous.get("comment"),
+                  }
+                  cloudflare("PUT", f"/zones/{zone_id}/dns_records/{previous['id']}", rollback)
+              raise
+          PY
