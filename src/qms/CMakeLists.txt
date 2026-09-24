@@ -33,7 +33,7 @@ if(QWC_ENABLE_QMS2_CRYPTO)
   add_library(qms_crypto_rust STATIC IMPORTED GLOBAL)
   set_target_properties(qms_crypto_rust PROPERTIES IMPORTED_LOCATION "${qms_crypto_library}")
   add_dependencies(qms_crypto_rust qms_crypto_rust_build)
-  list(APPEND qms_sources crypto_backend.cpp)
+  list(APPEND qms_sources crypto_backend.cpp wallet_state.cpp)
 endif()
 
 monero_find_all_headers(qms_private_headers "${CMAKE_CURRENT_SOURCE_DIR}")

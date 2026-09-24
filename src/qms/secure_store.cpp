@@ -76,7 +76,7 @@ namespace
   }
 
   std::array<uint8_t, store_key_bytes> derive_key(
-    const std::string& password, const uint8_t* salt,
+    boost::string_ref password, const uint8_t* salt,
     uint64_t operations, uint64_t memory);
 
   parsed_store parse_store(const bytes& encoded)
@@ -125,7 +125,7 @@ namespace
   }
 
   std::array<uint8_t, store_key_bytes> unwrap_store_key(
-    const parsed_store& parsed, const std::string& password)
+    const parsed_store& parsed, boost::string_ref password)
   {
     auto wrapping_key = derive_key(password, parsed.salt, parsed.operations, parsed.memory);
     const bytes ad = associated_data("QWC-QMS2-STORE-KEY", parsed.wrap_header);
@@ -145,7 +145,7 @@ namespace
   }
 
   std::array<uint8_t, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> derive_key(
-    const std::string& password,
+    boost::string_ref password,
     const uint8_t* salt,
     uint64_t operations,
     uint64_t memory)
@@ -166,7 +166,7 @@ namespace
   }
 }
 
-bytes encrypt_store(const bytes& plaintext, const std::string& password,
+bytes encrypt_store(const bytes& plaintext, boost::string_ref password,
                     const bytes& context)
 {
   sodium_ready();
@@ -233,7 +233,7 @@ bytes encrypt_store(const bytes& plaintext, const std::string& password,
   return result;
 }
 
-bytes decrypt_store(const bytes& encoded, const std::string& password,
+bytes decrypt_store(const bytes& encoded, boost::string_ref password,
                     const bytes& expected_context)
 {
   sodium_ready();
@@ -258,8 +258,8 @@ bytes decrypt_store(const bytes& encoded, const std::string& password,
   return plaintext;
 }
 
-bytes rewrap_store(const bytes& encoded, const std::string& old_password,
-                   const std::string& new_password)
+bytes rewrap_store(const bytes& encoded, boost::string_ref old_password,
+                   boost::string_ref new_password)
 {
   sodium_ready();
   const parsed_store parsed = parse_store(encoded);

@@ -111,6 +111,14 @@ namespace cryptonote
     bool seed(const std::vector<std::string> &args = std::vector<std::string>());
     bool encrypted_seed(const std::vector<std::string> &args = std::vector<std::string>());
     bool restore_height(const std::vector<std::string> &args = std::vector<std::string>());
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+    bool qms_info(const std::vector<std::string> &args);
+    bool qms_add_contact(const std::vector<std::string> &args);
+    bool qms_contacts(const std::vector<std::string> &args);
+    bool qms_prepare(const std::vector<std::string> &args);
+    bool qms_send(const std::vector<std::string> &args);
+    bool qms_cancel(const std::vector<std::string> &args);
+#endif
 
     /*!
      * \brief Sets seed language.

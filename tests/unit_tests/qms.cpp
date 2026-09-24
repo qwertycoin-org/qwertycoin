@@ -3,8 +3,10 @@
 #include "qms/protocol.h"
 #include "qms/secure_store.h"
 #include "qms/transport_policy.h"
+#include "string_tools.h"
 #ifdef QWC_ENABLE_QMS2_CRYPTO
 #include "qms/crypto_backend.h"
+#include "qms/wallet_state.h"
 #endif
 
 TEST(qms, strict_native_transport_accepts_only_proxy_and_v3_onion)
@@ -334,5 +336,36 @@ TEST(qms, native_ffi_pqxdh_triple_ratchet_and_envelope_roundtrip)
   const auto reply_receive = alice.prepare_receive_text(
     alice_import.contact_id, reply.ciphertext);
   EXPECT_EQ("reply", reply_receive.text);
+}
+
+TEST(qms, shared_wallet_state_is_restart_safe_and_idempotent)
+{
+  const auto network = genesis(61);
+  qwertycoin::qms::wallet_state alice("", network);
+  qwertycoin::qms::wallet_state bob("", network);
+  std::string bob_package_raw;
+  ASSERT_TRUE(epee::string_tools::parse_hexstr_to_binbuff(
+    bob.own_invitation_hex(), bob_package_raw));
+  const qwertycoin::qms::bytes bob_package(
+    bob_package_raw.begin(), bob_package_raw.end());
+  const std::string fingerprint = alice.import_contact("Bob", bob_package, 1700000100);
+  EXPECT_EQ(fingerprint, alice.import_contact("Bob", bob_package, 1700000101));
+  ASSERT_EQ(1u, alice.contacts().size());
+
+  const auto plan = alice.prepare_send(fingerprint, std::string(4096, 'q'), 1700000102);
+  EXPECT_EQ(12u, plan.carrier_extras.size());
+  EXPECT_EQ(7200u, plan.envelope_size);
+  alice.accept_prepared(plan, "encrypted-pending-journal", 12, 12345, 1700000103);
+  ASSERT_TRUE(alice.has_prepared());
+  const std::string serialized = alice.serialize();
+
+  qwertycoin::qms::wallet_state restarted(serialized, network);
+  EXPECT_TRUE(restarted.has_prepared());
+  EXPECT_EQ("encrypted-pending-journal", restarted.prepared_journal());
+  EXPECT_EQ(fingerprint, restarted.prepared_contact_fingerprint());
+  restarted.update_prepared_journal("one-carrier-remains", 1, 1000, 1700000104);
+  EXPECT_EQ("one-carrier-remains", restarted.prepared_journal());
+  restarted.clear_prepared();
+  EXPECT_FALSE(restarted.has_prepared());
 }
 #endif

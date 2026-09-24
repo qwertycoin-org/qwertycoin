@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <boost/utility/string_ref.hpp>
 
 #include "protocol.h"
 
@@ -14,14 +15,14 @@ namespace qms
   // serialized by the caller into `plaintext` before this layer is invoked.
   // A random key is derived from the wallet password with Argon2id and a fresh
   // salt; no wallet spend/view key participates in this derivation.
-  bytes encrypt_store(const bytes& plaintext, const std::string& password,
+  bytes encrypt_store(const bytes& plaintext, boost::string_ref password,
                       const bytes& context);
-  bytes decrypt_store(const bytes& encoded, const std::string& password,
+  bytes decrypt_store(const bytes& encoded, boost::string_ref password,
                       const bytes& expected_context);
   // Rewrap only the random store key.  The authenticated ciphertext and its
   // nonce remain unchanged, so a wallet-password change cannot rewind or
   // otherwise mutate ratchet state.
-  bytes rewrap_store(const bytes& encoded, const std::string& old_password,
-                     const std::string& new_password);
+  bytes rewrap_store(const bytes& encoded, boost::string_ref old_password,
+                     boost::string_ref new_password);
 }
 }

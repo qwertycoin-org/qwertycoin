@@ -40,7 +40,6 @@
 #include "common_defines.h"
 #include "common/util.h"
 #include "qms/protocol.h"
-#include "qms/secure_store.h"
 
 #include "mnemonics/electrum-words.h"
 #include "mnemonics/english.h"
@@ -102,11 +101,6 @@ namespace {
     static const int    DEFAULT_REMOTE_NODE_REFRESH_INTERVAL_MILLIS = 1000 * 10;
     // Connection timeout 20 sec
     static const int    DEFAULT_CONNECTION_TIMEOUT_MILLIS = 1000 * 20;
-    constexpr const char qms_state_attribute[] = "qms/state/v2";
-    constexpr const char qms_pending_state_attribute[] = "qms/state/v2/password-migration";
-    constexpr size_t qms_state_max_bytes = 64 * 1024 * 1024;
-    constexpr size_t qms_context_max_bytes = 1024;
-
     std::string get_default_ringdb_path(cryptonote::network_type nettype)
     {
       boost::filesystem::path dir = tools::get_default_data_dir();
@@ -895,57 +889,9 @@ bool WalletImpl::setPassword(const std::string &password)
         return false;
     clearStatus();
     LOCK_REFRESH();
-    std::string primary_state;
-    std::string pending_state;
-    const bool has_primary = m_wallet->get_attribute(qms_state_attribute, primary_state)
-        && !primary_state.empty();
-    const bool has_pending = m_wallet->get_attribute(qms_pending_state_attribute, pending_state)
-        && !pending_state.empty();
-    std::string rewrapped_state;
     try {
-        if ((has_primary || has_pending) && password.empty())
-            throw std::runtime_error("cannot remove the wallet password while QMS2 state exists");
-
-        if (has_primary || has_pending) {
-            const auto rewrap = [&](const std::string &encoded) {
-                const qwertycoin::qms::bytes bytes(encoded.begin(), encoded.end());
-                return qwertycoin::qms::rewrap_store(bytes, m_password, password);
-            };
-            try {
-                if (!has_primary) throw std::runtime_error("no primary QMS2 state");
-                const auto bytes = rewrap(primary_state);
-                rewrapped_state.assign(reinterpret_cast<const char *>(bytes.data()), bytes.size());
-            } catch (const std::exception &) {
-                if (!has_pending) throw;
-                const auto bytes = rewrap(pending_state);
-                rewrapped_state.assign(reinterpret_cast<const char *>(bytes.data()), bytes.size());
-            }
-
-            // Phase one is durable before the keys-file password changes.  A
-            // crash after this store leaves the old primary and the new
-            // password-wrapped recovery slot side by side.
-            m_wallet->set_attribute(qms_pending_state_attribute, rewrapped_state);
-            m_wallet->store();
-        }
-
         m_wallet->change_password(m_wallet->get_wallet_file(), m_password, password);
         m_password = password;
-
-        if (!rewrapped_state.empty()) {
-            m_wallet->set_attribute(qms_state_attribute, rewrapped_state);
-            m_wallet->set_attribute(qms_pending_state_attribute, std::string());
-            try {
-                m_wallet->store();
-            } catch (const std::exception &e) {
-                // The durable phase-one recovery slot is sufficient for the
-                // new password.  Preserve that recoverable in-memory shape so
-                // any later wallet store cannot discard it.
-                m_wallet->set_attribute(qms_state_attribute,
-                    has_primary ? primary_state : std::string());
-                m_wallet->set_attribute(qms_pending_state_attribute, rewrapped_state);
-                MWARNING("QMS2 password migration cleanup deferred: " << e.what());
-            }
-        }
     } catch (const std::exception &e) {
         setStatusError(e.what());
     }
@@ -1928,43 +1874,9 @@ PendingTransaction *WalletImpl::createQmsCarrierTransactions(
             throw std::runtime_error("QMS self-payment amount must be non-zero");
         if (m_wallet->watch_only() || m_wallet->key_on_device() || m_wallet->light_wallet() || multisig().isMultisig)
             throw std::runtime_error("QMS MVP does not support watch-only, hardware, light, or multisig wallets");
-
-        const cryptonote::account_public_address own_address = m_wallet->get_subaddress({subaddr_account, 0});
-        cryptonote::tx_destination_entry destination;
-        destination.original = cryptonote::get_account_address_as_str(m_wallet->nettype(), false, own_address);
-        destination.addr = own_address;
-        destination.amount = self_amount;
-        destination.is_subaddress = subaddr_account != 0;
-        destination.is_integrated = false;
-        const size_t fake_outs_count = m_wallet->adjust_mixin(mixin_count > 0 ? mixin_count : m_wallet->default_mixin());
-        const uint32_t adjusted_priority = m_wallet->adjust_priority(static_cast<uint32_t>(priority));
-        std::set<size_t> all_selected;
-
-        for (const auto &extra : fragment_extras) {
-            if (extra.size() > MAX_TX_EXTRA_SIZE)
-                throw std::runtime_error("planned QMS tx_extra exceeds the unchanged relay limit");
-            const auto expected = qwertycoin::qms::extract_carrier_fragments(extra);
-            if (expected.size() != 1)
-                throw std::runtime_error("planned QMS carrier must contain exactly one fragment");
-
-            auto prepared = m_wallet->create_transactions_2({destination}, fake_outs_count,
-                    adjusted_priority, extra, subaddr_account, subaddr_indices);
-            if (prepared.size() != 1)
-                throw std::runtime_error("wallet split a QMS carrier; provide more mature independent outputs");
-            const auto actual = qwertycoin::qms::extract_carrier_fragments(prepared[0].tx.extra);
-            if (actual.size() != 1 || qwertycoin::qms::encode_fragment(actual[0]) != qwertycoin::qms::encode_fragment(expected[0]))
-                throw std::runtime_error("wallet construction did not preserve the planned QMS fragment");
-            if (prepared[0].tx.extra.size() > MAX_TX_EXTRA_SIZE)
-                throw std::runtime_error("final QMS tx_extra exceeds the unchanged relay limit");
-
-            for (const size_t selected : prepared[0].selected_transfers) {
-                if (!all_selected.insert(selected).second)
-                    throw std::runtime_error("QMS batch attempted to reuse an input");
-                m_wallet->freeze(selected);
-                transaction->m_reserved_transfers.push_back(selected);
-            }
-            transaction->m_pending_tx.push_back(std::move(prepared[0]));
-        }
+        transaction->m_pending_tx = m_wallet->create_qms_carrier_transactions(
+            fragment_extras, self_amount, mixin_count, static_cast<uint32_t>(priority),
+            subaddr_account, subaddr_indices, transaction->m_reserved_transfers);
         pendingTxPostProcess(transaction);
     } catch (const std::exception &e) {
         transaction->releaseReservations();
@@ -2184,41 +2096,11 @@ bool WalletImpl::storeQmsState(const std::string &plaintext, const std::string &
     clearStatus();
     if (checkBackgroundSync("cannot store QMS2 state"))
         return false;
-    if (m_password.empty()) {
-        setStatusError("QMS2 state requires a password-protected wallet");
-        return false;
-    }
-    if (plaintext.size() > qms_state_max_bytes || context.empty()
-        || context.size() > qms_context_max_bytes) {
-        setStatusError("QMS2 state or context exceeds the supported bounds");
-        return false;
-    }
-
     LOCK_REFRESH();
-    std::string previous;
-    std::string previous_pending;
-    const bool had_previous = m_wallet->get_attribute(qms_state_attribute, previous);
-    const bool had_pending = m_wallet->get_attribute(
-        qms_pending_state_attribute, previous_pending);
-    try {
-        const qwertycoin::qms::bytes cleartext(plaintext.begin(), plaintext.end());
-        const qwertycoin::qms::bytes associated(context.begin(), context.end());
-        const qwertycoin::qms::bytes encrypted =
-            qwertycoin::qms::encrypt_store(cleartext, m_password, associated);
-        m_wallet->set_attribute(qms_state_attribute,
-            std::string(reinterpret_cast<const char *>(encrypted.data()), encrypted.size()));
-        m_wallet->set_attribute(qms_pending_state_attribute, std::string());
-        // Persist the ratchet state before a caller may broadcast its prepared
-        // transaction batch.  A failed store never reports success.
-        m_wallet->store();
-        return true;
-    } catch (const std::exception &e) {
-        m_wallet->set_attribute(qms_state_attribute, had_previous ? previous : std::string());
-        m_wallet->set_attribute(qms_pending_state_attribute,
-            had_pending ? previous_pending : std::string());
-        setStatusError(std::string("cannot persist QMS2 state: ") + e.what());
-        return false;
-    }
+    std::string error;
+    const bool stored = m_wallet->store_qms_state(plaintext, m_password, context, error);
+    if (!stored) setStatusError(error);
+    return stored;
 }
 
 bool WalletImpl::qmsStateStorageAvailable() const
@@ -2233,48 +2115,10 @@ bool WalletImpl::loadQmsState(std::string &plaintext, const std::string &context
     plaintext.clear();
     if (checkBackgroundSync("cannot load QMS2 state"))
         return false;
-    if (m_password.empty()) {
-        setStatusError("QMS2 state requires a password-protected wallet");
-        return false;
-    }
-    if (context.empty() || context.size() > qms_context_max_bytes) {
-        setStatusError("QMS2 state context exceeds the supported bounds");
-        return false;
-    }
-
-    std::string encoded;
-    std::string pending;
-    const bool has_primary = m_wallet->get_attribute(qms_state_attribute, encoded)
-        && !encoded.empty();
-    const bool has_pending = m_wallet->get_attribute(qms_pending_state_attribute, pending)
-        && !pending.empty();
-    if (!has_primary && !has_pending)
-        return true;
-    if ((has_primary && encoded.size() > qms_state_max_bytes + 4096)
-        || (has_pending && pending.size() > qms_state_max_bytes + 4096)) {
-        setStatusError("persisted QMS2 state exceeds the supported bounds");
-        return false;
-    }
-    const auto decrypt = [&](const std::string &value) {
-        const qwertycoin::qms::bytes ciphertext(value.begin(), value.end());
-        const qwertycoin::qms::bytes associated(context.begin(), context.end());
-        return qwertycoin::qms::decrypt_store(ciphertext, m_password, associated);
-    };
-    try {
-        qwertycoin::qms::bytes cleartext;
-        try {
-            if (!has_primary) throw std::runtime_error("no primary QMS2 state");
-            cleartext = decrypt(encoded);
-        } catch (const std::exception &) {
-            if (!has_pending) throw;
-            cleartext = decrypt(pending);
-        }
-        plaintext.assign(reinterpret_cast<const char *>(cleartext.data()), cleartext.size());
-        return true;
-    } catch (const std::exception &e) {
-        setStatusError(std::string("cannot load QMS2 state: ") + e.what());
-        return false;
-    }
+    std::string error;
+    const bool loaded = m_wallet->load_qms_state(plaintext, m_password, context, error);
+    if (!loaded) setStatusError(error);
+    return loaded;
 }
 
 bool WalletImpl::clearQmsState()
@@ -2283,23 +2127,10 @@ bool WalletImpl::clearQmsState()
     if (checkBackgroundSync("cannot clear QMS2 state"))
         return false;
     LOCK_REFRESH();
-    std::string previous;
-    std::string previous_pending;
-    const bool had_previous = m_wallet->get_attribute(qms_state_attribute, previous);
-    const bool had_pending = m_wallet->get_attribute(
-        qms_pending_state_attribute, previous_pending);
-    try {
-        m_wallet->set_attribute(qms_state_attribute, std::string());
-        m_wallet->set_attribute(qms_pending_state_attribute, std::string());
-        m_wallet->store();
-        return true;
-    } catch (const std::exception &e) {
-        m_wallet->set_attribute(qms_state_attribute, had_previous ? previous : std::string());
-        m_wallet->set_attribute(qms_pending_state_attribute,
-            had_pending ? previous_pending : std::string());
-        setStatusError(std::string("cannot clear QMS2 state: ") + e.what());
-        return false;
-    }
+    std::string error;
+    const bool cleared = m_wallet->clear_qms_state(error);
+    if (!cleared) setStatusError(error);
+    return cleared;
 }
 
 bool WalletImpl::setUserNote(const std::string &txid, const std::string &note)
