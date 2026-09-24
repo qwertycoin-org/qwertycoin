@@ -163,7 +163,7 @@ add_test(
 
 # Focused QMS suite: intentionally has no daemon/process/network harness and can
 # be run under the offline execution boundary independently of the broad suite.
-monero_add_minimal_executable(qms_unit_tests qms.cpp)
+monero_add_minimal_executable(qms_unit_tests qms.cpp qms_main.cpp)
 target_link_libraries(qms_unit_tests
   PRIVATE qms cryptonote_basic common cncrypto epee
     ${GTEST_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${SODIUM_LIBRARY})
