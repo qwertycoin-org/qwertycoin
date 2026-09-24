@@ -199,6 +199,7 @@ public:
     virtual bool setCacheAttribute(const std::string &key, const std::string &val) override;
     virtual std::string getCacheAttribute(const std::string &key) const override;
     virtual bool storeQmsState(const std::string &plaintext, const std::string &context) override;
+    virtual bool qmsStateStorageAvailable() const override;
     virtual bool loadQmsState(std::string &plaintext, const std::string &context) override;
     virtual bool clearQmsState() override;
 

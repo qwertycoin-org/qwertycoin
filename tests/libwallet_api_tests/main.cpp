@@ -359,6 +359,7 @@ TEST_F(WalletManagerTest, WalletManagerChangesPassword)
     const std::string qms_state("ratchet\0state\xff", 14);
     const std::string qms_context = "qwc-mainnet/qms2/test-wallet";
     std::string loaded_qms_state;
+    ASSERT_TRUE(wallet1->qmsStateStorageAvailable());
     ASSERT_TRUE(wallet1->storeQmsState(qms_state, qms_context));
     ASSERT_TRUE(wallet1->loadQmsState(loaded_qms_state, qms_context));
     ASSERT_EQ(qms_state, loaded_qms_state);
@@ -370,6 +371,7 @@ TEST_F(WalletManagerTest, WalletManagerChangesPassword)
     ASSERT_TRUE(wmgr->closeWallet(wallet1));
     Monero::Wallet * wallet2 = wmgr->openWallet(WALLET_NAME, WALLET_PASS2, Monero::NetworkType::MAINNET);
     ASSERT_TRUE(wallet2->status() == Monero::Wallet::Status_Ok);
+    ASSERT_TRUE(wallet2->qmsStateStorageAvailable());
     ASSERT_TRUE(wallet2->seed() == seed1);
     loaded_qms_state.clear();
     ASSERT_TRUE(wallet2->loadQmsState(loaded_qms_state, qms_context));

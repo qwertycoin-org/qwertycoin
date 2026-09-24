@@ -1034,6 +1034,11 @@ struct Wallet
      */
     virtual bool storeQmsState(const std::string &plaintext, const std::string &context) = 0;
     /*!
+     * \brief qmsStateStorageAvailable - whether this wallet can protect and
+     *        persist QMS2 state without prompting
+     */
+    virtual bool qmsStateStorageAvailable() const = 0;
+    /*!
      * \brief loadQmsState - authenticate and decrypt the persisted QMS2 state
      * \return true for a valid state or for an empty/not-yet-created state
      */

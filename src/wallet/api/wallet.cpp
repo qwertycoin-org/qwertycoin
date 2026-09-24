@@ -2211,6 +2211,12 @@ bool WalletImpl::storeQmsState(const std::string &plaintext, const std::string &
     }
 }
 
+bool WalletImpl::qmsStateStorageAvailable() const
+{
+    return !m_password.empty() && !m_wallet->is_background_wallet()
+        && !m_wallet->is_background_syncing();
+}
+
 bool WalletImpl::loadQmsState(std::string &plaintext, const std::string &context)
 {
     clearStatus();
