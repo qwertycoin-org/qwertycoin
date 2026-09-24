@@ -84,7 +84,7 @@ namespace
 
 crypto_backend crypto_backend::create()
 {
-  if (qwc_qms_crypto_abi_version() != 1)
+  if (qwc_qms_crypto_abi_version() != 2)
     throw std::runtime_error("unsupported QMS crypto backend ABI");
   owned_buffer output, error;
   checked_call(qwc_qms_crypto_engine_new(output.out(), error.out()), error);
@@ -107,6 +107,7 @@ prepared_contact_package crypto_backend::prepare_contact_package(const hash32& g
   size_t position = 0;
   prepared_contact_package result;
   result.invitation_id = take_array<16>(encoded, position);
+  result.fingerprint = take_array<32>(encoded, position);
   const uint32_t package_size = read_u32(encoded, position);
   result.package = take(encoded, position, package_size);
   result.next_state = take(encoded, position, encoded.size() - position);

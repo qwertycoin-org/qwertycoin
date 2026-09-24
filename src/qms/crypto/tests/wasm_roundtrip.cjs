@@ -18,11 +18,13 @@ function hex(bytes) {
 function preparedPackage(state, genesis) {
   const encoded = qms.qwc_qms_wasm_prepare_contact_package(state, genesis);
   const invitation = encoded.slice(0, 16);
-  const packageLength = u32(encoded, 16) >>> 0;
+  const fingerprint = encoded.slice(16, 48);
+  const packageLength = u32(encoded, 48) >>> 0;
   return {
     invitation,
-    package: encoded.slice(20, 20 + packageLength),
-    state: encoded.slice(20 + packageLength),
+    fingerprint,
+    package: encoded.slice(52, 52 + packageLength),
+    state: encoded.slice(52 + packageLength),
   };
 }
 function imported(state, invitation, remote) {
@@ -51,7 +53,7 @@ function received(state, contactId, message) {
   };
 }
 
-assert.equal(qms.qwc_qms_wasm_abi_version(), 1);
+assert.equal(qms.qwc_qms_wasm_abi_version(), 2);
 const genesis = new Uint8Array(32).fill(0x62);
 const alicePackage = preparedPackage(qms.qwc_qms_wasm_engine_new(), genesis);
 const bobPackage = preparedPackage(qms.qwc_qms_wasm_engine_new(), genesis);
@@ -68,7 +70,7 @@ assert.equal(reply.type, 2, "reply must use the ongoing Triple Ratchet message t
 const openedReply = received(outbound.state, aliceImport.contactId, reply);
 assert.equal(openedReply.text, "reply");
 console.log(JSON.stringify({
-  abi: 1,
+  abi: 2,
   pqxdhBytes: outbound.ciphertext.length,
   pqxdhFits9600Envelope: true,
   ongoingTripleRatchet: true,

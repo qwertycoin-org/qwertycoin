@@ -11,7 +11,7 @@ use std::slice;
 
 use crate::{Engine, Error, GENESIS_BYTES, INVITATION_ID_BYTES, RatchetCiphertext};
 
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;
 
 #[repr(C)]
 pub struct Buffer {
@@ -131,6 +131,7 @@ pub unsafe extern "C" fn qwc_qms_crypto_prepare_contact_package(
         let package = crate::ContactPackage::decode(&prepared.package)?;
         let mut result = Vec::new();
         result.extend_from_slice(&package.invitation_id);
+        result.extend_from_slice(&package.fingerprint());
         append_u32(&mut result, prepared.package.len())?;
         result.extend_from_slice(&prepared.package);
         result.extend_from_slice(&prepared.next_state);

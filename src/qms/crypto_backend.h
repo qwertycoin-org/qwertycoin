@@ -14,6 +14,7 @@ namespace qms
   struct prepared_contact_package
   {
     id16 invitation_id{};
+    hash32 fingerprint{};
     bytes package;
     bytes next_state;
   };

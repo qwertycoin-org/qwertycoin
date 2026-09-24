@@ -19,7 +19,7 @@ fn append_u32(out: &mut Vec<u8>, value: usize) -> Result<(), JsError> {
 
 #[wasm_bindgen]
 pub fn qwc_qms_wasm_abi_version() -> u32 {
-    1
+    crate::ffi::ABI_VERSION
 }
 
 #[wasm_bindgen]
@@ -43,6 +43,7 @@ pub fn qwc_qms_wasm_prepare_contact_package(
     let package = crate::ContactPackage::decode(&prepared.package).map_err(js_error)?;
     let mut result = Vec::new();
     result.extend_from_slice(&package.invitation_id);
+    result.extend_from_slice(&package.fingerprint());
     append_u32(&mut result, prepared.package.len())?;
     result.extend_from_slice(&prepared.package);
     result.extend_from_slice(&prepared.next_state);

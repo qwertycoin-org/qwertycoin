@@ -269,6 +269,8 @@ TEST(qms, native_ffi_pqxdh_triple_ratchet_and_envelope_roundtrip)
     alice_package.invitation_id, bob_package.package, 1700000000);
   const auto bob_import = bob.prepare_import_contact(
     bob_package.invitation_id, alice_package.package, 1700000000);
+  EXPECT_EQ(bob_package.fingerprint, alice_import.fingerprint);
+  EXPECT_EQ(alice_package.fingerprint, bob_import.fingerprint);
   alice = qwertycoin::qms::crypto_backend(alice_import.next_state);
   bob = qwertycoin::qms::crypto_backend(bob_import.next_state);
 
