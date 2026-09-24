@@ -1,4 +1,9 @@
-# Qwertycoin Messenger MVP protocol (QMS1)
+# Qwertycoin Messenger profile 1 (legacy MVP)
+
+> **Superseded for new sessions.** This document records the existing profile-1
+> implementation for migration and regression testing. The security upgrade is defined
+> by [PROTOCOL_V2.md](PROTOCOL_V2.md), [STORE_AND_ATOMICITY_V2.md](STORE_AND_ATOMICITY_V2.md),
+> and [NETWORK_POLICY_V2.md](NETWORK_POLICY_V2.md). There is no downgrade negotiation.
 
 Status: experimental application protocol. It does not change consensus, transaction
 serialization, fees, ring size, or daemon behavior. Nodes see ordinary transactions
@@ -71,4 +76,3 @@ fragment is permitted per carrier transaction.
 After normal wallet construction, callers must parse the final transaction and compare
 the extracted fragment byte-for-byte with the planned fragment. Integrated addresses
 and user payment IDs are unsupported for QMS carrier transactions.
-

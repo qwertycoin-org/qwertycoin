@@ -1,0 +1,6 @@
+The QMS2 crypto wrapper in this directory is licensed under AGPL-3.0-only because
+it links signalapp/libsignal, which is AGPL-3.0-only.
+
+See ../../../LICENSE for the license of the surrounding Qwertycoin Core code and
+THIRD_PARTY.md for the immutable dependency record. Distribution of a combined
+binary requires an independent compliance review before release.

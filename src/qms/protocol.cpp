@@ -25,6 +25,14 @@ namespace
   constexpr char discovery_info[] = "QWC-QMS-DISCOVERY-KEY-V1";
   constexpr char fragment_info[] = "QWC-QMS-FRAGMENT-MAC-KEY-V1";
   constexpr char fragment_domain[] = "QWC-QMS-FRAGMENT-V1";
+  constexpr char v2_extract_domain[] = "QWC-QMS2-HKDF-EXTRACT";
+  constexpr char v2_envelope_info[] = "QWC-QMS2-ENVELOPE-KEY";
+  constexpr char v2_discovery_info[] = "QWC-QMS2-DISCOVERY-KEY";
+  constexpr char v2_fragment_info[] = "QWC-QMS2-FRAGMENT-MAC-KEY";
+  constexpr char v2_outer_ad_domain[] = "QWC-QMS2-OUTER-AD";
+  constexpr char v2_hint_domain[] = "QWC-QMS2-DISCOVERY-HINT";
+  constexpr char v2_fragment_domain[] = "QWC-QMS2-FRAGMENT";
+  constexpr std::array<size_t, 5> envelope_classes{{1200, 2400, 4800, 7200, 9600}};
 
   void sodium_ready()
   {
@@ -87,6 +95,57 @@ namespace
     append(context, invitation_id); append(context, recipient_fingerprint); context.push_back(1);
     return hmac(prk, context);
   }
+  hash32 hkdf_key_v2(const envelope_context& value, const char* info)
+  {
+    bytes salt;
+    append(salt, v2_extract_domain, sizeof(v2_extract_domain) - 1);
+    append(salt, value.genesis);
+    salt.push_back(WIRE_VERSION_TRIPLE_RATCHET);
+    salt.push_back(CRYPTO_PROFILE_TRIPLE_RATCHET);
+    const hash32 salt_hash = sha256(salt);
+    const hash32 prk = hmac(salt_hash, bytes(value.root_secret.begin(), value.root_secret.end()));
+    bytes context;
+    append(context, info, std::strlen(info));
+    context.push_back(WIRE_VERSION_TRIPLE_RATCHET);
+    context.push_back(CRYPTO_PROFILE_TRIPLE_RATCHET);
+    append(context, value.genesis);
+    append(context, value.invitation_id);
+    append(context, value.session_id);
+    context.push_back(value.direction);
+    context.push_back(1); // HKDF expand block counter.
+    return hmac(prk, context);
+  }
+  bytes envelope_ad(const envelope_context& context, const id16& message_id,
+                    size_t padded_size)
+  {
+    if (context.direction > 1 || padded_size > std::numeric_limits<uint32_t>::max())
+      throw std::runtime_error("invalid QMS2 envelope context");
+    bytes result;
+    append(result, v2_outer_ad_domain, sizeof(v2_outer_ad_domain) - 1);
+    append(result, context.genesis);
+    result.push_back(WIRE_VERSION_TRIPLE_RATCHET);
+    result.push_back(CRYPTO_PROFILE_TRIPLE_RATCHET);
+    append(result, message_id);
+    result.push_back(context.direction);
+    append_u32(result, static_cast<uint32_t>(padded_size));
+    return result;
+  }
+  size_t envelope_class(size_t inner_size)
+  {
+    if (inner_size > std::numeric_limits<uint32_t>::max())
+      throw std::runtime_error("QMS2 inner ciphertext is too large");
+    const size_t required = crypto_aead_xchacha20poly1305_ietf_NPUBBYTES
+      + crypto_aead_xchacha20poly1305_ietf_ABYTES + sizeof(uint32_t) + inner_size;
+    const auto found = std::find_if(envelope_classes.begin(), envelope_classes.end(),
+      [required](size_t value) { return value >= required; });
+    if (found == envelope_classes.end())
+      throw std::runtime_error("QMS2 inner ciphertext exceeds 9600-byte envelope");
+    return *found;
+  }
+  bool valid_envelope_class(size_t size)
+  {
+    return std::find(envelope_classes.begin(), envelope_classes.end(), size) != envelope_classes.end();
+  }
   bytes invitation_unsigned(const invitation& value)
   {
     bytes out; append(out, invite_domain, sizeof(invite_domain) - 1);
@@ -103,13 +162,21 @@ namespace
   }
   bytes fragment_mac_input(const fragment& value)
   {
-    bytes out; append(out, fragment_domain, sizeof(fragment_domain) - 1);
+    bytes out;
+    if (value.version == WIRE_VERSION && value.profile == CRYPTO_PROFILE_SEALED_BOX_ED25519)
+      append(out, fragment_domain, sizeof(fragment_domain) - 1);
+    else if (value.version == WIRE_VERSION_TRIPLE_RATCHET && value.profile == CRYPTO_PROFILE_TRIPLE_RATCHET)
+      append(out, v2_fragment_domain, sizeof(v2_fragment_domain) - 1);
+    else
+      throw std::runtime_error("unsupported QMS fragment version/profile");
     const bytes header = fragment_without_mac(value); append(out, header.data(), header.size());
     append(out, value.data.data(), value.data.size()); return out;
   }
   void validate_fragment_shape(const fragment& value)
   {
-    if (value.version != WIRE_VERSION || value.profile != CRYPTO_PROFILE_SEALED_BOX_ED25519 || value.flags != 0)
+    const bool profile1 = value.version == WIRE_VERSION && value.profile == CRYPTO_PROFILE_SEALED_BOX_ED25519;
+    const bool profile2 = value.version == WIRE_VERSION_TRIPLE_RATCHET && value.profile == CRYPTO_PROFILE_TRIPLE_RATCHET;
+    if ((!profile1 && !profile2) || value.flags != 0)
       throw std::runtime_error("unsupported QMS fragment version/profile/flags");
     if (value.count == 0 || value.count > MAX_FRAGMENTS || value.index >= value.count)
       throw std::runtime_error("invalid QMS fragment index/count");
@@ -219,6 +286,151 @@ opened_message open_text(const identity& recipient, const invitation& sender, co
   if (body.size() - pos < 1 || body[pos++] != 1) throw std::runtime_error("unsupported QMS content type");
   const uint32_t text_size = read_u32(body, pos); if (text_size > MAX_TEXT_BYTES || body.size() - pos != text_size) throw std::runtime_error("invalid QMS text size");
   result.text.assign(reinterpret_cast<const char*>(body.data() + pos), text_size); if (!valid_utf8(result.text)) throw std::runtime_error("invalid QMS UTF-8"); return result;
+}
+
+bytes seal_outer_envelope(const envelope_context& context, const id16& message_id,
+                          const bytes& inner)
+{
+  sodium_ready();
+  if (context.direction > 1 || inner.empty())
+    throw std::runtime_error("invalid QMS2 envelope input");
+  const size_t padded_size = envelope_class(inner.size());
+  const size_t plaintext_size = padded_size
+    - crypto_aead_xchacha20poly1305_ietf_NPUBBYTES
+    - crypto_aead_xchacha20poly1305_ietf_ABYTES;
+  bytes plaintext(plaintext_size);
+  plaintext[0] = uint8_t(inner.size());
+  plaintext[1] = uint8_t(inner.size() >> 8);
+  plaintext[2] = uint8_t(inner.size() >> 16);
+  plaintext[3] = uint8_t(inner.size() >> 24);
+  std::copy(inner.begin(), inner.end(), plaintext.begin() + sizeof(uint32_t));
+  const size_t padding_offset = sizeof(uint32_t) + inner.size();
+  randombytes_buf(plaintext.data() + padding_offset, plaintext.size() - padding_offset);
+
+  bytes result(padded_size);
+  uint8_t* nonce = result.data();
+  uint8_t* ciphertext = result.data() + crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+  randombytes_buf(nonce, crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+  const hash32 key = hkdf_key_v2(context, v2_envelope_info);
+  const bytes ad = envelope_ad(context, message_id, padded_size);
+  unsigned long long ciphertext_size = 0;
+  if (crypto_aead_xchacha20poly1305_ietf_encrypt(
+        ciphertext, &ciphertext_size,
+        plaintext.data(), plaintext.size(),
+        ad.data(), ad.size(), nullptr, nonce, key.data()) != 0
+      || ciphertext_size != plaintext.size() + crypto_aead_xchacha20poly1305_ietf_ABYTES)
+    throw std::runtime_error("QMS2 envelope encryption failed");
+  sodium_memzero(plaintext.data(), plaintext.size());
+  return result;
+}
+
+bytes open_outer_envelope(const envelope_context& context, const id16& message_id,
+                          const bytes& envelope)
+{
+  sodium_ready();
+  if (context.direction > 1 || !valid_envelope_class(envelope.size()))
+    throw std::runtime_error("invalid QMS2 envelope size or direction");
+  const uint8_t* nonce = envelope.data();
+  const uint8_t* ciphertext = envelope.data() + crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+  const size_t ciphertext_size = envelope.size() - crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+  bytes plaintext(ciphertext_size - crypto_aead_xchacha20poly1305_ietf_ABYTES);
+  const hash32 key = hkdf_key_v2(context, v2_envelope_info);
+  const bytes ad = envelope_ad(context, message_id, envelope.size());
+  unsigned long long plaintext_size = 0;
+  if (crypto_aead_xchacha20poly1305_ietf_decrypt(
+        plaintext.data(), &plaintext_size, nullptr,
+        ciphertext, ciphertext_size,
+        ad.data(), ad.size(), nonce, key.data()) != 0
+      || plaintext_size != plaintext.size())
+    throw std::runtime_error("QMS2 envelope authentication failed");
+  if (plaintext.size() < sizeof(uint32_t))
+    throw std::runtime_error("truncated QMS2 envelope");
+  size_t position = 0;
+  const uint32_t inner_size = read_u32(plaintext, position);
+  if (inner_size == 0 || inner_size > plaintext.size() - position
+      || envelope_class(inner_size) != envelope.size())
+  {
+    sodium_memzero(plaintext.data(), plaintext.size());
+    throw std::runtime_error("non-canonical QMS2 envelope payload");
+  }
+  bytes result(plaintext.begin() + position, plaintext.begin() + position + inner_size);
+  sodium_memzero(plaintext.data(), plaintext.size());
+  return result;
+}
+
+std::vector<fragment> fragment_envelope(const envelope_context& recipient,
+                                        const id16& message_id,
+                                        const bytes& envelope)
+{
+  sodium_ready();
+  if (recipient.direction > 1 || !valid_envelope_class(envelope.size()))
+    throw std::runtime_error("invalid QMS2 fragmentation input");
+  const uint16_t count = (envelope.size() + MAX_FRAGMENT_DATA_BYTES - 1) / MAX_FRAGMENT_DATA_BYTES;
+  if (count == 0 || count > MAX_FRAGMENTS)
+    throw std::runtime_error("too many QMS2 fragments");
+  const hash32 hint_key = hkdf_key_v2(recipient, v2_discovery_info);
+  const hash32 mac_key = hkdf_key_v2(recipient, v2_fragment_info);
+  bytes hint_input;
+  append(hint_input, v2_hint_domain, sizeof(v2_hint_domain) - 1);
+  append(hint_input, recipient.genesis);
+  hint_input.push_back(WIRE_VERSION_TRIPLE_RATCHET);
+  hint_input.push_back(CRYPTO_PROFILE_TRIPLE_RATCHET);
+  hint_input.push_back(recipient.direction);
+  append(hint_input, message_id);
+  const hash32 full_hint = hmac(hint_key, hint_input);
+  const hash32 envelope_hash = sha256(envelope);
+  std::vector<fragment> result;
+  result.reserve(count);
+  for (uint16_t index = 0; index != count; ++index)
+  {
+    fragment value;
+    value.version = WIRE_VERSION_TRIPLE_RATCHET;
+    value.profile = CRYPTO_PROFILE_TRIPLE_RATCHET;
+    value.message_id = message_id;
+    value.index = index;
+    value.count = count;
+    value.ciphertext_size = envelope.size();
+    std::copy_n(full_hint.begin(), value.discovery_hint.size(), value.discovery_hint.begin());
+    value.ciphertext_hash = envelope_hash;
+    const size_t offset = size_t(index) * MAX_FRAGMENT_DATA_BYTES;
+    const size_t size = std::min(MAX_FRAGMENT_DATA_BYTES, envelope.size() - offset);
+    value.data.assign(envelope.begin() + offset, envelope.begin() + offset + size);
+    const hash32 full_mac = hmac(mac_key, fragment_mac_input(value));
+    std::copy_n(full_mac.begin(), value.mac.size(), value.mac.begin());
+    result.push_back(std::move(value));
+  }
+  return result;
+}
+
+bool verify_envelope_fragment(const envelope_context& recipient,
+                              const fragment& value)
+{
+  try
+  {
+    validate_fragment_shape(value);
+    if (recipient.direction > 1
+        || value.version != WIRE_VERSION_TRIPLE_RATCHET
+        || value.profile != CRYPTO_PROFILE_TRIPLE_RATCHET)
+      return false;
+    const hash32 hint_key = hkdf_key_v2(recipient, v2_discovery_info);
+    const hash32 mac_key = hkdf_key_v2(recipient, v2_fragment_info);
+    bytes hint_input;
+    append(hint_input, v2_hint_domain, sizeof(v2_hint_domain) - 1);
+    append(hint_input, recipient.genesis);
+    hint_input.push_back(WIRE_VERSION_TRIPLE_RATCHET);
+    hint_input.push_back(CRYPTO_PROFILE_TRIPLE_RATCHET);
+    hint_input.push_back(recipient.direction);
+    append(hint_input, value.message_id);
+    const hash32 hint = hmac(hint_key, hint_input);
+    if (sodium_memcmp(hint.data(), value.discovery_hint.data(), value.discovery_hint.size()) != 0)
+      return false;
+    const hash32 mac = hmac(mac_key, fragment_mac_input(value));
+    return sodium_memcmp(mac.data(), value.mac.data(), value.mac.size()) == 0;
+  }
+  catch (...)
+  {
+    return false;
+  }
 }
 
 std::vector<fragment> fragment_ciphertext(const invitation& recipient, const hash32& genesis,
