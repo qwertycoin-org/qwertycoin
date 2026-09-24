@@ -220,6 +220,62 @@ TEST(qms, malformed_segments_and_trailing_bytes_are_rejected)
   EXPECT_THROW(qwertycoin::qms::decode_fragment(trailing), std::runtime_error);
 }
 
+TEST(qms, parser_mutation_smoke_is_fail_closed_and_canonical)
+{
+  const auto network = genesis(14);
+  const auto id = message_id(15);
+  const auto alice = qwertycoin::qms::generate_identity();
+  const auto bob = qwertycoin::qms::generate_identity();
+  const auto bob_invite = qwertycoin::qms::create_invitation(bob, network);
+  const auto ciphertext = qwertycoin::qms::seal_text(
+    alice, bob_invite, network, id, std::string(700, 'm'));
+  const auto fragment = qwertycoin::qms::fragment_ciphertext(
+    bob_invite, network, id, ciphertext).front();
+  const auto canonical = qwertycoin::qms::encode_fragment(fragment);
+
+  // A deterministic bounded mutation corpus complements the standalone fuzz
+  // target and is always exercised by the normal/ASan unit-test jobs.
+  uint32_t state = 0x514d5332u;
+  for (size_t iteration = 0; iteration != 4096; ++iteration)
+  {
+    auto mutated = canonical;
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    const size_t edits = 1 + (state % 4);
+    for (size_t edit = 0; edit != edits; ++edit)
+    {
+      state ^= state << 13;
+      state ^= state >> 17;
+      state ^= state << 5;
+      mutated[state % mutated.size()] ^= uint8_t(1u << (state % 8));
+    }
+    if ((iteration % 17) == 0 && !mutated.empty())
+      mutated.resize(state % mutated.size());
+    else if ((iteration % 31) == 0)
+      mutated.push_back(uint8_t(state));
+
+    try
+    {
+      const auto decoded = qwertycoin::qms::decode_fragment(mutated);
+      EXPECT_EQ(mutated, qwertycoin::qms::encode_fragment(decoded));
+    }
+    catch (const std::exception &) {}
+
+    try
+    {
+      (void)qwertycoin::qms::extract_carrier_fragments(mutated);
+    }
+    catch (const std::exception &) {}
+
+    try
+    {
+      (void)qwertycoin::qms::decode_invitation(mutated);
+    }
+    catch (const std::exception &) {}
+  }
+}
+
 TEST(qms, profile2_outer_envelope_uses_canonical_padding_and_aad)
 {
   const auto context = envelope_context(21);

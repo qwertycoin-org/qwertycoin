@@ -23,11 +23,11 @@ delay, reorder, duplicate, or reorg carriers. Canonical fragment bounds, hash, H
 message replay state, and atomic decrypt state make these denial-of-service actions,
 not accepted plaintext changes.
 
-Strict native mode routes every wallet-node request through user-supplied SOCKS5 with
-remote DNS and no direct fallback. A malicious node still sees the connecting Tor exit
-and requested chain data. The Web Wallet cannot prove this transport property and is
-therefore fail-closed for online messenger actions without a separately reviewed
-attestable transport.
+Strict native mode routes every wallet-node request through user-supplied SOCKS5 to a
+pinned Tor v3 onion endpoint with no direct fallback or clearnet DNS path. A malicious
+onion node can still see and manipulate the requested chain data. The Web Wallet cannot
+prove this transport property and is therefore fail-closed for online messenger actions
+without a separately reviewed attestable transport.
 
 ## Tampered invitation or prekeys
 

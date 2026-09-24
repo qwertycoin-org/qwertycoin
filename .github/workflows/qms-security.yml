@@ -1,0 +1,139 @@
+name: qwc/qms2-offline-security
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/qms-security.yml"
+      - "src/qms/**"
+      - "src/simplewallet/**"
+      - "src/wallet/**"
+      - "tests/fuzz/**"
+      - "tests/unit_tests/qms.cpp"
+      - "tests/unit_tests/CMakeLists.txt"
+      - "docs/qms/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qwc-qms2-offline-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_TOOLCHAIN: "1.98.1"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-build-and-tests:
+    name: Native CLI and QMS2 offline tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    steps:
+      - name: Checkout exact change under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config git ccache \
+            libboost-all-dev libssl-dev libzmq3-dev libpgm-dev libunbound-dev libsodium-dev \
+            libhidapi-dev libusb-1.0-0-dev libunwind-dev liblzma-dev libexpat1-dev \
+            libgcrypt20-dev libgpg-error-dev libprotobuf-dev protobuf-compiler libgtest-dev
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt
+
+      - name: Verify pinned Rust backend
+        working-directory: src/qms/crypto
+        run: |
+          cargo fmt --check
+          cargo test --locked
+
+      - name: Configure focused release build
+        run: |
+          cmake -S . -B build/qms-release -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DARCH=default -DBUILD_64=ON -DSTATIC=OFF \
+            -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=ON -DBUILD_DOCUMENTATION=OFF \
+            -DBUILD_DEBUG_UTILITIES=OFF -DUSE_DEVICE_TREZOR=OFF -DUSE_READLINE=OFF \
+            -DQWC_ENABLE_QMS2_CRYPTO=ON -DQWC_CARGO_EXECUTABLE="$HOME/.cargo/bin/cargo" \
+            -DMANUAL_SUBMODULES=1 -DMONERO_PARALLEL_COMPILE_JOBS=2 \
+            -DMONERO_PARALLEL_LINK_JOBS=1
+
+      - name: Build CLI and focused QMS2 targets
+        run: >-
+          cmake --build build/qms-release
+          --target simplewallet qms_unit_tests qms_fuzz_tests
+          --parallel 2
+
+      - name: Run QMS2 tests without network access
+        run: |
+          set -euo pipefail
+          sudo unshare --net build/qms-release/tests/unit_tests/qms_unit_tests
+          sudo unshare --net build/qms-release/tests/fuzz/qms_fuzz_tests /dev/null
+          sudo unshare --net build/qms-release/tests/fuzz/qms_fuzz_tests tests/unit_tests/qms.cpp
+          sudo unshare --net build/qms-release/tests/fuzz/qms_fuzz_tests tests/fuzz/qms.cpp
+
+  address-sanitizer:
+    name: QMS2 ASan parser and state tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    steps:
+      - name: Checkout exact change under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config git ccache \
+            libboost-all-dev libssl-dev libzmq3-dev libpgm-dev libunbound-dev libsodium-dev \
+            libhidapi-dev libusb-1.0-0-dev libunwind-dev liblzma-dev libexpat1-dev \
+            libgcrypt20-dev libgpg-error-dev libprotobuf-dev protobuf-compiler libgtest-dev
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Configure focused ASan build
+        run: |
+          cmake -S . -B build/qms-asan -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-g -O1 -Wno-error=return-type" \
+            -DARCH=default -DBUILD_64=ON -DSTATIC=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_TESTS=ON -DBUILD_DOCUMENTATION=OFF -DBUILD_DEBUG_UTILITIES=OFF \
+            -DUSE_DEVICE_TREZOR=OFF -DUSE_READLINE=OFF -DQWC_ENABLE_QMS2_CRYPTO=ON \
+            -DQWC_CARGO_EXECUTABLE="$HOME/.cargo/bin/cargo" -DSANITIZE=ON \
+            -DMANUAL_SUBMODULES=1 -DMONERO_PARALLEL_COMPILE_JOBS=2 \
+            -DMONERO_PARALLEL_LINK_JOBS=1
+
+      - name: Build focused ASan targets
+        run: >-
+          cmake --build build/qms-asan
+          --target qms_unit_tests qms_fuzz_tests
+          --parallel 2
+
+      - name: Run ASan tests without network access
+        env:
+          # The inherited process signal handlers conflict with ASan's SIGSEGV
+          # handler, and LeakSanitizer startup is not reliable in this executable.
+          # Address instrumentation remains enabled; leak checking is not claimed.
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1:handle_segv=0
+        run: |
+          set -euo pipefail
+          sudo --preserve-env=ASAN_OPTIONS unshare --net \
+            build/qms-asan/tests/unit_tests/qms_unit_tests
+          for input in /dev/null tests/unit_tests/qms.cpp tests/fuzz/qms.cpp; do
+            sudo --preserve-env=ASAN_OPTIONS unshare --net \
+              build/qms-asan/tests/fuzz/qms_fuzz_tests "$input"
+          done

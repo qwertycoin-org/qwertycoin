@@ -39,13 +39,20 @@ cmake --build /tmp/qms2-core-build --target qms_unit_tests -j1
 /tmp/qms2-core-build/tests/unit_tests/qms_unit_tests
 ```
 
-Result: 16/16 tests passed. Coverage includes strict SOCKS5/Tor-v3 configuration,
+Result: 17/17 tests passed. Coverage includes strict SOCKS5/Tor-v3 configuration,
 invitation binding, the shared Core/browser vector, XChaCha20-Poly1305 framing,
 canonical padding classes through 9,600 bytes, fragmentation and nonce varint limits,
 unchanged `MAX_TX_EXTRA_SIZE == 1060`, the Argon2id/XChaCha encrypted store, native
 PQXDH/Triple-Ratchet ABI, repeated/lost outer-secret rotation offers, one retiring
 context, restart/idempotency, history default-off/opt-in/delete, password migration,
-and corruption rejection.
+corruption rejection, and 4,096 deterministic parser mutations. The dedicated QMS fuzz
+harness also exercised fragment, transaction-extra carrier, and invitation decoders on
+empty, unit-test-source, and fuzz-source inputs.
+
+The same 17 tests and fuzz inputs passed in a separate AddressSanitizer build. Leak
+detection was disabled because the inherited executable/signal-handler stack crashes
+during LeakSanitizer startup on this runner; this is a runner/toolchain limitation, not
+a passed leak check. No ASan memory error was reported by the completed runs.
 
 The source size vector used exact 4,096-byte UTF-8 text. The first real PQXDH message
 serialized to 5,953 bytes before outer framing and fit the mandatory 7,200-byte class.
@@ -75,9 +82,14 @@ out-of-order reassembly, duplicate/reorg behavior, outer-secret rotation, encryp
 store corruption, history policy, explicit restore reset, and fail-closed ordinary
 browser transport.
 
-This local artifact is not the distributable proof. The TypeScript CI must rebuild the
-complete pinned Core → C++ bridge → TypeScript/WASM graph, upload it, and an independent
-job/operator must compare every recorded SHA-256 before the Web Wallet vendors it.
+The distributable proof was rebuilt by the TypeScript push workflow from the complete
+pinned Core → C++ bridge → TypeScript/WASM graph. Artifact
+`qms-qwertycoin-ts-dist-69161c3af8e536dae7d7f1e740dcde2782d89d99`
+(GitHub artifact ID `10836732235`) recorded the expected source graph and SHA-256
+manifest. A separate download independently compared every recorded hash before the
+Web Wallet vendored the artifact; its full offline suite then passed. The Web commit is
+kept local because pushing that repository would create a public preview deployment,
+which this assignment explicitly forbids.
 
 ## Explicitly not exercised
 
