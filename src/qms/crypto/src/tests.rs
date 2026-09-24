@@ -35,6 +35,14 @@ fn pqxdh_triple_ratchet_roundtrip_and_state_transaction() {
     let (alice, bob_contact) = import(alice, alice_invitation, &bob_package);
     let (bob, alice_contact) = import(bob, bob_invitation, &alice_package);
 
+    let alice_outgoing = alice.transport_context(&bob_contact, true).unwrap();
+    let bob_incoming = bob.transport_context(&alice_contact, false).unwrap();
+    assert_eq!(alice_outgoing, bob_incoming);
+    assert_ne!(
+        alice_outgoing,
+        alice.transport_context(&bob_contact, false).unwrap()
+    );
+
     let before_send = alice.state().unwrap();
     let prepared = alice
         .prepare_send_text(&bob_contact, &"x".repeat(MAX_TEXT_BYTES), 1_700_000_001)

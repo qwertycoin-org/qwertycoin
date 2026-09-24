@@ -233,6 +233,31 @@ pub unsafe extern "C" fn qwc_qms_crypto_prepare_receive_text(
     })
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qwc_qms_crypto_transport_context(
+    state: *const u8,
+    state_len: usize,
+    contact_id: *const u8,
+    contact_id_len: usize,
+    outgoing: bool,
+    output: *mut Buffer,
+    error: *mut Buffer,
+) -> i32 {
+    write_result(output, error, || {
+        let state = unsafe { borrowed(state, state_len)? };
+        let contact_id = std::str::from_utf8(unsafe { borrowed(contact_id, contact_id_len)? })
+            .map_err(|_| Error::State("contact id must be UTF-8"))?;
+        let context = Engine::from_state(state)?.transport_context(contact_id, outgoing)?;
+        let mut result = Vec::with_capacity(97);
+        result.extend_from_slice(&context.genesis);
+        result.extend_from_slice(&context.invitation_id);
+        result.extend_from_slice(&context.session_id);
+        result.extend_from_slice(&context.root_secret);
+        result.push(context.direction);
+        Ok(result)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

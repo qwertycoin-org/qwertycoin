@@ -104,6 +104,15 @@ pub struct PreparedReceive {
     pub next_state: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct TransportContext {
+    pub genesis: [u8; GENESIS_BYTES],
+    pub invitation_id: [u8; INVITATION_ID_BYTES],
+    pub session_id: [u8; SESSION_ID_BYTES],
+    pub root_secret: [u8; OUTER_SECRET_BYTES],
+    pub direction: u8,
+}
+
 impl Engine {
     pub fn new() -> Result<Self, Error> {
         let mut rng = OsRng.unwrap_err();
@@ -346,6 +355,34 @@ impl Engine {
             text,
             message_id,
             next_state: candidate.state()?,
+        })
+    }
+
+    pub fn transport_context(
+        &self,
+        contact_id: &str,
+        outgoing: bool,
+    ) -> Result<TransportContext, Error> {
+        let contact = self
+            .state
+            .contacts
+            .get(contact_id)
+            .ok_or(Error::State("unknown contact"))?;
+        let package = ContactPackage::decode(if outgoing {
+            &contact.remote_package
+        } else {
+            &contact.local_package
+        })?;
+        Ok(TransportContext {
+            genesis: package.genesis,
+            invitation_id: package.invitation_id,
+            session_id: contact.session_id,
+            root_secret: package.outer_root_secret,
+            direction: if outgoing {
+                contact.local_send_direction
+            } else {
+                contact.local_send_direction ^ 1
+            },
         })
     }
 }

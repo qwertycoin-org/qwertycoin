@@ -182,5 +182,26 @@ prepared_ratchet_receive crypto_backend::prepare_receive_text(
     throw std::runtime_error("missing QMS post-receive state");
   return result;
 }
+
+envelope_context crypto_backend::transport_context(
+  const std::string& contact_id, bool outgoing) const
+{
+  owned_buffer output, error;
+  checked_call(qwc_qms_crypto_transport_context(
+    state_.data(), state_.size(),
+    reinterpret_cast<const uint8_t*>(contact_id.data()), contact_id.size(),
+    outgoing, output.out(), error.out()), error);
+  const bytes encoded = output.copy();
+  if (encoded.size() != 97)
+    throw std::runtime_error("invalid QMS transport context response");
+  size_t position = 0;
+  envelope_context result;
+  result.genesis = take_array<32>(encoded, position);
+  result.invitation_id = take_array<16>(encoded, position);
+  result.session_id = take_array<16>(encoded, position);
+  result.root_secret = take_array<32>(encoded, position);
+  result.direction = encoded[position];
+  return result;
+}
 }
 }

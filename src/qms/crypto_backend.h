@@ -66,6 +66,8 @@ namespace qms
       uint64_t now_unix_seconds) const;
     prepared_ratchet_receive prepare_receive_text(
       const std::string& contact_id, const ratchet_ciphertext& ciphertext) const;
+    envelope_context transport_context(const std::string& contact_id,
+                                       bool outgoing) const;
 
   private:
     bytes state_;

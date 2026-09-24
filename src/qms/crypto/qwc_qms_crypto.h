@@ -2,6 +2,7 @@
 #define QWERTYCOIN_QMS_CRYPTO_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -38,6 +39,11 @@ int32_t qwc_qms_crypto_prepare_receive_text(
     const uint8_t *contact_id, size_t contact_id_len,
     uint8_t message_type,
     const uint8_t *ciphertext, size_t ciphertext_len,
+    qwc_qms_crypto_buffer *output, qwc_qms_crypto_buffer *error);
+int32_t qwc_qms_crypto_transport_context(
+    const uint8_t *state, size_t state_len,
+    const uint8_t *contact_id, size_t contact_id_len,
+    bool outgoing,
     qwc_qms_crypto_buffer *output, qwc_qms_crypto_buffer *error);
 
 #ifdef __cplusplus

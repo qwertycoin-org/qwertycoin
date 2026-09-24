@@ -269,7 +269,13 @@ TEST(qms, native_ffi_pqxdh_triple_ratchet_and_envelope_roundtrip)
   inner.reserve(1 + send.ciphertext.data.size());
   inner.push_back(send.ciphertext.message_type);
   inner.insert(inner.end(), send.ciphertext.data.begin(), send.ciphertext.data.end());
-  const auto context = envelope_context(42);
+  const auto context = alice.transport_context(alice_import.contact_id, true);
+  const auto bob_context = bob.transport_context(bob_import.contact_id, false);
+  EXPECT_EQ(context.genesis, bob_context.genesis);
+  EXPECT_EQ(context.invitation_id, bob_context.invitation_id);
+  EXPECT_EQ(context.session_id, bob_context.session_id);
+  EXPECT_EQ(context.root_secret, bob_context.root_secret);
+  EXPECT_EQ(context.direction, bob_context.direction);
   const auto envelope = qwertycoin::qms::seal_outer_envelope(context, send.message_id, inner);
   EXPECT_EQ(7200u, envelope.size());
   const auto opened = qwertycoin::qms::open_outer_envelope(context, send.message_id, envelope);

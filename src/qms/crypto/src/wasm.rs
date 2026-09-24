@@ -114,3 +114,21 @@ pub fn qwc_qms_wasm_prepare_receive_text(
     result.extend_from_slice(&prepared.next_state);
     Ok(result)
 }
+
+#[wasm_bindgen]
+pub fn qwc_qms_wasm_transport_context(
+    state: &[u8],
+    contact_id: &str,
+    outgoing: bool,
+) -> Result<Vec<u8>, JsError> {
+    let context = Engine::from_state(state)
+        .and_then(|engine| engine.transport_context(contact_id, outgoing))
+        .map_err(js_error)?;
+    let mut result = Vec::with_capacity(97);
+    result.extend_from_slice(&context.genesis);
+    result.extend_from_slice(&context.invitation_id);
+    result.extend_from_slice(&context.session_id);
+    result.extend_from_slice(&context.root_secret);
+    result.push(context.direction);
+    Ok(result)
+}
