@@ -77,20 +77,21 @@ pull-request workflow independently rebuilds `simplewallet` from a clean checkou
 ## Browser/WASM evidence
 
 The same Rust wrapper compiled for `wasm32-unknown-unknown`; wasm-bindgen executed the
-real PQXDH/Triple-Ratchet path in Node. The local Web Wallet offline suite passed 15/15
+real PQXDH/Triple-Ratchet path in Node. The local Web Wallet offline suite passed 16/16
 tests with ABI 3, including Core-vector equivalence, 4,096-byte first-message framing,
 out-of-order reassembly, duplicate/reorg behavior, outer-secret rotation, encrypted
-store corruption, history policy, explicit restore reset, and fail-closed ordinary
-browser transport.
+store corruption, history policy, explicit restore reset, fail-closed ordinary-browser
+transport, and rejection of forged inner plaintext even when the attacker can produce
+a valid outer envelope.
 
 The distributable proof was rebuilt by the TypeScript push workflow from the complete
-pinned Core → C++ bridge → TypeScript/WASM graph. Artifact
-`qms-qwertycoin-ts-dist-69161c3af8e536dae7d7f1e740dcde2782d89d99`
-(GitHub artifact ID `10836732235`) recorded the expected source graph and SHA-256
-manifest. A separate download independently compared every recorded hash before the
-Web Wallet vendored the artifact; its full offline suite then passed. The Web commit is
-kept local because pushing that repository would create a public preview deployment,
-which this assignment explicitly forbids.
+pinned Core → C++ bridge → TypeScript/WASM graph. The downstream TypeScript review and
+its push-workflow run record the immutable revisions, artifact identifier, toolchain,
+licenses, and SHA-256 manifest without creating a circular Core revision dependency.
+A separate download independently compares every recorded hash before the Web Wallet
+vendors an artifact; its full offline suite must then pass. The Web commit is kept local
+because pushing that repository would create a public preview deployment, which this
+assignment explicitly forbids.
 
 ## Explicitly not exercised
 
