@@ -31,6 +31,16 @@ namespace qwertycoin::qms
     size_t envelope_size = 0;
   };
 
+  struct wallet_receive_result
+  {
+    bool accepted_fragment = false;
+    bool completed = false;
+    std::string message_id;
+    std::string contact_fingerprint;
+    std::string contact_label;
+    std::string text;
+  };
+
   /**
    * Application-neutral QMS2 wallet state shared by native clients. The
    * serialized JSON is then protected by wallet2::store_qms_state; this class
@@ -54,6 +64,9 @@ namespace qwertycoin::qms
         const bytes &contact_package, uint64_t now);
     wallet_send_plan prepare_send(const std::string &contact_fingerprint,
         const std::string &text, uint64_t now) const;
+    wallet_receive_result ingest_carrier(const bytes &transaction_extra,
+        uint64_t height, const std::string &block_hash,
+        const std::string &transaction_id, uint64_t now);
     void accept_prepared(const wallet_send_plan &plan,
         const std::string &encrypted_journal, size_t transaction_count,
         uint64_t total_fee, uint64_t now);

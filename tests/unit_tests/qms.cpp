@@ -343,18 +343,42 @@ TEST(qms, shared_wallet_state_is_restart_safe_and_idempotent)
   const auto network = genesis(61);
   qwertycoin::qms::wallet_state alice("", network);
   qwertycoin::qms::wallet_state bob("", network);
+  std::string alice_package_raw;
+  ASSERT_TRUE(epee::string_tools::parse_hexstr_to_binbuff(
+    alice.own_invitation_hex(), alice_package_raw));
   std::string bob_package_raw;
   ASSERT_TRUE(epee::string_tools::parse_hexstr_to_binbuff(
     bob.own_invitation_hex(), bob_package_raw));
   const qwertycoin::qms::bytes bob_package(
     bob_package_raw.begin(), bob_package_raw.end());
   const std::string fingerprint = alice.import_contact("Bob", bob_package, 1700000100);
+  const qwertycoin::qms::bytes alice_package(
+    alice_package_raw.begin(), alice_package_raw.end());
+  bob.import_contact("Alice", alice_package, 1700000100);
   EXPECT_EQ(fingerprint, alice.import_contact("Bob", bob_package, 1700000101));
   ASSERT_EQ(1u, alice.contacts().size());
 
   const auto plan = alice.prepare_send(fingerprint, std::string(4096, 'q'), 1700000102);
   EXPECT_EQ(12u, plan.carrier_extras.size());
   EXPECT_EQ(7200u, plan.envelope_size);
+  for (size_t i = 0; i != 6; ++i)
+  {
+    const auto received = bob.ingest_carrier(plan.carrier_extras[i],
+      100 + i, "block", "tx", 1700000103 + i);
+    EXPECT_TRUE(received.accepted_fragment);
+    EXPECT_FALSE(received.completed);
+  }
+  qwertycoin::qms::wallet_state resumed_bob(bob.serialize(), network);
+  qwertycoin::qms::wallet_receive_result received;
+  for (size_t i = 6; i != plan.carrier_extras.size(); ++i)
+    received = resumed_bob.ingest_carrier(plan.carrier_extras[i],
+      100 + i, "block", "tx", 1700000103 + i);
+  EXPECT_TRUE(received.completed);
+  EXPECT_EQ(std::string(4096, 'q'), received.text);
+  const auto duplicate = resumed_bob.ingest_carrier(plan.carrier_extras.back(),
+    111, "block", "tx", 1700000200);
+  EXPECT_TRUE(duplicate.accepted_fragment);
+  EXPECT_FALSE(duplicate.completed);
   alice.accept_prepared(plan, "encrypted-pending-journal", 12, 12345, 1700000103);
   ASSERT_TRUE(alice.has_prepared());
   const std::string serialized = alice.serialize();

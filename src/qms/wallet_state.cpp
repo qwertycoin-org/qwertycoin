@@ -19,6 +19,11 @@ namespace qwertycoin::qms
 {
   namespace
   {
+    constexpr size_t max_incomplete_messages = 64;
+    constexpr size_t max_incomplete_per_contact = 16;
+    constexpr size_t max_reassembly_bytes = 8 * 1024 * 1024;
+    constexpr size_t max_seen_messages = 4096;
+
     void wipe_json(rapidjson::Value &value)
     {
       if (value.IsString() && value.GetStringLength() != 0)
@@ -305,6 +310,177 @@ namespace qwertycoin::qms
         throw std::runtime_error("QMS2 fragment exceeds unchanged tx_extra limits");
       result.carrier_extras.push_back(std::move(extra));
     }
+    return result;
+  }
+
+  wallet_receive_result wallet_state::ingest_carrier(
+      const bytes &transaction_extra, uint64_t height,
+      const std::string &block_hash, const std::string &transaction_id,
+      uint64_t now)
+  {
+    wallet_receive_result result;
+    const auto fragments = extract_carrier_fragments(transaction_extra);
+    if (fragments.size() != 1 || fragments[0].profile != CRYPTO_PROFILE_TRIPLE_RATCHET)
+      return result;
+    const auto &fragment = fragments[0];
+    const std::string message_id = hex(fragment.message_id.data(), fragment.message_id.size());
+
+    std::string contact_id;
+    std::string contact_fingerprint;
+    std::string contact_label;
+    envelope_context context;
+    auto &contacts = m_impl->array("contacts");
+    for (const auto &contact : contacts.GetArray())
+    {
+      if (!contact.IsObject()) continue;
+      const auto removed = contact.FindMember("removed");
+      if (removed != contact.MemberEnd() && removed->value.IsBool()
+          && removed->value.GetBool())
+        continue;
+      const std::string candidate = required_string(contact, "contactId");
+      if (candidate.empty()) continue;
+      try
+      {
+        const auto candidate_context = m_impl->crypto->transport_context(candidate, false);
+        if (!verify_envelope_fragment(candidate_context, fragment)) continue;
+        contact_id = candidate;
+        contact_fingerprint = required_string(contact, "fingerprint");
+        contact_label = required_string(contact, "label");
+        context = candidate_context;
+        break;
+      }
+      catch (...) {}
+    }
+    if (contact_id.empty()) return result;
+
+    result.accepted_fragment = true;
+    result.message_id = message_id;
+    result.contact_fingerprint = contact_fingerprint;
+    result.contact_label = contact_label;
+    const std::string seen_key = contact_id + ":" + message_id;
+    auto &seen = m_impl->array("seenMessages");
+    for (const auto &entry : seen.GetArray())
+      if (entry.IsString()
+          && seen_key == std::string(entry.GetString(), entry.GetStringLength()))
+        return result;
+
+    auto incomplete_member = m_impl->document.FindMember("incomplete");
+    if (incomplete_member == m_impl->document.MemberEnd()
+        || !incomplete_member->value.IsObject())
+      throw std::runtime_error("invalid QMS2 incomplete-message state");
+    auto &incomplete_all = incomplete_member->value;
+    auto existing = incomplete_all.FindMember(seen_key.c_str());
+    if (existing != incomplete_all.MemberEnd())
+    {
+      if (!existing->value.IsObject())
+        throw std::runtime_error("invalid QMS2 incomplete-message entry");
+      const auto count = existing->value.FindMember("count");
+      if (count == existing->value.MemberEnd() || !count->value.IsUint()
+          || count->value.GetUint() != fragment.count)
+      {
+        incomplete_all.RemoveMember(seen_key.c_str());
+        return result;
+      }
+    }
+    else
+    {
+      if (incomplete_all.MemberCount() >= max_incomplete_messages) return result;
+      size_t per_contact = 0;
+      for (auto member = incomplete_all.MemberBegin(); member != incomplete_all.MemberEnd(); ++member)
+        if (member->value.IsObject())
+        {
+          const auto id = member->value.FindMember("contactId");
+          if (id != member->value.MemberEnd() && id->value.IsString()
+              && contact_id == std::string(id->value.GetString(), id->value.GetStringLength()))
+            ++per_contact;
+        }
+      if (per_contact >= max_incomplete_per_contact) return result;
+
+      rapidjson::Value item(rapidjson::kObjectType);
+      item.AddMember("contactId", rapidjson::Value(contact_id.data(), contact_id.size(), m_impl->allocator()), m_impl->allocator());
+      item.AddMember("fingerprint", rapidjson::Value(contact_fingerprint.data(), contact_fingerprint.size(), m_impl->allocator()), m_impl->allocator());
+      item.AddMember("count", unsigned(fragment.count), m_impl->allocator());
+      item.AddMember("parts", rapidjson::Value(rapidjson::kArrayType), m_impl->allocator());
+      rapidjson::Value key(seen_key.data(), seen_key.size(), m_impl->allocator());
+      incomplete_all.AddMember(key, item, m_impl->allocator());
+      existing = incomplete_all.FindMember(seen_key.c_str());
+    }
+
+    auto parts_member = existing->value.FindMember("parts");
+    if (parts_member == existing->value.MemberEnd() || !parts_member->value.IsArray())
+      throw std::runtime_error("invalid QMS2 fragment state");
+    auto &parts = parts_member->value;
+    const bytes encoded_fragment = encode_fragment(fragment);
+    const std::string encoded = base64(encoded_fragment);
+    for (const auto &part : parts.GetArray())
+      if (part.IsObject())
+      {
+        const auto index = part.FindMember("index");
+        if (index == part.MemberEnd() || !index->value.IsUint()
+            || index->value.GetUint() != fragment.index)
+          continue;
+        if (required_string(part, "data") != encoded)
+          incomplete_all.RemoveMember(seen_key.c_str());
+        return result;
+      }
+
+    size_t stored_bytes = 0;
+    for (auto member = incomplete_all.MemberBegin(); member != incomplete_all.MemberEnd(); ++member)
+      if (member->value.IsObject())
+      {
+        const auto stored_parts = member->value.FindMember("parts");
+        if (stored_parts == member->value.MemberEnd() || !stored_parts->value.IsArray()) continue;
+        for (const auto &stored_part : stored_parts->value.GetArray())
+          if (stored_part.IsObject())
+            stored_bytes += unbase64(required_string(stored_part, "data")).size();
+      }
+    if (stored_bytes + encoded_fragment.size() > max_reassembly_bytes) return result;
+
+    rapidjson::Value part(rapidjson::kObjectType);
+    part.AddMember("index", unsigned(fragment.index), m_impl->allocator());
+    part.AddMember("data", rapidjson::Value(encoded.data(), encoded.size(), m_impl->allocator()), m_impl->allocator());
+    parts.PushBack(part, m_impl->allocator());
+    if (parts.Size() != fragment.count) return result;
+
+    std::vector<qwertycoin::qms::fragment> complete;
+    complete.reserve(parts.Size());
+    for (const auto &stored_part : parts.GetArray())
+      complete.push_back(decode_fragment(unbase64(required_string(stored_part, "data"))));
+    const auto envelope = reassemble(complete);
+    const auto opened = open_outer_envelope(context, fragment.message_id, envelope);
+    if (opened.size() < 2) throw std::runtime_error("empty QMS2 inner ciphertext");
+    ratchet_ciphertext ciphertext;
+    ciphertext.message_type = opened.front();
+    ciphertext.data.assign(opened.begin() + 1, opened.end());
+    const auto received = m_impl->crypto->prepare_receive_text(contact_id, ciphertext);
+    if (received.message_id != fragment.message_id)
+      throw std::runtime_error("QMS2 message identifier mismatch");
+
+    m_impl->crypto.reset(new crypto_backend(received.next_state));
+    incomplete_all.RemoveMember(seen_key.c_str());
+    seen.PushBack(rapidjson::Value(seen_key.data(), seen_key.size(), m_impl->allocator()), m_impl->allocator());
+    if (seen.Size() > max_seen_messages) seen.Erase(seen.Begin());
+
+    const auto history = m_impl->document.FindMember("historyEnabled");
+    if (history != m_impl->document.MemberEnd() && history->value.IsBool()
+        && history->value.GetBool())
+    {
+      rapidjson::Value message(rapidjson::kObjectType);
+      message.AddMember("id", rapidjson::Value(message_id.data(), message_id.size(), m_impl->allocator()), m_impl->allocator());
+      message.AddMember("contact", rapidjson::Value(contact_fingerprint.data(), contact_fingerprint.size(), m_impl->allocator()), m_impl->allocator());
+      message.AddMember("label", rapidjson::Value(contact_label.data(), contact_label.size(), m_impl->allocator()), m_impl->allocator());
+      message.AddMember("text", rapidjson::Value(received.text.data(), received.text.size(), m_impl->allocator()), m_impl->allocator());
+      message.AddMember("direction", "in", m_impl->allocator());
+      message.AddMember("status", "confirmed", m_impl->allocator());
+      message.AddMember("height", height, m_impl->allocator());
+      message.AddMember("blockHash", rapidjson::Value(block_hash.data(), block_hash.size(), m_impl->allocator()), m_impl->allocator());
+      message.AddMember("txId", rapidjson::Value(transaction_id.data(), transaction_id.size(), m_impl->allocator()), m_impl->allocator());
+      message.AddMember("timestamp", now, m_impl->allocator());
+      m_impl->array("messages").PushBack(message, m_impl->allocator());
+    }
+
+    result.completed = true;
+    result.text = received.text;
     return result;
   }
 

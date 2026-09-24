@@ -118,6 +118,9 @@ namespace cryptonote
     bool qms_prepare(const std::vector<std::string> &args);
     bool qms_send(const std::vector<std::string> &args);
     bool qms_cancel(const std::vector<std::string> &args);
+    bool qms_receive(const std::vector<std::string> &args);
+    void load_qms_carrier_inbox();
+    void persist_qms_carrier_inbox();
 #endif
 
     /*!
@@ -358,6 +361,10 @@ namespace cryptonote
     virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index);
     virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index);
     virtual void on_skip_transaction(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx);
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+    virtual void on_qms_carrier(uint64_t height, const crypto::hash &block_hash,
+        const crypto::hash &txid, const cryptonote::transaction &tx) override;
+#endif
     virtual boost::optional<epee::wipeable_string> on_get_password(const char *reason);
     virtual void on_device_button_request(uint64_t code);
     virtual boost::optional<epee::wipeable_string> on_device_pin_request();
@@ -445,6 +452,18 @@ namespace cryptonote
     epee::console_handlers_binder m_cmd_binder;
 
     std::unique_ptr<tools::wallet2> m_wallet;
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+    struct qms_carrier_event
+    {
+      uint64_t height = 0;
+      std::string block_hash;
+      std::string transaction_id;
+      std::vector<uint8_t> extra;
+    };
+    std::vector<qms_carrier_event> m_qms_carriers;
+    bool m_qms_inbox_loaded = false;
+    bool m_qms_inbox_dirty = false;
+#endif
     refresh_progress_reporter_t m_refresh_progress_reporter;
 
     std::atomic<bool> m_idle_run;
