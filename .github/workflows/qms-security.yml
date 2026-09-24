@@ -8,7 +8,7 @@ on:
       - "src/simplewallet/**"
       - "src/wallet/**"
       - "tests/fuzz/**"
-      - "tests/unit_tests/qms.cpp"
+      - "tests/unit_tests/qms*.cpp"
       - "tests/unit_tests/CMakeLists.txt"
       - "docs/qms/**"
   workflow_dispatch:
