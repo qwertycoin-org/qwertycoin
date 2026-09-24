@@ -4,6 +4,8 @@
 #include <limits>
 #include <stdexcept>
 
+#include <sodium.h>
+
 #include "crypto/qwc_qms_crypto.h"
 
 namespace qwertycoin
@@ -96,6 +98,26 @@ crypto_backend::crypto_backend(bytes encoded_state)
 {
   if (state_.empty())
     throw std::runtime_error("empty QMS crypto backend state");
+}
+
+crypto_backend::~crypto_backend()
+{
+  if (!state_.empty()) sodium_memzero(state_.data(), state_.size());
+}
+
+crypto_backend::crypto_backend(crypto_backend&& other) noexcept
+  : state_(std::move(other.state_))
+{
+  other.state_.clear();
+}
+
+crypto_backend& crypto_backend::operator=(crypto_backend&& other) noexcept
+{
+  if (this == &other) return *this;
+  if (!state_.empty()) sodium_memzero(state_.data(), state_.size());
+  state_ = std::move(other.state_);
+  other.state_.clear();
+  return *this;
 }
 
 prepared_contact_package crypto_backend::prepare_contact_package(const hash32& genesis) const

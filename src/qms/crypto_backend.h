@@ -55,6 +55,11 @@ namespace qms
   public:
     static crypto_backend create();
     explicit crypto_backend(bytes encoded_state);
+    ~crypto_backend();
+    crypto_backend(const crypto_backend&) = delete;
+    crypto_backend& operator=(const crypto_backend&) = delete;
+    crypto_backend(crypto_backend&& other) noexcept;
+    crypto_backend& operator=(crypto_backend&& other) noexcept;
 
     const bytes& state() const noexcept { return state_; }
 
