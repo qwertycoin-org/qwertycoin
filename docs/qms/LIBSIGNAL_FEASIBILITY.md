@@ -50,10 +50,11 @@ and decrypted by the peer.
 | first reply | 4,169 bytes | 4 bytes |
 | subsequent alternating messages (64 rounds) | max 4,202 bytes | max 37 bytes |
 
-The QMS2 canonical inner record adds 104 bytes to the user text. Re-running the
-measurement with the final encoder is required, but the first-message lower-bound
-measurement leaves more than 3 KiB below the 9,600-byte envelope ceiling. The
-protocol must still fail closed if a final serialized envelope exceeds 9,600 bytes.
+The QMS2 canonical inner record adds 105 fixed bytes to the user text plus at most
+48 bytes when an outer-secret offer and acknowledgement are both present. The final
+4,096-byte PQXDH vector serializes to 5,953 bytes before the outer envelope and fits
+the canonical 7,200-byte class. The protocol still fails closed if any final
+serialized envelope exceeds 9,600 bytes.
 
 ## Native and WebAssembly probes
 

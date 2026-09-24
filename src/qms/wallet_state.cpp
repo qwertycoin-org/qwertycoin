@@ -186,6 +186,11 @@ namespace qwertycoin::qms
     m_impl->array("contacts");
     m_impl->array("messages");
     m_impl->array("seenMessages");
+    auto history = m_impl->document.FindMember("historyEnabled");
+    if (history == m_impl->document.MemberEnd())
+      m_impl->document.AddMember("historyEnabled", false, m_impl->allocator());
+    else if (!history->value.IsBool())
+      throw std::runtime_error("invalid QMS2 history preference");
   }
 
   wallet_state::~wallet_state() = default;
@@ -231,6 +236,29 @@ namespace qwertycoin::qms
       result.push_back(std::move(item));
     }
     return result;
+  }
+
+  bool wallet_state::history_enabled() const
+  {
+    const auto found = m_impl->document.FindMember("historyEnabled");
+    return found != m_impl->document.MemberEnd()
+      && found->value.IsBool() && found->value.GetBool();
+  }
+
+  void wallet_state::set_history_enabled(bool enabled)
+  {
+    auto found = m_impl->document.FindMember("historyEnabled");
+    if (found == m_impl->document.MemberEnd())
+      m_impl->document.AddMember("historyEnabled", enabled, m_impl->allocator());
+    else
+      found->value.SetBool(enabled);
+  }
+
+  void wallet_state::clear_history()
+  {
+    auto &messages = m_impl->array("messages");
+    wipe_json(messages);
+    messages.Clear();
   }
 
   std::string wallet_state::import_contact(const std::string &label,
@@ -341,13 +369,17 @@ namespace qwertycoin::qms
       if (candidate.empty()) continue;
       try
       {
-        const auto candidate_context = m_impl->crypto->transport_context(candidate, false);
-        if (!verify_envelope_fragment(candidate_context, fragment)) continue;
-        contact_id = candidate;
-        contact_fingerprint = required_string(contact, "fingerprint");
-        contact_label = required_string(contact, "label");
-        context = candidate_context;
-        break;
+        for (const auto &candidate_context :
+             m_impl->crypto->transport_contexts(candidate, false))
+        {
+          if (!verify_envelope_fragment(candidate_context, fragment)) continue;
+          contact_id = candidate;
+          contact_fingerprint = required_string(contact, "fingerprint");
+          contact_label = required_string(contact, "label");
+          context = candidate_context;
+          break;
+        }
+        if (!contact_id.empty()) break;
       }
       catch (...) {}
     }
@@ -470,8 +502,8 @@ namespace qwertycoin::qms
       message.AddMember("contact", rapidjson::Value(contact_fingerprint.data(), contact_fingerprint.size(), m_impl->allocator()), m_impl->allocator());
       message.AddMember("label", rapidjson::Value(contact_label.data(), contact_label.size(), m_impl->allocator()), m_impl->allocator());
       message.AddMember("text", rapidjson::Value(received.text.data(), received.text.size(), m_impl->allocator()), m_impl->allocator());
-      message.AddMember("direction", "in", m_impl->allocator());
-      message.AddMember("status", "confirmed", m_impl->allocator());
+      message.AddMember("direction", rapidjson::Value("in", m_impl->allocator()), m_impl->allocator());
+      message.AddMember("status", rapidjson::Value("confirmed", m_impl->allocator()), m_impl->allocator());
       message.AddMember("height", height, m_impl->allocator());
       message.AddMember("blockHash", rapidjson::Value(block_hash.data(), block_hash.size(), m_impl->allocator()), m_impl->allocator());
       message.AddMember("txId", rapidjson::Value(transaction_id.data(), transaction_id.size(), m_impl->allocator()), m_impl->allocator());

@@ -31,10 +31,33 @@ pub const SESSION_ID_BYTES: usize = 16;
 pub const MESSAGE_ID_BYTES: usize = 16;
 pub const OUTER_SECRET_BYTES: usize = 32;
 pub const MAX_TEXT_BYTES: usize = 4096;
-pub const INNER_FIXED_BYTES: usize = 104;
+pub const INNER_BASE_BYTES: usize = 105;
+pub const OUTER_ROTATION_INTERVAL: u64 = 16;
 
 const INNER_DOMAIN: &[u8] = b"QWC-QMS-INNER-V2";
 const SESSION_DOMAIN: &[u8] = b"QWC-QMS2-SESSION-ID";
+const INNER_HAS_OUTER_OFFER: u8 = 1;
+const INNER_HAS_OUTER_ACK: u8 = 2;
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct VersionedOuterSecret {
+    epoch: u64,
+    secret: [u8; OUTER_SECRET_BYTES],
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct LocalOuterState {
+    active: VersionedOuterSecret,
+    offered: Option<VersionedOuterSecret>,
+    retiring: Option<VersionedOuterSecret>,
+    send_count: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct RemoteOuterState {
+    active: VersionedOuterSecret,
+    received: Option<VersionedOuterSecret>,
+}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -56,6 +79,8 @@ struct ContactContext {
     remote_package: Vec<u8>,
     session_id: [u8; SESSION_ID_BYTES],
     local_send_direction: u8,
+    local_outer: LocalOuterState,
+    remote_outer: RemoteOuterState,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -102,6 +127,14 @@ pub struct PreparedReceive {
     pub text: String,
     pub message_id: [u8; MESSAGE_ID_BYTES],
     pub next_state: Vec<u8>,
+}
+
+#[derive(Debug)]
+struct InnerMessage {
+    message_id: [u8; MESSAGE_ID_BYTES],
+    text: String,
+    outer_offer: Option<VersionedOuterSecret>,
+    outer_ack: Option<u64>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -227,6 +260,22 @@ impl Engine {
                 remote_package: encoded_remote.to_vec(),
                 session_id,
                 local_send_direction,
+                local_outer: LocalOuterState {
+                    active: VersionedOuterSecret {
+                        epoch: 0,
+                        secret: local.outer_root_secret,
+                    },
+                    offered: None,
+                    retiring: None,
+                    send_count: 0,
+                },
+                remote_outer: RemoteOuterState {
+                    active: VersionedOuterSecret {
+                        epoch: 0,
+                        secret: remote.outer_root_secret,
+                    },
+                    received: None,
+                },
             },
         );
         Ok(PreparedImport {
@@ -248,6 +297,29 @@ impl Engine {
             ));
         }
         let mut candidate = self.clone();
+        {
+            let contact = candidate
+                .state
+                .contacts
+                .get_mut(contact_id)
+                .ok_or(Error::State("unknown contact"))?;
+            if contact.local_outer.offered.is_none()
+                && contact.local_outer.send_count != 0
+                && contact.local_outer.send_count % OUTER_ROTATION_INTERVAL == 0
+            {
+                let epoch = contact
+                    .local_outer
+                    .active
+                    .epoch
+                    .checked_add(1)
+                    .ok_or(Error::State("outer secret epoch exhausted"))?;
+                let mut secret = [0u8; OUTER_SECRET_BYTES];
+                let mut rng = OsRng.unwrap_err();
+                rng.try_fill_bytes(&mut secret)
+                    .map_err(|_| Error::State("operating-system randomness unavailable"))?;
+                contact.local_outer.offered = Some(VersionedOuterSecret { epoch, secret });
+            }
+        }
         let contact = candidate
             .state
             .contacts
@@ -267,6 +339,12 @@ impl Engine {
             contact.local_send_direction,
             message_id,
             text,
+            contact.local_outer.offered.as_ref(),
+            contact
+                .remote_outer
+                .received
+                .as_ref()
+                .map(|secret| secret.epoch),
         )?;
         let remote_address = address_for_package(
             &remote,
@@ -291,6 +369,21 @@ impl Engine {
             CiphertextMessageType::Whisper => 2,
             _ => return Err(Error::State("unexpected libsignal ciphertext type")),
         };
+        {
+            let next = candidate
+                .state
+                .contacts
+                .get_mut(contact_id)
+                .ok_or(Error::State("unknown contact"))?;
+            next.local_outer.send_count = next
+                .local_outer
+                .send_count
+                .checked_add(1)
+                .ok_or(Error::State("outer rotation send counter exhausted"))?;
+            if let Some(received) = next.remote_outer.received.take() {
+                next.remote_outer.active = received;
+            }
+        }
         Ok(PreparedSend {
             ciphertext: RatchetCiphertext {
                 message_type,
@@ -346,23 +439,35 @@ impl Engine {
         .now_or_never()
         .expect("QMS stores are synchronous")?;
         let incoming_direction = contact.local_send_direction ^ 1;
-        let (message_id, text) =
-            decode_inner(&plaintext, &local, contact.session_id, incoming_direction)?;
-        if !candidate.state.received_message_ids.insert(message_id) {
+        let inner = decode_inner(&plaintext, &local, contact.session_id, incoming_direction)?;
+        if !candidate
+            .state
+            .received_message_ids
+            .insert(inner.message_id)
+        {
             return Err(Error::InvalidMessage("replayed message id"));
         }
+        apply_outer_control(
+            candidate
+                .state
+                .contacts
+                .get_mut(contact_id)
+                .ok_or(Error::State("unknown contact"))?,
+            inner.outer_offer,
+            inner.outer_ack,
+        )?;
         Ok(PreparedReceive {
-            text,
-            message_id,
+            text: inner.text,
+            message_id: inner.message_id,
             next_state: candidate.state()?,
         })
     }
 
-    pub fn transport_context(
+    pub fn transport_contexts(
         &self,
         contact_id: &str,
         outgoing: bool,
-    ) -> Result<TransportContext, Error> {
+    ) -> Result<Vec<TransportContext>, Error> {
         let contact = self
             .state
             .contacts
@@ -373,18 +478,103 @@ impl Engine {
         } else {
             &contact.local_package
         })?;
-        Ok(TransportContext {
-            genesis: package.genesis,
-            invitation_id: package.invitation_id,
-            session_id: contact.session_id,
-            root_secret: package.outer_root_secret,
-            direction: if outgoing {
-                contact.local_send_direction
-            } else {
-                contact.local_send_direction ^ 1
-            },
-        })
+        let direction = if outgoing {
+            contact.local_send_direction
+        } else {
+            contact.local_send_direction ^ 1
+        };
+        let secrets: Vec<&VersionedOuterSecret> = if outgoing {
+            vec![
+                contact
+                    .remote_outer
+                    .received
+                    .as_ref()
+                    .unwrap_or(&contact.remote_outer.active),
+            ]
+        } else {
+            let mut values = vec![&contact.local_outer.active];
+            if let Some(offered) = contact.local_outer.offered.as_ref() {
+                values.push(offered);
+            }
+            if let Some(retiring) = contact.local_outer.retiring.as_ref() {
+                if !values.iter().any(|value| value.secret == retiring.secret) {
+                    values.push(retiring);
+                }
+            }
+            values
+        };
+        Ok(secrets
+            .into_iter()
+            .map(|secret| TransportContext {
+                genesis: package.genesis,
+                invitation_id: package.invitation_id,
+                session_id: contact.session_id,
+                root_secret: secret.secret,
+                direction,
+            })
+            .collect())
     }
+
+    pub fn transport_context(
+        &self,
+        contact_id: &str,
+        outgoing: bool,
+    ) -> Result<TransportContext, Error> {
+        self.transport_contexts(contact_id, outgoing)?
+            .into_iter()
+            .next()
+            .ok_or(Error::State("missing transport context"))
+    }
+}
+
+fn apply_outer_control(
+    contact: &mut ContactContext,
+    offer: Option<VersionedOuterSecret>,
+    ack: Option<u64>,
+) -> Result<(), Error> {
+    if let Some(offer) = offer {
+        if offer.epoch <= contact.remote_outer.active.epoch {
+            if offer.epoch == contact.remote_outer.active.epoch
+                && offer.secret != contact.remote_outer.active.secret
+            {
+                return Err(Error::InvalidMessage("conflicting active outer secret"));
+            }
+        } else if let Some(received) = contact.remote_outer.received.as_ref() {
+            if *received != offer {
+                return Err(Error::InvalidMessage("conflicting offered outer secret"));
+            }
+        } else {
+            let expected = contact
+                .remote_outer
+                .active
+                .epoch
+                .checked_add(1)
+                .ok_or(Error::State("outer secret epoch exhausted"))?;
+            if offer.epoch != expected {
+                return Err(Error::InvalidMessage("non-sequential outer secret offer"));
+            }
+            contact.remote_outer.received = Some(offer);
+        }
+    }
+    if let Some(ack) = ack {
+        if ack <= contact.local_outer.active.epoch {
+            return Ok(());
+        }
+        let offered = contact
+            .local_outer
+            .offered
+            .take()
+            .ok_or(Error::InvalidMessage(
+                "outer secret acknowledgement without offer",
+            ))?;
+        if offered.epoch != ack {
+            contact.local_outer.offered = Some(offered);
+            return Err(Error::InvalidMessage("outer secret acknowledgement epoch"));
+        }
+        contact.local_outer.retiring = Some(contact.local_outer.active.clone());
+        contact.local_outer.active = offered;
+    }
+    Ok(())
 }
 
 fn unix_time(seconds: u64) -> SystemTime {
@@ -441,11 +631,15 @@ fn encode_inner(
     direction: u8,
     message_id: [u8; MESSAGE_ID_BYTES],
     text: &str,
+    outer_offer: Option<&VersionedOuterSecret>,
+    outer_ack: Option<u64>,
 ) -> Result<Vec<u8>, Error> {
     if direction > 1 {
         return Err(Error::State("invalid direction"));
     }
-    let mut out = Vec::with_capacity(INNER_FIXED_BYTES + text.len());
+    let control_bytes =
+        outer_offer.map_or(0, |_| 8 + OUTER_SECRET_BYTES) + outer_ack.map_or(0, |_| 8);
+    let mut out = Vec::with_capacity(INNER_BASE_BYTES + control_bytes + text.len());
     out.extend_from_slice(INNER_DOMAIN);
     out.push(WIRE_VERSION);
     out.push(PROFILE);
@@ -454,10 +648,25 @@ fn encode_inner(
     out.extend_from_slice(&session_id);
     out.push(direction);
     out.extend_from_slice(&message_id);
+    let mut flags = 0u8;
+    if outer_offer.is_some() {
+        flags |= INNER_HAS_OUTER_OFFER;
+    }
+    if outer_ack.is_some() {
+        flags |= INNER_HAS_OUTER_ACK;
+    }
+    out.push(flags);
+    if let Some(offer) = outer_offer {
+        out.extend_from_slice(&offer.epoch.to_le_bytes());
+        out.extend_from_slice(&offer.secret);
+    }
+    if let Some(ack) = outer_ack {
+        out.extend_from_slice(&ack.to_le_bytes());
+    }
     out.push(1);
     out.extend_from_slice(&(text.len() as u32).to_le_bytes());
     out.extend_from_slice(text.as_bytes());
-    debug_assert_eq!(out.len(), INNER_FIXED_BYTES + text.len());
+    debug_assert_eq!(out.len(), INNER_BASE_BYTES + control_bytes + text.len());
     Ok(out)
 }
 
@@ -466,8 +675,8 @@ fn decode_inner(
     local: &ContactPackage,
     expected_session_id: [u8; SESSION_ID_BYTES],
     expected_direction: u8,
-) -> Result<([u8; MESSAGE_ID_BYTES], String), Error> {
-    if input.len() < INNER_FIXED_BYTES || &input[..INNER_DOMAIN.len()] != INNER_DOMAIN {
+) -> Result<InnerMessage, Error> {
+    if input.len() < INNER_BASE_BYTES || &input[..INNER_DOMAIN.len()] != INNER_DOMAIN {
         return Err(Error::InvalidMessage("inner domain or length"));
     }
     let mut position = INNER_DOMAIN.len();
@@ -495,6 +704,48 @@ fn decode_inner(
         .try_into()
         .expect("fixed slice");
     position += MESSAGE_ID_BYTES;
+    let flags = input[position];
+    position += 1;
+    if flags & !(INNER_HAS_OUTER_OFFER | INNER_HAS_OUTER_ACK) != 0 {
+        return Err(Error::InvalidMessage("inner control flags"));
+    }
+    let outer_offer = if flags & INNER_HAS_OUTER_OFFER != 0 {
+        if input.len() - position < 8 + OUTER_SECRET_BYTES {
+            return Err(Error::InvalidMessage("truncated outer secret offer"));
+        }
+        let epoch = u64::from_le_bytes(
+            input[position..position + 8]
+                .try_into()
+                .expect("fixed slice"),
+        );
+        position += 8;
+        let secret = input[position..position + OUTER_SECRET_BYTES]
+            .try_into()
+            .expect("fixed slice");
+        position += OUTER_SECRET_BYTES;
+        Some(VersionedOuterSecret { epoch, secret })
+    } else {
+        None
+    };
+    let outer_ack = if flags & INNER_HAS_OUTER_ACK != 0 {
+        if input.len() - position < 8 {
+            return Err(Error::InvalidMessage(
+                "truncated outer secret acknowledgement",
+            ));
+        }
+        let epoch = u64::from_le_bytes(
+            input[position..position + 8]
+                .try_into()
+                .expect("fixed slice"),
+        );
+        position += 8;
+        Some(epoch)
+    } else {
+        None
+    };
+    if input.len() - position < 5 {
+        return Err(Error::InvalidMessage("truncated inner payload"));
+    }
     if input[position] != 1 {
         return Err(Error::InvalidMessage("inner content type"));
     }
@@ -511,7 +762,12 @@ fn decode_inner(
     let text = std::str::from_utf8(&input[position..])
         .map_err(|_| Error::InvalidMessage("inner UTF-8"))?
         .to_owned();
-    Ok((message_id, text))
+    Ok(InnerMessage {
+        message_id,
+        text,
+        outer_offer,
+        outer_ack,
+    })
 }
 
 #[cfg(test)]

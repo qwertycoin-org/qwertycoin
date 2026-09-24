@@ -375,6 +375,58 @@ TEST(qms, native_ffi_pqxdh_triple_ratchet_and_envelope_roundtrip)
   EXPECT_EQ("reply", reply_receive.text);
 }
 
+TEST(qms, native_outer_secret_rotation_repeats_offer_and_keeps_one_grace_secret)
+{
+  const auto network = genesis(57);
+  auto alice = qwertycoin::qms::crypto_backend::create();
+  auto bob = qwertycoin::qms::crypto_backend::create();
+  const auto alice_package = alice.prepare_contact_package(network);
+  const auto bob_package = bob.prepare_contact_package(network);
+  alice = qwertycoin::qms::crypto_backend(alice_package.next_state);
+  bob = qwertycoin::qms::crypto_backend(bob_package.next_state);
+  const auto alice_import = alice.prepare_import_contact(
+    alice_package.invitation_id, bob_package.package, 1700000000);
+  const auto bob_import = bob.prepare_import_contact(
+    bob_package.invitation_id, alice_package.package, 1700000000);
+  alice = qwertycoin::qms::crypto_backend(alice_import.next_state);
+  bob = qwertycoin::qms::crypto_backend(bob_import.next_state);
+
+  const auto initial = alice.transport_context(alice_import.contact_id, false);
+  for (uint64_t i = 0; i != 16; ++i)
+  {
+    const auto sent = alice.prepare_send_text(
+      alice_import.contact_id, "advance", 1700000100 + i);
+    alice = qwertycoin::qms::crypto_backend(sent.next_state);
+    const auto received = bob.prepare_receive_text(bob_import.contact_id, sent.ciphertext);
+    bob = qwertycoin::qms::crypto_backend(received.next_state);
+  }
+
+  const auto lost = alice.prepare_send_text(
+    alice_import.contact_id, "lost-offer", 1700000200);
+  alice = qwertycoin::qms::crypto_backend(lost.next_state);
+  EXPECT_EQ(2u, alice.transport_contexts(alice_import.contact_id, false).size());
+  const auto repeated = alice.prepare_send_text(
+    alice_import.contact_id, "repeated-offer", 1700000201);
+  alice = qwertycoin::qms::crypto_backend(repeated.next_state);
+  const auto received = bob.prepare_receive_text(bob_import.contact_id, repeated.ciphertext);
+  bob = qwertycoin::qms::crypto_backend(received.next_state);
+  const auto new_context = bob.transport_context(bob_import.contact_id, true);
+  EXPECT_NE(initial.root_secret, new_context.root_secret);
+
+  const auto ack = bob.prepare_send_text(bob_import.contact_id, "ack", 1700000202);
+  bob = qwertycoin::qms::crypto_backend(ack.next_state);
+  const auto opened = alice.prepare_receive_text(alice_import.contact_id, ack.ciphertext);
+  alice = qwertycoin::qms::crypto_backend(opened.next_state);
+  const auto contexts = alice.transport_contexts(alice_import.contact_id, false);
+  ASSERT_EQ(2u, contexts.size());
+  EXPECT_TRUE(std::any_of(contexts.begin(), contexts.end(), [&](const auto &context) {
+    return context.root_secret == initial.root_secret;
+  }));
+  EXPECT_TRUE(std::any_of(contexts.begin(), contexts.end(), [&](const auto &context) {
+    return context.root_secret == new_context.root_secret;
+  }));
+}
+
 TEST(qms, shared_wallet_state_is_restart_safe_and_idempotent)
 {
   const auto network = genesis(61);
@@ -392,6 +444,9 @@ TEST(qms, shared_wallet_state_is_restart_safe_and_idempotent)
   const qwertycoin::qms::bytes alice_package(
     alice_package_raw.begin(), alice_package_raw.end());
   bob.import_contact("Alice", alice_package, 1700000100);
+  EXPECT_FALSE(bob.history_enabled());
+  bob.set_history_enabled(true);
+  EXPECT_TRUE(bob.history_enabled());
   EXPECT_EQ(fingerprint, alice.import_contact("Bob", bob_package, 1700000101));
   ASSERT_EQ(1u, alice.contacts().size());
 
@@ -412,6 +467,10 @@ TEST(qms, shared_wallet_state_is_restart_safe_and_idempotent)
       100 + i, "block", "tx", 1700000103 + i);
   EXPECT_TRUE(received.completed);
   EXPECT_EQ(std::string(4096, 'q'), received.text);
+  const std::string with_history = resumed_bob.serialize();
+  EXPECT_NE(std::string::npos, with_history.find(std::string(4096, 'q')));
+  resumed_bob.clear_history();
+  EXPECT_EQ(std::string::npos, resumed_bob.serialize().find(std::string(4096, 'q')));
   const auto duplicate = resumed_bob.ingest_carrier(plan.carrier_extras.back(),
     111, "block", "tx", 1700000200);
   EXPECT_TRUE(duplicate.accepted_fragment);

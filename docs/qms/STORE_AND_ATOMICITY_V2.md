@@ -38,7 +38,20 @@ delivery state; they never rewind a session.
 
 ## Restore invariant
 
-An imported backup receives a new local instance identifier. If it contains messenger
-state older than the most recent known epoch, sending is disabled until the contact
-performs a fresh package/session rotation. Old send keys are never reused. A wallet
-seed without the separately encrypted messenger backup restores no messenger data.
+A QWC wallet seed without the separately encrypted messenger store restores no
+messenger identity, contacts, sessions, or history. Importing an authenticated current
+store preserves its exact ratchet state; silently rewinding or cloning that store can
+reuse send state and is unsafe.
+
+The application can detect authentication failure, corruption, missing QMS2 state, and
+an interrupted wallet-password migration. It cannot reliably detect a complete
+rollback in which an attacker restores every local file or browser-storage record to a
+previous mutually consistent snapshot. No local instance counter can solve that
+without an external monotonic authority.
+
+After any uncertain, cloned, or stale restore, the operator must use the explicit
+Messenger reset action (`qms_reset confirm` in the CLI, or the corresponding GUI/Web
+control). Reset deletes the local messenger identity, contacts, ratchets, outer
+contexts, prepared plans, replay state, and optional history. Both peers must exchange
+fresh contact packages before sending again. Reset cannot revoke or erase historical
+blockchain carriers and does not repair a peer that continues using the old session.

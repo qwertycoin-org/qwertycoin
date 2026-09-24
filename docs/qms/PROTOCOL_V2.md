@@ -58,12 +58,16 @@ The exact 4,096-byte limit applies to the user text. Before libsignal encryption
 encodes a canonical inner record:
 
 `QWC-QMS-INNER-V2 || wire || profile || genesis || invitation-id || session-id ||
-direction || message-id || content-type || text-length-le32 || exact-UTF8`.
+direction || message-id || control-flags || [outer-offer] || [outer-ack] ||
+content-type || text-length-le32 || exact-UTF8`.
 
-This fixed metadata is 104 bytes including the domain. It is encrypted by the pinned
-libsignal public API. PQXDH establishes the session; every subsequent message uses
-libsignal's combined classical Double Ratchet and SPQR/ML-KEM ratchet. QMS does not
-implement or modify those primitives.
+The fixed metadata is 105 bytes including the domain and control-flags byte. An outer
+offer adds an eight-byte epoch and 32-byte secret; an acknowledgement adds an
+eight-byte epoch. Unknown flag bits, truncated fields, non-sequential offers, and
+acknowledgements without the matching offer are rejected. The complete record is
+encrypted by the pinned libsignal public API. PQXDH establishes the session; every
+subsequent message uses libsignal's combined classical Double Ratchet and SPQR/ML-KEM
+ratchet. QMS does not implement or modify those primitives.
 
 `direction` is `0` for invitation-owner to importer and `1` for importer to owner.
 Session and message identifiers are random 128-bit values. Address values supplied to
@@ -147,9 +151,16 @@ output and no funds to receive the first message.
 
 ## Rotation and bounds
 
-Each direction has one active context, optionally one offered context, and at most one
-retiring context. Rotation moves through `offered`, `received`, and `confirmed`; a lost
-offer never deletes the active context.
+Each direction has one active context, optionally one offered/received context, and at
+most one retiring context. After every 16 committed sends in one direction, the sender
+creates the next sequential outer-secret epoch and includes the same authenticated
+offer in every subsequent message until it is acknowledged. The receiver stores that
+offer and immediately uses it for replies; the reply carries the authenticated
+acknowledgement. Until acknowledgement, the offerer accepts both the active and offered
+contexts. On acknowledgement, the offered context becomes active and the previous
+active context becomes the single grace-period context. Completing the next rotation
+overwrites that grace slot, which deletes the oldest secret. No control-only carrier is
+created, and loss of an offer or acknowledgement does not delete a usable context.
 
 Before persistence, receivers enforce global limits of 64 incomplete messages and
 8 MiB reassembly data plus smaller per-contact limits. Duplicates are idempotent;

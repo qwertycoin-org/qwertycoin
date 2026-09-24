@@ -308,6 +308,8 @@ namespace
   const char* USAGE_QMS_INFO("qms_info");
   const char* USAGE_QMS_ADD_CONTACT("qms_add_contact <label>");
   const char* USAGE_QMS_CONTACTS("qms_contacts");
+  const char* USAGE_QMS_HISTORY("qms_history <status|on|off|clear>");
+  const char* USAGE_QMS_RESET("qms_reset confirm");
   const char* USAGE_QMS_PREPARE("qms_prepare <contact_fingerprint>");
   const char* USAGE_QMS_SEND("qms_send");
   const char* USAGE_QMS_CANCEL("qms_cancel");
@@ -3510,6 +3512,8 @@ bool simple_wallet::qms_info(const std::vector<std::string> &args)
                          << (ready ? tr("ready") : (tr("blocked: ") + reason));
     success_msg_writer() << tr("Prepared carrier batch: ")
                          << (state->has_prepared() ? tr("yes") : tr("no"));
+    success_msg_writer() << tr("Local plaintext history persistence: ")
+                         << (state->history_enabled() ? tr("enabled") : tr("disabled (default)"));
   }
   catch (const std::exception &e)
   {
@@ -3593,6 +3597,83 @@ bool simple_wallet::qms_contacts(const std::vector<std::string> &args)
   catch (const std::exception &e)
   {
     fail_msg_writer() << tr("QMS2 error: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_history(const std::vector<std::string> &args)
+{
+  if (args.size() != 1
+      || (args[0] != "status" && args[0] != "on"
+          && args[0] != "off" && args[0] != "clear"))
+  {
+    PRINT_USAGE(USAGE_QMS_HISTORY);
+    return true;
+  }
+  CHECK_IF_BACKGROUND_SYNCING("cannot update QMS2 history preference");
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, false);
+    if (!state)
+    {
+      success_msg_writer() << tr("QMS2 is not initialized; run qms_info first");
+      return true;
+    }
+    if (args[0] == "status")
+    {
+      success_msg_writer() << tr("QMS2 local plaintext history persistence is ")
+                           << (state->history_enabled() ? tr("enabled") : tr("disabled"));
+      return true;
+    }
+    if (args[0] == "clear")
+    {
+      state->clear_history();
+      persist_qms_wallet_state(*m_wallet, *password, *state);
+      success_msg_writer() << tr("Local QMS2 message history cleared. Blockchain carrier data is unchanged.");
+      return true;
+    }
+    state->set_history_enabled(args[0] == "on");
+    persist_qms_wallet_state(*m_wallet, *password, *state);
+    success_msg_writer() << tr("QMS2 local plaintext history persistence is now ")
+                         << (state->history_enabled() ? tr("enabled") : tr("disabled"));
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 history update failed: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_reset(const std::vector<std::string> &args)
+{
+  if (args.size() != 1 || args[0] != "confirm")
+  {
+    PRINT_USAGE(USAGE_QMS_RESET);
+    fail_msg_writer() << tr("This deletes the local Messenger identity, contacts, sessions, history, and prepared plan. It does not remove blockchain carrier data.");
+    return true;
+  }
+  CHECK_IF_BACKGROUND_SYNCING("cannot reset QMS2 state");
+  LOCK_IDLE_SCOPE();
+  std::string error;
+  if (!m_wallet->clear_qms_state(error))
+  {
+    fail_msg_writer() << tr("QMS2 reset failed: ") << error;
+    return true;
+  }
+  m_qms_carriers.clear();
+  m_qms_inbox_loaded = true;
+  m_qms_inbox_dirty = true;
+  try
+  {
+    persist_qms_carrier_inbox();
+    success_msg_writer() << tr("QMS2 state reset. Run qms_info to create a new identity and exchange fresh contact packages before sending again.");
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 state was reset, but clearing the cached carrier inbox failed: ") << e.what();
   }
   return true;
 }
@@ -4195,6 +4276,14 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_contacts, _1),
                            tr(USAGE_QMS_CONTACTS),
                            tr("List active QMS2 contacts and fingerprints."));
+  m_cmd_binder.set_handler("qms_history",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_history, _1),
+                           tr(USAGE_QMS_HISTORY),
+                           tr("Show or change opt-in local plaintext message-history persistence, or delete stored history."));
+  m_cmd_binder.set_handler("qms_reset",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_reset, _1),
+                           tr(USAGE_QMS_RESET),
+                           tr("Delete local QMS2 identity/session state after a restore or suspected rollback; requires literal confirm."));
   m_cmd_binder.set_handler("qms_prepare",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_prepare, _1),
                            tr(USAGE_QMS_PREPARE),

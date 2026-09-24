@@ -115,6 +115,8 @@ namespace cryptonote
     bool qms_info(const std::vector<std::string> &args);
     bool qms_add_contact(const std::vector<std::string> &args);
     bool qms_contacts(const std::vector<std::string> &args);
+    bool qms_history(const std::vector<std::string> &args);
+    bool qms_reset(const std::vector<std::string> &args);
     bool qms_prepare(const std::vector<std::string> &args);
     bool qms_send(const std::vector<std::string> &args);
     bool qms_cancel(const std::vector<std::string> &args);

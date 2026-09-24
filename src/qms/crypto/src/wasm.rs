@@ -122,14 +122,17 @@ pub fn qwc_qms_wasm_transport_context(
     contact_id: &str,
     outgoing: bool,
 ) -> Result<Vec<u8>, JsError> {
-    let context = Engine::from_state(state)
-        .and_then(|engine| engine.transport_context(contact_id, outgoing))
+    let contexts = Engine::from_state(state)
+        .and_then(|engine| engine.transport_contexts(contact_id, outgoing))
         .map_err(js_error)?;
-    let mut result = Vec::with_capacity(97);
-    result.extend_from_slice(&context.genesis);
-    result.extend_from_slice(&context.invitation_id);
-    result.extend_from_slice(&context.session_id);
-    result.extend_from_slice(&context.root_secret);
-    result.push(context.direction);
+    let mut result = Vec::with_capacity(4 + 97 * contexts.len());
+    append_u32(&mut result, contexts.len())?;
+    for context in contexts {
+        result.extend_from_slice(&context.genesis);
+        result.extend_from_slice(&context.invitation_id);
+        result.extend_from_slice(&context.session_id);
+        result.extend_from_slice(&context.root_secret);
+        result.push(context.direction);
+    }
     Ok(result)
 }

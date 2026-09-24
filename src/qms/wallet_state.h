@@ -60,6 +60,9 @@ namespace qwertycoin::qms
     std::string own_invitation_hex() const;
     std::string own_fingerprint_hex() const;
     std::vector<wallet_contact> contacts() const;
+    bool history_enabled() const;
+    void set_history_enabled(bool enabled);
+    void clear_history();
     std::string import_contact(const std::string &label,
         const bytes &contact_package, uint64_t now);
     wallet_send_plan prepare_send(const std::string &contact_fingerprint,

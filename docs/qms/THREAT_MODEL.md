@@ -69,10 +69,18 @@ keys. Compromise of one domain is not treated as authority in another.
 ## Old backups and rollback
 
 Restoring an old messenger backup can clone or rewind ratchet state and risk key reuse.
-QMS therefore assigns local instance/epoch state, detects a stale restore, disables
-sending, and requires a fresh package/session rotation. A QWC wallet seed alone does
-not restore messenger keys. Reorg and application retry never roll back cryptographic
-state.
+Authentication failure, corruption, missing state, and an interrupted password change
+are detected and fail closed. A complete rollback of all mutually consistent local
+files or browser-storage records is not reliably detectable without an external
+monotonic authority. After any uncertain, cloned, or stale restore, the operator must
+explicitly reset Messenger state and exchange fresh contact packages with every peer.
+A QWC wallet seed alone does not restore messenger keys. Reorg and application retry
+never roll back cryptographic state.
+
+The reset action deletes local identity, contact, session, rotation, prepared-plan,
+replay, and history state. It does not erase old blockchain carriers or remotely revoke
+a peer's stored copy. Continuing an old session after restoring stale state is outside
+the supported recovery model.
 
 ## Active protocol manipulation and resource exhaustion
 

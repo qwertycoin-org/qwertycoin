@@ -53,7 +53,7 @@ function received(state, contactId, message) {
   };
 }
 
-assert.equal(qms.qwc_qms_wasm_abi_version(), 2);
+assert.equal(qms.qwc_qms_wasm_abi_version(), 3);
 const genesis = new Uint8Array(32).fill(0x62);
 const alicePackage = preparedPackage(qms.qwc_qms_wasm_engine_new(), genesis);
 const bobPackage = preparedPackage(qms.qwc_qms_wasm_engine_new(), genesis);
@@ -70,7 +70,7 @@ assert.equal(reply.type, 2, "reply must use the ongoing Triple Ratchet message t
 const openedReply = received(outbound.state, aliceImport.contactId, reply);
 assert.equal(openedReply.text, "reply");
 console.log(JSON.stringify({
-  abi: 2,
+  abi: 3,
   pqxdhBytes: outbound.ciphertext.length,
   pqxdhFits9600Envelope: true,
   ongoingTripleRatchet: true,

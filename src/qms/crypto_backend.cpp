@@ -86,7 +86,7 @@ namespace
 
 crypto_backend crypto_backend::create()
 {
-  if (qwc_qms_crypto_abi_version() != 2)
+  if (qwc_qms_crypto_abi_version() != 3)
     throw std::runtime_error("unsupported QMS crypto backend ABI");
   owned_buffer output, error;
   checked_call(qwc_qms_crypto_engine_new(output.out(), error.out()), error);
@@ -206,7 +206,7 @@ prepared_ratchet_receive crypto_backend::prepare_receive_text(
   return result;
 }
 
-envelope_context crypto_backend::transport_context(
+std::vector<envelope_context> crypto_backend::transport_contexts(
   const std::string& contact_id, bool outgoing) const
 {
   owned_buffer output, error;
@@ -215,16 +215,34 @@ envelope_context crypto_backend::transport_context(
     reinterpret_cast<const uint8_t*>(contact_id.data()), contact_id.size(),
     outgoing, output.out(), error.out()), error);
   const bytes encoded = output.copy();
-  if (encoded.size() != 97)
+  if (encoded.size() < 4)
     throw std::runtime_error("invalid QMS transport context response");
   size_t position = 0;
-  envelope_context result;
-  result.genesis = take_array<32>(encoded, position);
-  result.invitation_id = take_array<16>(encoded, position);
-  result.session_id = take_array<16>(encoded, position);
-  result.root_secret = take_array<32>(encoded, position);
-  result.direction = encoded[position];
+  const uint32_t count = read_u32(encoded, position);
+  if (count == 0 || encoded.size() - position != size_t(count) * 97)
+    throw std::runtime_error("invalid QMS transport context count");
+  std::vector<envelope_context> result;
+  result.reserve(count);
+  for (uint32_t i = 0; i != count; ++i)
+  {
+    envelope_context context;
+    context.genesis = take_array<32>(encoded, position);
+    context.invitation_id = take_array<16>(encoded, position);
+    context.session_id = take_array<16>(encoded, position);
+    context.root_secret = take_array<32>(encoded, position);
+    context.direction = encoded[position++];
+    result.push_back(context);
+  }
   return result;
+}
+
+envelope_context crypto_backend::transport_context(
+  const std::string& contact_id, bool outgoing) const
+{
+  const auto contexts = transport_contexts(contact_id, outgoing);
+  if (contexts.empty())
+    throw std::runtime_error("missing QMS transport context");
+  return contexts.front();
 }
 }
 }

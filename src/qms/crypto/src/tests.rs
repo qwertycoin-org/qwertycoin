@@ -152,6 +152,114 @@ fn ongoing_ratchet_accepts_out_of_order_and_rejects_duplicate_and_tamper() {
 }
 
 #[test]
+fn outer_secret_offer_ack_grace_and_bounded_retirement() {
+    let genesis = [0x73; GENESIS_BYTES];
+    let (alice, alice_package, alice_invitation) = commit_package(Engine::new().unwrap(), genesis);
+    let (bob, bob_package, bob_invitation) = commit_package(Engine::new().unwrap(), genesis);
+    let (mut alice, bob_contact) = import(alice, alice_invitation, &bob_package);
+    let (mut bob, alice_contact) = import(bob, bob_invitation, &alice_package);
+
+    let initial_alice_incoming = alice.transport_contexts(&bob_contact, false).unwrap()[0].clone();
+
+    for index in 0..OUTER_ROTATION_INTERVAL {
+        let sent = alice
+            .prepare_send_text(
+                &bob_contact,
+                &format!("warmup-{index}"),
+                1_700_001_000 + index,
+            )
+            .unwrap();
+        alice = Engine::from_state(&sent.next_state).unwrap();
+        let received = bob
+            .prepare_receive_text(&alice_contact, &sent.ciphertext)
+            .unwrap();
+        bob = Engine::from_state(&received.next_state).unwrap();
+    }
+
+    // The first offer is committed locally but its carrier is lost. A later
+    // message must repeat the same authenticated offer rather than generating
+    // another secret or requiring a control-only transaction.
+    let lost = alice
+        .prepare_send_text(&bob_contact, "lost-offer", 1_700_002_000)
+        .unwrap();
+    alice = Engine::from_state(&lost.next_state).unwrap();
+    assert_eq!(
+        2,
+        alice.transport_contexts(&bob_contact, false).unwrap().len()
+    );
+
+    let repeated = alice
+        .prepare_send_text(&bob_contact, "repeated-offer", 1_700_002_001)
+        .unwrap();
+    alice = Engine::from_state(&repeated.next_state).unwrap();
+    let received = bob
+        .prepare_receive_text(&alice_contact, &repeated.ciphertext)
+        .unwrap();
+    bob = Engine::from_state(&received.next_state).unwrap();
+
+    let bob_new_outgoing = bob.transport_context(&alice_contact, true).unwrap();
+    let alice_accepts = alice.transport_contexts(&bob_contact, false).unwrap();
+    assert!(alice_accepts.contains(&bob_new_outgoing));
+    assert_ne!(
+        initial_alice_incoming.root_secret,
+        bob_new_outgoing.root_secret
+    );
+
+    let acknowledgement = bob
+        .prepare_send_text(&alice_contact, "ack", 1_700_002_002)
+        .unwrap();
+    bob = Engine::from_state(&acknowledgement.next_state).unwrap();
+    let received = alice
+        .prepare_receive_text(&bob_contact, &acknowledgement.ciphertext)
+        .unwrap();
+    alice = Engine::from_state(&received.next_state).unwrap();
+    let after_first_ack = alice.transport_contexts(&bob_contact, false).unwrap();
+    assert_eq!(2, after_first_ack.len());
+    assert!(after_first_ack.contains(&bob_new_outgoing));
+    assert!(after_first_ack.contains(&initial_alice_incoming));
+
+    // Advance to and complete a second rotation. The oldest retiring secret
+    // must then be deleted; the incoming set remains bounded to active plus
+    // one grace-period secret.
+    while alice
+        .state
+        .contacts
+        .get(&bob_contact)
+        .unwrap()
+        .local_outer
+        .send_count
+        < OUTER_ROTATION_INTERVAL * 2
+    {
+        let sent = alice
+            .prepare_send_text(&bob_contact, "advance", 1_700_003_000)
+            .unwrap();
+        alice = Engine::from_state(&sent.next_state).unwrap();
+        let received = bob
+            .prepare_receive_text(&alice_contact, &sent.ciphertext)
+            .unwrap();
+        bob = Engine::from_state(&received.next_state).unwrap();
+    }
+    let second_offer = alice
+        .prepare_send_text(&bob_contact, "second-offer", 1_700_003_001)
+        .unwrap();
+    alice = Engine::from_state(&second_offer.next_state).unwrap();
+    let received = bob
+        .prepare_receive_text(&alice_contact, &second_offer.ciphertext)
+        .unwrap();
+    bob = Engine::from_state(&received.next_state).unwrap();
+    let second_ack = bob
+        .prepare_send_text(&alice_contact, "second-ack", 1_700_003_002)
+        .unwrap();
+    let received = alice
+        .prepare_receive_text(&bob_contact, &second_ack.ciphertext)
+        .unwrap();
+    alice = Engine::from_state(&received.next_state).unwrap();
+    let after_second_ack = alice.transport_contexts(&bob_contact, false).unwrap();
+    assert_eq!(2, after_second_ack.len());
+    assert!(!after_second_ack.contains(&initial_alice_incoming));
+}
+
+#[test]
 fn rejects_oversize_text_and_tampered_package() {
     let genesis = [0x24; GENESIS_BYTES];
     let (engine, package, invitation) = commit_package(Engine::new().unwrap(), genesis);

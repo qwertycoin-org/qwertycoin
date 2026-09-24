@@ -11,7 +11,7 @@ use std::slice;
 
 use crate::{Engine, Error, GENESIS_BYTES, INVITATION_ID_BYTES, RatchetCiphertext};
 
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 
 #[repr(C)]
 pub struct Buffer {
@@ -248,13 +248,16 @@ pub unsafe extern "C" fn qwc_qms_crypto_transport_context(
         let state = unsafe { borrowed(state, state_len)? };
         let contact_id = std::str::from_utf8(unsafe { borrowed(contact_id, contact_id_len)? })
             .map_err(|_| Error::State("contact id must be UTF-8"))?;
-        let context = Engine::from_state(state)?.transport_context(contact_id, outgoing)?;
-        let mut result = Vec::with_capacity(97);
-        result.extend_from_slice(&context.genesis);
-        result.extend_from_slice(&context.invitation_id);
-        result.extend_from_slice(&context.session_id);
-        result.extend_from_slice(&context.root_secret);
-        result.push(context.direction);
+        let contexts = Engine::from_state(state)?.transport_contexts(contact_id, outgoing)?;
+        let mut result = Vec::with_capacity(4 + 97 * contexts.len());
+        append_u32(&mut result, contexts.len())?;
+        for context in contexts {
+            result.extend_from_slice(&context.genesis);
+            result.extend_from_slice(&context.invitation_id);
+            result.extend_from_slice(&context.session_id);
+            result.extend_from_slice(&context.root_secret);
+            result.push(context.direction);
+        }
         Ok(result)
     })
 }
