@@ -53,6 +53,7 @@ using namespace epee;
 #include "wallet_rpc_helpers.h"
 #include "wallet2.h"
 #include "qms/protocol.h"
+#include "qms/transport_policy.h"
 #include "wallet_args.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "net/parse.h"
@@ -1419,7 +1420,16 @@ bool wallet2::set_daemon(std::string daemon_address, boost::optional<epee::net_u
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_proxy(const std::string &address)
 {
-  return m_http_client->set_proxy(address);
+  if (!m_http_client->set_proxy(address))
+    return false;
+  m_active_proxy = address;
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::qms_strict_transport_ready(std::string *reason) const
+{
+  return qwertycoin::qms::strict_native_transport_ready(
+    m_active_proxy, m_daemon_address, reason);
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::init(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, const std::string &proxy_address, uint64_t upper_transaction_weight_limit, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)

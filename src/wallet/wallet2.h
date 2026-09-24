@@ -1083,6 +1083,7 @@ private:
       epee::net_utils::ssl_options_t ssl_options = epee::net_utils::ssl_support_t::e_ssl_support_autodetect,
       const std::string &proxy = "");
     bool set_proxy(const std::string &address);
+    bool qms_strict_transport_ready(std::string *reason = nullptr) const;
 
     void stop() { m_run.store(false, std::memory_order_relaxed); m_message_store.stop(); }
 
@@ -1566,7 +1567,7 @@ private:
     std::string get_keys_file() const;
     std::string get_daemon_address() const;
     const boost::optional<epee::net_utils::http::login>& get_daemon_login() const { return m_daemon_login; }
-    std::string get_daemon_proxy() const { return m_proxy; }
+    std::string get_daemon_proxy() const { return m_active_proxy; }
     uint64_t get_daemon_blockchain_height(std::string& err);
     uint64_t get_daemon_blockchain_target_height(std::string& err);
     uint64_t get_daemon_adjusted_time();
@@ -1974,6 +1975,9 @@ private:
     boost::optional<epee::net_utils::http::login> m_daemon_login;
     std::string m_daemon_address;
     std::string m_proxy;
+    // Proxy currently installed on the HTTP client. This can differ from the
+    // original command-line proxy after a GUI runtime configuration change.
+    std::string m_active_proxy;
     std::string m_wallet_file;
     std::string m_keys_file;
     std::string m_mms_file;

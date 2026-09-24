@@ -1,6 +1,7 @@
 set(qms_sources
   protocol.cpp
-  secure_store.cpp)
+  secure_store.cpp
+  transport_policy.cpp)
 
 option(QWC_ENABLE_QMS2_CRYPTO "Build the pinned Rust/libsignal QMS2 backend" OFF)
 

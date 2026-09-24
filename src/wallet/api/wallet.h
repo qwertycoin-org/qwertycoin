@@ -169,6 +169,7 @@ public:
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
     PendingTransaction * restoreQmsCarrierTransactions(const std::string &encryptedJournal) override;
+    bool qmsStrictTransportReady() const override;
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) override;

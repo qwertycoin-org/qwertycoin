@@ -72,6 +72,7 @@ private:
     std::vector<std::string> m_tx_device_aux;
     std::vector<crypto::key_image> m_key_images;
     std::vector<size_t> m_reserved_transfers;
+    bool m_requires_qms_strict_transport = false;
 };
 
 

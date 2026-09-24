@@ -886,6 +886,11 @@ struct Wallet
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
     virtual PendingTransaction * restoreQmsCarrierTransactions(const std::string &encryptedJournal) = 0;
+    /*! \brief qmsStrictTransportReady - fail-closed native QMS2 network policy.
+     * Native QMS2 network operations require an explicit SOCKS proxy and a
+     * syntactically valid Tor v3 onion daemon target.
+     */
+    virtual bool qmsStrictTransportReady() const = 0;
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.

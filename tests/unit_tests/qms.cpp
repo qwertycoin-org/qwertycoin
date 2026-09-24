@@ -2,9 +2,37 @@
 
 #include "qms/protocol.h"
 #include "qms/secure_store.h"
+#include "qms/transport_policy.h"
 #ifdef QWC_ENABLE_QMS2_CRYPTO
 #include "qms/crypto_backend.h"
 #endif
+
+TEST(qms, strict_native_transport_accepts_only_proxy_and_v3_onion)
+{
+  const std::string onion(56, 'a');
+  std::string reason;
+  EXPECT_TRUE(qwertycoin::qms::strict_native_transport_ready(
+    "127.0.0.1:9050", "http://" + onion + ".onion:18081", &reason));
+  EXPECT_TRUE(reason.empty());
+  EXPECT_TRUE(qwertycoin::qms::strict_native_transport_ready(
+    "localhost:9050", "HTTPS://" + onion + ".ONION/rpc", &reason));
+
+  EXPECT_FALSE(qwertycoin::qms::strict_native_transport_ready(
+    "", "http://" + onion + ".onion:18081", &reason));
+  EXPECT_NE(std::string::npos, reason.find("proxy"));
+  EXPECT_FALSE(qwertycoin::qms::strict_native_transport_ready(
+    "127.0.0.1:9050", "https://node.example.org", &reason));
+  EXPECT_FALSE(qwertycoin::qms::strict_native_transport_ready(
+    "127.0.0.1:9050", "http://short.onion:18081", &reason));
+  EXPECT_FALSE(qwertycoin::qms::strict_native_transport_ready(
+    "127.0.0.1:9050", "http://" + std::string(55, 'a') + "1.onion:18081", &reason));
+  EXPECT_FALSE(qwertycoin::qms::strict_native_transport_ready(
+    "127.0.0.1:9050", "http://" + onion + ".onion:0", &reason));
+  EXPECT_FALSE(qwertycoin::qms::strict_native_transport_ready(
+    "127.0.0.1:9050", "ftp://" + onion + ".onion", &reason));
+  EXPECT_FALSE(qwertycoin::qms::strict_native_transport_ready(
+    "127.0.0.1:9050\n", "http://" + onion + ".onion", &reason));
+}
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/tx_extra.h"
 

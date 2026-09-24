@@ -1914,8 +1914,12 @@ PendingTransaction *WalletImpl::createQmsCarrierTransactions(
     clearStatus();
     pauseRefresh();
     PendingTransactionImpl *transaction = new PendingTransactionImpl(*this);
+    transaction->m_requires_qms_strict_transport = true;
 
     try {
+        std::string transport_reason;
+        if (!m_wallet->qms_strict_transport_ready(&transport_reason))
+            throw std::runtime_error(transport_reason);
         if (checkBackgroundSync("cannot prepare QMS carriers"))
             throw std::runtime_error("background sync prevents QMS preparation");
         if (fragment_extras.empty() || fragment_extras.size() > qwertycoin::qms::MAX_FRAGMENTS)
@@ -1979,6 +1983,7 @@ PendingTransaction *WalletImpl::restoreQmsCarrierTransactions(const std::string 
 {
     clearStatus();
     PendingTransactionImpl *transaction = new PendingTransactionImpl(*this);
+    transaction->m_requires_qms_strict_transport = true;
     try {
         if (!m_wallet->parse_qms_pending_from_str(encryptedJournal, transaction->m_pending_tx) ||
             transaction->m_pending_tx.empty() || transaction->m_pending_tx.size() > qwertycoin::qms::MAX_FRAGMENTS)
@@ -2002,6 +2007,11 @@ PendingTransaction *WalletImpl::restoreQmsCarrierTransactions(const std::string 
     }
     statusWithErrorString(transaction->m_status, transaction->m_errorString);
     return transaction;
+}
+
+bool WalletImpl::qmsStrictTransportReady() const
+{
+    return m_wallet->qms_strict_transport_ready();
 }
 
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()

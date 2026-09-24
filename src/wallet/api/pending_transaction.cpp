@@ -112,6 +112,11 @@ bool PendingTransactionImpl::commit(const std::string &filename, bool overwrite)
       }
       // Commit tx
       else {
+        if (m_requires_qms_strict_transport) {
+            std::string reason;
+            if (!m_wallet.m_wallet->qms_strict_transport_ready(&reason))
+                throw runtime_error(reason);
+        }
         auto multisigState = m_wallet.multisig();
         if (multisigState.isMultisig && m_signers.size() < multisigState.threshold) {
             throw runtime_error("Not enough signers to send multisig transaction");
