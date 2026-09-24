@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <sodium.h>
 
 #include "qms/protocol.h"
 #include "qms/secure_store.h"
@@ -63,6 +64,12 @@ namespace
     result.direction = direction;
     return result;
   }
+  std::string sha256_hex(const qwertycoin::qms::bytes &value)
+  {
+    qwertycoin::qms::bytes digest(crypto_hash_sha256_BYTES);
+    crypto_hash_sha256(digest.data(), value.data(), value.size());
+    return qwertycoin::qms::hex(digest);
+  }
 }
 
 TEST(qms, invitation_roundtrip_and_tamper)
@@ -73,6 +80,36 @@ TEST(qms, invitation_roundtrip_and_tamper)
   EXPECT_EQ(invitation.invitation_id, qwertycoin::qms::decode_invitation(encoded).invitation_id);
   auto tampered = encoded; tampered[40] ^= 1;
   EXPECT_THROW(qwertycoin::qms::decode_invitation(tampered), std::runtime_error);
+}
+
+TEST(qms, profile2_browser_transport_vector)
+{
+  qwertycoin::qms::envelope_context context;
+  for (size_t i = 0; i != context.genesis.size(); ++i) context.genesis[i] = 1 + i;
+  for (size_t i = 0; i != context.invitation_id.size(); ++i) context.invitation_id[i] = 33 + i;
+  for (size_t i = 0; i != context.session_id.size(); ++i) context.session_id[i] = 49 + i;
+  for (size_t i = 0; i != context.root_secret.size(); ++i) context.root_secret[i] = 65 + i;
+  context.direction = 1;
+  const auto id = message_id(17);
+  qwertycoin::qms::bytes envelope(1200);
+  for (size_t i = 0; i != envelope.size(); ++i) envelope[i] = uint8_t(97 + i);
+  const auto fragments = qwertycoin::qms::fragment_envelope(context, id, envelope);
+  ASSERT_EQ(2u, fragments.size());
+  EXPECT_EQ("d6d84ae3dab889b69d24f3cbf8ad1dab",
+    qwertycoin::qms::hex(qwertycoin::qms::bytes(
+      fragments[0].discovery_hint.begin(), fragments[0].discovery_hint.end())));
+  EXPECT_EQ("caea82ceba3fbdfea07ea3509793de21",
+    qwertycoin::qms::hex(qwertycoin::qms::bytes(
+      fragments[0].mac.begin(), fragments[0].mac.end())));
+  EXPECT_EQ("f630dacd23e94ded3c9159be1e43b2ab50151f447a024044e8f59d289c4fb3d6",
+    sha256_hex(qwertycoin::qms::encode_fragment(fragments[0])));
+  EXPECT_EQ("4ee38c6ea74047b292516bf8f6760c1dc9ab5e3cd18aedbf7f387c503fcf6b7e",
+    sha256_hex(qwertycoin::qms::encode_fragment(fragments[1])));
+  qwertycoin::qms::bytes extra;
+  ASSERT_TRUE(qwertycoin::qms::append_carrier_nonces(extra, fragments[0]));
+  EXPECT_EQ(726u, extra.size());
+  EXPECT_EQ("2db1d2f44112122f360cd42c82e340cffa5b6630a872d7bdc994db3a64547a9f",
+    sha256_hex(extra));
 }
 
 TEST(qms, seal_fragment_segment_reassemble_open)
