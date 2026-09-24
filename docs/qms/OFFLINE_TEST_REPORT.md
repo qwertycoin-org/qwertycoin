@@ -59,19 +59,20 @@ serialized to 5,953 bytes before outer framing and fit the mandatory 7,200-byte 
 A full 9,600-byte envelope produces 16 fragments and exactly 726 bytes of serialized
 transaction extra for each full carrier.
 
-## CLI build evidence and runner limit
+## CLI build evidence
 
 The modified `simplewallet.cpp` compiled successfully with the production
 defines/includes from CMake's generated compile command and `-O0 -g0` in place of the
 release optimizer. This proves the new `qms_history` and `qms_reset` command surface and
 its native controller compile.
 
-A complete `simplewallet` link could not be produced on this runner: GCC's compilation
-of the pre-existing, very large `wallet2.cpp` translation unit was killed by the host
-memory limit both with the normal release optimizer and with `-O0 -g0`, even at `-j1`.
-There was no compiler diagnostic in the changed QMS2 or CLI sources. A clean full CLI
-build on the repository's normal CI runner remains mandatory and must not be reported
-as passed until that job succeeds.
+An initial standalone release build exhausted this runner while compiling the
+pre-existing, very large `wallet2.cpp` translation unit, even at `-j1`; that failed run
+was not counted as evidence. The same exact Core source was then rebuilt by the native
+GUI integration build with its populated compiler cache. That complete Release build
+successfully compiled and linked `qwertycoin-wallet-cli`, `qwertycoin-wallet-rpc`, and
+the GUI. The QMS2 CLI compile/link gate is therefore satisfied on Linux, while the new
+pull-request workflow independently rebuilds `simplewallet` from a clean checkout.
 
 ## Browser/WASM evidence
 
