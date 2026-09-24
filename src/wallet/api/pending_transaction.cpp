@@ -29,6 +29,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include "pending_transaction.h"
+#include <algorithm>
 #include "wallet.h"
 #include "common_defines.h"
 
@@ -90,6 +91,14 @@ bool PendingTransactionImpl::commit(const std::string &filename, bool overwrite)
 {
 
     LOG_PRINT_L3("m_pending_tx size: " << m_pending_tx.size());
+
+    if (m_requires_qms_strict_transport) {
+        m_errorString = !filename.empty()
+            ? tr("QMS2 never exports raw carrier transactions")
+            : tr("QMS2 carrier batches require commitQmsNext and durable journal updates after every carrier");
+        m_status = Status_Error;
+        return false;
+    }
 
     try {
       // Save tx to file
@@ -174,6 +183,62 @@ bool PendingTransactionImpl::commit(const std::string &filename, bool overwrite)
     m_wallet.startRefresh();
     if (m_status != Status_Ok || m_pending_tx.empty())
         releaseReservations();
+    return m_status == Status_Ok;
+}
+
+bool PendingTransactionImpl::commitQmsNext()
+{
+    m_errorString.clear();
+    if (!m_requires_qms_strict_transport) {
+        m_errorString = tr("transaction is not a QMS2 carrier batch");
+        m_status = Status_Error;
+        return false;
+    }
+    if (m_pending_tx.empty()) {
+        m_errorString = tr("no QMS2 carrier remains to commit");
+        m_status = Status_Error;
+        return false;
+    }
+
+    bool refresh_paused = false;
+    try {
+        std::string reason;
+        if (!m_wallet.m_wallet->qms_strict_transport_ready(&reason))
+            throw runtime_error(reason);
+        m_wallet.pauseRefresh();
+        refresh_paused = true;
+        auto &pending = m_pending_tx.back();
+        const std::vector<size_t> committed = pending.selected_transfers;
+        m_wallet.m_wallet->commit_tx(pending);
+        m_pending_tx.pop_back();
+        for (const size_t index : committed)
+            m_reserved_transfers.erase(std::remove(
+                m_reserved_transfers.begin(), m_reserved_transfers.end(), index),
+                m_reserved_transfers.end());
+        m_status = Status_Ok;
+    } catch (const tools::error::daemon_busy&) {
+        m_errorString = tr("daemon is busy. Please try again later.");
+        m_status = Status_Error;
+    } catch (const tools::error::no_connection_to_daemon&) {
+        m_errorString = tr("no connection to daemon. Please make sure daemon is running.");
+        m_status = Status_Error;
+    } catch (const tools::error::tx_rejected& e) {
+        std::ostringstream writer;
+        writer << (boost::format(tr("transaction %s was rejected by daemon with status: "))
+            % get_transaction_hash(e.tx())) << e.status();
+        m_errorString = writer.str();
+        if (!e.reason().empty()) m_errorString += string(tr(". Reason: ")) + e.reason();
+        m_status = Status_Error;
+    } catch (const std::exception &e) {
+        m_errorString = string(tr("Unknown exception: ")) + e.what();
+        m_status = Status_Error;
+    } catch (...) {
+        m_errorString = tr("Unhandled exception");
+        m_status = Status_Error;
+    }
+
+    if (refresh_paused) m_wallet.startRefresh();
+    if (m_pending_tx.empty()) releaseReservations();
     return m_status == Status_Ok;
 }
 

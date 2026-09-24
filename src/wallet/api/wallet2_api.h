@@ -104,6 +104,13 @@ struct PendingTransaction
     virtual std::vector<uint32_t> subaddrAccount() const = 0;
     virtual std::vector<std::set<uint32_t>> subaddrIndices() const = 0;
     virtual std::string qmsJournalData() const = 0;
+    /*! \brief commitQmsNext - commit exactly one strict-transport QMS carrier.
+     * The remaining encrypted journal stays available for durable partial-batch
+     * recovery. The caller must durably persist qmsJournalData() after every
+     * successful carrier before calling this method again. Returns false
+     * without discarding uncommitted carriers.
+     */
+    virtual bool commitQmsNext() = 0;
 
     /**
      * @brief multisigSignData
