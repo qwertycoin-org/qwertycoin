@@ -1392,6 +1392,14 @@ bool wallet2::set_daemon(std::string daemon_address, boost::optional<epee::net_u
 {
   boost::lock_guard<boost::recursive_mutex> lock(m_daemon_rpc_mutex);
 
+  const std::string candidate_proxy = m_proxy.empty() ? proxy : m_proxy;
+  if (has_qms_state())
+  {
+    std::string reason;
+    CHECK_AND_ASSERT_MES(qwertycoin::qms::strict_native_transport_ready(
+      candidate_proxy, daemon_address, &reason), false,
+      "refusing unsafe daemon configuration for QMS2 wallet: " << reason);
+  }
   if(m_http_client->is_connected())
     m_http_client->disconnect();
   CHECK_AND_ASSERT_MES2(m_proxy.empty() || proxy.empty() , "It is not possible to set global proxy (--proxy) and daemon specific proxy together.");
@@ -1426,6 +1434,13 @@ bool wallet2::set_daemon(std::string daemon_address, boost::optional<epee::net_u
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_proxy(const std::string &address)
 {
+  if (m_is_initialized && has_qms_state())
+  {
+    std::string reason;
+    CHECK_AND_ASSERT_MES(qwertycoin::qms::strict_native_transport_ready(
+      address, m_daemon_address, &reason), false,
+      "refusing unsafe proxy configuration for QMS2 wallet: " << reason);
+  }
   if (!m_http_client->set_proxy(address))
     return false;
   m_active_proxy = address;
@@ -1440,6 +1455,13 @@ bool wallet2::qms_strict_transport_ready(std::string *reason) const
 //----------------------------------------------------------------------------------------------------
 bool wallet2::init(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, const std::string &proxy_address, uint64_t upper_transaction_weight_limit, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)
 {
+  if (has_qms_state())
+  {
+    std::string reason;
+    CHECK_AND_ASSERT_MES(qwertycoin::qms::strict_native_transport_ready(
+      proxy_address, daemon_address, &reason), false,
+      "refusing unsafe initial daemon configuration for QMS2 wallet: " << reason);
+  }
   m_proxy = proxy_address;
   CHECK_AND_ASSERT_MES(set_proxy(m_proxy), false, "failed to set proxy address");
   m_checkpoints.init_default_checkpoints(m_nettype);
@@ -13945,6 +13967,13 @@ bool wallet2::load_qms_state(std::string &plaintext,
     error = std::string("cannot load QMS2 state: ") + e.what();
     return false;
   }
+}
+
+bool wallet2::has_qms_state() const
+{
+  std::string value;
+  return (get_attribute(qms_state_attribute, value) && !value.empty())
+    || (get_attribute(qms_pending_state_attribute, value) && !value.empty());
 }
 
 bool wallet2::clear_qms_state(std::string &error)

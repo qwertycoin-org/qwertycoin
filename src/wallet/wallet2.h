@@ -1750,6 +1750,7 @@ private:
         const std::string &context, std::string &error);
     bool load_qms_state(std::string &plaintext, boost::string_ref password,
         const std::string &context, std::string &error) const;
+    bool has_qms_state() const;
     bool clear_qms_state(std::string &error);
 
     crypto::public_key get_multisig_signer_public_key() const;
@@ -1759,21 +1760,21 @@ private:
     template<class t_request, class t_response>
     inline bool invoke_http_json(const boost::string_ref uri, const t_request& req, t_response& res, std::chrono::milliseconds timeout = std::chrono::seconds(15), const boost::string_ref http_method = "POST")
     {
-      if (m_offline) return false;
+      if (m_offline || (has_qms_state() && !qms_strict_transport_ready())) return false;
       boost::lock_guard<boost::recursive_mutex> lock(m_daemon_rpc_mutex);
       return epee::net_utils::invoke_http_json(uri, req, res, *m_http_client, timeout, http_method);
     }
     template<class t_request, class t_response>
     inline bool invoke_http_bin(const boost::string_ref uri, const t_request& req, t_response& res, std::chrono::milliseconds timeout = std::chrono::seconds(15), const boost::string_ref http_method = "POST")
     {
-      if (m_offline) return false;
+      if (m_offline || (has_qms_state() && !qms_strict_transport_ready())) return false;
       boost::lock_guard<boost::recursive_mutex> lock(m_daemon_rpc_mutex);
       return epee::net_utils::invoke_http_bin(uri, req, res, *m_http_client, timeout, http_method);
     }
     template<class t_request, class t_response>
     inline bool invoke_http_json_rpc(const boost::string_ref uri, const std::string& method_name, const t_request& req, t_response& res, std::chrono::milliseconds timeout = std::chrono::seconds(15), const boost::string_ref http_method = "POST", const std::string& req_id = "0")
     {
-      if (m_offline) return false;
+      if (m_offline || (has_qms_state() && !qms_strict_transport_ready())) return false;
       boost::lock_guard<boost::recursive_mutex> lock(m_daemon_rpc_mutex);
       return epee::net_utils::invoke_http_json_rpc(uri, method_name, req, res, *m_http_client, timeout, http_method, req_id);
     }

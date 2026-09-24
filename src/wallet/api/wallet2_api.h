@@ -1050,6 +1050,11 @@ struct Wallet
      *        persist QMS2 state without prompting
      */
     virtual bool qmsStateStorageAvailable() const = 0;
+    /*! \brief qmsStateExists - whether this wallet already contains encrypted
+     * QMS2 state. Clients use this to keep messenger activation explicit and
+     * to fail closed even when that state cannot be decrypted.
+     */
+    virtual bool qmsStateExists() const = 0;
     /*!
      * \brief loadQmsState - authenticate and decrypt the persisted QMS2 state
      * \return true for a valid state or for an empty/not-yet-created state

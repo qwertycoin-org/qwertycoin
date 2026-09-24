@@ -2109,6 +2109,11 @@ bool WalletImpl::qmsStateStorageAvailable() const
         && !m_wallet->is_background_syncing();
 }
 
+bool WalletImpl::qmsStateExists() const
+{
+    return m_wallet->has_qms_state();
+}
+
 bool WalletImpl::loadQmsState(std::string &plaintext, const std::string &context)
 {
     clearStatus();
