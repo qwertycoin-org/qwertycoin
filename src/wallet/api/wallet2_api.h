@@ -1024,6 +1024,24 @@ struct Wallet
      * \return the attached string, or empty string if there is none
      */
     virtual std::string getCacheAttribute(const std::string &key) const = 0;
+
+    /*!
+     * \brief storeQmsState - encrypt and durably persist the QMS2 state blob
+     *
+     * The state is kept in a dedicated wallet-cache attribute and encrypted
+     * independently with Argon2id and XChaCha20-Poly1305.  The caller-provided
+     * context binds the blob to the expected network/wallet domain.
+     */
+    virtual bool storeQmsState(const std::string &plaintext, const std::string &context) = 0;
+    /*!
+     * \brief loadQmsState - authenticate and decrypt the persisted QMS2 state
+     * \return true for a valid state or for an empty/not-yet-created state
+     */
+    virtual bool loadQmsState(std::string &plaintext, const std::string &context) = 0;
+    /*!
+     * \brief clearQmsState - durably remove the persisted QMS2 state
+     */
+    virtual bool clearQmsState() = 0;
     /*!
      * \brief setUserNote - attach an arbitrary string note to a txid
      * \param txid - the transaction id to attach the note to

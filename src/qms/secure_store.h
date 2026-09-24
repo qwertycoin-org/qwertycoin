@@ -18,5 +18,10 @@ namespace qms
                       const bytes& context);
   bytes decrypt_store(const bytes& encoded, const std::string& password,
                       const bytes& expected_context);
+  // Rewrap only the random store key.  The authenticated ciphertext and its
+  // nonce remain unchanged, so a wallet-password change cannot rewind or
+  // otherwise mutate ratchet state.
+  bytes rewrap_store(const bytes& encoded, const std::string& old_password,
+                     const std::string& new_password);
 }
 }

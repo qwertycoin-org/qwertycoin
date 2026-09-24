@@ -15,6 +15,14 @@ and domain-separated associated data. Wallet lock erases decrypted messenger key
 plaintext from live application state. Secrets must not enter logs, CLI arguments,
 temporary files, crash annotations, URLs, or analytics.
 
+The encrypted envelope embeds its bounded wallet/network context and authenticates it
+with both the key-wrap and data-encryption domains. A wallet-password change generates
+a fresh Argon2id salt and wrap nonce and rewraps only the random store key; it does not
+decrypt, rewrite, or rewind ratchet state. The wallet cache durably records a temporary
+new-password recovery slot before changing the keys-file password. After a crash in the
+middle of that transition, opening with the new password can recover from that slot.
+Removing the wallet password is rejected while QMS2 state exists.
+
 ## Atomic send invariant
 
 The cryptographic engine receives a snapshot and returns a candidate post-operation

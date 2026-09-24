@@ -242,6 +242,16 @@ TEST(qms, profile2_store_uses_argon2id_and_authenticated_context)
   EXPECT_THROW(qwertycoin::qms::decrypt_store(
     tampered, "wallet-password", context), std::runtime_error);
   EXPECT_THROW(qwertycoin::qms::encrypt_store(plaintext, "", context), std::runtime_error);
+
+  const auto rewrapped = qwertycoin::qms::rewrap_store(
+    encrypted, "wallet-password", "replacement-password");
+  EXPECT_NE(encrypted, rewrapped);
+  EXPECT_EQ(plaintext, qwertycoin::qms::decrypt_store(
+    rewrapped, "replacement-password", context));
+  EXPECT_THROW(qwertycoin::qms::decrypt_store(
+    rewrapped, "wallet-password", context), std::runtime_error);
+  EXPECT_THROW(qwertycoin::qms::rewrap_store(
+    encrypted, "wrong-password", "replacement-password"), std::runtime_error);
 }
 
 #ifdef QWC_ENABLE_QMS2_CRYPTO
