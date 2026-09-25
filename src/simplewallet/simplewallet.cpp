@@ -40,6 +40,7 @@
 #include <boost/bind.hpp>
 
 #include <locale.h>
+#include <cstring>
 #include <thread>
 #include <iostream>
 #include <sstream>
@@ -69,6 +70,8 @@
 #include "crypto/crypto.h"  // for crypto::secret_key definition
 #include "mnemonics/electrum-words.h"
 #include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
 #include "common/json_util.h"
 #include "ringct/rctSigs.h"
 #include "multisig/multisig.h"
@@ -77,6 +80,10 @@
 #include <stdexcept>
 #include "wallet/message_store.h"
 #include "QrCode.hpp"
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+#include "qms/wallet_state.h"
+#include "memwipe.h"
+#endif
 
 #ifdef WIN32
 #include <boost/locale.hpp>
@@ -297,6 +304,17 @@ namespace
   const char* USAGE_HELP("help [<command> | all]");
   const char* USAGE_APROPOS("apropos <keyword> [<keyword> ...]");
   const char* USAGE_SCAN_TX("scan_tx <txid> [<txid> ...]");
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+  const char* USAGE_QMS_INFO("qms_info");
+  const char* USAGE_QMS_ADD_CONTACT("qms_add_contact <label>");
+  const char* USAGE_QMS_CONTACTS("qms_contacts");
+  const char* USAGE_QMS_HISTORY("qms_history <status|on|off|clear>");
+  const char* USAGE_QMS_RESET("qms_reset confirm");
+  const char* USAGE_QMS_PREPARE("qms_prepare <contact_fingerprint>");
+  const char* USAGE_QMS_SEND("qms_send");
+  const char* USAGE_QMS_CANCEL("qms_cancel");
+  const char* USAGE_QMS_RECEIVE("qms_receive");
+#endif
 
   std::string input_line(const std::string& prompt, bool yesno = false)
   {
@@ -331,6 +349,85 @@ namespace
     buf.trim();
     return buf;
   }
+
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+  epee::wipeable_string input_secure_raw_line(const char *prompt)
+  {
+    PAUSE_READLINE();
+    auto value = tools::password_container::prompt(false, prompt, false);
+    if (!value)
+    {
+      MERROR("Failed to read secure QMS2 input");
+      return {};
+    }
+    return value->password();
+  }
+
+  qwertycoin::qms::hash32 qms_network_genesis(cryptonote::network_type nettype)
+  {
+    cryptonote::block block;
+    const auto &config = cryptonote::get_config(nettype);
+    if (!cryptonote::generate_genesis_block(block, config.GENESIS_TX, config.GENESIS_NONCE))
+      throw std::runtime_error("failed to derive QMS2 network genesis");
+    const crypto::hash hash = cryptonote::get_block_hash(block);
+    qwertycoin::qms::hash32 result{};
+    static_assert(sizeof(hash) == result.size(), "QMS2 genesis hash size mismatch");
+    std::memcpy(result.data(), &hash, result.size());
+    return result;
+  }
+
+  boost::string_ref qms_password_ref(const tools::password_container &password)
+  {
+    const auto &value = password.password();
+    return {value.data(), value.size()};
+  }
+
+  std::string qms_wallet_context(const tools::wallet2 &wallet)
+  {
+    return qwertycoin::qms::wallet_state_context(
+      qms_network_genesis(wallet.nettype()), wallet.get_address_as_str());
+  }
+
+  bool qms_wallet_enabled(const tools::wallet2 &wallet)
+  {
+    std::string encoded;
+    return wallet.get_attribute("qms/state/v2", encoded) && !encoded.empty();
+  }
+
+  std::unique_ptr<qwertycoin::qms::wallet_state> load_qms_wallet_state(
+      tools::wallet2 &wallet, const tools::password_container &password,
+      bool create, bool *existed = nullptr)
+  {
+    std::string serialized;
+    std::string error;
+    if (!wallet.load_qms_state(serialized, qms_password_ref(password),
+        qms_wallet_context(wallet), error))
+      throw std::runtime_error(error);
+    const bool present = !serialized.empty();
+    if (existed) *existed = present;
+    auto wipe = epee::misc_utils::create_scope_leave_handler([&]() {
+      if (!serialized.empty()) memwipe(&serialized[0], serialized.size());
+    });
+    if (!present && !create) return {};
+    return std::unique_ptr<qwertycoin::qms::wallet_state>(
+      new qwertycoin::qms::wallet_state(serialized,
+        qms_network_genesis(wallet.nettype())));
+  }
+
+  void persist_qms_wallet_state(tools::wallet2 &wallet,
+      const tools::password_container &password,
+      const qwertycoin::qms::wallet_state &state)
+  {
+    std::string serialized = state.serialize();
+    auto wipe = epee::misc_utils::create_scope_leave_handler([&]() {
+      if (!serialized.empty()) memwipe(&serialized[0], serialized.size());
+    });
+    std::string error;
+    if (!wallet.store_qms_state(serialized, qms_password_ref(password),
+        qms_wallet_context(wallet), error))
+      throw std::runtime_error(error);
+  }
+#endif
 
   boost::optional<tools::password_container> password_prompter(const char *prompt, bool verify)
   {
@@ -3330,6 +3427,496 @@ bool simple_wallet::apropos(const std::vector<std::string> &args)
   return true;
 }
 
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+void simple_wallet::load_qms_carrier_inbox()
+{
+  if (m_qms_inbox_loaded) return;
+  m_qms_inbox_loaded = true;
+  m_qms_carriers.clear();
+  std::string encoded;
+  if (!m_wallet->get_attribute("qms/cli-inbox/v2", encoded) || encoded.empty()) return;
+  rapidjson::Document document;
+  document.Parse(encoded.data(), encoded.size());
+  if (document.HasParseError() || !document.IsArray())
+    throw std::runtime_error("invalid persisted QMS2 CLI carrier inbox");
+  for (const auto &item : document.GetArray())
+  {
+    if (!item.IsObject() || m_qms_carriers.size() >= 4096) break;
+    const auto height = item.FindMember("height");
+    const auto block = item.FindMember("block");
+    const auto transaction = item.FindMember("tx");
+    const auto extra = item.FindMember("extra");
+    if (height == item.MemberEnd() || !height->value.IsUint64()
+        || block == item.MemberEnd() || !block->value.IsString()
+        || transaction == item.MemberEnd() || !transaction->value.IsString()
+        || extra == item.MemberEnd() || !extra->value.IsString())
+      throw std::runtime_error("invalid persisted QMS2 CLI carrier record");
+    std::string extra_bytes;
+    const std::string extra_hex(extra->value.GetString(), extra->value.GetStringLength());
+    if ((extra_hex.size() & 1) != 0
+        || !epee::string_tools::parse_hexstr_to_binbuff(extra_hex, extra_bytes)
+        || extra_bytes.size() * 2 != extra_hex.size())
+      throw std::runtime_error("invalid persisted QMS2 CLI carrier encoding");
+    qms_carrier_event event;
+    event.height = height->value.GetUint64();
+    event.block_hash.assign(block->value.GetString(), block->value.GetStringLength());
+    event.transaction_id.assign(transaction->value.GetString(), transaction->value.GetStringLength());
+    event.extra.assign(extra_bytes.begin(), extra_bytes.end());
+    m_qms_carriers.push_back(std::move(event));
+  }
+}
+
+void simple_wallet::persist_qms_carrier_inbox()
+{
+  if (!m_qms_inbox_dirty) return;
+  rapidjson::Document document(rapidjson::kArrayType);
+  auto &allocator = document.GetAllocator();
+  for (const auto &event : m_qms_carriers)
+  {
+    rapidjson::Value item(rapidjson::kObjectType);
+    item.AddMember("height", event.height, allocator);
+    item.AddMember("block", rapidjson::Value(event.block_hash.data(), event.block_hash.size(), allocator), allocator);
+    item.AddMember("tx", rapidjson::Value(event.transaction_id.data(), event.transaction_id.size(), allocator), allocator);
+    const std::string extra = epee::string_tools::buff_to_hex_nodelimer(
+      std::string(reinterpret_cast<const char *>(event.extra.data()), event.extra.size()));
+    item.AddMember("extra", rapidjson::Value(extra.data(), extra.size(), allocator), allocator);
+    document.PushBack(item, allocator);
+  }
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  if (!document.Accept(writer)) throw std::runtime_error("cannot serialize QMS2 CLI carrier inbox");
+  m_wallet->set_attribute("qms/cli-inbox/v2",
+    std::string(buffer.GetString(), buffer.GetSize()));
+  m_wallet->store();
+  m_qms_inbox_dirty = false;
+}
+
+bool simple_wallet::qms_info(const std::vector<std::string> &args)
+{
+  if (!args.empty()) { PRINT_USAGE(USAGE_QMS_INFO); return true; }
+  CHECK_IF_BACKGROUND_SYNCING("cannot access QMS2 state");
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  try
+  {
+    bool existed = false;
+    auto state = load_qms_wallet_state(*m_wallet, *password, true, &existed);
+    if (!existed) persist_qms_wallet_state(*m_wallet, *password, *state);
+    std::string reason;
+    const bool ready = m_wallet->qms_strict_transport_ready(&reason);
+    success_msg_writer() << tr("QMS2 fingerprint: ") << state->own_fingerprint_hex();
+    success_msg_writer() << tr("QMS2 invitation (confidential capability; share only with the intended contact): ")
+                         << state->own_invitation_hex();
+    success_msg_writer() << tr("Strict Tor transport: ")
+                         << (ready ? tr("ready") : (tr("blocked: ") + reason));
+    success_msg_writer() << tr("Prepared carrier batch: ")
+                         << (state->has_prepared() ? tr("yes") : tr("no"));
+    success_msg_writer() << tr("Local plaintext history persistence: ")
+                         << (state->history_enabled() ? tr("enabled") : tr("disabled (default)"));
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 error: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_add_contact(const std::vector<std::string> &args)
+{
+  if (args.empty()) { PRINT_USAGE(USAGE_QMS_ADD_CONTACT); return true; }
+  CHECK_IF_BACKGROUND_SYNCING("cannot update QMS2 contacts");
+  const std::string label = boost::algorithm::join(args, " ");
+  epee::wipeable_string invitation_input = input_secure_raw_line(
+    tr("Paste the confidential QMS2 invitation"));
+  if (invitation_input.empty())
+  {
+    fail_msg_writer() << tr("QMS2 invitation is required");
+    return true;
+  }
+  std::string invitation(invitation_input.data(), invitation_input.size());
+  auto wipe_invitation = epee::misc_utils::create_scope_leave_handler([&]() {
+    if (!invitation.empty()) memwipe(&invitation[0], invitation.size());
+  });
+  std::string decoded;
+  if ((invitation.size() & 1) != 0
+      || !epee::string_tools::parse_hexstr_to_binbuff(invitation, decoded)
+      || decoded.size() * 2 != invitation.size())
+  {
+    fail_msg_writer() << tr("QMS2 invitation is not canonical hexadecimal");
+    return true;
+  }
+  auto wipe_decoded = epee::misc_utils::create_scope_leave_handler([&]() {
+    if (!decoded.empty()) memwipe(&decoded[0], decoded.size());
+  });
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, true);
+    qwertycoin::qms::bytes package(decoded.begin(), decoded.end());
+    auto wipe_package = epee::misc_utils::create_scope_leave_handler([&]() {
+      if (!package.empty()) memwipe(package.data(), package.size());
+    });
+    const std::string fingerprint = state->import_contact(label, package, time(nullptr));
+    persist_qms_wallet_state(*m_wallet, *password, *state);
+    success_msg_writer() << tr("QMS2 contact stored with fingerprint: ") << fingerprint;
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 contact import failed: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_contacts(const std::vector<std::string> &args)
+{
+  if (!args.empty()) { PRINT_USAGE(USAGE_QMS_CONTACTS); return true; }
+  CHECK_IF_BACKGROUND_SYNCING("cannot access QMS2 contacts");
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, false);
+    if (!state)
+    {
+      success_msg_writer() << tr("QMS2 is not initialized; run qms_info first");
+      return true;
+    }
+    size_t shown = 0;
+    for (const auto &contact : state->contacts())
+      if (!contact.removed)
+      {
+        success_msg_writer() << contact.label << "  " << contact.fingerprint;
+        ++shown;
+      }
+    if (shown == 0) success_msg_writer() << tr("No QMS2 contacts");
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 error: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_history(const std::vector<std::string> &args)
+{
+  if (args.size() != 1
+      || (args[0] != "status" && args[0] != "on"
+          && args[0] != "off" && args[0] != "clear"))
+  {
+    PRINT_USAGE(USAGE_QMS_HISTORY);
+    return true;
+  }
+  CHECK_IF_BACKGROUND_SYNCING("cannot update QMS2 history preference");
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, false);
+    if (!state)
+    {
+      success_msg_writer() << tr("QMS2 is not initialized; run qms_info first");
+      return true;
+    }
+    if (args[0] == "status")
+    {
+      success_msg_writer() << tr("QMS2 local plaintext history persistence is ")
+                           << (state->history_enabled() ? tr("enabled") : tr("disabled"));
+      return true;
+    }
+    if (args[0] == "clear")
+    {
+      state->clear_history();
+      persist_qms_wallet_state(*m_wallet, *password, *state);
+      success_msg_writer() << tr("Local QMS2 message history cleared. Blockchain carrier data is unchanged.");
+      return true;
+    }
+    state->set_history_enabled(args[0] == "on");
+    persist_qms_wallet_state(*m_wallet, *password, *state);
+    success_msg_writer() << tr("QMS2 local plaintext history persistence is now ")
+                         << (state->history_enabled() ? tr("enabled") : tr("disabled"));
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 history update failed: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_reset(const std::vector<std::string> &args)
+{
+  if (args.size() != 1 || args[0] != "confirm")
+  {
+    PRINT_USAGE(USAGE_QMS_RESET);
+    fail_msg_writer() << tr("This deletes the local Messenger identity, contacts, sessions, history, and prepared plan. It does not remove blockchain carrier data.");
+    return true;
+  }
+  CHECK_IF_BACKGROUND_SYNCING("cannot reset QMS2 state");
+  LOCK_IDLE_SCOPE();
+  std::string error;
+  if (!m_wallet->clear_qms_state(error))
+  {
+    fail_msg_writer() << tr("QMS2 reset failed: ") << error;
+    return true;
+  }
+  m_qms_carriers.clear();
+  m_qms_inbox_loaded = true;
+  m_qms_inbox_dirty = true;
+  try
+  {
+    persist_qms_carrier_inbox();
+    success_msg_writer() << tr("QMS2 state reset. Run qms_info to create a new identity and exchange fresh contact packages before sending again.");
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 state was reset, but clearing the cached carrier inbox failed: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_prepare(const std::vector<std::string> &args)
+{
+  if (args.size() != 1) { PRINT_USAGE(USAGE_QMS_PREPARE); return true; }
+  CHECK_IF_BACKGROUND_SYNCING("cannot prepare QMS2 carriers");
+  if (m_do_not_relay)
+  {
+    fail_msg_writer() << tr("QMS2 refuses --do-not-relay because raw carrier files can leak message metadata");
+    return true;
+  }
+  std::string transport_reason;
+  if (!m_wallet->qms_strict_transport_ready(&transport_reason))
+  {
+    fail_msg_writer() << tr("QMS2 strict transport is not ready: ") << transport_reason;
+    return true;
+  }
+  epee::wipeable_string message_input = input_secure_raw_line(
+    tr("Message (hidden input, maximum 4096 UTF-8 bytes)"));
+  if (message_input.empty())
+  {
+    fail_msg_writer() << tr("QMS2 message is required");
+    return true;
+  }
+  std::string message(message_input.data(), message_input.size());
+  auto wipe_message = epee::misc_utils::create_scope_leave_handler([&]() {
+    if (!message.empty()) memwipe(&message[0], message.size());
+  });
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  std::vector<size_t> reserved;
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, false);
+    if (!state) throw std::runtime_error("QMS2 is not initialized; run qms_info first");
+    auto plan = state->prepare_send(args[0], message, time(nullptr));
+    auto wipe_next_state = epee::misc_utils::create_scope_leave_handler([&]() {
+      if (!plan.next_state.empty()) memwipe(plan.next_state.data(), plan.next_state.size());
+    });
+    auto pending = m_wallet->create_qms_carrier_transactions(
+      plan.carrier_extras, 1, m_wallet->default_mixin(),
+      m_wallet->get_default_priority(), m_current_subaddress_account, {}, reserved);
+    uint64_t fee = 0;
+    for (const auto &transaction : pending) fee += transaction.fee;
+    const std::string journal = m_wallet->dump_qms_pending_to_str(pending);
+    if (journal.empty()) throw std::runtime_error("could not encrypt QMS2 pending transaction journal");
+    state->accept_prepared(plan, journal, pending.size(), fee, time(nullptr));
+    persist_qms_wallet_state(*m_wallet, *password, *state);
+    success_msg_writer() << tr("QMS2 batch prepared and persisted; nothing was broadcast.") << ENDL
+      << tr("Contact: ") << plan.contact_label << ENDL
+      << tr("Carrier transactions: ") << pending.size() << ENDL
+      << tr("Total fee: ") << print_money(fee) << ENDL
+      << tr("Run qms_send to review and broadcast, or qms_cancel to release the reserved inputs.");
+    reserved.clear(); // Ownership of the frozen reservations moves to the persisted journal.
+  }
+  catch (const std::exception &e)
+  {
+    for (const size_t index : reserved)
+      try { m_wallet->thaw(index); } catch (...) {}
+    fail_msg_writer() << tr("QMS2 preparation failed: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_send(const std::vector<std::string> &args)
+{
+  if (!args.empty()) { PRINT_USAGE(USAGE_QMS_SEND); return true; }
+  CHECK_IF_BACKGROUND_SYNCING("cannot send QMS2 carriers");
+  if (m_do_not_relay)
+  {
+    fail_msg_writer() << tr("QMS2 refuses --do-not-relay and never exports raw carrier transactions");
+    return true;
+  }
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, false);
+    if (!state || !state->has_prepared())
+      throw std::runtime_error("no prepared QMS2 batch");
+    std::vector<tools::wallet2::pending_tx> pending;
+    if (!m_wallet->parse_qms_pending_from_str(state->prepared_journal(), pending)
+        || pending.empty())
+      throw std::runtime_error("persisted QMS2 pending transaction journal is invalid");
+    uint64_t total_fee = 0;
+    for (const auto &transaction : pending) total_fee += transaction.fee;
+    std::ostringstream prompt;
+    prompt << tr("Broadcast ") << pending.size() << tr(" QMS2 carrier transaction(s) with total fee ")
+           << print_money(total_fee) << tr(" through the configured Tor-only daemon path?");
+    if (!command_line::is_yes(input_line(prompt.str(), true)))
+    {
+      success_msg_writer() << tr("QMS2 batch remains prepared; nothing was broadcast");
+      return true;
+    }
+
+    while (!pending.empty())
+    {
+      std::string reason;
+      if (!m_wallet->qms_strict_transport_ready(&reason))
+        throw std::runtime_error("strict transport became unavailable before commit: " + reason);
+      auto &transaction = pending.back();
+      const crypto::hash txid = get_transaction_hash(transaction.tx);
+      m_wallet->commit_tx(transaction);
+      pending.pop_back();
+      if (pending.empty())
+        state->clear_prepared();
+      else
+      {
+        uint64_t remaining_fee = 0;
+        for (const auto &remaining : pending) remaining_fee += remaining.fee;
+        const std::string journal = m_wallet->dump_qms_pending_to_str(pending);
+        if (journal.empty())
+          throw std::runtime_error("could not update QMS2 pending transaction journal");
+        state->update_prepared_journal(journal, pending.size(), remaining_fee, time(nullptr));
+      }
+      persist_qms_wallet_state(*m_wallet, *password, *state);
+      success_msg_writer(true) << tr("QMS2 carrier submitted: ") << txid;
+    }
+    success_msg_writer() << tr("QMS2 batch fully submitted; ratchet state remains advanced and persisted");
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 send stopped safely: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_cancel(const std::vector<std::string> &args)
+{
+  if (!args.empty()) { PRINT_USAGE(USAGE_QMS_CANCEL); return true; }
+  CHECK_IF_BACKGROUND_SYNCING("cannot cancel QMS2 plan");
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+  LOCK_IDLE_SCOPE();
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, false);
+    if (!state || !state->has_prepared())
+      throw std::runtime_error("no prepared QMS2 batch");
+    if (!command_line::is_yes(input_line(
+        tr("Cancel the prepared QMS2 batch and release its reserved inputs?"), true)))
+      return true;
+    std::vector<tools::wallet2::pending_tx> pending;
+    if (!m_wallet->parse_qms_pending_from_str(state->prepared_journal(), pending))
+      throw std::runtime_error("persisted QMS2 pending transaction journal is invalid");
+    std::set<size_t> selected;
+    for (const auto &transaction : pending)
+      selected.insert(transaction.selected_transfers.begin(), transaction.selected_transfers.end());
+    for (const size_t index : selected) m_wallet->thaw(index);
+    m_wallet->store();
+    state->clear_prepared();
+    persist_qms_wallet_state(*m_wallet, *password, *state);
+    success_msg_writer() << tr("QMS2 batch canceled; reserved inputs were released. The ratchet state was not rewound.");
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 cancellation failed safely: ") << e.what();
+  }
+  return true;
+}
+
+bool simple_wallet::qms_receive(const std::vector<std::string> &args)
+{
+  if (!args.empty()) { PRINT_USAGE(USAGE_QMS_RECEIVE); return true; }
+  CHECK_IF_BACKGROUND_SYNCING("cannot receive QMS2 carriers");
+  std::string reason;
+  if (!m_wallet->qms_strict_transport_ready(&reason))
+  {
+    fail_msg_writer() << tr("QMS2 strict transport is not ready: ") << reason;
+    return true;
+  }
+  const auto password = get_and_verify_password();
+  if (!password) return true;
+
+  try { load_qms_carrier_inbox(); }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 inbox load failed safely: ") << e.what();
+    return true;
+  }
+  refresh_main(0, ResetNone);
+
+  LOCK_IDLE_SCOPE();
+  bool processed_ok = false;
+  try
+  {
+    auto state = load_qms_wallet_state(*m_wallet, *password, false);
+    if (!state) throw std::runtime_error("QMS2 is not initialized; run qms_info first");
+    size_t accepted = 0;
+    size_t completed = 0;
+    for (const auto &event : m_qms_carriers)
+    {
+      qwertycoin::qms::wallet_receive_result received;
+      try
+      {
+        received = state->ingest_carrier(event.extra, event.height,
+          event.block_hash, event.transaction_id, time(nullptr));
+      }
+      catch (...)
+      {
+        // Malformed or unauthenticated public-chain data is not an oracle.
+        continue;
+      }
+      if (!received.accepted_fragment) continue;
+      ++accepted;
+      // Persist every accepted fragment before processing the next carrier.
+      // A completed message never advances only in volatile memory.
+      persist_qms_wallet_state(*m_wallet, *password, *state);
+      if (received.completed)
+      {
+        ++completed;
+        success_msg_writer() << tr("QMS2 message from ") << received.contact_label
+          << " [" << received.contact_fingerprint << "]" << ENDL
+          << received.text;
+      }
+    }
+    processed_ok = true;
+    success_msg_writer() << tr("QMS2 refresh processed ") << accepted
+      << tr(" authenticated fragment(s) and completed ") << completed
+      << tr(" message(s).");
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("QMS2 receive failed safely: ") << e.what();
+  }
+  if (processed_ok)
+  {
+    m_qms_carriers.clear();
+    m_qms_inbox_dirty = true;
+    try { persist_qms_carrier_inbox(); }
+    catch (const std::exception &e)
+    {
+      fail_msg_writer() << tr("QMS2 inbox cleanup is pending: ") << e.what();
+    }
+  }
+  return true;
+}
+#endif
+
 bool simple_wallet::scan_tx(const std::vector<std::string> &args)
 {
   CHECK_IF_BACKGROUND_SYNCING("cannot scan tx");
@@ -3676,6 +4263,44 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::verify, _1),
                            tr(USAGE_VERIFY),
                            tr("Verify a signature on the contents of a file."));
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+  m_cmd_binder.set_handler("qms_info",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_info, _1),
+                           tr(USAGE_QMS_INFO),
+                           tr("Show the QMS2 invitation, fingerprint, pending-plan state, and strict Tor readiness."));
+  m_cmd_binder.set_handler("qms_add_contact",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_add_contact, _1),
+                           tr(USAGE_QMS_ADD_CONTACT),
+                           tr("Securely prompt for a QMS2 invitation and add it under <label>."));
+  m_cmd_binder.set_handler("qms_contacts",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_contacts, _1),
+                           tr(USAGE_QMS_CONTACTS),
+                           tr("List active QMS2 contacts and fingerprints."));
+  m_cmd_binder.set_handler("qms_history",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_history, _1),
+                           tr(USAGE_QMS_HISTORY),
+                           tr("Show or change opt-in local plaintext message-history persistence, or delete stored history."));
+  m_cmd_binder.set_handler("qms_reset",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_reset, _1),
+                           tr(USAGE_QMS_RESET),
+                           tr("Delete local QMS2 identity/session state after a restore or suspected rollback; requires literal confirm."));
+  m_cmd_binder.set_handler("qms_prepare",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_prepare, _1),
+                           tr(USAGE_QMS_PREPARE),
+                           tr("Securely prompt for a message and prepare a restart-safe QMS2 carrier batch. Does not broadcast."));
+  m_cmd_binder.set_handler("qms_send",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_send, _1),
+                           tr(USAGE_QMS_SEND),
+                           tr("Confirm and broadcast the previously prepared QMS2 batch through the strict Tor-only daemon path."));
+  m_cmd_binder.set_handler("qms_cancel",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_cancel, _1),
+                           tr(USAGE_QMS_CANCEL),
+                           tr("Cancel the prepared QMS2 batch and release its locally reserved inputs."));
+  m_cmd_binder.set_handler("qms_receive",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::qms_receive, _1),
+                           tr(USAGE_QMS_RECEIVE),
+                           tr("Refresh through the strict Tor-only daemon path and persist authenticated QMS2 fragments/messages."));
+#endif
   m_cmd_binder.set_handler("export_key_images",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::export_key_images, _1),
                            tr(USAGE_EXPORT_KEY_IMAGES),
@@ -5841,6 +6466,37 @@ void simple_wallet::on_new_block(uint64_t height, const cryptonote::block& block
     m_refresh_progress_reporter.update(height, false);
 }
 //----------------------------------------------------------------------------------------------------
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+void simple_wallet::on_qms_carrier(uint64_t height, const crypto::hash &block_hash,
+    const crypto::hash &txid, const cryptonote::transaction &tx)
+{
+  if (m_locked || !m_wallet->qms_strict_transport_ready()) return;
+  try
+  {
+    const auto fragments = qwertycoin::qms::extract_carrier_fragments(tx.extra);
+    if (fragments.size() != 1
+        || fragments[0].profile != qwertycoin::qms::CRYPTO_PROFILE_TRIPLE_RATCHET)
+      return;
+    load_qms_carrier_inbox();
+    const std::string tx_hash = epee::string_tools::pod_to_hex(txid);
+    for (const auto &event : m_qms_carriers)
+      if (event.transaction_id == tx_hash) return;
+    if (m_qms_carriers.size() >= 4096) return;
+    qms_carrier_event event;
+    event.height = height;
+    event.block_hash = epee::string_tools::pod_to_hex(block_hash);
+    event.transaction_id = tx_hash;
+    event.extra = tx.extra;
+    m_qms_carriers.push_back(std::move(event));
+    m_qms_inbox_dirty = true;
+  }
+  catch (...)
+  {
+    // Public-chain input is untrusted; malformed carrier records are ignored.
+  }
+}
+#endif
+//----------------------------------------------------------------------------------------------------
 void simple_wallet::on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, uint64_t burnt, const cryptonote::subaddress_index& subaddr_index, bool is_change, uint64_t unlock_time)
 {
   if (m_locked)
@@ -5981,6 +6637,13 @@ boost::optional<epee::wipeable_string> simple_wallet::on_device_passphrase_reque
 //----------------------------------------------------------------------------------------------------
 void simple_wallet::on_refresh_finished(uint64_t start_height, uint64_t fetched_blocks, bool is_init, bool received_money)
 {
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+  try { persist_qms_carrier_inbox(); }
+  catch (const std::exception &e)
+  {
+    MWARNING("Could not persist QMS2 CLI carrier inbox: " << e.what());
+  }
+#endif
   const uint64_t rfbh = m_wallet->get_refresh_from_block_height();
   std::string err;
   const uint64_t dh = m_wallet->get_daemon_blockchain_height(err);
@@ -6012,6 +6675,17 @@ void simple_wallet::on_refresh_finished(uint64_t start_height, uint64_t fetched_
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::refresh_main(uint64_t start_height, enum ResetType reset, bool is_init)
 {
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+  if (qms_wallet_enabled(*m_wallet))
+  {
+    std::string reason;
+    if (!m_wallet->qms_strict_transport_ready(&reason))
+    {
+      fail_msg_writer() << tr("Wallet refresh is blocked while QMS2 is enabled: ") << reason;
+      return true;
+    }
+  }
+#endif
   if (!try_connect_to_daemon(is_init))
     return true;
 
@@ -9518,13 +10192,22 @@ bool simple_wallet::check_refresh()
     // auto refresh
     if (m_auto_refresh_enabled)
     {
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+      if (qms_wallet_enabled(*m_wallet) && !m_wallet->qms_strict_transport_ready())
+        return true;
+#endif
       m_auto_refresh_refreshing = true;
       try
       {
         uint64_t fetched_blocks;
         bool received_money;
         if (try_connect_to_daemon(true))
+        {
           m_wallet->refresh(m_wallet->is_trusted_daemon(), 0, fetched_blocks, received_money, false); // don't check the pool in background mode
+#ifdef QWC_ENABLE_QMS2_CRYPTO
+          persist_qms_carrier_inbox();
+#endif
+        }
       }
       catch(...) {}
       m_auto_refresh_refreshing = false;

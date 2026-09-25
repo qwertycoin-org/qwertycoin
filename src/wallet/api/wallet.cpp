@@ -39,6 +39,7 @@
 #include "subaddress_account.h"
 #include "common_defines.h"
 #include "common/util.h"
+#include "qms/protocol.h"
 
 #include "mnemonics/electrum-words.h"
 #include "mnemonics/english.h"
@@ -100,7 +101,6 @@ namespace {
     static const int    DEFAULT_REMOTE_NODE_REFRESH_INTERVAL_MILLIS = 1000 * 10;
     // Connection timeout 20 sec
     static const int    DEFAULT_CONNECTION_TIMEOUT_MILLIS = 1000 * 20;
-
     std::string get_default_ringdb_path(cryptonote::network_type nettype)
     {
       boost::filesystem::path dir = tools::get_default_data_dir();
@@ -187,6 +187,24 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
                 m_listener->newBlock(height);
             }
         }
+    }
+
+    void on_qms_carrier(uint64_t height, const crypto::hash &block_hash,
+                        const crypto::hash &txid, const cryptonote::transaction& tx) override
+    {
+        if (m_listener) {
+            m_listener->qmsCarrier(height,
+                    epee::string_tools::pod_to_hex(block_hash),
+                    epee::string_tools::pod_to_hex(txid),
+                    epee::string_tools::buff_to_hex_nodelimer(
+                        std::string(tx.extra.begin(), tx.extra.end())));
+        }
+    }
+
+    void on_reorg(uint64_t height, uint64_t blocks_detached, size_t) override
+    {
+        if (m_listener)
+            m_listener->qmsReorg(height, blocks_detached);
     }
 
     virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, uint64_t burnt, const cryptonote::subaddress_index& subaddr_index, bool is_change, uint64_t unlock_time)
@@ -870,6 +888,7 @@ bool WalletImpl::setPassword(const std::string &password)
     if (checkBackgroundSync("cannot change password"))
         return false;
     clearStatus();
+    LOCK_REFRESH();
     try {
         m_wallet->change_password(m_wallet->get_wallet_file(), m_password, password);
         m_password = password;
@@ -1833,6 +1852,80 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     return createTransactionMultDest(std::vector<string> {dst_addr}, payment_id, amount ? (std::vector<uint64_t> {*amount}) : (optional<std::vector<uint64_t>>()), mixin_count, priority, subaddr_account, subaddr_indices);
 }
 
+PendingTransaction *WalletImpl::createQmsCarrierTransactions(
+        const std::vector<std::vector<uint8_t>> &fragment_extras,
+        uint64_t self_amount, uint32_t mixin_count, PendingTransaction::Priority priority,
+        uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
+{
+    clearStatus();
+    pauseRefresh();
+    PendingTransactionImpl *transaction = new PendingTransactionImpl(*this);
+    transaction->m_requires_qms_strict_transport = true;
+
+    try {
+        std::string transport_reason;
+        if (!m_wallet->qms_strict_transport_ready(&transport_reason))
+            throw std::runtime_error(transport_reason);
+        if (checkBackgroundSync("cannot prepare QMS carriers"))
+            throw std::runtime_error("background sync prevents QMS preparation");
+        if (fragment_extras.empty() || fragment_extras.size() > qwertycoin::qms::MAX_FRAGMENTS)
+            throw std::runtime_error("QMS requires between 1 and 16 carrier transactions");
+        if (self_amount == 0)
+            throw std::runtime_error("QMS self-payment amount must be non-zero");
+        if (m_wallet->watch_only() || m_wallet->key_on_device() || m_wallet->light_wallet() || multisig().isMultisig)
+            throw std::runtime_error("QMS MVP does not support watch-only, hardware, light, or multisig wallets");
+        transaction->m_pending_tx = m_wallet->create_qms_carrier_transactions(
+            fragment_extras, self_amount, mixin_count, static_cast<uint32_t>(priority),
+            subaddr_account, subaddr_indices, transaction->m_reserved_transfers);
+        pendingTxPostProcess(transaction);
+    } catch (const std::exception &e) {
+        transaction->releaseReservations();
+        setStatusError(string(tr("QMS preparation failed: ")) + e.what());
+    } catch (...) {
+        transaction->releaseReservations();
+        setStatusError(tr("QMS preparation failed with an unknown error"));
+    }
+
+    statusWithErrorString(transaction->m_status, transaction->m_errorString);
+    startRefresh();
+    return transaction;
+}
+
+PendingTransaction *WalletImpl::restoreQmsCarrierTransactions(const std::string &encryptedJournal)
+{
+    clearStatus();
+    PendingTransactionImpl *transaction = new PendingTransactionImpl(*this);
+    transaction->m_requires_qms_strict_transport = true;
+    try {
+        if (!m_wallet->parse_qms_pending_from_str(encryptedJournal, transaction->m_pending_tx) ||
+            transaction->m_pending_tx.empty() || transaction->m_pending_tx.size() > qwertycoin::qms::MAX_FRAGMENTS)
+            throw std::runtime_error("invalid encrypted QMS pending journal");
+        std::set<size_t> selected;
+        for (const auto &pending : transaction->m_pending_tx) {
+            if (pending.tx.extra.size() > MAX_TX_EXTRA_SIZE ||
+                qwertycoin::qms::extract_carrier_fragments(pending.tx.extra).size() != 1)
+                throw std::runtime_error("journal contains a non-QMS or oversized transaction");
+            for (const size_t index : pending.selected_transfers) {
+                if (!selected.insert(index).second)
+                    throw std::runtime_error("journal reuses a carrier input");
+                m_wallet->freeze(index);
+                transaction->m_reserved_transfers.push_back(index);
+            }
+        }
+    } catch (const std::exception &e) {
+        transaction->releaseReservations();
+        transaction->m_pending_tx.clear();
+        setStatusError(string(tr("QMS journal restore failed: ")) + e.what());
+    }
+    statusWithErrorString(transaction->m_status, transaction->m_errorString);
+    return transaction;
+}
+
+bool WalletImpl::qmsStrictTransportReady() const
+{
+    return m_wallet->qms_strict_transport_ready();
+}
+
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
 
 {
@@ -1996,6 +2089,53 @@ std::string WalletImpl::getCacheAttribute(const std::string &key) const
     std::string value;
     m_wallet->get_attribute(key, value);
     return value;
+}
+
+bool WalletImpl::storeQmsState(const std::string &plaintext, const std::string &context)
+{
+    clearStatus();
+    if (checkBackgroundSync("cannot store QMS2 state"))
+        return false;
+    LOCK_REFRESH();
+    std::string error;
+    const bool stored = m_wallet->store_qms_state(plaintext, m_password, context, error);
+    if (!stored) setStatusError(error);
+    return stored;
+}
+
+bool WalletImpl::qmsStateStorageAvailable() const
+{
+    return !m_password.empty() && !m_wallet->is_background_wallet()
+        && !m_wallet->is_background_syncing();
+}
+
+bool WalletImpl::qmsStateExists() const
+{
+    return m_wallet->has_qms_state();
+}
+
+bool WalletImpl::loadQmsState(std::string &plaintext, const std::string &context)
+{
+    clearStatus();
+    plaintext.clear();
+    if (checkBackgroundSync("cannot load QMS2 state"))
+        return false;
+    std::string error;
+    const bool loaded = m_wallet->load_qms_state(plaintext, m_password, context, error);
+    if (!loaded) setStatusError(error);
+    return loaded;
+}
+
+bool WalletImpl::clearQmsState()
+{
+    clearStatus();
+    if (checkBackgroundSync("cannot clear QMS2 state"))
+        return false;
+    LOCK_REFRESH();
+    std::string error;
+    const bool cleared = m_wallet->clear_qms_state(error);
+    if (!cleared) setStatusError(error);
+    return cleared;
 }
 
 bool WalletImpl::setUserNote(const std::string &txid, const std::string &note)

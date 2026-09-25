@@ -103,6 +103,14 @@ struct PendingTransaction
     virtual uint64_t txCount() const = 0;
     virtual std::vector<uint32_t> subaddrAccount() const = 0;
     virtual std::vector<std::set<uint32_t>> subaddrIndices() const = 0;
+    virtual std::string qmsJournalData() const = 0;
+    /*! \brief commitQmsNext - commit exactly one strict-transport QMS carrier.
+     * The remaining encrypted journal stays available for durable partial-batch
+     * recovery. The caller must durably persist qmsJournalData() after every
+     * successful carrier before calling this method again. Returns false
+     * without discarding uncommitted carriers.
+     */
+    virtual bool commitQmsNext() = 0;
 
     /**
      * @brief multisigSignData
@@ -374,6 +382,13 @@ struct WalletListener
      * @param height        - block height
      */
     virtual void newBlock(uint64_t height) = 0;
+
+    // Called for authenticated-candidate QMS carrier transactions observed by the
+    // full wallet sync path. The application must still validate discovery/MAC/signature.
+    virtual void qmsCarrier(uint64_t height, const std::string &blockHash,
+                            const std::string &txId, const std::string &extraHex) {}
+
+    virtual void qmsReorg(uint64_t height, uint64_t blocksDetached) {}
 
     /**
      * @brief updated  - generic callback, called when any event (sent/received/block reveived/etc) happened with the wallet;
@@ -871,6 +886,19 @@ struct Wallet
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
 
+    virtual PendingTransaction * createQmsCarrierTransactions(
+                                                   const std::vector<std::vector<uint8_t>> &fragment_extras,
+                                                   uint64_t self_amount, uint32_t mixin_count,
+                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low,
+                                                   uint32_t subaddr_account = 0,
+                                                   std::set<uint32_t> subaddr_indices = {}) = 0;
+    virtual PendingTransaction * restoreQmsCarrierTransactions(const std::string &encryptedJournal) = 0;
+    /*! \brief qmsStrictTransportReady - fail-closed native QMS2 network policy.
+     * Native QMS2 network operations require an explicit SOCKS proxy and a
+     * syntactically valid Tor v3 onion daemon target.
+     */
+    virtual bool qmsStrictTransportReady() const = 0;
+
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
@@ -1008,6 +1036,34 @@ struct Wallet
      * \return the attached string, or empty string if there is none
      */
     virtual std::string getCacheAttribute(const std::string &key) const = 0;
+
+    /*!
+     * \brief storeQmsState - encrypt and durably persist the QMS2 state blob
+     *
+     * The state is kept in a dedicated wallet-cache attribute and encrypted
+     * independently with Argon2id and XChaCha20-Poly1305.  The caller-provided
+     * context binds the blob to the expected network/wallet domain.
+     */
+    virtual bool storeQmsState(const std::string &plaintext, const std::string &context) = 0;
+    /*!
+     * \brief qmsStateStorageAvailable - whether this wallet can protect and
+     *        persist QMS2 state without prompting
+     */
+    virtual bool qmsStateStorageAvailable() const = 0;
+    /*! \brief qmsStateExists - whether this wallet already contains encrypted
+     * QMS2 state. Clients use this to keep messenger activation explicit and
+     * to fail closed even when that state cannot be decrypted.
+     */
+    virtual bool qmsStateExists() const = 0;
+    /*!
+     * \brief loadQmsState - authenticate and decrypt the persisted QMS2 state
+     * \return true for a valid state or for an empty/not-yet-created state
+     */
+    virtual bool loadQmsState(std::string &plaintext, const std::string &context) = 0;
+    /*!
+     * \brief clearQmsState - durably remove the persisted QMS2 state
+     */
+    virtual bool clearQmsState() = 0;
     /*!
      * \brief setUserNote - attach an arbitrary string note to a txid
      * \param txid - the transaction id to attach the note to

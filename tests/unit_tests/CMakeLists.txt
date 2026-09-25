@@ -81,6 +81,7 @@ set(unit_tests_sources
   output_distribution.cpp
   parse_amount.cpp
   pruning.cpp
+  qms.cpp
   random.cpp
   rolling_median.cpp
   scaling_2021.cpp
@@ -133,6 +134,7 @@ target_link_libraries(unit_tests
     serialization
     wallet
     p2p
+    qms
     version
     ${Boost_CHRONO_LIBRARY}
     ${Boost_THREAD_LIBRARY}
@@ -158,6 +160,14 @@ SET_PROPERTY(SOURCE memwipe.cpp PROPERTY COMPILE_FLAGS -Ofast)
 add_test(
   NAME    unit_tests
   COMMAND unit_tests --data-dir "${TEST_DATA_DIR}")
+
+# Focused QMS suite: intentionally has no daemon/process/network harness and can
+# be run under the offline execution boundary independently of the broad suite.
+monero_add_minimal_executable(qms_unit_tests qms.cpp qms_main.cpp)
+target_link_libraries(qms_unit_tests
+  PRIVATE qms cryptonote_basic common cncrypto epee
+    ${GTEST_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${SODIUM_LIBRARY})
+add_test(NAME qms_unit_tests COMMAND qms_unit_tests)
 
 monero_add_minimal_executable(epose_keystore_v2_probe
   epose_keystore_v2_probe.cpp)
