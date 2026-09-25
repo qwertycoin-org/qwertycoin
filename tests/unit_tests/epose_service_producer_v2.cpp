@@ -306,15 +306,25 @@ TEST(epose_service_producer_v2, receipt_retries_are_fair_and_bounded)
 
   ASSERT_TRUE(tracker.start(first, 100));
   tracker.failed(first, 100);
+  const auto failed = tracker.status(first);
+  EXPECT_TRUE(failed.found);
+  EXPECT_EQ(1u, failed.failures);
+  EXPECT_EQ(110u, failed.next_attempt_ms);
+  EXPECT_FALSE(failed.in_flight);
   EXPECT_FALSE(tracker.can_attempt(first, 109));
   EXPECT_TRUE(tracker.can_attempt(second, 101));
   ASSERT_TRUE(tracker.start(second, 101));
   tracker.submitted(second, 101);
+  const auto submitted = tracker.status(second);
+  EXPECT_TRUE(submitted.found);
+  EXPECT_EQ(121u, submitted.next_attempt_ms);
+  EXPECT_FALSE(submitted.in_flight);
   EXPECT_FALSE(tracker.can_attempt(second, 120));
   EXPECT_FALSE(tracker.start(third, 101));
   EXPECT_TRUE(tracker.can_attempt(first, 110));
 
   tracker.canonical(second);
+  EXPECT_FALSE(tracker.status(second).found);
   EXPECT_TRUE(tracker.start(third, 121));
   EXPECT_EQ(2u, tracker.size());
 }

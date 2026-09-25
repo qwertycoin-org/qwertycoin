@@ -223,6 +223,9 @@ namespace epose
         uint64_t round,
         const crypto::public_key &subject_public_key,
         const crypto::public_key &verifier_public_key) const;
+    std::vector<size_t> receipt_coverage(
+        uint64_t epoch,
+        const crypto::public_key &subject_public_key) const;
 
     std::vector<verifier_assignment_v2> committee(
         uint64_t epoch,

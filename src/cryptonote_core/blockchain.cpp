@@ -1168,6 +1168,20 @@ bool Blockchain::has_epose_receipt_slot_v2(
   return m_epose_v2 && m_epose_v2->state().membership().has_receipt_slot(
       epoch, round, subject_public_key, verifier_public_key);
 }
+
+bool Blockchain::get_epose_receipt_coverage_v2(
+    const uint64_t epoch,
+    const crypto::public_key &subject_public_key,
+    std::vector<size_t> &coverage) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  coverage.clear();
+  if (!m_epose_v2)
+    return false;
+  coverage = m_epose_v2->state().membership().receipt_coverage(
+      epoch, subject_public_key);
+  return true;
+}
 //------------------------------------------------------------------
 uint64_t Blockchain::get_epose_attestation_count() const
 {

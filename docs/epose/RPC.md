@@ -13,6 +13,7 @@ when `m_restricted` is true.
 | Method | HTTP path | JSON-RPC | Restricted RPC | Purpose |
 | --- | --- | --- | --- | --- |
 | `get_epose_info` | yes | yes | yes | Chain and local producer summary. |
+| `get_epose_diagnostics` | yes | yes | **no** | Bounded local attempts and chain-derived qualification evidence. |
 | `get_service_nodes` | yes | yes | yes | Bounded list of canonical descriptors. |
 | `get_service_node_status` | yes | yes | yes | Lookup by service public key. |
 | `get_service_node_registration_payload` | yes | yes | yes | Retired-v1 compatibility response; v2 enrollment is automatic. |
@@ -123,6 +124,19 @@ curl -s -X POST http://127.0.0.1:8197/submit_epose_envelope \
 
 Do not publish unrestricted RPC to expose this method. Service producers submit
 locally and relay over authenticated/bounded protocol paths.
+
+## Receipt diagnostics
+
+`get_epose_diagnostics` is restricted to unrestricted RPC with `--rpc-login`
+configured; otherwise it returns no diagnostic data. It is not routed on
+restricted RPC or the public EPoSE probe listener. It returns
+bounded, restart-local operational counters and recent terminal attempts plus
+separately labelled canonical qualification evidence. `recent_limit` defaults
+to 50 and is capped at 100. Optional `epoch` selects the chain-derived
+qualification epoch; omitted means the current epoch.
+
+See [`DIAGNOSTICS.md`](DIAGNOSTICS.md) for stable reason codes, example events,
+retention/reset behavior, and the operator troubleshooting sequence.
 
 ## Exposure rules
 

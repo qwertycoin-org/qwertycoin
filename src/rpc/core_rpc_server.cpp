@@ -213,6 +213,8 @@ namespace cryptonote
     : m_core(cr)
     , m_p2p(p2p)
     , m_was_bootstrap_ever_used(false)
+    , m_restricted(false)
+    , m_rpc_login_configured(false)
     , disable_rpc_ban(false)
     , m_rpc_payment_allow_free_loopback(false)
   {}
@@ -317,6 +319,7 @@ namespace cryptonote
     auto rpc_config = cryptonote::rpc_args::process(vm, true);
     if (!rpc_config)
       return false;
+    m_rpc_login_configured = static_cast<bool>(rpc_config->login);
 
     std::string bind_ip_str = rpc_config->bind_ip;
     std::string bind_ipv6_str = rpc_config->bind_ipv6_address;
@@ -686,6 +689,129 @@ namespace cryptonote
     }
     res.status = CORE_RPC_STATUS_OK;
     return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_epose_diagnostics(
+      const COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::request& req,
+      COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::response& res,
+      const connection_context *ctx)
+  {
+    RPC_TRACKER(get_epose_diagnostics);
+    if (!m_rpc_login_configured)
+    {
+      res.status = "RPC authentication is required for EPoSE diagnostics";
+      return true;
+    }
+    qwertycoin::epose::receipt_diagnostics_snapshot_v2 operations{};
+    qwertycoin::epose::qualification_diagnostics_v2 qualification{};
+    if (!m_core.get_epose_v2_diagnostics(
+            operations, qualification, req.epoch))
+    {
+      res.status = CORE_RPC_STATUS_BUSY;
+      return true;
+    }
+
+    res.diagnostics_version = 1;
+    res.reset_utc_ms = operations.reset_utc_ms;
+    res.attempts_in_flight = operations.attempts_in_flight;
+    for (const auto &entry : operations.rounds)
+    {
+      epose_diagnostic_round_entry converted{};
+      converted.epoch = entry.epoch;
+      converted.round = entry.round;
+      converted.attempts_started = entry.attempts_started;
+      converted.attempts_completed = entry.attempts_completed;
+      converted.attempts_succeeded = entry.attempts_succeeded;
+      converted.attempts_failed = entry.attempts_failed;
+      converted.attempts_cancelled = entry.attempts_cancelled;
+      converted.attempts_expired = entry.attempts_expired;
+      converted.local_submissions_accepted = entry.local_submissions_accepted;
+      converted.canonical_inclusions_observed = entry.canonical_inclusions_observed;
+      res.rounds.push_back(std::move(converted));
+    }
+    for (const auto &entry : operations.failures)
+    {
+      epose_diagnostic_failure_entry converted{};
+      converted.epoch = entry.epoch;
+      converted.round = entry.round;
+      converted.stage = qwertycoin::epose::to_string(entry.stage);
+      converted.reason = qwertycoin::epose::to_string(entry.reason);
+      converted.count = entry.count;
+      converted.suppressed_log_count = entry.suppressed_log_count;
+      res.failures.push_back(std::move(converted));
+    }
+    for (const auto &entry : operations.skips)
+    {
+      epose_diagnostic_skip_entry converted{};
+      converted.reason = qwertycoin::epose::to_string(entry.reason);
+      converted.count = entry.count;
+      res.skips.push_back(std::move(converted));
+    }
+
+    const size_t limit = std::min<size_t>(
+        req.recent_limit == 0 ? 50 : req.recent_limit, 100);
+    const size_t first = operations.recent_attempts.size() > limit
+        ? operations.recent_attempts.size() - limit : 0;
+    for (size_t index = first; index < operations.recent_attempts.size(); ++index)
+    {
+      const auto &entry = operations.recent_attempts[index];
+      epose_diagnostic_attempt_entry converted{};
+      converted.attempt_id = entry.context.attempt_id;
+      converted.epoch = entry.context.epoch;
+      converted.round = entry.context.round;
+      converted.chain_height = entry.context.chain_height;
+      converted.deadline_height = entry.context.deadline_height;
+      converted.subject_identity =
+          epee::string_tools::pod_to_hex(entry.context.subject_identity);
+      converted.verifier_identity =
+          epee::string_tools::pod_to_hex(entry.context.verifier_identity);
+      converted.endpoint_commitment =
+          epee::string_tools::pod_to_hex(entry.context.endpoint_commitment);
+      converted.outcome = qwertycoin::epose::to_string(entry.outcome);
+      converted.stage = qwertycoin::epose::to_string(entry.stage);
+      converted.reason = qwertycoin::epose::to_string(entry.reason);
+      converted.started_utc_ms = entry.context.started_utc_ms;
+      converted.completed_utc_ms = entry.completed_utc_ms;
+      converted.duration_ms = entry.duration_ms;
+      converted.retry_scheduled = entry.retry_scheduled;
+      converted.next_retry_utc_ms = entry.next_retry_utc_ms;
+      converted.local_submission_accepted = entry.local_submission_accepted;
+      converted.local_submission_relayed = entry.local_submission_relayed;
+      converted.canonical_inclusion_observed =
+          entry.canonical_inclusion_observed;
+      res.recent_attempts.push_back(std::move(converted));
+    }
+
+    res.qualification_available = qualification.available;
+    res.subject_in_snapshot = qualification.subject_in_snapshot;
+    res.qualification_subject_identity = qualification.subject_in_snapshot
+        ? epee::string_tools::pod_to_hex(qualification.subject_identity)
+        : std::string{};
+    res.qualification_state =
+        qwertycoin::epose::qualification_state_v2(qualification);
+    res.unmet_requirement =
+        qwertycoin::epose::qualification_unmet_rule_v2(qualification);
+    res.qualification_epoch = qualification.epoch;
+    res.chain_height = qualification.chain_height;
+    res.evidence_deadline_height = qualification.evidence_deadline_height;
+    res.rounds_required = qualification.rounds_required;
+    res.rounds_passed = qualification.rounds_passed;
+    res.rounds_remaining = qualification.rounds_remaining;
+    res.canonical_unique_receipts = qualification.canonical_unique_receipts;
+    res.committee_sizes = qualification.committee_sizes;
+    res.required_receipts = qualification.required_receipts;
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_epose_diagnostics_json(
+      const COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::request& req,
+      COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::response& res,
+      epee::json_rpc::error& error_resp,
+      const connection_context *ctx)
+  {
+    (void)error_resp;
+    return on_get_epose_diagnostics(req, res, ctx);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, const connection_context *ctx)

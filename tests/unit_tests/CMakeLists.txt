@@ -53,6 +53,7 @@ set(unit_tests_sources
   epose.cpp
   epose_canonical_service_v2.cpp
   epose_coordinator_v2.cpp
+  epose_diagnostics_v2.cpp
   epose_block_transition_v2.cpp
   epose_replay_v2.cpp
   epee_utils.cpp
@@ -198,6 +199,7 @@ monero_add_minimal_executable(epose_unit_tests
   epose_replay_v2.cpp
   epose_canonical_service_v2.cpp
   epose_coordinator_v2.cpp
+  epose_diagnostics_v2.cpp
   epose_envelope_v2.cpp
   epose_hardfork_migration_v2.cpp
   epose_lifecycle_v2.cpp

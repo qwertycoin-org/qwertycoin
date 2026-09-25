@@ -17,6 +17,7 @@ These files describe the EPoSE v2 implementation on the current branch:
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Assets, trust boundaries, mitigations, and residual risks |
 | [`REWARDS.md`](REWARDS.md) | Subsidy split, payee selection, Coinbase proof, and RPC interpretation |
 | [`RPC.md`](RPC.md) | EPoSE daemon RPC methods and exposure rules |
+| [`DIAGNOSTICS.md`](DIAGNOSTICS.md) | Stable receipt failure reasons and operator troubleshooting |
 | [`SERVICE_NODE.md`](SERVICE_NODE.md) | Service-node operation and keystore handling |
 | [`COMMUNITY_SETUP.md`](COMMUNITY_SETUP.md) | Community-node installation and validation checklist |
 | [`DNS_RECORDS.md`](DNS_RECORDS.md) | QWC-owned DNS names and publication constraints |
