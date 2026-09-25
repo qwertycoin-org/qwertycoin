@@ -248,6 +248,16 @@ namespace epose
         entries_.end());
   }
 
+  receipt_retry_tracker_v2::retry_info receipt_retry_tracker_v2::status(
+      const crypto::hash &slot) const
+  {
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    if (found == entries_.end())
+      return {};
+    return {true, found->next_attempt_ms, found->failures, found->in_flight};
+  }
+
   size_t receipt_retry_tracker_v2::size() const
   {
     return entries_.size();

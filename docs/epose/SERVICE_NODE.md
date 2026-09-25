@@ -162,6 +162,8 @@ producer does not guarantee qualification or an immediate reward. Epoch zero
 has no EPoSE-v2 rewards.
 
 See [`RPC.md`](RPC.md) for the complete method and exposure matrix.
+Use [`DIAGNOSTICS.md`](DIAGNOSTICS.md) when a receipt round or final
+qualification does not meet its chain-derived threshold.
 
 ## Docker Mainnet Deployment
 

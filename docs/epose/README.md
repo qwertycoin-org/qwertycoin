@@ -19,6 +19,7 @@ and block-validation tests are authoritative.
 | [`REWARDS.md`](REWARDS.md) | Subsidy split, payee selection, Coinbase construction, payment proof, and wallet compatibility. |
 | [`SERVICE_NODE.md`](SERVICE_NODE.md) | Operator CLI, network exposure, keystore rules, automatic enrollment, and recovery. |
 | [`RPC.md`](RPC.md) | EPoSE daemon RPC methods and restricted-RPC exposure. |
+| [`DIAGNOSTICS.md`](DIAGNOSTICS.md) | Receipt reason codes, bounded operator diagnostics, example logs, and troubleshooting. |
 | [`CONSENSUS_INVARIANTS.md`](CONSENSUS_INVARIANTS.md) | Properties that every accepted block and reorg must preserve. |
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Assets, trust boundaries, implemented mitigations, and residual risks. |
 | [`COMMUNITY_SETUP.md`](COMMUNITY_SETUP.md) | Public-test wallet, node, mining, and service-node setup. |
@@ -50,6 +51,7 @@ Machine-readable files:
 | Persistent state | `src/epose/state_index_v2.*`, `src/blockchain_db/*` |
 | Relay and template selection | `src/epose/relay_pool_v2.*`, `src/cryptonote_protocol/*` |
 | Local producer and keystore | `src/epose/service_producer_v2.*`, `src/epose/service_keystore_v2.*` |
+| Receipt diagnostics | `src/epose/diagnostics_v2.*` |
 | Daemon integration | `src/cryptonote_core/*`, `src/rpc/*`, `src/daemon/*` |
 
 ## Protocol summary

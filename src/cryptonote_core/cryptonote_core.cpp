@@ -35,6 +35,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <sstream>
 
 #include "string_tools.h"
 using namespace epee;
@@ -69,6 +70,7 @@ using namespace epee;
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "epose/attestation_pool.h"
+#include "epose/diagnostics_v2.h"
 #include "epose/envelope_v2.h"
 #include "epose/record_codec_v2.h"
 #include "epose/service_epoch.h"
@@ -128,6 +130,62 @@ namespace
     return elapsed < 0 ? 0 : static_cast<uint64_t>(elapsed);
   }
 
+  uint64_t epose_v2_utc_milliseconds()
+  {
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    return elapsed < 0 ? 0 : static_cast<uint64_t>(elapsed);
+  }
+
+  template<class Request, class Response>
+  qwertycoin::epose::receipt_step_result_v2 invoke_epose_http_json(
+      const boost::string_ref uri,
+      const Request &request,
+      Response &response,
+      epee::net_utils::http::http_simple_client &client,
+      const size_t max_response_bytes)
+  {
+    using namespace qwertycoin::epose;
+    std::string body;
+    if (!epee::serialization::store_t_to_json(request, body))
+      return {receipt_attempt_stage_v2::http_exchange,
+          receipt_failure_reason_v2::internal_execution_failure};
+    epee::net_utils::http::fields_list headers;
+    headers.emplace_back("Content-Type", "application/json; charset=utf-8");
+    const epee::net_utils::http::http_response_info *http_response = nullptr;
+    client.set_response_body_limit(max_response_bytes);
+    const uint64_t started_ms = epose_v2_steady_milliseconds();
+    if (!client.invoke(uri, "POST", body,
+            std::chrono::milliseconds(EPOSE_V2_PROBE_TIMEOUT_MS),
+            &http_response, std::move(headers)))
+    {
+      if (client.response_body_limit_exceeded())
+        return {receipt_attempt_stage_v2::response_decode,
+            receipt_failure_reason_v2::response_oversized};
+      const uint64_t ended_ms = epose_v2_steady_milliseconds();
+      const uint64_t duration_ms = ended_ms >= started_ms
+          ? ended_ms - started_ms : 0;
+      const boost::system::error_code &error = client.get_last_error();
+      return {error ? receipt_attempt_stage_v2::network_connect
+                    : receipt_attempt_stage_v2::http_exchange,
+          classify_transport_failure_v2(
+              error, duration_ms, EPOSE_V2_PROBE_TIMEOUT_MS)};
+    }
+    if (http_response == nullptr)
+      return {receipt_attempt_stage_v2::http_exchange,
+          receipt_failure_reason_v2::internal_execution_failure};
+    if (http_response->m_response_code != 200)
+      return {receipt_attempt_stage_v2::http_exchange,
+          receipt_failure_reason_v2::http_status_unsuccessful};
+    if (http_response->m_body.size() > max_response_bytes)
+      return {receipt_attempt_stage_v2::response_decode,
+          receipt_failure_reason_v2::response_oversized};
+    if (!epee::serialization::load_t_from_json(response, http_response->m_body))
+      return {receipt_attempt_stage_v2::response_decode,
+          receipt_failure_reason_v2::response_malformed};
+    return {};
+  }
+
   bool parse_epose_discovery_url(
       const std::string &url, std::string &host, uint16_t &port)
   {
@@ -144,7 +202,7 @@ namespace
     return true;
   }
 
-  bool fetch_epose_endpoint_descriptor(
+  qwertycoin::epose::receipt_step_result_v2 fetch_epose_endpoint_descriptor(
       const std::string &url,
       const qwertycoin::epose::consensus_parameters_v2 &parameters,
       const crypto::hash &required_hash,
@@ -154,22 +212,27 @@ namespace
     std::string host;
     uint16_t port = 0;
     if (!parse_epose_discovery_url(url, host, port))
-      return false;
+      return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_lookup,
+          qwertycoin::epose::receipt_failure_reason_v2::descriptor_unavailable};
     epee::net_utils::http::http_simple_client client;
     client.set_server(host, std::to_string(port), boost::none);
     cryptonote::COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::request request{};
     request.descriptor_hash = epee::string_tools::pod_to_hex(required_hash);
     cryptonote::COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response response{};
-    if (!epee::net_utils::invoke_http_json(
-            "/get_epose_service_endpoint_v2", request, response, client,
-            std::chrono::milliseconds(EPOSE_V2_PROBE_TIMEOUT_MS))
-        || response.status != CORE_RPC_STATUS_OK || !response.ready
-        || response.version > std::numeric_limits<uint8_t>::max()
+    const auto http_result = invoke_epose_http_json(
+        "/get_epose_service_endpoint_v2", request, response, client, 4096);
+    if (!http_result.accepted())
+      return http_result;
+    if (response.status != CORE_RPC_STATUS_OK || !response.ready)
+      return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_lookup,
+          qwertycoin::epose::receipt_failure_reason_v2::descriptor_unavailable};
+    if (response.version > std::numeric_limits<uint8_t>::max()
         || response.transport > std::numeric_limits<uint8_t>::max()
         || response.port > std::numeric_limits<uint16_t>::max()
         || response.service_kind > std::numeric_limits<uint8_t>::max()
         || response.service_version > std::numeric_limits<uint8_t>::max())
-      return false;
+      return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
+          qwertycoin::epose::receipt_failure_reason_v2::descriptor_invalid};
     descriptor.version = static_cast<uint8_t>(response.version);
     descriptor.transport = static_cast<qwertycoin::epose::endpoint_transport_v2>(response.transport);
     descriptor.host = response.host;
@@ -188,7 +251,8 @@ namespace
         || descriptor.host != host || descriptor.port != port)
     {
       descriptor = {};
-      return false;
+      return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
+          qwertycoin::epose::receipt_failure_reason_v2::descriptor_invalid};
     }
     const crypto::hash descriptor_hash =
         qwertycoin::epose::hash_endpoint_descriptor_v2(
@@ -200,12 +264,13 @@ namespace
         || advertised_hash != descriptor_hash || descriptor_hash != required_hash)
     {
       descriptor = {};
-      return false;
+      return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
+          qwertycoin::epose::receipt_failure_reason_v2::descriptor_commitment_mismatch};
     }
-    return true;
+    return {};
   }
 
-  bool request_epose_service_response(
+  qwertycoin::epose::receipt_step_result_v2 request_epose_service_response(
       const qwertycoin::epose::service_challenge_v2 &challenge,
       const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,
       const qwertycoin::epose::consensus_parameters_v2 &parameters,
@@ -228,21 +293,31 @@ namespace
     request.nonce = epee::string_tools::pod_to_hex(challenge.nonce);
     request.requested_object_hash = epee::string_tools::pod_to_hex(challenge.requested_object_hash);
     cryptonote::COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::response response{};
-    if (!epee::net_utils::invoke_http_json(
-            "/epose_service_challenge_v2", request, response, client,
-            std::chrono::milliseconds(EPOSE_V2_PROBE_TIMEOUT_MS))
-        || response.status != CORE_RPC_STATUS_OK
+    const size_t max_http_response =
+        EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES * 2 + 4096;
+    const auto http_result = invoke_epose_http_json(
+        "/epose_service_challenge_v2", request, response, client,
+        max_http_response);
+    if (!http_result.accepted())
+      return http_result;
+    if (response.status != CORE_RPC_STATUS_OK)
+      return {qwertycoin::epose::receipt_attempt_stage_v2::http_exchange,
+          qwertycoin::epose::receipt_failure_reason_v2::remote_challenge_rejected};
+    if (response.block_blob.size() % 2 != 0
         || response.block_blob.size() / 2
-            > EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES
-        || !epee::string_tools::parse_hexstr_to_binbuff(
+            > EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES)
+      return {qwertycoin::epose::receipt_attempt_stage_v2::response_decode,
+          qwertycoin::epose::receipt_failure_reason_v2::response_oversized};
+    if (!epee::string_tools::parse_hexstr_to_binbuff(
             response.block_blob, service_response.block_blob)
         || !epee::string_tools::hex_to_pod(
             response.subject_signature, service_response.subject_signature))
     {
       service_response = {};
-      return false;
+      return {qwertycoin::epose::receipt_attempt_stage_v2::response_decode,
+          qwertycoin::epose::receipt_failure_reason_v2::response_malformed};
     }
-    return true;
+    return {};
   }
 }
 
@@ -534,6 +609,31 @@ namespace cryptonote
   void core::stop()
   {
     m_epose_v2_producer_cancel.store(true, std::memory_order_relaxed);
+    m_epose_v2_receipt_cancel.store(true, std::memory_order_relaxed);
+    if (m_epose_v2_active_receipt_job.context.attempt_id != 0)
+    {
+      const uint64_t now_steady_ms = epose_v2_steady_milliseconds();
+      qwertycoin::epose::receipt_attempt_terminal_v2 terminal{};
+      terminal.context = m_epose_v2_active_receipt_job.context;
+      terminal.outcome = qwertycoin::epose::receipt_attempt_outcome_v2::cancelled;
+      terminal.reason = qwertycoin::epose::receipt_failure_reason_v2::cancelled;
+      terminal.completed_utc_ms = epose_v2_utc_milliseconds();
+      terminal.duration_ms = now_steady_ms >= terminal.context.started_steady_ms
+          ? now_steady_ms - terminal.context.started_steady_ms : 0;
+      const auto effect = m_epose_v2_receipt_diagnostics.terminal(
+          terminal, now_steady_ms);
+      if (effect.terminal_recorded)
+        MDEBUG("event=epose_receipt_attempt_terminal utc_ms="
+            << terminal.completed_utc_ms << " attempt_id="
+            << terminal.context.attempt_id
+            << " epoch=" << terminal.context.epoch
+            << " round=" << terminal.context.round
+            << " height=" << terminal.context.chain_height
+            << " outcome=cancelled stage=none reason=cancelled duration_ms="
+            << terminal.duration_ms
+            << " retry_scheduled=false next_retry_utc_ms=0");
+      m_epose_v2_active_receipt_job = {};
+    }
     m_miner.stop();
     m_blockchain_storage.cancel();
 
@@ -1064,12 +1164,91 @@ namespace cryptonote
       if (m_epose_v2_receipt_future.wait_for(std::chrono::seconds(0))
           != std::future_status::ready)
         return true;
-      epose_v2_receipt_job_result result = m_epose_v2_receipt_future.get();
+      epose_v2_receipt_job_result result{};
+      try
+      {
+        result = m_epose_v2_receipt_future.get();
+      }
+      catch (...)
+      {
+        result = m_epose_v2_active_receipt_job;
+        result.stage = qwertycoin::epose::receipt_attempt_stage_v2::none;
+        result.reason = qwertycoin::epose::receipt_failure_reason_v2::internal_execution_failure;
+      }
+      m_epose_v2_active_receipt_job = {};
       m_epose_v2_last_receipt_attempt = std::chrono::steady_clock::now();
+      const auto finish_attempt = [this](
+          const epose_v2_receipt_job_result &finished,
+          const qwertycoin::epose::receipt_attempt_outcome_v2 outcome,
+          const qwertycoin::epose::receipt_attempt_stage_v2 stage,
+          const qwertycoin::epose::receipt_failure_reason_v2 reason,
+          const bool local_accepted,
+          const bool relayed) {
+        const uint64_t now_steady_ms = epose_v2_steady_milliseconds();
+        const uint64_t now_utc_ms = epose_v2_utc_milliseconds();
+        const auto retry = m_epose_v2_receipt_retries.status(finished.slot);
+        qwertycoin::epose::receipt_attempt_terminal_v2 terminal{};
+        terminal.context = finished.context;
+        terminal.outcome = outcome;
+        terminal.stage = stage;
+        terminal.reason = reason;
+        terminal.completed_utc_ms = now_utc_ms;
+        terminal.duration_ms = now_steady_ms >= finished.context.started_steady_ms
+            ? now_steady_ms - finished.context.started_steady_ms : 0;
+        terminal.retry_scheduled = retry.found
+            && retry.next_attempt_ms > now_steady_ms;
+        if (terminal.retry_scheduled)
+          terminal.next_retry_utc_ms = now_utc_ms
+              + (retry.next_attempt_ms - now_steady_ms);
+        terminal.local_submission_accepted = local_accepted;
+        terminal.local_submission_relayed = relayed;
+        const auto effect = m_epose_v2_receipt_diagnostics.terminal(
+            terminal, now_steady_ms);
+        if (!effect.terminal_recorded)
+          return;
+        std::ostringstream terminal_event;
+        terminal_event << "event=epose_receipt_attempt_terminal utc_ms="
+            << terminal.completed_utc_ms << " attempt_id="
+            << terminal.context.attempt_id
+            << " epoch=" << terminal.context.epoch
+            << " round=" << terminal.context.round
+            << " height=" << terminal.context.chain_height
+            << " outcome=" << qwertycoin::epose::to_string(outcome)
+            << " stage=" << qwertycoin::epose::to_string(stage)
+            << " reason=" << qwertycoin::epose::to_string(reason)
+            << " duration_ms=" << terminal.duration_ms
+            << " retry_scheduled=" << terminal.retry_scheduled
+            << " next_retry_utc_ms=" << terminal.next_retry_utc_ms;
+        if (reason
+            == qwertycoin::epose::receipt_failure_reason_v2::internal_execution_failure)
+          MERROR(terminal_event.str());
+        else
+          MDEBUG(terminal_event.str());
+        if (effect.emit_repeated_warning)
+          MWARNING("event=epose_receipt_repeated_failure utc_ms="
+              << now_utc_ms << " epoch="
+              << terminal.context.epoch
+              << " round=" << terminal.context.round
+              << " stage=" << qwertycoin::epose::to_string(stage)
+              << " reason=" << qwertycoin::epose::to_string(reason)
+              << " suppressed=" << effect.suppressed_since_last_warning);
+        if (effect.recovered_after_failures != 0)
+          MGINFO("event=epose_receipt_recovered utc_ms=" << now_utc_ms
+              << " attempt_id="
+              << terminal.context.attempt_id
+              << " epoch=" << terminal.context.epoch
+              << " round=" << terminal.context.round
+              << " previous_failures=" << effect.recovered_after_failures);
+      };
       if (!result.accepted)
       {
         m_epose_v2_receipt_retries.failed(
             result.slot, epose_v2_steady_milliseconds());
+        const auto outcome = result.reason
+                == qwertycoin::epose::receipt_failure_reason_v2::cancelled
+            ? qwertycoin::epose::receipt_attempt_outcome_v2::cancelled
+            : qwertycoin::epose::receipt_attempt_outcome_v2::failure;
+        finish_attempt(result, outcome, result.stage, result.reason, false, false);
         return true;
       }
       bool newly_accepted = false;
@@ -1079,13 +1258,33 @@ namespace cryptonote
       {
         m_epose_v2_receipt_retries.failed(
             result.slot, epose_v2_steady_milliseconds());
+        const bool expired = m_blockchain_storage.get_current_blockchain_height()
+            > result.context.deadline_height;
+        finish_attempt(result,
+            expired
+                ? qwertycoin::epose::receipt_attempt_outcome_v2::expired
+                : qwertycoin::epose::receipt_attempt_outcome_v2::failure,
+            qwertycoin::epose::receipt_attempt_stage_v2::local_submission,
+            expired
+                ? qwertycoin::epose::receipt_failure_reason_v2::deadline_expired
+                : qwertycoin::epose::receipt_failure_reason_v2::local_submission_rejected,
+            false, false);
         return false;
       }
       m_epose_v2_receipt_retries.submitted(
           result.slot, epose_v2_steady_milliseconds());
+      finish_attempt(result,
+          qwertycoin::epose::receipt_attempt_outcome_v2::success,
+          qwertycoin::epose::receipt_attempt_stage_v2::local_submission,
+          qwertycoin::epose::receipt_failure_reason_v2::none,
+          newly_accepted, relayed);
       if (newly_accepted)
-        MGINFO("Submitted authenticated EPoSE-v2 receipt"
-            << (relayed ? " and relayed it" : " locally"));
+        MGINFO("event=epose_receipt_submitted utc_ms="
+            << epose_v2_utc_milliseconds() << " epoch="
+            << result.context.epoch << " round=" << result.context.round
+            << " attempt_id=" << result.context.attempt_id
+            << " relayed=" << relayed
+            << " canonical_inclusion=false consensus_acceptance=pending");
       return true;
     }
 
@@ -1106,6 +1305,10 @@ namespace cryptonote
         / parameters.timing.epoch_length;
     if (m_epose_v2_receipt_epoch != epoch)
     {
+      if (m_epose_v2_receipt_epoch != std::numeric_limits<uint64_t>::max())
+        maybe_log_epose_v2_diagnostic_summary(
+            m_epose_v2_receipt_epoch,
+            std::numeric_limits<uint64_t>::max(), inclusion_height, true);
       m_epose_v2_receipt_epoch = epoch;
     }
 
@@ -1118,16 +1321,26 @@ namespace cryptonote
               == m_epose_v2_keystore.service_public_key;
         });
     if (local_member == snapshot.members.end())
+    {
+      m_epose_v2_receipt_diagnostics.skipped(
+          qwertycoin::epose::receipt_scheduler_skip_v2::not_local_member);
       return true;
+    }
 
     uint64_t epoch_start = 0;
     uint64_t evidence_deadline = 0;
     if (!parameters.timing.epoch_start(epoch, epoch_start)
-        || !parameters.timing.evidence_deadline(epoch, evidence_deadline)
-        || inclusion_height > evidence_deadline)
+        || !parameters.timing.evidence_deadline(epoch, evidence_deadline))
       return true;
+    if (inclusion_height > evidence_deadline)
+    {
+      maybe_log_epose_v2_diagnostic_summary(
+          epoch, std::numeric_limits<uint64_t>::max(), inclusion_height, false);
+      return true;
+    }
 
     uint64_t active_round = std::numeric_limits<uint64_t>::max();
+    uint64_t active_round_deadline = evidence_deadline;
     for (uint64_t round = 0; round < parameters.committee.round_offsets.size(); ++round)
     {
       if (epoch_start > std::numeric_limits<uint64_t>::max()
@@ -1152,11 +1365,22 @@ namespace cryptonote
       if (inclusion_height >= first && inclusion_height <= last)
       {
         active_round = round;
+        active_round_deadline = last;
         break;
       }
     }
     if (active_round == std::numeric_limits<uint64_t>::max())
+    {
+      m_epose_v2_receipt_diagnostics.skipped(
+          qwertycoin::epose::receipt_scheduler_skip_v2::no_active_round);
+      // The transition from an active round into a gap is the round-end
+      // summary. Subsequent gap blocks remain subject to the periodic limit.
+      maybe_log_epose_v2_diagnostic_summary(
+          epoch, std::numeric_limits<uint64_t>::max(), inclusion_height, false);
       return true;
+    }
+    maybe_log_epose_v2_diagnostic_summary(
+        epoch, active_round, inclusion_height, false);
 
     uint64_t anchor_height = snapshot.anchor_height;
     if (active_round != 0)
@@ -1186,7 +1410,11 @@ namespace cryptonote
             return entry.verifier_public_key
                 == m_epose_v2_keystore.service_public_key;
           }))
+      {
+        m_epose_v2_receipt_diagnostics.skipped(
+            qwertycoin::epose::receipt_scheduler_skip_v2::not_committee_member);
         continue;
+      }
       if (m_blockchain_storage.has_epose_receipt_slot_v2(
               epoch, active_round, subject.service_public_key,
               m_epose_v2_keystore.service_public_key))
@@ -1195,6 +1423,14 @@ namespace cryptonote
             epoch, active_round, subject.service_public_key,
             m_epose_v2_keystore.service_public_key, anchor_hash);
         m_epose_v2_receipt_retries.canonical(canonical_slot);
+        if (m_epose_v2_receipt_diagnostics.canonical_inclusion(
+                epoch, active_round, canonical_slot))
+          MDEBUG("event=epose_receipt_canonical_inclusion utc_ms="
+              << epose_v2_utc_milliseconds() << " epoch=" << epoch
+              << " round=" << active_round << " height=" << inclusion_height
+              << " stage=canonical_inclusion outcome=success");
+        m_epose_v2_receipt_diagnostics.skipped(
+            qwertycoin::epose::receipt_scheduler_skip_v2::already_canonical);
         continue;
       }
       const crypto::hash slot = epose_v2_receipt_slot_hash(
@@ -1202,7 +1438,11 @@ namespace cryptonote
           m_epose_v2_keystore.service_public_key, anchor_hash);
       const uint64_t now_ms = epose_v2_steady_milliseconds();
       if (!m_epose_v2_receipt_retries.can_attempt(slot, now_ms))
+      {
+        m_epose_v2_receipt_diagnostics.skipped(
+            qwertycoin::epose::receipt_scheduler_skip_v2::retry_backoff);
         continue;
+      }
 
       qwertycoin::epose::service_challenge_v2 challenge{};
       challenge.service_kind = parameters.committee.service_kind;
@@ -1229,41 +1469,46 @@ namespace cryptonote
       qwertycoin::epose::endpoint_descriptor_v2 cached_endpoint{};
       const bool cached_endpoint_found = get_epose_v2_endpoint_descriptor(
           cached_endpoint, &challenge.endpoint_descriptor_hash);
+      qwertycoin::epose::receipt_attempt_context_v2 attempt{};
+      attempt.attempt_id = m_epose_v2_receipt_diagnostics.next_attempt_id();
+      attempt.epoch = epoch;
+      attempt.round = active_round;
+      attempt.chain_height = inclusion_height;
+      attempt.deadline_height = active_round_deadline;
+      attempt.slot = slot;
+      attempt.subject_identity = subject.service_public_key;
+      attempt.verifier_identity = m_epose_v2_keystore.service_public_key;
+      attempt.endpoint_commitment = subject.endpoint_descriptor_hash;
+      attempt.started_utc_ms = epose_v2_utc_milliseconds();
+      attempt.started_steady_ms = now_ms;
+      if (!m_epose_v2_receipt_diagnostics.started(attempt))
+      {
+        m_epose_v2_receipt_retries.failed(slot, now_ms);
+        MERROR("event=epose_receipt_attempt_internal_failure utc_ms="
+            << epose_v2_utc_milliseconds() << " attempt_id="
+            << attempt.attempt_id
+            << " stage=diagnostic_start outcome=failure reason=internal_execution_failure");
+        return false;
+      }
+      m_epose_v2_active_receipt_job = {};
+      m_epose_v2_active_receipt_job.slot = slot;
+      m_epose_v2_active_receipt_job.context = attempt;
+      m_epose_v2_receipt_cancel.store(false, std::memory_order_relaxed);
       m_epose_v2_last_receipt_attempt = now;
-      m_epose_v2_receipt_future = std::async(
-          std::launch::async,
-          [parameters, challenge, context, discovery, service_secret,
-           cached_endpoint, cached_endpoint_found, anchor_blob, slot]() mutable {
+      try
+      {
+        m_epose_v2_receipt_future = std::async(
+            std::launch::async,
+            [parameters, challenge, context, discovery, service_secret,
+             cached_endpoint, cached_endpoint_found, anchor_blob, slot, attempt,
+             cancel = &m_epose_v2_receipt_cancel]() mutable {
             epose_v2_receipt_job_result result{};
             result.slot = slot;
+            result.context = attempt;
             qwertycoin::epose::endpoint_descriptor_v2 endpoint = cached_endpoint;
-            bool found = cached_endpoint_found;
-            for (const std::string &url : discovery)
-            {
-              if (found)
-                break;
-              qwertycoin::epose::endpoint_descriptor_v2 candidate{};
-              if (fetch_epose_endpoint_descriptor(
-                      url, parameters,
-                      challenge.endpoint_descriptor_hash, candidate)
-                  && candidate.service_public_key
-                      == challenge.subject_public_key
-                  && qwertycoin::epose::hash_endpoint_descriptor_v2(
-                         parameters.nettype, parameters.genesis_hash,
-                         parameters.parameter_set_hash, candidate)
-                      == challenge.endpoint_descriptor_hash)
-              {
-                endpoint = std::move(candidate);
-                found = true;
-                break;
-              }
-            }
-            if (!found)
-              return result;
             qwertycoin::epose::canonical_service_response_v2 response{};
-            if (!request_epose_service_response(
-                    challenge, endpoint, parameters, response))
-              return result;
+            qwertycoin::epose::authenticated_service_receipt_v2 receipt{};
+            qwertycoin::epose::envelope_record_v2 record{};
             const auto authorize = [&challenge, &context](
                 const qwertycoin::epose::service_challenge_v2 &candidate,
                 const qwertycoin::epose::receipt_context_v2 &candidate_context) {
@@ -1283,35 +1528,271 @@ namespace cryptonote
               blob = anchor_blob;
               return true;
             };
-            qwertycoin::epose::authenticated_service_receipt_v2 receipt{};
-            if (qwertycoin::epose::verify_canonical_block_response_v2(
-                    challenge, response, context,
-                    {EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES},
-                    service_secret, authorize, source, receipt)
-                != qwertycoin::epose::canonical_service_status_v2::accepted)
+            using qwertycoin::epose::receipt_attempt_stage_v2;
+            using qwertycoin::epose::receipt_failure_reason_v2;
+            std::vector<qwertycoin::epose::receipt_attempt_step_v2> steps;
+            steps.emplace_back([&]() {
+              if (cached_endpoint_found)
+              {
+                if (endpoint.service_public_key != challenge.subject_public_key)
+                  return qwertycoin::epose::receipt_step_result_v2{
+                      receipt_attempt_stage_v2::descriptor_validation,
+                      receipt_failure_reason_v2::response_identity_mismatch};
+                if (qwertycoin::epose::hash_endpoint_descriptor_v2(
+                        parameters.nettype, parameters.genesis_hash,
+                        parameters.parameter_set_hash, endpoint)
+                    != challenge.endpoint_descriptor_hash)
+                  return qwertycoin::epose::receipt_step_result_v2{
+                      receipt_attempt_stage_v2::descriptor_validation,
+                      receipt_failure_reason_v2::descriptor_commitment_mismatch};
+                return qwertycoin::epose::receipt_step_result_v2{};
+              }
+              qwertycoin::epose::receipt_step_result_v2 best{
+                  receipt_attempt_stage_v2::descriptor_lookup,
+                  receipt_failure_reason_v2::descriptor_unavailable};
+              for (const std::string &url : discovery)
+              {
+                qwertycoin::epose::endpoint_descriptor_v2 candidate{};
+                const auto fetched = fetch_epose_endpoint_descriptor(
+                    url, parameters, challenge.endpoint_descriptor_hash,
+                    candidate);
+                if (!fetched.accepted())
+                {
+                  if (fetched.reason
+                      != receipt_failure_reason_v2::descriptor_unavailable)
+                    best = fetched;
+                  continue;
+                }
+                if (candidate.service_public_key != challenge.subject_public_key)
+                {
+                  best = {receipt_attempt_stage_v2::descriptor_validation,
+                      receipt_failure_reason_v2::response_identity_mismatch};
+                  continue;
+                }
+                endpoint = std::move(candidate);
+                return qwertycoin::epose::receipt_step_result_v2{};
+              }
+              return best;
+            });
+            steps.emplace_back([&]() {
+              return request_epose_service_response(
+                  challenge, endpoint, parameters, response);
+            });
+            steps.emplace_back([&]() {
+              const auto status =
+                  qwertycoin::epose::verify_canonical_block_response_v2(
+                      challenge, response, context,
+                      {EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES},
+                      service_secret, authorize, source, receipt);
+              return qwertycoin::epose::receipt_step_result_v2{
+                  receipt_attempt_stage_v2::response_validation,
+                  qwertycoin::epose::map_canonical_service_failure_v2(status)};
+            });
+            steps.emplace_back([&]() {
+              const auto status =
+                  qwertycoin::epose::encode_service_receipt_record_v2(
+                      receipt, context, record);
+              return qwertycoin::epose::receipt_step_result_v2{
+                  receipt_attempt_stage_v2::receipt_encoding,
+                  status == qwertycoin::epose::record_codec_status_v2::accepted
+                      ? receipt_failure_reason_v2::none
+                      : receipt_failure_reason_v2::receipt_encoding_failed};
+            });
+            steps.emplace_back([&]() {
+              qwertycoin::epose::envelope_budget_v2 budget{};
+              const auto status = qwertycoin::epose::encode_envelope_v2(
+                  {record}, parameters.limits.envelope,
+                  result.envelope, budget);
+              if (status != qwertycoin::epose::envelope_status_v2::accepted)
+                result.envelope.clear();
+              return qwertycoin::epose::receipt_step_result_v2{
+                  receipt_attempt_stage_v2::envelope_encoding,
+                  status == qwertycoin::epose::envelope_status_v2::accepted
+                      ? receipt_failure_reason_v2::none
+                      : receipt_failure_reason_v2::envelope_encoding_failed};
+            });
+            const auto attempt_result =
+                qwertycoin::epose::run_receipt_attempt_steps_v2(
+                    steps, [cancel]() {
+                      return cancel->load(std::memory_order_relaxed);
+                    });
+            result.stage = attempt_result.stage;
+            result.reason = attempt_result.reason;
+            if (!attempt_result.accepted())
               return result;
-            qwertycoin::epose::envelope_record_v2 record{};
-            if (qwertycoin::epose::encode_service_receipt_record_v2(
-                    receipt, context, record)
-                != qwertycoin::epose::record_codec_status_v2::accepted)
-              return result;
-            qwertycoin::epose::envelope_budget_v2 budget{};
-            if (qwertycoin::epose::encode_envelope_v2(
-                    {record}, parameters.limits.envelope,
-                    result.envelope, budget)
-                != qwertycoin::epose::envelope_status_v2::accepted)
-            {
-              result.envelope.clear();
-              return result;
-            }
             result.accepted = true;
             return result;
-          });
-      MGINFO("Started bounded EPoSE-v2 service challenge for epoch "
-          << epoch << ", round " << active_round);
+            });
+      }
+      catch (...)
+      {
+        m_epose_v2_receipt_retries.failed(slot, epose_v2_steady_milliseconds());
+        qwertycoin::epose::receipt_attempt_terminal_v2 terminal{};
+        terminal.context = attempt;
+        terminal.outcome = qwertycoin::epose::receipt_attempt_outcome_v2::failure;
+        terminal.reason = qwertycoin::epose::receipt_failure_reason_v2::internal_execution_failure;
+        terminal.completed_utc_ms = epose_v2_utc_milliseconds();
+        terminal.duration_ms = epose_v2_steady_milliseconds() >= attempt.started_steady_ms
+            ? epose_v2_steady_milliseconds() - attempt.started_steady_ms : 0;
+        m_epose_v2_receipt_diagnostics.terminal(
+            terminal, epose_v2_steady_milliseconds());
+        m_epose_v2_active_receipt_job = {};
+        MERROR("event=epose_receipt_attempt_internal_failure utc_ms="
+            << terminal.completed_utc_ms << " attempt_id="
+            << attempt.attempt_id
+            << " stage=async_launch outcome=failure reason=internal_execution_failure");
+        return false;
+      }
+      MDEBUG("event=epose_receipt_attempt_started utc_ms="
+          << attempt.started_utc_ms << " attempt_id="
+          << attempt.attempt_id << " epoch=" << epoch
+          << " round=" << active_round << " height=" << inclusion_height
+          << " subject=" << epee::string_tools::pod_to_hex(attempt.subject_identity)
+          << " verifier=" << epee::string_tools::pod_to_hex(attempt.verifier_identity)
+          << " endpoint_commitment="
+          << epee::string_tools::pod_to_hex(attempt.endpoint_commitment)
+          << " deadline_height=" << attempt.deadline_height
+          << " stage=descriptor_lookup outcome=started");
       return true;
     }
     return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::maybe_log_epose_v2_diagnostic_summary(
+      const uint64_t epoch,
+      const uint64_t round,
+      const uint64_t height,
+      const bool force)
+  {
+    if (m_epose_v2_last_diagnostic_summary_height == height
+        && m_epose_v2_last_diagnostic_summary_epoch == epoch
+        && m_epose_v2_last_diagnostic_summary_round == round)
+      return;
+    const bool boundary = m_epose_v2_last_diagnostic_summary_epoch != epoch
+        || m_epose_v2_last_diagnostic_summary_round != round;
+    const bool periodic = m_epose_v2_last_diagnostic_summary_height
+            == std::numeric_limits<uint64_t>::max()
+        || height >= m_epose_v2_last_diagnostic_summary_height + 60;
+    if (!force && !boundary && !periodic)
+      return;
+
+    qwertycoin::epose::receipt_diagnostics_snapshot_v2 operations{};
+    qwertycoin::epose::qualification_diagnostics_v2 qualification{};
+    if (!get_epose_v2_diagnostics(operations, qualification, epoch))
+      return;
+
+    uint64_t started = 0;
+    uint64_t completed = 0;
+    uint64_t succeeded = 0;
+    uint64_t failed = 0;
+    uint64_t cancelled = 0;
+    uint64_t expired = 0;
+    uint64_t submitted = 0;
+    uint64_t canonical = 0;
+    std::ostringstream rounds;
+    for (const auto &entry : operations.rounds)
+    {
+      if (entry.epoch != epoch)
+        continue;
+      started += entry.attempts_started;
+      completed += entry.attempts_completed;
+      succeeded += entry.attempts_succeeded;
+      failed += entry.attempts_failed;
+      cancelled += entry.attempts_cancelled;
+      expired += entry.attempts_expired;
+      submitted += entry.local_submissions_accepted;
+      canonical += entry.canonical_inclusions_observed;
+      if (rounds.tellp() != std::streampos(0))
+        rounds << ',';
+      rounds << entry.round << ':' << entry.attempts_started << '/'
+          << entry.attempts_completed << '/' << entry.attempts_failed << '/'
+          << entry.attempts_cancelled << '/' << entry.attempts_expired;
+    }
+
+    std::ostringstream failures;
+    for (const auto &entry : operations.failures)
+    {
+      if (entry.epoch != epoch)
+        continue;
+      if (failures.tellp() != std::streampos(0))
+        failures << ',';
+      failures << entry.round << ':'
+          << qwertycoin::epose::to_string(entry.stage) << ':'
+          << qwertycoin::epose::to_string(entry.reason) << ':'
+          << entry.count;
+    }
+
+    std::ostringstream coverage;
+    std::ostringstream required_receipts;
+    if (!qualification.available)
+    {
+      coverage << "unknown";
+      required_receipts << "unknown";
+    }
+    else
+    {
+      for (size_t index = 0;
+           index < qualification.canonical_unique_receipts.size(); ++index)
+      {
+        if (index != 0)
+        {
+          coverage << ',';
+          required_receipts << ',';
+        }
+        coverage << qualification.canonical_unique_receipts[index] << '/'
+            << qualification.committee_sizes[index];
+        required_receipts << qualification.required_receipts[index];
+      }
+    }
+    const char *state =
+        qwertycoin::epose::qualification_state_v2(qualification);
+    const uint64_t summary_utc_ms = epose_v2_utc_milliseconds();
+    MGINFO("event=epose_receipt_summary utc_ms=" << summary_utc_ms
+        << " epoch=" << epoch
+        << " round="
+        << (round == std::numeric_limits<uint64_t>::max()
+            ? std::string("none") : std::to_string(round))
+        << " height=" << height
+        << " attempts_started=" << started
+        << " attempts_completed=" << completed
+        << " attempts_succeeded=" << succeeded
+        << " attempts_failed=" << failed
+        << " attempts_cancelled=" << cancelled
+        << " attempts_expired=" << expired
+        << " attempts_in_flight=" << operations.attempts_in_flight
+        << " local_submissions=" << submitted
+        << " canonical_inclusions=" << canonical
+        << " round_counters=" << (rounds.str().empty() ? "none" : rounds.str())
+        << " failure_groups="
+        << (failures.str().empty() ? "none" : failures.str())
+        << " canonical_unique_receipts=" << coverage.str()
+        << " required_receipts=" << required_receipts.str()
+        << " rounds_passed="
+        << (qualification.available
+            ? std::to_string(qualification.rounds_passed) : "unknown")
+        << " rounds_required="
+        << (qualification.available
+            ? std::to_string(qualification.rounds_required) : "unknown")
+        << " subject_in_snapshot="
+        << (qualification.available
+            ? (qualification.subject_in_snapshot ? "true" : "false")
+            : "unknown")
+        << " qualification=" << state);
+    if (qualification.available && qualification.finalized
+        && !qualification.qualified)
+      MGINFO("event=epose_qualification_final utc_ms=" << summary_utc_ms
+          << " epoch=" << epoch
+          << " outcome=not_qualified canonical_unique_receipts="
+          << coverage.str() << " required_receipts="
+          << required_receipts.str() << " rounds_passed="
+          << qualification.rounds_passed << " rounds_required="
+          << qualification.rounds_required << " unmet_rounds="
+          << qualification.rounds_remaining << " unmet_rule="
+          << qwertycoin::epose::qualification_unmet_rule_v2(qualification));
+
+    m_epose_v2_last_diagnostic_summary_height = height;
+    m_epose_v2_last_diagnostic_summary_epoch = epoch;
+    m_epose_v2_last_diagnostic_summary_round = round;
   }
   //-----------------------------------------------------------------------------------------------
   namespace
@@ -1658,6 +2139,92 @@ namespace cryptonote
         challenge, context, {EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES},
         m_epose_v2_keystore.service_secret_key, authorize, source,
         response) == qwertycoin::epose::canonical_service_status_v2::accepted;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::get_epose_v2_diagnostics(
+      qwertycoin::epose::receipt_diagnostics_snapshot_v2 &operations,
+      qwertycoin::epose::qualification_diagnostics_v2 &qualification,
+      const uint64_t requested_epoch) const
+  {
+    operations = m_epose_v2_receipt_diagnostics.snapshot();
+    qualification = {};
+    if (!m_epose_v2_service_ready)
+      return true;
+
+    qwertycoin::epose::consensus_parameters_v2 parameters{};
+    if (!m_blockchain_storage.get_epose_consensus_parameters_v2(parameters))
+      return true;
+    const uint64_t height = m_blockchain_storage.get_current_blockchain_height();
+    if (height < parameters.timing.activation_height)
+      return true;
+    const uint64_t current_epoch =
+        (height - parameters.timing.activation_height)
+        / parameters.timing.epoch_length;
+    const uint64_t epoch = requested_epoch == std::numeric_limits<uint64_t>::max()
+        ? current_epoch : requested_epoch;
+    if (epoch > current_epoch)
+      return true;
+    qualification.epoch = epoch;
+    qualification.chain_height = height;
+    if (!parameters.timing.evidence_deadline(
+            epoch, qualification.evidence_deadline_height))
+      return true;
+
+    qwertycoin::epose::membership_snapshot_v2 snapshot{};
+    if (!m_blockchain_storage.get_epose_membership_snapshot_v2(epoch, snapshot))
+      return true;
+    const auto historical_member = std::find_if(
+        snapshot.members.begin(), snapshot.members.end(), [this](const auto &member) {
+          return member.identity_id == m_epose_v2_identity_id;
+        });
+    qualification.subject_in_snapshot = historical_member != snapshot.members.end();
+    if (qualification.subject_in_snapshot)
+      qualification.subject_identity = historical_member->service_public_key;
+
+    std::vector<size_t> coverage;
+    if (qualification.subject_in_snapshot)
+    {
+      if (!m_blockchain_storage.get_epose_receipt_coverage_v2(
+              epoch, qualification.subject_identity, coverage))
+        return true;
+    }
+    else
+      coverage.assign(parameters.committee.round_count, 0);
+
+    qualification.available = true;
+    qualification.rounds_required = parameters.committee.rounds_required;
+    const size_t committee_size = snapshot.members.size() > 1
+        ? std::min(parameters.committee.committee_size,
+              snapshot.members.size() - 1)
+        : 0;
+    const size_t required =
+        qwertycoin::epose::required_receipts_for_committee_size_v2(
+            committee_size);
+    qualification.canonical_unique_receipts.reserve(coverage.size());
+    qualification.committee_sizes.assign(coverage.size(),
+        qualification.subject_in_snapshot ? committee_size : 0);
+    qualification.required_receipts.assign(coverage.size(),
+        qualification.subject_in_snapshot ? required : 0);
+    for (const size_t count : coverage)
+    {
+      qualification.canonical_unique_receipts.push_back(count);
+      if (qualification.subject_in_snapshot
+          && count >= required && required != 0)
+        ++qualification.rounds_passed;
+    }
+    qualification.rounds_remaining = qualification.rounds_passed
+            >= qualification.rounds_required
+        ? 0 : qualification.rounds_required - qualification.rounds_passed;
+
+    qwertycoin::epose::qualification_set_v2 finalized{};
+    qualification.finalized = m_blockchain_storage.get_epose_qualification_v2(
+        epoch, finalized);
+    if (qualification.finalized)
+      qualification.qualified = std::find(
+          finalized.qualified_nodes.begin(), finalized.qualified_nodes.end(),
+          qualification.subject_identity)
+          != finalized.qualified_nodes.end();
+    return true;
   }
   //-----------------------------------------------------------------------------------------------
   uint64_t core::get_current_blockchain_height() const

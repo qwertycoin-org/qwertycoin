@@ -533,6 +533,48 @@ TEST(epose_v2, later_rounds_have_distinct_windows_and_fresh_canonical_anchors)
           receipt_context(), 2560, round_anchor));
 }
 
+TEST(epose_v2, three_round_coverage_reports_partial_later_round_participation)
+{
+  auto pipeline = make_pipeline({3, 2, 3, 2, 1, {0, 200, 400}});
+  const auto members = admit_and_freeze_keyed(pipeline, 5);
+  const auto *snapshot = pipeline.snapshot(3);
+  ASSERT_NE(nullptr, snapshot);
+  const crypto::hash anchors[3]{
+      snapshot->anchor_hash, hash_text("round-one-anchor"),
+      hash_text("round-two-anchor")};
+  const uint64_t heights[3]{2200, 2361, 2561};
+  const size_t accepted_per_round[3]{3, 1, 0};
+
+  for (uint64_t round = 0; round < 3; ++round)
+  {
+    const auto selected = pipeline.committee(
+        3, round, members[0].member.service_public_key, anchors[round]);
+    ASSERT_EQ(3u, selected.size());
+    for (size_t index = 0; index < accepted_per_round[round]; ++index)
+    {
+      const auto &verifier = find_keyed_member(
+          members, selected[index].verifier_public_key);
+      ASSERT_EQ(pipeline_status_v2::accepted,
+          pipeline.apply_authenticated_receipt(
+              make_receipt(3, round, members[0], verifier, *snapshot,
+                  round * 10 + index, 1, anchors[round]),
+              receipt_context(), heights[round] + index, anchors[round]));
+    }
+  }
+
+  const crypto::hash state_before_diagnostics = pipeline.state_hash();
+  const auto coverage = pipeline.receipt_coverage(
+      3, members[0].member.service_public_key);
+  EXPECT_EQ(state_before_diagnostics, pipeline.state_hash());
+  ASSERT_EQ(3u, coverage.size());
+  EXPECT_EQ(3u, coverage[0]);
+  EXPECT_EQ(1u, coverage[1]);
+  EXPECT_EQ(0u, coverage[2]);
+  ASSERT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  ASSERT_NE(nullptr, pipeline.qualification(3));
+  EXPECT_TRUE(pipeline.qualification(3)->qualified_nodes.empty());
+}
+
 TEST(epose_v2, qualification_closes_once_and_uses_configured_full_committee_quorum)
 {
   auto pipeline = make_pipeline({2, 2, 1, 1, 1, {0}});

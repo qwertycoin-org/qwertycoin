@@ -111,7 +111,8 @@ namespace net_utils
 				m_deadline(m_io_service, std::chrono::steady_clock::time_point::max()),
 				m_shutdowned(false),
 				m_bytes_sent(0),
-				m_bytes_received(0)
+				m_bytes_received(0),
+				m_last_error()
 		{
 			check_deadline();
 		}
@@ -209,6 +210,7 @@ namespace net_utils
 			bool connect(const std::string& addr, const std::string& port, std::chrono::milliseconds timeout)
 		{
 			m_connected = false;
+			m_last_error.clear();
 			try
 			{
 				m_ssl_socket->next_layer().close();
@@ -235,6 +237,7 @@ namespace net_utils
 			}
 			catch(const boost::system::system_error& er)
 			{
+				m_last_error = er.code();
 				MDEBUG("Some problems at connect, message: " << er.what());
 				return false;
 			}
@@ -245,6 +248,11 @@ namespace net_utils
 			}
 
 			return true;
+		}
+
+		const boost::system::error_code& get_last_error() const
+		{
+			return m_last_error;
 		}
 		//! Change the connection routine (proxy, etc.)
 		void set_connector(std::function<connect_func> connector)
@@ -309,6 +317,7 @@ namespace net_utils
 
 				if (ec)
 				{
+					m_last_error = ec;
 					LOG_PRINT_L3("Problems at write: " << ec.message());
           m_connected = false;
 					return false;
@@ -321,6 +330,7 @@ namespace net_utils
 
 			catch(const boost::system::system_error& er)
 			{
+				m_last_error = er.code();
 				LOG_ERROR("Some problems at connect, message: " << er.what());
 				return false;
 			}
@@ -366,6 +376,7 @@ namespace net_utils
 
 				if (!writen || ec)
 				{
+					m_last_error = ec;
 					LOG_PRINT_L3("Problems at write: " << ec.message());
           m_connected = false;
 					return false;
@@ -378,6 +389,7 @@ namespace net_utils
 
 			catch(const boost::system::system_error& er)
 			{
+				m_last_error = er.code();
 				LOG_ERROR("Some problems at send, message: " << er.what());
         m_connected = false;
 				return false;
@@ -453,6 +465,7 @@ namespace net_utils
                     }
 
 					MDEBUG("Problems at read: " << ec.message());
+					m_last_error = ec;
                     m_connected = false;
 					return false;
 				}else
@@ -471,6 +484,7 @@ namespace net_utils
 
 			catch(const boost::system::system_error& er)
 			{
+				m_last_error = er.code();
 				LOG_ERROR("Some problems at read, message: " << er.what());
         m_connected = false;
 				return false;
@@ -525,6 +539,7 @@ namespace net_utils
 
 				if (ec)
 				{
+					m_last_error = ec;
 					LOG_PRINT_L3("Problems at read: " << ec.message());
           m_connected = false;
 					return false;
@@ -545,6 +560,7 @@ namespace net_utils
 
 			catch(const boost::system::system_error& er)
 			{
+				m_last_error = er.code();
 				LOG_ERROR("Some problems at read, message: " << er.what());
         m_connected = false;
 				return false;
@@ -687,7 +703,7 @@ namespace net_utils
 		std::atomic<bool> m_shutdowned;
 		std::atomic<uint64_t> m_bytes_sent;
 		std::atomic<uint64_t> m_bytes_received;
+		boost::system::error_code m_last_error;
 	};
 }
 }
-

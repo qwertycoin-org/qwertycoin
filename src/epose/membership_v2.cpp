@@ -762,6 +762,26 @@ namespace epose
     });
   }
 
+  std::vector<size_t> membership_pipeline_v2::receipt_coverage(
+      const uint64_t epoch,
+      const crypto::public_key &subject_public_key) const
+  {
+    std::vector<size_t> coverage(policy_.round_count, 0);
+    for (uint64_t round = 0; round < policy_.round_count; ++round)
+    {
+      std::set<std::string> voters;
+      for (const stored_receipt &stored : receipts_)
+      {
+        if (stored.epoch == epoch && stored.round == round
+            && bytes_equal(stored.subject_public_key, subject_public_key))
+          voters.emplace(reinterpret_cast<const char *>(&stored.verifier_public_key),
+              sizeof(stored.verifier_public_key));
+      }
+      coverage[round] = voters.size();
+    }
+    return coverage;
+  }
+
   crypto::hash membership_pipeline_v2::state_hash() const
   {
     std::string blob("QWC_EPOSE_PIPELINE_STATE_V2");
