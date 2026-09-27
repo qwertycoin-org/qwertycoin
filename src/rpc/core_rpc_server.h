@@ -134,6 +134,7 @@ namespace cryptonote
       MAP_URI_AUTO_JON2("/get_info", on_get_info, COMMAND_RPC_GET_INFO)
       MAP_URI_AUTO_JON2("/getinfo", on_get_info, COMMAND_RPC_GET_INFO)
       MAP_URI_AUTO_JON2("/get_epose_info", on_get_epose_info, COMMAND_RPC_GET_EPOSE_INFO)
+      MAP_URI_AUTO_JON2_IF("/get_epose_diagnostics", on_get_epose_diagnostics, COMMAND_RPC_GET_EPOSE_DIAGNOSTICS, !m_restricted)
       MAP_URI_AUTO_JON2("/get_service_nodes", on_get_service_nodes, COMMAND_RPC_GET_SERVICE_NODES)
       MAP_URI_AUTO_JON2("/get_service_node_status", on_get_service_node_status, COMMAND_RPC_GET_SERVICE_NODE_STATUS)
       MAP_URI_AUTO_JON2("/get_service_node_registration_payload", on_get_service_node_registration_payload, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD)
@@ -178,6 +179,7 @@ namespace cryptonote
         MAP_JON_RPC_WE_IF("get_connections",     on_get_connections,            COMMAND_RPC_GET_CONNECTIONS, !m_restricted)
         MAP_JON_RPC_WE("get_info",               on_get_info_json,              COMMAND_RPC_GET_INFO)
         MAP_JON_RPC("get_epose_info",            on_get_epose_info,             COMMAND_RPC_GET_EPOSE_INFO)
+        MAP_JON_RPC_WE_IF("get_epose_diagnostics", on_get_epose_diagnostics_json, COMMAND_RPC_GET_EPOSE_DIAGNOSTICS, !m_restricted)
         MAP_JON_RPC("get_service_nodes",         on_get_service_nodes,          COMMAND_RPC_GET_SERVICE_NODES)
         MAP_JON_RPC("get_service_node_status",   on_get_service_node_status,    COMMAND_RPC_GET_SERVICE_NODE_STATUS)
         MAP_JON_RPC("get_service_node_registration_payload", on_get_service_node_registration_payload, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD)
@@ -225,6 +227,8 @@ namespace cryptonote
     bool on_get_outs(const COMMAND_RPC_GET_OUTPUTS::request& req, COMMAND_RPC_GET_OUTPUTS::response& res, const connection_context *ctx = NULL);
     bool on_get_info(const COMMAND_RPC_GET_INFO::request& req, COMMAND_RPC_GET_INFO::response& res, const connection_context *ctx = NULL);
     bool on_get_epose_info(const COMMAND_RPC_GET_EPOSE_INFO::request& req, COMMAND_RPC_GET_EPOSE_INFO::response& res, const connection_context *ctx = NULL);
+    bool on_get_epose_diagnostics(const COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::request& req, COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::response& res, const connection_context *ctx = NULL);
+    bool on_get_epose_diagnostics_json(const COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::request& req, COMMAND_RPC_GET_EPOSE_DIAGNOSTICS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, const connection_context *ctx = NULL);
     bool on_get_service_node_status(const COMMAND_RPC_GET_SERVICE_NODE_STATUS::request& req, COMMAND_RPC_GET_SERVICE_NODE_STATUS::response& res, const connection_context *ctx = NULL);
     bool on_get_service_node_registration_payload(const COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::request& req, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::response& res, const connection_context *ctx = NULL);
@@ -327,6 +331,7 @@ private:
     std::chrono::system_clock::time_point m_bootstrap_height_check_time;
     bool m_was_bootstrap_ever_used;
     bool m_restricted;
+    bool m_rpc_login_configured;
     epee::critical_section m_host_fails_score_lock;
     std::map<std::string, uint64_t> m_host_fails_score;
     std::set<std::string> m_rpc_ban_exempt_addresses;

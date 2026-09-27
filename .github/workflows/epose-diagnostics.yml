@@ -1,0 +1,67 @@
+name: ci/epose-diagnostics
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/epose-diagnostics.yml'
+      - 'contrib/epee/include/net/**'
+      - 'docs/epose/**'
+      - 'src/cryptonote_core/**'
+      - 'src/epose/**'
+      - 'src/rpc/**'
+      - 'tests/unit_tests/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: epose-diagnostics-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    name: Focused diagnostics and daemon build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build daemon and focused EPoSE tests
+        run: |
+          docker build \
+            --build-arg NPROC=2 \
+            --build-arg EPOSE_BUILD_TARGETS="daemon epose_unit_tests" \
+            -f Dockerfile.epose-dev \
+            -t qwertycoin-v2-node:epose-diagnostics .
+
+      - name: Run focused EPoSE tests
+        run: |
+          docker run --rm \
+            --entrypoint /usr/local/bin/qwertycoin-epose-unit-tests \
+            qwertycoin-v2-node:epose-diagnostics
+
+  asan:
+    name: Diagnostics AddressSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build focused ASan tests
+        run: |
+          docker build \
+            --build-arg NPROC=1 \
+            --build-arg EPOSE_SANITIZE=ON \
+            --build-arg EPOSE_BUILD_TARGETS="epose_unit_tests" \
+            -f Dockerfile.epose-dev \
+            -t qwertycoin-v2-node:epose-diagnostics-asan .
+
+      - name: Run focused ASan tests
+        run: |
+          docker run --rm \
+            --entrypoint /usr/local/bin/qwertycoin-epose-unit-tests \
+            -e ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
+            qwertycoin-v2-node:epose-diagnostics-asan

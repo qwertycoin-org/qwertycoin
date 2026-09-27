@@ -30,6 +30,8 @@
 
 #pragma once
 
+#include <limits>
+
 #include "string_tools.h"
 
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
@@ -879,6 +881,175 @@ namespace cryptonote
         KV_SERIALIZE(local_service_reward_address)
         KV_SERIALIZE(local_service_advertised_endpoint)
         KV_SERIALIZE(local_service_endpoint_commitment)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct epose_diagnostic_round_entry
+  {
+    uint64_t epoch;
+    uint64_t round;
+    uint64_t attempts_started;
+    uint64_t attempts_completed;
+    uint64_t attempts_succeeded;
+    uint64_t attempts_failed;
+    uint64_t attempts_cancelled;
+    uint64_t attempts_expired;
+    uint64_t local_submissions_accepted;
+    uint64_t canonical_inclusions_observed;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(epoch)
+      KV_SERIALIZE(round)
+      KV_SERIALIZE(attempts_started)
+      KV_SERIALIZE(attempts_completed)
+      KV_SERIALIZE(attempts_succeeded)
+      KV_SERIALIZE(attempts_failed)
+      KV_SERIALIZE(attempts_cancelled)
+      KV_SERIALIZE(attempts_expired)
+      KV_SERIALIZE(local_submissions_accepted)
+      KV_SERIALIZE(canonical_inclusions_observed)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct epose_diagnostic_failure_entry
+  {
+    uint64_t epoch;
+    uint64_t round;
+    std::string stage;
+    std::string reason;
+    uint64_t count;
+    uint64_t suppressed_log_count;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(epoch)
+      KV_SERIALIZE(round)
+      KV_SERIALIZE(stage)
+      KV_SERIALIZE(reason)
+      KV_SERIALIZE(count)
+      KV_SERIALIZE(suppressed_log_count)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct epose_diagnostic_skip_entry
+  {
+    std::string reason;
+    uint64_t count;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(reason)
+      KV_SERIALIZE(count)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct epose_diagnostic_attempt_entry
+  {
+    uint64_t attempt_id;
+    uint64_t epoch;
+    uint64_t round;
+    uint64_t chain_height;
+    uint64_t deadline_height;
+    std::string subject_identity;
+    std::string verifier_identity;
+    std::string endpoint_commitment;
+    std::string outcome;
+    std::string stage;
+    std::string reason;
+    uint64_t started_utc_ms;
+    uint64_t completed_utc_ms;
+    uint64_t duration_ms;
+    bool retry_scheduled;
+    uint64_t next_retry_utc_ms;
+    bool local_submission_accepted;
+    bool local_submission_relayed;
+    bool canonical_inclusion_observed;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(attempt_id)
+      KV_SERIALIZE(epoch)
+      KV_SERIALIZE(round)
+      KV_SERIALIZE(chain_height)
+      KV_SERIALIZE(deadline_height)
+      KV_SERIALIZE(subject_identity)
+      KV_SERIALIZE(verifier_identity)
+      KV_SERIALIZE(endpoint_commitment)
+      KV_SERIALIZE(outcome)
+      KV_SERIALIZE(stage)
+      KV_SERIALIZE(reason)
+      KV_SERIALIZE(started_utc_ms)
+      KV_SERIALIZE(completed_utc_ms)
+      KV_SERIALIZE(duration_ms)
+      KV_SERIALIZE(retry_scheduled)
+      KV_SERIALIZE(next_retry_utc_ms)
+      KV_SERIALIZE(local_submission_accepted)
+      KV_SERIALIZE(local_submission_relayed)
+      KV_SERIALIZE(canonical_inclusion_observed)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct COMMAND_RPC_GET_EPOSE_DIAGNOSTICS
+  {
+    struct request_t: public rpc_request_base
+    {
+      uint64_t recent_limit;
+      uint64_t epoch;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE_OPT(recent_limit, (uint64_t)50)
+        KV_SERIALIZE_OPT(epoch, std::numeric_limits<uint64_t>::max())
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      uint64_t diagnostics_version;
+      uint64_t reset_utc_ms;
+      uint64_t attempts_in_flight;
+      std::vector<epose_diagnostic_round_entry> rounds;
+      std::vector<epose_diagnostic_failure_entry> failures;
+      std::vector<epose_diagnostic_skip_entry> skips;
+      std::vector<epose_diagnostic_attempt_entry> recent_attempts;
+      bool qualification_available;
+      bool subject_in_snapshot;
+      std::string qualification_subject_identity;
+      std::string qualification_state;
+      std::string unmet_requirement;
+      uint64_t qualification_epoch;
+      uint64_t chain_height;
+      uint64_t evidence_deadline_height;
+      uint64_t rounds_required;
+      uint64_t rounds_passed;
+      uint64_t rounds_remaining;
+      std::vector<uint64_t> canonical_unique_receipts;
+      std::vector<uint64_t> committee_sizes;
+      std::vector<uint64_t> required_receipts;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(diagnostics_version)
+        KV_SERIALIZE(reset_utc_ms)
+        KV_SERIALIZE(attempts_in_flight)
+        KV_SERIALIZE(rounds)
+        KV_SERIALIZE(failures)
+        KV_SERIALIZE(skips)
+        KV_SERIALIZE(recent_attempts)
+        KV_SERIALIZE(qualification_available)
+        KV_SERIALIZE(subject_in_snapshot)
+        KV_SERIALIZE(qualification_subject_identity)
+        KV_SERIALIZE(qualification_state)
+        KV_SERIALIZE(unmet_requirement)
+        KV_SERIALIZE(qualification_epoch)
+        KV_SERIALIZE(chain_height)
+        KV_SERIALIZE(evidence_deadline_height)
+        KV_SERIALIZE(rounds_required)
+        KV_SERIALIZE(rounds_passed)
+        KV_SERIALIZE(rounds_remaining)
+        KV_SERIALIZE(canonical_unique_receipts)
+        KV_SERIALIZE(committee_sizes)
+        KV_SERIALIZE(required_receipts)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

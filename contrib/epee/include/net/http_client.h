@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <cctype>
 #include <functional>
+#include <limits>
 
 #include "net_helper.h"
 #include "http_client_base.h"
@@ -135,6 +136,8 @@ namespace net_utils
 			http_response_info m_response_info;
 			size_t m_len_in_summary;
 			size_t m_len_in_remain;
+			size_t m_max_response_body;
+			bool m_response_body_limit_exceeded;
 			//std::string* m_ptarget_buffer;
 			boost::shared_ptr<i_sub_handler> m_pcontent_encoding_handler;
 			reciev_machine_state m_state;
@@ -154,6 +157,8 @@ namespace net_utils
 				, m_response_info()
 				, m_len_in_summary(0)
 				, m_len_in_remain(0)
+				, m_max_response_body(std::numeric_limits<size_t>::max())
+				, m_response_body_limit_exceeded(false)
 				, m_pcontent_encoding_handler(nullptr)
 				, m_state()
 				, m_chunked_state()
@@ -180,6 +185,17 @@ namespace net_utils
 			void set_auto_connect(bool auto_connect) override
 			{
 				m_auto_connect = auto_connect;
+			}
+
+			void set_response_body_limit(const size_t limit)
+			{
+				CRITICAL_REGION_LOCAL(m_lock);
+				m_max_response_body = limit;
+			}
+
+			bool response_body_limit_exceeded() const
+			{
+				return m_response_body_limit_exceeded;
 			}
 
 			template<typename F>
@@ -210,6 +226,12 @@ namespace net_utils
 			virtual bool handle_target_data(std::string& piece_of_transfer) override
 			{
 				CRITICAL_REGION_LOCAL(m_lock);
+				if (piece_of_transfer.size() > m_max_response_body
+						- std::min(m_max_response_body, m_response_info.m_body.size()))
+				{
+					m_response_body_limit_exceeded = true;
+					return false;
+				}
 				m_response_info.m_body += piece_of_transfer;
         piece_of_transfer.clear();
 				return true;
@@ -230,6 +252,7 @@ namespace net_utils
 			inline bool invoke(const boost::string_ref uri, const boost::string_ref method, const boost::string_ref body, std::chrono::milliseconds timeout, const http_response_info** ppresponse_info = NULL, const fields_list& additional_params = fields_list()) override
 			{
 				CRITICAL_REGION_LOCAL(m_lock);
+				m_response_body_limit_exceeded = false;
 				if(!is_connected())
 				{
 					if (!m_auto_connect)
@@ -322,6 +345,11 @@ namespace net_utils
 			uint64_t get_bytes_received() const override
 			{
 				return m_net_client.get_bytes_received();
+			}
+
+			const boost::system::error_code& get_last_error() const
+			{
+				return m_net_client.get_last_error();
 			}
 			//---------------------------------------------------------------------------
 			void wipe_response()
@@ -793,6 +821,12 @@ namespace net_utils
 					if(!content_len_valid)
 					{
 						LOG_ERROR("http_stream_filter::analize_cached_reply_header_and_invoke_state(): Failed to get_len_from_content_lenght();, m_query_info.m_content_length="<<m_response_info.m_header_info.m_content_length);
+						m_state = reciev_machine_state_error;
+						return false;
+					}
+					if (m_len_in_summary > m_max_response_body)
+					{
+						m_response_body_limit_exceeded = true;
 						m_state = reciev_machine_state_error;
 						return false;
 					}

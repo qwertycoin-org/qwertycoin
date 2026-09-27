@@ -68,6 +68,14 @@ namespace epose
   class receipt_retry_tracker_v2
   {
   public:
+    struct retry_info
+    {
+      bool found = false;
+      uint64_t next_attempt_ms = 0;
+      uint32_t failures = 0;
+      bool in_flight = false;
+    };
+
     receipt_retry_tracker_v2(
         size_t max_entries = 4096,
         uint64_t base_backoff_ms = 30000,
@@ -81,6 +89,7 @@ namespace epose
     void failed(const crypto::hash &slot, uint64_t now_ms);
     void submitted(const crypto::hash &slot, uint64_t now_ms);
     void canonical(const crypto::hash &slot);
+    retry_info status(const crypto::hash &slot) const;
     size_t size() const;
 
   private:

@@ -50,6 +50,7 @@
 #include "blockchain.h"
 #include "epose/service_node_config.h"
 #include "epose/canonical_service_v2.h"
+#include "epose/diagnostics_v2.h"
 #include "epose/service_producer_v2.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
@@ -298,6 +299,10 @@ namespace cryptonote
      bool answer_epose_v2_service_challenge(
          const qwertycoin::epose::service_challenge_v2 &challenge,
          qwertycoin::epose::canonical_service_response_v2 &response) const;
+     bool get_epose_v2_diagnostics(
+         qwertycoin::epose::receipt_diagnostics_snapshot_v2 &operations,
+         qwertycoin::epose::qualification_diagnostics_v2 &qualification,
+         uint64_t requested_epoch = std::numeric_limits<uint64_t>::max()) const;
 
      /**
       * @brief called when a transaction is relayed.
@@ -1082,6 +1087,8 @@ namespace cryptonote
      bool init_epose_v2_service_runtime();
      bool update_epose_v2_service_producer();
      bool update_epose_v2_receipt_producer();
+     void maybe_log_epose_v2_diagnostic_summary(
+         uint64_t epoch, uint64_t round, uint64_t height, bool force);
      bool build_epose_v2_configured_endpoint(
          const qwertycoin::epose::consensus_parameters_v2 &parameters,
          uint64_t sequence,
@@ -1195,12 +1202,26 @@ namespace cryptonote
        bool accepted = false;
        crypto::hash slot{};
        blobdata envelope;
+       qwertycoin::epose::receipt_attempt_context_v2 context{};
+       qwertycoin::epose::receipt_attempt_stage_v2 stage =
+           qwertycoin::epose::receipt_attempt_stage_v2::none;
+       qwertycoin::epose::receipt_failure_reason_v2 reason =
+           qwertycoin::epose::receipt_failure_reason_v2::none;
      };
      std::future<epose_v2_receipt_job_result> m_epose_v2_receipt_future;
+     epose_v2_receipt_job_result m_epose_v2_active_receipt_job{};
+     std::atomic<bool> m_epose_v2_receipt_cancel{false};
      uint64_t m_epose_v2_receipt_epoch = std::numeric_limits<uint64_t>::max();
      qwertycoin::epose::receipt_retry_tracker_v2
          m_epose_v2_receipt_retries{};
+     qwertycoin::epose::receipt_diagnostics_v2 m_epose_v2_receipt_diagnostics{};
      std::chrono::steady_clock::time_point m_epose_v2_last_receipt_attempt{};
+     uint64_t m_epose_v2_last_diagnostic_summary_height =
+         std::numeric_limits<uint64_t>::max();
+     uint64_t m_epose_v2_last_diagnostic_summary_epoch =
+         std::numeric_limits<uint64_t>::max();
+     uint64_t m_epose_v2_last_diagnostic_summary_round =
+         std::numeric_limits<uint64_t>::max();
 
      cryptonote_protocol_stub m_protocol_stub; //!< cryptonote protocol stub instance
 

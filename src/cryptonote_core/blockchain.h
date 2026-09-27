@@ -978,6 +978,10 @@ namespace cryptonote
         uint64_t epoch, uint64_t round,
         const crypto::public_key &subject_public_key,
         const crypto::public_key &verifier_public_key) const;
+    bool get_epose_receipt_coverage_v2(
+        uint64_t epoch,
+        const crypto::public_key &subject_public_key,
+        std::vector<size_t> &coverage) const;
     uint64_t get_epose_attestation_count() const;
     crypto::hash get_epose_state_hash() const;
     crypto::hash get_epose_epoch_context_hash(uint64_t epoch) const;
