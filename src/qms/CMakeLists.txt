@@ -46,4 +46,10 @@ target_link_libraries(qms
 if(QWC_ENABLE_QMS2_CRYPTO)
   target_compile_definitions(qms PUBLIC QWC_ENABLE_QMS2_CRYPTO=1)
   target_link_libraries(qms PRIVATE qms_crypto_rust ${CMAKE_DL_LIBS})
+  if(WIN32)
+    # Rust staticlibs do not propagate their native Windows dependencies to
+    # the final C++ link. std requires ntdll, while profile-directory lookup
+    # requires userenv.
+    target_link_libraries(qms PRIVATE ntdll userenv)
+  endif()
 endif()
