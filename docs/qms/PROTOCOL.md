@@ -1,8 +1,13 @@
-# Qwertycoin Messenger MVP protocol (QMS1)
+# Qwertycoin Messenger Fast Profile (QMS1)
 
 Status: experimental application protocol. It does not change consensus, transaction
 serialization, fees, ring size, or daemon behavior. Nodes see ordinary transactions
 whose existing `TX_EXTRA_NONCE` fields contain opaque bytes.
+
+QMS1 is the deliberately compact **Fast Profile**. It keeps authenticated
+end-to-end encryption and pinned contact identities, while omitting PQXDH and
+continuous ratchets. Implementations must label it QMS1/Fast and must not imply
+the forward-secrecy, post-compromise, or post-quantum properties of QMS2.
 
 ## Baseline and compatibility
 
@@ -60,6 +65,10 @@ The MAC input is `QWC-QMS-FRAGMENT-V1`, header bytes 0..79 and fragment bytes.
 The complete ciphertext is split canonically into 600-byte pieces (last piece shorter),
 with at most 16 fragments and 9,600 ciphertext bytes.
 
+A five-byte UTF-8 message such as `Hello` produces a 277-byte sealed ciphertext
+and therefore exactly one fragment and one carrier transaction. QMS1 does not add
+fixed-size padding buckets; carrier size and timing remain observable.
+
 ## Existing nonce carrier
 
 Each serialized fragment is split canonically into pieces of at most 248 bytes. Each
@@ -71,4 +80,3 @@ fragment is permitted per carrier transaction.
 After normal wallet construction, callers must parse the final transaction and compare
 the extracted fragment byte-for-byte with the planned fragment. Integrated addresses
 and user payment IDs are unsupported for QMS carrier transactions.
-

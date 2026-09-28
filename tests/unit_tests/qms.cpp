@@ -95,6 +95,23 @@ TEST(qms, carrier_uses_existing_nonce_fields_and_limits)
   }
 }
 
+TEST(qms, fast_profile_short_message_uses_one_compact_carrier)
+{
+  const auto network = genesis(13); const auto id = message_id(13);
+  const auto alice = qwertycoin::qms::generate_identity();
+  const auto bob = qwertycoin::qms::generate_identity();
+  const auto bob_invite = qwertycoin::qms::create_invitation(bob, network);
+  const auto ciphertext = qwertycoin::qms::seal_text(
+    alice, bob_invite, network, id, "Hello");
+  EXPECT_EQ(277u, ciphertext.size());
+  const auto fragments = qwertycoin::qms::fragment_ciphertext(
+    bob_invite, network, id, ciphertext);
+  ASSERT_EQ(1u, fragments.size());
+  std::vector<uint8_t> extra;
+  ASSERT_TRUE(qwertycoin::qms::append_carrier_nonces(extra, fragments.front()));
+  EXPECT_EQ(393u, extra.size());
+}
+
 TEST(qms, incomplete_conflicting_and_bad_mac_rejected)
 {
   const auto network = genesis(8); const auto id = message_id(8);

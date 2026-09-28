@@ -1,4 +1,4 @@
-# QMS MVP threat model
+# QMS1/Fast threat model
 
 ## Protected assets
 
@@ -40,3 +40,9 @@ never relaxed for QMS.
 Hardware wallets, multisig, integrated addresses, user payment IDs and light-wallet
 services are unsupported in the MVP.
 
+## Local state requirement
+
+GUI clients must expose and initialize Messenger only while the full wallet is
+unlocked with a non-empty session password. QMS1 identity keys, contact secrets,
+prepared transaction bytes, and message history are persisted only inside the
+wallet's encrypted cache. A passwordless session is not an allowed QMS1 client.

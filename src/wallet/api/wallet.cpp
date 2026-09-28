@@ -2115,6 +2115,12 @@ std::string WalletImpl::getCacheAttribute(const std::string &key) const
     return value;
 }
 
+bool WalletImpl::qmsStateStorageAvailable() const
+{
+    return !m_password.empty() && !m_wallet->is_background_wallet()
+        && !m_wallet->is_background_syncing();
+}
+
 bool WalletImpl::setUserNote(const std::string &txid, const std::string &note)
 {
     if (checkBackgroundSync("cannot set user note"))

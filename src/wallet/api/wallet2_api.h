@@ -1025,6 +1025,14 @@ struct Wallet
      */
     virtual std::string getCacheAttribute(const std::string &key) const = 0;
     /*!
+     * \brief qmsStateStorageAvailable - whether QMS1 state can be persisted
+     *        inside a password-protected, unlocked wallet cache
+     *
+     * Native clients use this as a fail-closed UI capability gate.  A
+     * passwordless wallet must not expose or initialize Messenger state.
+     */
+    virtual bool qmsStateStorageAvailable() const = 0;
+    /*!
      * \brief setUserNote - attach an arbitrary string note to a txid
      * \param txid - the transaction id to attach the note to
      * \param note - the note
