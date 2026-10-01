@@ -321,6 +321,82 @@ TEST(epose_relay_pool_v2, receipt_slot_hardening_activates_exactly_at_height_200
   EXPECT_EQ(relay_record_status_v2::accepted,
       relay.enqueue(third, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
   EXPECT_EQ(2u, relay.size());
+
+  // Crossing the same boundary again after a reorg deterministically restores
+  // the hardened view without requiring a process restart.
+  selected.clear();
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      relay.select_for_template(
+          QWC_EPOSE_RELAY_HARDENING_HEIGHT, selected));
+  EXPECT_EQ(1u, relay.size());
+  ASSERT_EQ(1u, selected.size());
+}
+
+TEST(epose_relay_pool_v2, mixed_old_and_new_nodes_build_the_same_unique_template)
+{
+  auto legacy = pool();
+  auto hardened = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  const std::vector<envelope_record_v2> records{
+      receipt_record(27, 0, 1, 2, 1),
+      receipt_record(27, 1, 1, 3, 1)};
+
+  for (const envelope_record_v2 &record : records)
+  {
+    ASSERT_EQ(relay_record_status_v2::accepted,
+        legacy.enqueue(record, QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+    ASSERT_EQ(relay_record_status_v2::accepted,
+        hardened.enqueue(record, QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  }
+
+  std::vector<relay_record_selection_v2> legacy_template;
+  std::vector<relay_record_selection_v2> hardened_template;
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      legacy.select_for_template(
+          QWC_EPOSE_RELAY_HARDENING_HEIGHT, legacy_template));
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      hardened.select_for_template(
+          QWC_EPOSE_RELAY_HARDENING_HEIGHT, hardened_template));
+  ASSERT_EQ(legacy_template.size(), hardened_template.size());
+  ASSERT_EQ(records.size(), legacy_template.size());
+  for (size_t index = 0; index < records.size(); ++index)
+  {
+    EXPECT_EQ(legacy_template[index].id, hardened_template[index].id);
+    EXPECT_EQ(legacy_template[index].record.type,
+        hardened_template[index].record.type);
+    EXPECT_EQ(legacy_template[index].record.version,
+        hardened_template[index].record.version);
+    EXPECT_EQ(legacy_template[index].record.payload,
+        hardened_template[index].record.payload);
+  }
+}
+
+TEST(epose_relay_pool_v2, restart_and_resync_reconstruct_hardened_slot_identity)
+{
+  // The relay queue is intentionally non-persistent. A restarted node derives
+  // the active policy from the canonical height and rebuilds only unique slots
+  // as receipts are replayed or resubmitted.
+  auto restarted = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  const envelope_record_v2 first = receipt_record(27, 2, 7, 8, 1);
+  const envelope_record_v2 second = receipt_record(27, 2, 7, 8, 2);
+  const envelope_record_v2 third = receipt_record(27, 2, 7, 8, 3);
+
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      restarted.enqueue(first, QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_EQ(relay_record_status_v2::idempotent_duplicate,
+      restarted.enqueue(second, QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_EQ(relay_record_status_v2::idempotent_duplicate,
+      restarted.enqueue(third, QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  ASSERT_EQ(1u, restarted.size());
+
+  std::vector<relay_record_selection_v2> selected;
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      restarted.select_for_template(
+          QWC_EPOSE_RELAY_HARDENING_HEIGHT, selected));
+  ASSERT_EQ(1u, selected.size());
+  restarted.erase_confirmed_records(
+      {third}, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  EXPECT_EQ(0u, restarted.size());
+  EXPECT_EQ(0u, restarted.bytes());
 }
 
 TEST(epose_relay_pool_v2, hardening_purges_all_variants_of_a_confirmed_slot)

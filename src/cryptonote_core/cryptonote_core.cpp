@@ -2518,14 +2518,12 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec: " << e.what());
     }
 
-    // QWC's public chain is HF17-native, and regtest follows the production
-    // HF18 activation height so long-running disposable chains exercise the
-    // same version boundary. Starting regtest at v1 creates a different
-    // genesis from wallet clients and makes the RPC test network reject itself.
-    const std::pair<uint8_t, uint64_t> regtest_hard_forks[3] = {
+    // QWC's public chain is HF17-native. The height-20,000 EPoSE relay
+    // hardening is local policy, not a block-version transition. Starting
+    // regtest at v1 creates a different genesis from wallet clients and makes
+    // the disposable RPC test network reject itself.
+    const std::pair<uint8_t, uint64_t> regtest_hard_forks[2] = {
       std::make_pair(HF_VERSION_QWC_EPOSE, 0),
-      std::make_pair(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-          QWC_EPOSE_RELAY_HARDENING_HEIGHT),
       std::make_pair(0, 0)
     };
     const cryptonote::test_options regtest_test_options = {

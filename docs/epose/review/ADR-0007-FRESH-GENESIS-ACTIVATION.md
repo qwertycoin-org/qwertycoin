@@ -10,9 +10,9 @@
 > P2P identity defined here. This document and its evidence remain the
 > historical record for the `90662948...` chain.
 
-> **Post-launch update (2026-10-01):** ADR-0010 schedules HF18 at height
-> 20,000. The statements below that version 17 was the only scheduled version
-> describe the original launch decision, not the current forward schedule.
+> **Post-launch update (2026-10-01):** ADR-0010 activates local receipt-relay
+> hardening at height 20,000 without scheduling another block version. Version
+> 17 remains the only public-chain version.
 
 ## Context
 

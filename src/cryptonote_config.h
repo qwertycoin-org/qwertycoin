@@ -202,10 +202,9 @@
 // block major version 17 to the hardened EPoSE-v2 launch rules. Block-version
 // and EPoSE wire-format versions are separate domains.
 #define HF_VERSION_QWC_EPOSE                    17
-// HF18 activates the EPoSE relay-slot hardening at mainnet height 20,000.
-// The EPoSE-v2 wire format, state commitment, qualification threshold and
-// reward rules remain unchanged across this boundary.
-#define HF_VERSION_QWC_EPOSE_RELAY_HARDENING    18
+// Height-gated local relay/template policy. This is intentionally not a hard
+// fork: block versions and every consensus rule remain HF17 on both sides of
+// the boundary, so mixed old/new deployments continue following one chain.
 constexpr uint64_t QWC_EPOSE_RELAY_HARDENING_HEIGHT = 20000;
 
 // EPoSE-v2 is the launch state machine, not a one-version feature flag.  A
@@ -216,12 +215,6 @@ constexpr uint64_t QWC_EPOSE_RELAY_HARDENING_HEIGHT = 20000;
 inline constexpr bool is_qwc_epose_v2_hardfork(const uint8_t version) noexcept
 {
   return version >= HF_VERSION_QWC_EPOSE;
-}
-
-inline constexpr bool is_qwc_epose_relay_hardening_hardfork(
-    const uint8_t version) noexcept
-{
-  return version >= HF_VERSION_QWC_EPOSE_RELAY_HARDENING;
 }
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8

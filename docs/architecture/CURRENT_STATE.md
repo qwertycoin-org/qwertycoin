@@ -43,10 +43,11 @@ Monero hardfork constants and retired EPoSE-v1 helpers remain in source where
 inherited validation, compatibility errors, or tests still reference them;
 they are not an alternate public-chain mode.
 
-QWC hardfork version `18` is scheduled at height `20,000`. It activates local
-EPoSE receipt-slot relay hardening without changing the EPoSE wire format,
-state commitment, committee/quorum rules, reward allocation, or historical
-state. Nodes that remain on HF17 reject the HF18 chain from that height.
+At height `20,000`, nodes that include the relay hardening activate local
+EPoSE receipt-slot deduplication and fairer mining-template selection. This is
+not a hard fork: block version `17`, block validity, the EPoSE wire format,
+state commitment, committee/quorum rules, rewards and historical state remain
+unchanged. Updated and older nodes therefore continue validating one chain.
 
 ## EPoSE v2
 

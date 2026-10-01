@@ -265,32 +265,26 @@ TEST(steps_asap, Success)
 
 TEST(qwc_relaunch, starts_from_current_monero_consensus)
 {
-  ASSERT_EQ(2u, num_mainnet_hard_forks);
-  ASSERT_EQ(2u, num_testnet_hard_forks);
-  ASSERT_EQ(2u, num_stagenet_hard_forks);
+  ASSERT_EQ(1u, num_mainnet_hard_forks);
+  ASSERT_EQ(1u, num_testnet_hard_forks);
+  ASSERT_EQ(1u, num_stagenet_hard_forks);
 
   ASSERT_EQ(16, HF_VERSION_MONERO_CURRENT_CONSENSUS);
   ASSERT_EQ(17, HF_VERSION_QWC_EPOSE);
-  ASSERT_EQ(18, HF_VERSION_QWC_EPOSE_RELAY_HARDENING);
   ASSERT_EQ(20000u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, mainnet_hard_forks[0].version);
   ASSERT_EQ(0u, mainnet_hard_forks[0].height);
-  ASSERT_EQ(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-      mainnet_hard_forks[1].version);
-  ASSERT_EQ(QWC_EPOSE_RELAY_HARDENING_HEIGHT,
-      mainnet_hard_forks[1].height);
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, testnet_hard_forks[0].version);
   ASSERT_EQ(0u, testnet_hard_forks[0].height);
-  ASSERT_EQ(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-      testnet_hard_forks[1].version);
-  ASSERT_EQ(QWC_EPOSE_RELAY_HARDENING_HEIGHT,
-      testnet_hard_forks[1].height);
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, stagenet_hard_forks[0].version);
   ASSERT_EQ(0u, stagenet_hard_forks[0].height);
-  ASSERT_EQ(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-      stagenet_hard_forks[1].version);
-  ASSERT_EQ(QWC_EPOSE_RELAY_HARDENING_HEIGHT,
-      stagenet_hard_forks[1].height);
+
+  for (size_t n = 0; n < num_mainnet_hard_forks; ++n)
+    ASSERT_EQ(mainnet_hard_forks[n].version, HF_VERSION_QWC_EPOSE);
+  for (size_t n = 0; n < num_testnet_hard_forks; ++n)
+    ASSERT_EQ(testnet_hard_forks[n].version, HF_VERSION_QWC_EPOSE);
+  for (size_t n = 0; n < num_stagenet_hard_forks; ++n)
+    ASSERT_EQ(stagenet_hard_forks[n].version, HF_VERSION_QWC_EPOSE);
 
   ASSERT_GT(mainnet_hard_forks[0].version, HF_VERSION_2021_SCALING);
   ASSERT_GT(testnet_hard_forks[0].version, HF_VERSION_2021_SCALING);
@@ -306,31 +300,21 @@ TEST(qwc_relaunch, starts_from_current_monero_consensus)
       testnet_hard_forks[0].height,
       testnet_hard_forks[0].threshold,
       testnet_hard_forks[0].time));
-  ASSERT_TRUE(hf.add_fork(
-      testnet_hard_forks[1].version,
-      testnet_hard_forks[1].height,
-      testnet_hard_forks[1].threshold,
-      testnet_hard_forks[1].time));
   hf.init();
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, hf.get_current_version());
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, hf.get_ideal_version(0));
   ASSERT_EQ(HF_VERSION_QWC_EPOSE,
       hf.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
-  ASSERT_EQ(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE,
       hf.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT));
   EXPECT_TRUE(hf.check_for_height(
       mkblock(HF_VERSION_QWC_EPOSE, HF_VERSION_QWC_EPOSE),
       QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
-  EXPECT_FALSE(hf.check_for_height(
-      mkblock(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-          HF_VERSION_QWC_EPOSE_RELAY_HARDENING),
-      QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
-  EXPECT_FALSE(hf.check_for_height(
+  EXPECT_TRUE(hf.check_for_height(
       mkblock(HF_VERSION_QWC_EPOSE, HF_VERSION_QWC_EPOSE),
       QWC_EPOSE_RELAY_HARDENING_HEIGHT));
-  EXPECT_TRUE(hf.check_for_height(
-      mkblock(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-          HF_VERSION_QWC_EPOSE_RELAY_HARDENING),
+  EXPECT_FALSE(hf.check_for_height(
+      mkblock(HF_VERSION_QWC_EPOSE + 1, HF_VERSION_QWC_EPOSE + 1),
       QWC_EPOSE_RELAY_HARDENING_HEIGHT));
 }
 

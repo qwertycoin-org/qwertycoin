@@ -28,11 +28,11 @@ approved public-test releases.
   block-version allocation note.
 - [`ADR-0008-FUTURE-HARDFORK-CONTINUATION.md`](ADR-0008-FUTURE-HARDFORK-CONTINUATION.md)
   requires later QWC block versions to continue canonical EPoSE-v2 state.
-- [`ADR-0010-HF18-RELAY-SLOT-HARDENING.md`](ADR-0010-HF18-RELAY-SLOT-HARDENING.md)
-  schedules HF18 at height 20,000 and defines receipt-slot relay hardening.
-- [`HF18 operator upgrade notice`](../../releases/HF18-EPoSE-RELAY-HARDENING.md)
-  lists affected operators, unchanged consensus parameters, and the activation
-  and reorg behavior.
+- [`ADR-0010-HEIGHT-GATED-RELAY-SLOT-HARDENING.md`](ADR-0010-HEIGHT-GATED-RELAY-SLOT-HARDENING.md)
+  activates receipt-slot relay hardening at height 20,000 without a hard fork.
+- [`Height-20,000 operator notice`](../../releases/EPoSE-RELAY-HARDENING-HEIGHT-20000.md)
+  lists recommended operator updates, unchanged consensus parameters, and the
+  mixed-version, activation and reorg behavior.
 - [`VALIDATION.md`](VALIDATION.md) records the baseline build and test commands,
   results, and explicit gaps.
 - [`RELEASE_READINESS.md`](RELEASE_READINESS.md) records the CO-10/11 no-go

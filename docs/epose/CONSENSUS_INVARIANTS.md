@@ -8,9 +8,9 @@ source of truth.
 
 1. RandomX proof of work is the sole block-production and chain-selection
    mechanism.
-2. Public QWC-HF17 starts at height `0`; HF18 continues the same EPoSE-v2
-   state at height `20,000` and hardens only local receipt relay/template
-   policy.
+2. Public QWC-HF17 starts at height `0` and remains the only scheduled block
+   version. Height `20,000` activates only local receipt relay/template policy
+   in updated nodes; it does not change consensus or split block validity.
 3. Mainnet consensus parameters are compiled and bound to the exact genesis
    and parameter-set hashes.
 4. Runtime files, CLI options, DNS, RPC, explorer, and monitoring cannot change

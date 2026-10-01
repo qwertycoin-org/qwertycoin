@@ -10,10 +10,10 @@ version `2` is active for that public-chain profile. The profile is accepted
 only when the selected network is mainnet and the genesis hash matches the
 compiled value.
 
-Hardfork version `18` is scheduled at height `20,000`. It keeps EPoSE protocol
-version `2` and all canonical state/economic rules unchanged. The only EPoSE
-behavior activated at that boundary is local relay/template deduplication by
-the consensus receipt slot `(epoch, round, service kind, subject, verifier)`.
+At height `20,000`, updated nodes activate local relay/template deduplication
+by the consensus receipt slot `(epoch, round, service kind, subject, verifier)`.
+The boundary is deliberately not a hard fork: block version `17`, EPoSE
+protocol version `2`, canonical state and all economic rules remain unchanged.
 
 The normative implementation is:
 
@@ -34,7 +34,7 @@ The identifiers that bind this profile are:
 
 | Item | Value |
 | --- | --- |
-| QWC hardfork versions | `17` from height `0`; `18` from height `20,000` |
+| QWC hardfork version | `17` from height `0` |
 | EPoSE protocol version | `2` |
 | Activation height | `0` |
 | Mainnet genesis hash | `4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39` |
@@ -45,7 +45,8 @@ incomplete profile, or an invalid parameter set. There is no legacy-v1
 fallback on the public QWC-HF17 chain.
 
 Height `20,000` lies inside epoch `27`. The first complete service epoch under
-the hardened relay policy begins at height `20,160` (epoch `28`).
+the hardened relay policy begins at height `20,160` (epoch `28`). Older and
+updated nodes continue accepting the same HF17 blocks across the boundary.
 
 ## Identity and lifecycle
 

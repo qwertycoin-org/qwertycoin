@@ -69,25 +69,19 @@ TEST(epose_hardfork_migration_v2, scheduled_future_version_keeps_epose_active)
 {
   EXPECT_FALSE(is_qwc_epose_v2_hardfork(HF_VERSION_MONERO_CURRENT_CONSENSUS));
   EXPECT_TRUE(is_qwc_epose_v2_hardfork(HF_VERSION_QWC_EPOSE));
-  EXPECT_TRUE(is_qwc_epose_v2_hardfork(
-      HF_VERSION_QWC_EPOSE_RELAY_HARDENING));
+  EXPECT_TRUE(is_qwc_epose_v2_hardfork(HF_VERSION_QWC_EPOSE + 1));
   EXPECT_TRUE(is_qwc_epose_v2_hardfork(std::numeric_limits<uint8_t>::max()));
-  EXPECT_FALSE(is_qwc_epose_relay_hardening_hardfork(HF_VERSION_QWC_EPOSE));
-  EXPECT_TRUE(is_qwc_epose_relay_hardening_hardfork(
-      HF_VERSION_QWC_EPOSE_RELAY_HARDENING));
 
   hardfork_test_db db;
   cryptonote::HardFork hardfork(db, HF_VERSION_QWC_EPOSE, 0, 0, 0, 1, 0);
   ASSERT_TRUE(hardfork.add_fork(HF_VERSION_QWC_EPOSE, 0, 0));
-  ASSERT_TRUE(hardfork.add_fork(
-      HF_VERSION_QWC_EPOSE_RELAY_HARDENING, 3, 1));
+  ASSERT_TRUE(hardfork.add_fork(HF_VERSION_QWC_EPOSE + 1, 3, 1));
   hardfork.init();
 
   for (uint64_t height = 0; height < 6; ++height)
   {
     const uint8_t expected = height < 3
-        ? HF_VERSION_QWC_EPOSE
-        : HF_VERSION_QWC_EPOSE_RELAY_HARDENING;
+        ? HF_VERSION_QWC_EPOSE : HF_VERSION_QWC_EPOSE + 1;
     ASSERT_EQ(expected, hardfork.get_ideal_version(height));
     const cryptonote::block candidate = block_with_version(expected);
     ASSERT_TRUE(hardfork.check_for_height(candidate, height));
@@ -95,21 +89,15 @@ TEST(epose_hardfork_migration_v2, scheduled_future_version_keeps_epose_active)
     ASSERT_TRUE(hardfork.add(db.get_block_from_height(height), height));
   }
 
-  EXPECT_EQ(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-      hardfork.get_current_version());
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE + 1, hardfork.get_current_version());
 }
 
-TEST(epose_hardfork_migration_v2, mainnet_relay_hardening_is_hf18_at_height_20000)
+TEST(epose_hardfork_migration_v2, relay_hardening_height_is_not_a_hardfork)
 {
-  ASSERT_EQ(2u, num_mainnet_hard_forks);
+  ASSERT_EQ(1u, num_mainnet_hard_forks);
   EXPECT_EQ(HF_VERSION_QWC_EPOSE, mainnet_hard_forks[0].version);
   EXPECT_EQ(0u, mainnet_hard_forks[0].height);
-  EXPECT_EQ(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
-      mainnet_hard_forks[1].version);
-  EXPECT_EQ(QWC_EPOSE_RELAY_HARDENING_HEIGHT,
-      mainnet_hard_forks[1].height);
-  EXPECT_EQ(0u, mainnet_hard_forks[1].threshold);
-  EXPECT_GT(mainnet_hard_forks[1].time, mainnet_hard_forks[0].time);
+  EXPECT_EQ(20000u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
 
   hardfork_test_db db;
   cryptonote::HardFork hardfork(db, HF_VERSION_QWC_EPOSE, 0, 0, 0, 1, 0);
@@ -123,18 +111,17 @@ TEST(epose_hardfork_migration_v2, mainnet_relay_hardening_is_hf18_at_height_2000
 
   EXPECT_EQ(HF_VERSION_QWC_EPOSE,
       hardfork.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
-  EXPECT_EQ(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE,
       hardfork.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE,
+      hardfork.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT + 1));
   EXPECT_TRUE(hardfork.check_for_height(
       block_with_version(HF_VERSION_QWC_EPOSE),
       QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
-  EXPECT_FALSE(hardfork.check_for_height(
-      block_with_version(HF_VERSION_QWC_EPOSE_RELAY_HARDENING),
-      QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
-  EXPECT_FALSE(hardfork.check_for_height(
+  EXPECT_TRUE(hardfork.check_for_height(
       block_with_version(HF_VERSION_QWC_EPOSE),
       QWC_EPOSE_RELAY_HARDENING_HEIGHT));
-  EXPECT_TRUE(hardfork.check_for_height(
-      block_with_version(HF_VERSION_QWC_EPOSE_RELAY_HARDENING),
+  EXPECT_FALSE(hardfork.check_for_height(
+      block_with_version(HF_VERSION_QWC_EPOSE + 1),
       QWC_EPOSE_RELAY_HARDENING_HEIGHT));
 }

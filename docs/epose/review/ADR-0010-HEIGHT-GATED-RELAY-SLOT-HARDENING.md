@@ -1,0 +1,73 @@
+# ADR-0010: height-gated receipt-relay slot hardening
+
+- **Status:** Proposed for activation; implementation in review
+- **Date:** 2026-10-01
+- **Activation:** local policy at height 20,000; block version remains 17
+- **Scope:** EPoSE-v2 local relay queue and mining-template selection
+
+## Observed failure
+
+Finalized mainnet epoch 17 had 18 active service nodes and zero qualified
+nodes. Probes and signatures largely succeeded, but only a small fraction of
+the locally submitted service receipts reached canonical blocks. Long-lived
+daemon queues were dominated by repeated randomized signatures for receipt
+slots that had already been submitted.
+
+The canonical membership pipeline identifies a receipt slot by epoch, round,
+service kind, subject and verifier. The local relay queue instead identified a
+record by the hash of the complete signed envelope. Re-signing the same logical
+slot therefore consumed another bounded queue/template entry. Round-zero
+variants accumulated faster than canonical inclusion and starved later rounds.
+
+## Decision
+
+1. Keep QWC block version 17 and every consensus rule unchanged.
+2. Activate only local relay/template policy at block height 20,000.
+3. Before height 20,000, preserve complete-record relay identity.
+4. At and after height 20,000, admit at most one pending receipt for each
+   `(epoch, round, service kind, subject, verifier)` slot.
+5. If pre-activation variants remain in memory at the boundary,
+   deterministically keep the variant with the lowest complete-record relay ID
+   and erase the rest.
+6. When a receipt becomes canonical, erase every queued variant of its slot.
+7. Preserve exact-record behavior for lifecycle and admission records.
+8. Report an expired record or exhausted queue as submission failure instead
+   of returning success with no accepted envelope.
+9. A bounded local retry may rebroadcast its new signed variant directly.
+   Peers that already cache the slot stop propagation; peers that missed the
+   earlier broadcast can still admit it.
+
+## Consensus and compatibility
+
+Receipt-slot deduplication is local relay/template policy. Complete blocks are
+still parsed and validated against canonical EPoSE state. Mainnet, testnet and
+stagenet continue scheduling only block version 17, so updated and older nodes
+accept the same blocks across height 20,000. An older node may keep the faulty
+queue policy until upgraded, but it cannot create a version-driven chain split.
+
+There is no state migration. Relay policy is derived from the active chain
+height, so disconnect/reconnect across the boundary deterministically switches
+the local cache behavior. Height 20,000 lies inside epoch 27; the first complete
+epoch under the hardened relay policy starts at height 20,160.
+
+## Security properties
+
+- Randomized signature variants cannot multiply queue occupancy for one slot.
+- A maximum-size 18-node, three-round, nine-verifier workload is bounded by
+  486 pending evidence slots rather than unbounded retries.
+- The relay cache remains non-authoritative; only canonical blocks determine
+  qualification and rewards.
+- The quorum is not weakened to conceal transport loss.
+- Mixed old/new deployments retain identical block validity and chain
+  selection across the boundary.
+
+## Required evidence
+
+- exact activation tests at heights 19,999 and 20,000;
+- unchanged HF17 block acceptance before, at and after height 20,000;
+- mixed old/new relay-policy templates for unique canonical slots;
+- reorg below and recross above the boundary;
+- restart/resync reconstruction from canonical height;
+- semantic-slot duplicate and canonical-purge tests;
+- an 18-node/three-round repeated-resubmission stress regression; and
+- full daemon and EPoSE unit builds on a clean runner.

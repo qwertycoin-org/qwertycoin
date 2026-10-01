@@ -1,6 +1,6 @@
 # ADR-0008: EPoSE-v2 state continuation across future QWC hardforks
 
-- **Status:** Accepted compatibility rule; exercised by HF18 at height 20,000
+- **Status:** Accepted compatibility rule; no future fork scheduled
 - **Date:** 2026-09-11
 - **Scope:** Post-launch QWC block versions and existing EPoSE-v2 state
 
@@ -26,10 +26,10 @@ hardfork.
 5. A future parameter or schema change requires a separate ADR, a new committed
    parameter-set/schema identifier, deterministic activation-height migration,
    rollback rules, replay tests, and release evidence.
-6. This ADR did not originally schedule a future version. ADR-0010 now
-   schedules block version 18 at height 20,000 while exercising this exact
-   no-state-reset continuation rule. Normal hardfork validation continues to
-   reject all other unscheduled versions.
+6. No block version 18 or other future version is scheduled by this ADR.
+   ADR-0010 deliberately keeps block version 17 across its height-gated local
+   relay-policy activation. Normal hardfork validation continues to reject
+   unscheduled versions.
 
 ## Required invariants
 
