@@ -10,11 +10,15 @@ document cannot override them.
 | Parameter | Compiled value |
 | --- | --- |
 | Network | mainnet |
-| QWC hardfork version | `17` from height `0` |
+| QWC hardfork version | `17` from height `0`; `18` from height `20,000` |
 | EPoSE protocol version | `2` |
 | Genesis hash | `4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39` |
 | Parameter-set hash | `2c26755094535871dd3ede7bd1b50aba82a9fb6831f0a17f32968eb0385145c6` |
 | State commitment schema | `1` |
+
+HF18 changes no value in this consensus parameter set. It activates bounded
+receipt-slot deduplication in the non-consensus relay/template cache. The
+parameter-set hash and state commitment schema therefore remain unchanged.
 
 The genesis and parameter-set hashes are also compiled in
 `src/epose/compiled_profile_v2.h`. A different genesis or network does not load

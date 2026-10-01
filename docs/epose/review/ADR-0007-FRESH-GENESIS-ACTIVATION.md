@@ -10,6 +10,10 @@
 > P2P identity defined here. This document and its evidence remain the
 > historical record for the `90662948...` chain.
 
+> **Post-launch update (2026-10-01):** ADR-0010 schedules HF18 at height
+> 20,000. The statements below that version 17 was the only scheduled version
+> describe the original launch decision, not the current forward schedule.
+
 ## Context
 
 ADR-0001 conservatively treated the observed HF17 pre-publication chain as

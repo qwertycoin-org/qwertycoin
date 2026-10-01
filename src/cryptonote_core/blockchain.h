@@ -985,7 +985,7 @@ namespace cryptonote
     uint64_t get_epose_attestation_count() const;
     crypto::hash get_epose_state_hash() const;
     crypto::hash get_epose_epoch_context_hash(uint64_t epoch) const;
-    bool submit_epose_relay_envelopes_v2(
+    qwertycoin::epose::relay_ingress_status_v2 submit_epose_relay_envelopes_v2(
         const std::vector<blobdata> &envelopes,
         std::vector<blobdata> &accepted);
 

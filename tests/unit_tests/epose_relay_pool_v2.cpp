@@ -5,6 +5,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
+#include <set>
+#include <tuple>
 
 #include "epose/lifecycle_v2.h"
 #include "epose/record_codec_v2.h"
@@ -48,12 +51,15 @@ namespace
     return limits;
   }
 
-  relay_record_pool_v2 pool()
+  relay_record_pool_v2 pool(
+      uint64_t receipt_slot_dedup_height =
+          std::numeric_limits<uint64_t>::max())
   {
     return relay_record_pool_v2(
         epoch_timing_v2{0, 720, 60}, envelope_limits(),
         relay_queue_limits_v2{4, 8192, 1, 1, 2048, 2048},
-        relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048});
+        relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048},
+        receipt_slot_dedup_height);
   }
 
   envelope_record_v2 lifecycle_record(uint64_t effective_epoch)
@@ -134,16 +140,38 @@ namespace
     return records;
   }
 
-  envelope_record_v2 receipt_record(uint64_t epoch)
+  void write_u64_le(std::string &bytes, size_t offset, uint64_t value)
+  {
+    for (unsigned shift = 0; shift < 64; shift += 8)
+      bytes[offset + shift / 8] =
+          static_cast<char>((value >> shift) & 0xff);
+  }
+
+  envelope_record_v2 receipt_record(
+      uint64_t epoch,
+      uint64_t round = 0,
+      uint8_t subject = 1,
+      uint8_t verifier = 2,
+      uint8_t variant = 0)
   {
     envelope_record_v2 record{};
     record.type = static_cast<uint8_t>(record_type_v2::service_receipt);
     record.version = EPOSE_SERVICE_RECEIPT_RECORD_VERSION_V2;
     record.payload.assign(EPOSE_SERVICE_RECEIPT_PAYLOAD_BYTES_V2, '\0');
-    record.payload[0] = 1;
-    record.payload[1] = 1;
-    for (unsigned shift = 0; shift < 64; shift += 8)
-      record.payload[2 + shift / 8] = static_cast<char>((epoch >> shift) & 0xff);
+    record.payload[0] = static_cast<char>(EPOSE_PROTOCOL_VERSION_V2);
+    record.payload[1] = static_cast<char>(service_kind_v2::canonical_object);
+    write_u64_le(record.payload, 2, epoch);
+    write_u64_le(record.payload, 10, round);
+    record.payload[18] = 1;   // snapshot hash
+    record.payload[50] = 2;   // anchor hash
+    record.payload[82] = static_cast<char>(subject);
+    record.payload[114] = static_cast<char>(verifier);
+    record.payload[146] = 3;  // endpoint hash
+    record.payload[178] = static_cast<char>(4 + variant); // nonce
+    record.payload[210] = 5;  // requested object
+    record.payload[242] = 5;  // response object
+    record.payload[274] = static_cast<char>(6 + variant); // subject signature
+    record.payload[338] = static_cast<char>(7 + variant); // verifier signature
     return record;
   }
 
@@ -151,7 +179,8 @@ namespace
   {
     return {
         relay_queue_limits_v2{4, 8192, 1, 1, 2048, 2048},
-        relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048}};
+        relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048},
+        std::numeric_limits<uint64_t>::max()};
   }
 
   class fixed_contexts final : public canonical_context_source_v2
@@ -189,6 +218,8 @@ TEST(epose_relay_pool_v2, compiled_mainnet_final_policy_matches_manifest)
   EXPECT_EQ(1048576u, policy.queue.max_bytes);
   EXPECT_EQ(256u, policy.mining_template.max_items);
   EXPECT_EQ(32768u, policy.mining_template.max_bytes);
+  EXPECT_EQ(QWC_EPOSE_RELAY_HARDENING_HEIGHT,
+      policy.receipt_slot_dedup_height);
 
   crypto::hash wrong = parameters;
   reinterpret_cast<unsigned char *>(&wrong)[0] ^= 1;
@@ -257,9 +288,121 @@ TEST(epose_relay_pool_v2, confirmed_records_are_removed_by_complete_record_id)
   EXPECT_EQ(0u, relay.bytes());
 
   ASSERT_EQ(relay_record_status_v2::accepted, relay.enqueue(receipt, 1));
-  relay.erase_confirmed_records({receipt});
+  relay.erase_confirmed_records({receipt}, 1);
   EXPECT_EQ(0u, relay.size());
   EXPECT_EQ(0u, relay.bytes());
+}
+
+TEST(epose_relay_pool_v2, receipt_slot_hardening_activates_exactly_at_height_20000)
+{
+  auto relay = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  const envelope_record_v2 first = receipt_record(27, 0, 1, 2, 1);
+  const envelope_record_v2 second = receipt_record(27, 0, 1, 2, 2);
+  const envelope_record_v2 third = receipt_record(27, 0, 1, 2, 3);
+
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      relay.enqueue(first, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      relay.enqueue(second, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  ASSERT_EQ(2u, relay.size());
+
+  std::vector<relay_record_selection_v2> selected;
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      relay.select_for_template(
+          QWC_EPOSE_RELAY_HARDENING_HEIGHT, selected));
+  EXPECT_EQ(1u, relay.size());
+  ASSERT_EQ(1u, selected.size());
+  EXPECT_EQ(relay_record_status_v2::idempotent_duplicate,
+      relay.enqueue(third, QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_EQ(1u, relay.size());
+
+  // Relay policy is height-derived and therefore follows a reorg below the
+  // activation boundary without altering canonical EPoSE state.
+  EXPECT_EQ(relay_record_status_v2::accepted,
+      relay.enqueue(third, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  EXPECT_EQ(2u, relay.size());
+}
+
+TEST(epose_relay_pool_v2, hardening_purges_all_variants_of_a_confirmed_slot)
+{
+  auto relay = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  const envelope_record_v2 first = receipt_record(27, 1, 3, 4, 1);
+  const envelope_record_v2 second = receipt_record(27, 1, 3, 4, 2);
+  const envelope_record_v2 confirmed = receipt_record(27, 1, 3, 4, 3);
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      relay.enqueue(first, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      relay.enqueue(second, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  ASSERT_EQ(2u, relay.size());
+
+  relay.erase_confirmed_records(
+      {confirmed}, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  EXPECT_EQ(0u, relay.size());
+  EXPECT_EQ(0u, relay.bytes());
+}
+
+TEST(epose_relay_pool_v2, hardening_bounds_retries_and_preserves_all_unique_round_slots)
+{
+  relay_record_pool_v2 relay(
+      epoch_timing_v2{0, 720, 60}, envelope_limits(),
+      relay_queue_limits_v2{2048, 1048576, 512, 512, 262144, 262144},
+      relay_template_limits_v2{256, 32768, 64, 64, 8192, 8192},
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  ASSERT_TRUE(relay.valid());
+
+  constexpr uint64_t epoch = 27;
+  constexpr size_t subjects = 18;
+  constexpr size_t rounds = 3;
+  constexpr size_t verifiers = 9;
+  for (size_t subject = 0; subject < subjects; ++subject)
+    for (size_t round = 0; round < rounds; ++round)
+      for (size_t verifier = 0; verifier < verifiers; ++verifier)
+        for (uint8_t variant = 0; variant < 4; ++variant)
+        {
+          const auto status = relay.enqueue(
+              receipt_record(
+                  epoch, round, static_cast<uint8_t>(subject + 1),
+                  static_cast<uint8_t>(verifier + 64), variant),
+              QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+          EXPECT_EQ(variant == 0
+                  ? relay_record_status_v2::accepted
+                  : relay_record_status_v2::idempotent_duplicate,
+              status);
+        }
+  ASSERT_EQ(subjects * rounds * verifiers, relay.size());
+
+  std::set<std::tuple<uint64_t, uint64_t, uint8_t, uint8_t>> observed;
+  while (relay.size() != 0)
+  {
+    std::vector<relay_record_selection_v2> selected;
+    ASSERT_EQ(relay_record_status_v2::accepted,
+        relay.select_for_template(
+            QWC_EPOSE_RELAY_HARDENING_HEIGHT, selected));
+    ASSERT_FALSE(selected.empty());
+    std::vector<envelope_record_v2> confirmed;
+    confirmed.reserve(selected.size());
+    for (const relay_record_selection_v2 &item : selected)
+    {
+      authenticated_service_receipt_v2 receipt{};
+      ASSERT_EQ(record_codec_status_v2::accepted,
+          decode_service_receipt_record_structure_v2(item.record, receipt));
+      EXPECT_TRUE(observed.emplace(
+          receipt.challenge.epoch, receipt.challenge.round,
+          static_cast<uint8_t>(receipt.challenge.subject_public_key.data[0]),
+          static_cast<uint8_t>(receipt.challenge.verifier_public_key.data[0])).second);
+      confirmed.push_back(item.record);
+    }
+    relay.erase_confirmed_records(
+        confirmed, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  }
+
+  EXPECT_EQ(subjects * rounds * verifiers, observed.size());
+  for (size_t round = 0; round < rounds; ++round)
+    EXPECT_EQ(subjects * verifiers,
+        static_cast<size_t>(std::count_if(
+            observed.begin(), observed.end(), [round](const auto &slot) {
+              return std::get<1>(slot) == round;
+            })));
 }
 
 TEST(epose_relay_pool_v2, invalid_local_limits_fail_closed)
@@ -267,7 +410,8 @@ TEST(epose_relay_pool_v2, invalid_local_limits_fail_closed)
   relay_record_pool_v2 invalid(
       epoch_timing_v2{0, 720, 60}, envelope_limits(),
       relay_queue_limits_v2{},
-      relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048});
+      relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048},
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   EXPECT_FALSE(invalid.valid());
   EXPECT_EQ(relay_record_status_v2::invalid_configuration,
       invalid.enqueue(receipt_record(1), 1));
@@ -337,6 +481,46 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
           {corrupted}, 1, envelope_limits(), relay_policy(),
           state, contexts, relay, accepted));
   EXPECT_EQ(1u, relay.size());
+  EXPECT_TRUE(accepted.empty());
+}
+
+TEST(epose_relay_pool_v2, semantic_ingress_reports_queue_exhaustion_and_keeps_batch_atomic)
+{
+  const epoch_timing_v2 timing{0, 720, 60};
+  const admission_policy_v2 admission{
+      admission_work_algorithm_v2::randomx, 1, 1};
+  const committee_policy_v2 committee{1, 1, 1, 1, 1, {0}};
+  semantic_state_v2 state(
+      cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+      timing, admission, committee);
+  ASSERT_TRUE(state.valid());
+
+  relay_policy_v2 policy{
+      relay_queue_limits_v2{2, 8192, 1, 1, 2048, 2048},
+      relay_template_limits_v2{2, 4096, 1, 1, 2048, 2048},
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT};
+  ASSERT_TRUE(policy.valid());
+  relay_record_pool_v2 relay(
+      timing, envelope_limits(), policy.queue, policy.mining_template,
+      policy.receipt_slot_dedup_height);
+  const auto records = dependent_lifecycle_records();
+  std::vector<std::string> encoded;
+  for (const auto &record : records)
+  {
+    envelope_budget_v2 ignored{};
+    std::string envelope;
+    ASSERT_EQ(envelope_status_v2::accepted,
+        encode_envelope_v2({record}, envelope_limits(), envelope, ignored));
+    encoded.push_back(std::move(envelope));
+  }
+
+  const fixed_contexts contexts{};
+  std::vector<std::string> accepted;
+  EXPECT_EQ(relay_ingress_status_v2::capacity_exhausted,
+      admit_relay_envelopes_v2(
+          encoded, 1, envelope_limits(), policy, state, contexts,
+          relay, accepted));
+  EXPECT_EQ(0u, relay.size());
   EXPECT_TRUE(accepted.empty());
 }
 

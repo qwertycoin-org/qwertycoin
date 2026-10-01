@@ -10,6 +10,11 @@ version `2` is active for that public-chain profile. The profile is accepted
 only when the selected network is mainnet and the genesis hash matches the
 compiled value.
 
+Hardfork version `18` is scheduled at height `20,000`. It keeps EPoSE protocol
+version `2` and all canonical state/economic rules unchanged. The only EPoSE
+behavior activated at that boundary is local relay/template deduplication by
+the consensus receipt slot `(epoch, round, service kind, subject, verifier)`.
+
 The normative implementation is:
 
 - `src/epose/coordinator_v2.cpp` for the compiled profile and reward planning;
@@ -29,7 +34,7 @@ The identifiers that bind this profile are:
 
 | Item | Value |
 | --- | --- |
-| QWC hardfork version | `17` |
+| QWC hardfork versions | `17` from height `0`; `18` from height `20,000` |
 | EPoSE protocol version | `2` |
 | Activation height | `0` |
 | Mainnet genesis hash | `4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39` |
@@ -38,6 +43,9 @@ The identifiers that bind this profile are:
 `compiled_consensus_parameters_v2()` rejects another network, genesis, an
 incomplete profile, or an invalid parameter set. There is no legacy-v1
 fallback on the public QWC-HF17 chain.
+
+Height `20,000` lies inside epoch `27`. The first complete service epoch under
+the hardened relay policy begins at height `20,160` (epoch `28`).
 
 ## Identity and lifecycle
 

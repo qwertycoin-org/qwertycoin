@@ -442,7 +442,8 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
             m_epose_v2_parameters.timing,
             m_epose_v2_parameters.limits.envelope,
             m_epose_v2_relay_policy.queue,
-            m_epose_v2_relay_policy.mining_template));
+            m_epose_v2_relay_policy.mining_template,
+            m_epose_v2_relay_policy.receipt_slot_dedup_height));
       }
       else if (m_nettype != FAKECHAIN)
       {
@@ -830,7 +831,8 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
           m_epose_v2_parameters.timing,
           m_epose_v2_parameters.limits.envelope,
           m_epose_v2_relay_policy.queue,
-          m_epose_v2_relay_policy.mining_template));
+          m_epose_v2_relay_policy.mining_template,
+          m_epose_v2_relay_policy.receipt_slot_dedup_height));
   }
 
   db_wtxn_guard wtxn_guard(m_db);
@@ -1002,14 +1004,17 @@ bool Blockchain::get_epose_reward_source_epoch_v2(uint64_t height, uint64_t &epo
   return true;
 }
 //------------------------------------------------------------------
-bool Blockchain::submit_epose_relay_envelopes_v2(
+qwertycoin::epose::relay_ingress_status_v2
+Blockchain::submit_epose_relay_envelopes_v2(
     const std::vector<blobdata> &envelopes,
     std::vector<blobdata> &accepted)
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
   accepted.clear();
   if (!m_epose_v2 || !m_epose_v2_relay_pool)
-    return envelopes.empty();
+    return envelopes.empty()
+        ? qwertycoin::epose::relay_ingress_status_v2::accepted
+        : qwertycoin::epose::relay_ingress_status_v2::invalid_configuration;
 
   class relay_context_source final
       : public qwertycoin::epose::canonical_context_source_v2
@@ -1056,8 +1061,7 @@ bool Blockchain::submit_epose_relay_envelopes_v2(
   return qwertycoin::epose::admit_relay_envelopes_v2(
       envelopes, m_db->height(), m_epose_v2_parameters.limits.envelope,
       m_epose_v2_relay_policy, m_epose_v2->state(), contexts,
-      *m_epose_v2_relay_pool, accepted)
-      == qwertycoin::epose::relay_ingress_status_v2::accepted;
+      *m_epose_v2_relay_pool, accepted);
 }
 //------------------------------------------------------------------
 std::vector<qwertycoin::epose::service_node_identity> Blockchain::get_epose_service_nodes() const
@@ -5615,7 +5619,8 @@ leave:
     return false;
   }
   if (m_epose_v2_relay_pool && !confirmed_epose_records.empty())
-    m_epose_v2_relay_pool->erase_confirmed_records(confirmed_epose_records);
+    m_epose_v2_relay_pool->erase_confirmed_records(
+        confirmed_epose_records, new_height - 1);
 
   MINFO("+++++ BLOCK SUCCESSFULLY ADDED" << std::endl << "id:\t" << id << std::endl << "PoW:\t" << proof_of_work << std::endl << "HEIGHT " << new_height-1 << ", difficulty:\t" << current_diffic << std::endl << "block reward: " << print_money(fee_summary + base_reward) << "(" << print_money(base_reward) << " + " << print_money(fee_summary) << "), coinbase_weight: " << coinbase_weight << ", cumulative weight: " << cumulative_block_weight << ", " << block_processing_time << "(" << target_calculating_time << "/" << longhash_calculating_time << ")ms");
   if(m_show_time_stats)

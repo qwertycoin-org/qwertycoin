@@ -1271,6 +1271,19 @@ namespace cryptonote
             false, false);
         return false;
       }
+      // The hardened relay pool treats a freshly signed variant of an already
+      // pending receipt slot as an idempotent duplicate. Keep the producer's
+      // bounded retry useful by sending that exact variant to direct peers;
+      // peers that already hold any variant stop propagation, while a peer
+      // that missed the earlier broadcast can still admit and relay it.
+      if (!newly_accepted)
+      {
+        NOTIFY_NEW_EPOSE_ENVELOPES_V2::request request{};
+        request.envelopes.push_back(result.envelope);
+        relayed = get_protocol()->relay_epose_envelopes_v2(
+            request, boost::uuids::nil_uuid(),
+            epee::net_utils::zone::public_);
+      }
       m_epose_v2_receipt_retries.submitted(
           result.slot, epose_v2_steady_milliseconds());
       finish_attempt(result,
@@ -1836,8 +1849,14 @@ namespace cryptonote
       const std::vector<blobdata>& envelopes,
       std::vector<blobdata>& accepted_envelopes)
   {
-    return m_blockchain_storage.submit_epose_relay_envelopes_v2(
+    const auto status = m_blockchain_storage.submit_epose_relay_envelopes_v2(
         envelopes, accepted_envelopes);
+    // Capacity and expiry are local, non-malicious conditions. Ignore these
+    // P2P submissions without relaying them, but do not punish the sender.
+    return status == qwertycoin::epose::relay_ingress_status_v2::accepted
+        || status == qwertycoin::epose::relay_ingress_status_v2::expired
+        || status
+            == qwertycoin::epose::relay_ingress_status_v2::capacity_exhausted;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::epose_v2_endpoint_hash_is_canonical(
@@ -1936,7 +1955,9 @@ namespace cryptonote
       return false;
 
     std::vector<blobdata> accepted;
-    if (!handle_incoming_epose_envelopes_v2(envelopes, accepted))
+    if (m_blockchain_storage.submit_epose_relay_envelopes_v2(
+            envelopes, accepted)
+        != qwertycoin::epose::relay_ingress_status_v2::accepted)
       return false;
     if (accepted.empty())
       return true;
@@ -2497,11 +2518,14 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec: " << e.what());
     }
 
-    // QWC's public chain is HF17-native, so regtest must use the same genesis
-    // version. Starting regtest at v1 creates a different genesis from the
-    // wallet clients and makes the disposable RPC test network reject itself.
-    const std::pair<uint8_t, uint64_t> regtest_hard_forks[2] = {
+    // QWC's public chain is HF17-native, and regtest follows the production
+    // HF18 activation height so long-running disposable chains exercise the
+    // same version boundary. Starting regtest at v1 creates a different
+    // genesis from wallet clients and makes the RPC test network reject itself.
+    const std::pair<uint8_t, uint64_t> regtest_hard_forks[3] = {
       std::make_pair(HF_VERSION_QWC_EPOSE, 0),
+      std::make_pair(HF_VERSION_QWC_EPOSE_RELAY_HARDENING,
+          QWC_EPOSE_RELAY_HARDENING_HEIGHT),
       std::make_pair(0, 0)
     };
     const cryptonote::test_options regtest_test_options = {

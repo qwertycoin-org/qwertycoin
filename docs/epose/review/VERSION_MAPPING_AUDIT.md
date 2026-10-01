@@ -1,8 +1,9 @@
-# QWC HF17 / EPoSE-v2 version mapping audit
+# QWC HF17/HF18 / EPoSE-v2 version mapping audit
 
 **Status:** Fresh-genesis launch mapping; release readiness remains gated  
 **Inherited baseline:** Monero consensus rules through block version 16  
 **QWC launch block version:** 17  
+**Relay-hardening block version:** 18 from height 20,000
 **EPoSE protocol/format version:** 2  
 
 ## Version domains
@@ -13,18 +14,19 @@ the retained Monero-HF16 transaction, RingCT, Coinbase, and cryptographic rules
 and adds the QWC launch rules. EPoSE records within those blocks use protocol,
 envelope, and record version 2.
 
-There is no block-version-16 operating phase, no version-17 legacy EPoSE phase,
-and no scheduled version-18 transition. Blocks with major version 16 or 18 do
-not select an EPoSE handler on the fresh chain.
+There is no block-version-16 operating phase and no version-17 legacy EPoSE
+phase. HF18 is a forward continuation of the same EPoSE-v2 state machine at
+height 20,000; it does not select a new EPoSE wire format or reset state.
 
 ## Source mapping
 
 | Entry point | Launch rule |
 |---|---|
-| `src/cryptonote_config.h` | `HF_VERSION_MONERO_CURRENT_CONSENSUS = 16` names the inherited baseline; `HF_VERSION_QWC_EPOSE = 17` names the only launch block version. |
-| `src/hardforks/hardforks.cpp` | Mainnet, testnet, and stagenet schedule exact version 17 at height 0. |
+| `src/cryptonote_config.h` | Version 17 names the launch rules; version 18 names relay hardening and keeps EPoSE-v2 active. |
+| `src/hardforks/hardforks.cpp` | Mainnet, testnet, and stagenet schedule version 17 at height 0 and version 18 at height 20,000. |
 | `src/cryptonote_core/cryptonote_tx_utils.h` | Genesis construction defaults to block major/minor version 17. |
-| `src/epose/envelope_v2.cpp` | The dedicated EPoSE-v2 extra field is accepted only for exact block version 17. Versions 16, 18, and other unscheduled values fail closed. |
+| `src/epose/envelope_v2.cpp` | The dedicated EPoSE-v2 field is accepted for scheduled QWC versions 17 and later; chain hardfork validation rejects unscheduled block versions. |
+| `src/epose/relay_pool_v2.cpp` | Receipt-slot deduplication and semantic variant purging activate exactly at height 20,000. |
 | `tests/epose/manifest_v2.py` | A launch candidate requires integer activation height 0, block hardfork version 17, and EPoSE protocol version 2. |
 
 ## Retired mapping
@@ -37,7 +39,7 @@ separate EPoSE protocol/format generation.
 
 The legacy-v1 state machine remains historical source/test material only. The
 production `Blockchain` block, reward, Coinbase, LMDB commitment, disconnect
-and startup/deep-replay paths select the hardened coordinator at exact HF17.
+and startup/deep-replay paths select the hardened coordinator from HF17 onward.
 The inherited service-node CLI, extra-nonce template producer and fixed-size
 P2P registration/attestation command fail closed and cannot supply eligibility,
 receipts, qualification, or payouts for the fresh-genesis candidate.

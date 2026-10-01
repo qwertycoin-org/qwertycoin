@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <map>
 #include <utility>
 
 #include "epose/compiled_profile_v2.h"
@@ -27,6 +28,35 @@ namespace
     std::string transcript(domain, sizeof(domain) - 1);
     transcript.append(canonical_envelope);
     return crypto::cn_fast_hash(transcript.data(), transcript.size());
+  }
+
+  bool id_less(const crypto::hash &left, const crypto::hash &right)
+  {
+    return std::memcmp(&left, &right, sizeof(left)) < 0;
+  }
+
+  std::string receipt_slot(
+      const qwertycoin::epose::envelope_record_v2 &record)
+  {
+    using namespace qwertycoin::epose;
+    authenticated_service_receipt_v2 receipt{};
+    if (decode_service_receipt_record_structure_v2(record, receipt)
+        != record_codec_status_v2::accepted)
+      return {};
+    const service_challenge_v2 &challenge = receipt.challenge;
+    std::string slot("QWC_EPOSE_RECEIPT_SLOT_V2");
+    slot.push_back(static_cast<char>(challenge.service_kind));
+    for (unsigned shift = 0; shift < 64; shift += 8)
+      slot.push_back(static_cast<char>((challenge.epoch >> shift) & 0xff));
+    for (unsigned shift = 0; shift < 64; shift += 8)
+      slot.push_back(static_cast<char>((challenge.round >> shift) & 0xff));
+    slot.append(
+        reinterpret_cast<const char *>(&challenge.subject_public_key),
+        sizeof(challenge.subject_public_key));
+    slot.append(
+        reinterpret_cast<const char *>(&challenge.verifier_public_key),
+        sizeof(challenge.verifier_public_key));
+    return slot;
   }
 }
 
@@ -66,6 +96,8 @@ namespace epose
         256, 32768,
         64, 64,
         8192, 8192};
+    policy.receipt_slot_dedup_height =
+        QWC_EPOSE_RELAY_HARDENING_HEIGHT;
     return policy.valid();
   }
 
@@ -73,11 +105,13 @@ namespace epose
       const epoch_timing_v2 &timing,
       const envelope_limits_v2 &envelope_limits,
       const relay_queue_limits_v2 &queue_limits,
-      const relay_template_limits_v2 &template_limits)
+      const relay_template_limits_v2 &template_limits,
+      uint64_t receipt_slot_dedup_height)
     : timing_(timing),
       envelope_limits_(envelope_limits),
       queue_limits_(queue_limits),
       template_limits_(template_limits),
+      receipt_slot_dedup_height_(receipt_slot_dedup_height),
       queue_(queue_limits)
   {
   }
@@ -144,6 +178,18 @@ namespace epose
     if (!describe(record, record_class, deadline_height))
       return relay_record_status_v2::invalid_record;
 
+    prune_expired(current_height);
+    const std::string slot = receipt_slot(record);
+    if (current_height >= receipt_slot_dedup_height_ && !slot.empty())
+    {
+      const auto duplicate = std::find_if(
+          records_.begin(), records_.end(), [&](const stored_record_v2 &stored) {
+            return stored.receipt_slot == slot;
+          });
+      if (duplicate != records_.end())
+        return relay_record_status_v2::idempotent_duplicate;
+    }
+
     std::string encoded;
     envelope_budget_v2 budget{};
     if (encode_envelope_v2({record}, envelope_limits_, encoded, budget)
@@ -169,7 +215,7 @@ namespace epose
       return queue_status == resource_status_v2::relay_item_conflict
           ? relay_record_status_v2::conflict
           : relay_record_status_v2::invalid_configuration;
-    records_.push_back({id, record, deadline_height});
+    records_.push_back({id, record, deadline_height, slot});
     return relay_record_status_v2::accepted;
   }
 
@@ -179,13 +225,46 @@ namespace epose
     records_.erase(std::remove_if(records_.begin(), records_.end(), [&](const stored_record_v2 &stored) {
       return stored.deadline_height < current_height;
     }), records_.end());
+    compact_receipt_slots(current_height);
+  }
+
+  void relay_record_pool_v2::compact_receipt_slots(uint64_t current_height)
+  {
+    if (current_height < receipt_slot_dedup_height_ || records_.size() < 2)
+      return;
+    std::map<std::string, size_t> kept;
+    std::vector<bool> remove(records_.size(), false);
+    for (size_t index = 0; index < records_.size(); ++index)
+    {
+      if (records_[index].receipt_slot.empty())
+        continue;
+      const auto inserted = kept.emplace(records_[index].receipt_slot, index);
+      if (inserted.second)
+        continue;
+      const size_t previous = inserted.first->second;
+      if (id_less(records_[index].id, records_[previous].id))
+      {
+        remove[previous] = true;
+        inserted.first->second = index;
+      }
+      else
+        remove[index] = true;
+    }
+    for (size_t index = records_.size(); index-- > 0;)
+    {
+      if (!remove[index])
+        continue;
+      queue_.erase(records_[index].id);
+      records_.erase(records_.begin() + index);
+    }
   }
 
   relay_record_status_v2 relay_record_pool_v2::select_for_template(
       uint64_t current_height,
-      std::vector<relay_record_selection_v2> &selected) const
+      std::vector<relay_record_selection_v2> &selected)
   {
     selected.clear();
+    prune_expired(current_height);
     std::vector<relay_item_v2> items;
     const resource_status_v2 status =
         queue_.select_for_template(current_height, template_limits_, items);
@@ -218,12 +297,20 @@ namespace epose
   }
 
   void relay_record_pool_v2::erase_confirmed_records(
-      const std::vector<envelope_record_v2> &records)
+      const std::vector<envelope_record_v2> &records,
+      uint64_t current_height)
   {
     std::vector<crypto::hash> ids;
-    ids.reserve(records.size());
     for (const envelope_record_v2 &record : records)
     {
+      const std::string slot = receipt_slot(record);
+      if (current_height >= receipt_slot_dedup_height_ && !slot.empty())
+      {
+        for (const stored_record_v2 &stored : records_)
+          if (stored.receipt_slot == slot)
+            ids.push_back(stored.id);
+        continue;
+      }
       std::string encoded;
       envelope_budget_v2 ignored{};
       if (encode_envelope_v2({record}, envelope_limits_, encoded, ignored)
@@ -279,9 +366,10 @@ namespace epose
       relay_record_pool_v2 tentative = next_pool;
       const relay_record_status_v2 queue_status =
           tentative.enqueue(records.front(), inclusion_height);
-      if (queue_status == relay_record_status_v2::expired
-          || queue_status == relay_record_status_v2::full)
-        continue;
+      if (queue_status == relay_record_status_v2::expired)
+        return relay_ingress_status_v2::expired;
+      if (queue_status == relay_record_status_v2::full)
+        return relay_ingress_status_v2::capacity_exhausted;
       if (queue_status != relay_record_status_v2::accepted
           && queue_status != relay_record_status_v2::idempotent_duplicate)
         return relay_ingress_status_v2::invalid_batch;
