@@ -61,6 +61,7 @@ jobs:
           docker run --rm \
             --entrypoint /usr/local/bin/qwertycoin-unit-tests \
             qwertycoin-core:required-ci \
+            --data-dir=/usr/local/share/qwertycoin/tests/data \
             --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*'
 
   required:
