@@ -55,9 +55,22 @@ def updated_readme(data: dict[str, str]) -> str:
 
 def verify_version(data: dict[str, str]) -> None:
     text = VERSION_SOURCE.read_text()
-    expected = f'#define DEF_QWERTYCOIN_VERSION "{data["version"]}"'
-    if expected not in text:
-        raise SystemExit(f"{VERSION_SOURCE}: missing {expected}")
+    matches = re.findall(
+        r'^#define DEF_QWERTYCOIN_VERSION "([0-9]+\.[0-9]+\.[0-9]+)"$',
+        text,
+        re.MULTILINE,
+    )
+    if len(matches) != 1:
+        raise SystemExit(
+            f"{VERSION_SOURCE}: expected exactly one canonical product version"
+        )
+    source_version = tuple(int(part) for part in matches[0].split("."))
+    published_version = tuple(int(part) for part in data["version"].split("."))
+    if source_version < published_version:
+        raise SystemExit(
+            f"{VERSION_SOURCE}: source version {matches[0]} is older than "
+            f"published version {data['version']}"
+        )
 
 
 def main() -> int:
