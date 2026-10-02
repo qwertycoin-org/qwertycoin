@@ -28,17 +28,19 @@ latest checkpoint.
 | 10799 | Epoch 14 end | `4c9b3093213620d56a5a26bf58a2a7423e212cd2bc0483eb3c8ca84f8346f5ed` | `0xc4611179c0` |
 | 11519 | Epoch 15 end | `65abb7baad939246dc1dd9c0b5ac04f0e3cd5bc0ee1dca34a6abd873eabda935` | `0xcde8b8a389` |
 | 12239 | Epoch 16 end | `e515a18cdcb584963c19ce289ed064c8bb78d8b51920363e97847da9d6ca01dd` | `0xe00312c3d8` |
+| 12959 | Epoch 17 end | `6959c12d91fecf28a50d629ac5a2a18b37a64d7cde3a5327605792ced3f0300f` | `0xfbfe2feaa0` |
+| 13679 | Epoch 18 end | `a6b9075826b44e14aeb4c3fb2c55d440fe79ef6b5601d7655ca90f1c6ef52ff2` | `0x118e0339a47` |
 
-The 17 post-genesis entries are the ends of completed 720-block EPoSE epochs.
+The 19 post-genesis entries are the ends of completed 720-block EPoSE epochs.
 The first five entries were verified on 2026-09-18. On 2026-10-01, every new
 hash and cumulative difficulty was independently queried from six operator Core
 daemons. The block hashes were also checked against the public Qwertycoin
 Explorer. All queried headers were canonical, reported hard-fork version 17,
-and the newest included entry was 817 blocks deep at block count 13057.
-
-Epoch 17 ended at height 12959, but that block was only 97 blocks deep during
-the 2026-10-01 review. It was deliberately not embedded yet because it was
-below the 178-block confirmation precedent used for the previous update.
+and the newest included entry was 817 blocks deep at block count 13057. On
+2026-10-02, epochs 17 and 18 were independently queried from the same six
+operator daemons and cross-checked against the public Explorer. All six daemons
+returned identical canonical HF17 hashes and cumulative difficulties. At block
+count 14016, heights 12959 and 13679 were respectively 1056 and 336 blocks deep.
 
 ## Activation and compatibility
 
@@ -49,14 +51,14 @@ difficulties; fresh nodes enforce them while syncing.
 
 Nodes running older binaries do not gain these checkpoints. During a mixed-version
 rollout, an older node can follow a proof-of-work reorganization that a newer node
-rejects if it conflicts at or below height 12239. Operators should therefore roll
+rejects if it conflicts at or below height 13679. Operators should therefore roll
 the update out consistently across public infrastructure.
 
 ## Reorganization behavior
 
 An upgraded node rejects a block whose hash does not match a checkpoint at that
 height and does not retain alternative blocks at or below the latest applicable
-checkpoint. Reorganizations wholly above height 12239 remain governed by normal
+checkpoint. Reorganizations wholly above height 13679 remain governed by normal
 proof-of-work chain selection and all existing consensus rules.
 
 These entries are separate from `src/blocks/checkpoints.dat`, which is the
