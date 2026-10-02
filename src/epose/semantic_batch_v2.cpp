@@ -222,6 +222,12 @@ namespace epose
 
   const lifecycle_registry_v2 &semantic_state_v2::lifecycle() const { return lifecycle_; }
   const membership_pipeline_v2 &semantic_state_v2::membership() const { return membership_; }
+  cryptonote::network_type semantic_state_v2::nettype() const { return nettype_; }
+  const crypto::hash &semantic_state_v2::genesis_hash() const { return genesis_hash_; }
+  const crypto::hash &semantic_state_v2::parameter_set_hash() const
+  {
+    return parameter_set_hash_;
+  }
   pipeline_status_v2 semantic_state_v2::freeze_membership(
       uint64_t epoch, uint64_t height, const crypto::hash &anchor_hash)
   {

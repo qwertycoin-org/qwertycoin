@@ -80,6 +80,9 @@ namespace epose
 
     const lifecycle_registry_v2 &lifecycle() const;
     const membership_pipeline_v2 &membership() const;
+    cryptonote::network_type nettype() const;
+    const crypto::hash &genesis_hash() const;
+    const crypto::hash &parameter_set_hash() const;
     crypto::hash state_hash() const;
 
   private:

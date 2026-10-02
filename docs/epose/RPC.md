@@ -135,6 +135,19 @@ separately labelled canonical qualification evidence. `recent_limit` defaults
 to 50 and is capped at 100. Optional `epoch` selects the chain-derived
 qualification epoch; omitted means the current epoch.
 
+Schema version 2 also reports the current relay queue item/byte totals and
+bounded counters for exact redelivery duplicates, rejected signature variants,
+expired round evidence, invalid canonical contexts, capacity rejections,
+template-selected receipts, and canonical receipt observations. These are
+restart-local operational counters; qualification remains derived from the
+canonical chain anchor returned in the same response.
+
+`relay_canonical_receipts` is an aggregate count of pending queue records
+removed after canonical observation, not a per-node qualification count.
+`rounds[].canonical_inclusions_observed` is grouped by epoch and round for the
+local service identity. Use the chain-derived `canonical_unique_receipts`
+array, together with the returned chain anchor, for qualification evidence.
+
 See [`DIAGNOSTICS.md`](DIAGNOSTICS.md) for stable reason codes, example events,
 retention/reset behavior, and the operator troubleshooting sequence.
 

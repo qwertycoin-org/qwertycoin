@@ -897,6 +897,8 @@ namespace cryptonote
     uint64_t attempts_cancelled;
     uint64_t attempts_expired;
     uint64_t local_submissions_accepted;
+    uint64_t transport_retries_attempted;
+    uint64_t transport_retries_relayed;
     uint64_t canonical_inclusions_observed;
 
     BEGIN_KV_SERIALIZE_MAP()
@@ -909,6 +911,8 @@ namespace cryptonote
       KV_SERIALIZE(attempts_cancelled)
       KV_SERIALIZE(attempts_expired)
       KV_SERIALIZE(local_submissions_accepted)
+      KV_SERIALIZE(transport_retries_attempted)
+      KV_SERIALIZE(transport_retries_relayed)
       KV_SERIALIZE(canonical_inclusions_observed)
     END_KV_SERIALIZE_MAP()
   };
@@ -1008,6 +1012,15 @@ namespace cryptonote
       uint64_t diagnostics_version;
       uint64_t reset_utc_ms;
       uint64_t attempts_in_flight;
+      uint64_t relay_queue_items;
+      uint64_t relay_queue_bytes;
+      uint64_t relay_exact_duplicates;
+      uint64_t relay_slot_variants;
+      uint64_t relay_expired_round_receipts;
+      uint64_t relay_invalid_context_receipts;
+      uint64_t relay_canonical_receipts;
+      uint64_t relay_capacity_rejections;
+      uint64_t relay_template_selected_receipts;
       std::vector<epose_diagnostic_round_entry> rounds;
       std::vector<epose_diagnostic_failure_entry> failures;
       std::vector<epose_diagnostic_skip_entry> skips;
@@ -1032,6 +1045,15 @@ namespace cryptonote
         KV_SERIALIZE(diagnostics_version)
         KV_SERIALIZE(reset_utc_ms)
         KV_SERIALIZE(attempts_in_flight)
+        KV_SERIALIZE(relay_queue_items)
+        KV_SERIALIZE(relay_queue_bytes)
+        KV_SERIALIZE(relay_exact_duplicates)
+        KV_SERIALIZE(relay_slot_variants)
+        KV_SERIALIZE(relay_expired_round_receipts)
+        KV_SERIALIZE(relay_invalid_context_receipts)
+        KV_SERIALIZE(relay_canonical_receipts)
+        KV_SERIALIZE(relay_capacity_rejections)
+        KV_SERIALIZE(relay_template_selected_receipts)
         KV_SERIALIZE(rounds)
         KV_SERIALIZE(failures)
         KV_SERIALIZE(skips)

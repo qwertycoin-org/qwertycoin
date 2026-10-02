@@ -271,6 +271,7 @@ TEST(qwc_relaunch, starts_from_current_monero_consensus)
 
   ASSERT_EQ(16, HF_VERSION_MONERO_CURRENT_CONSENSUS);
   ASSERT_EQ(17, HF_VERSION_QWC_EPOSE);
+  ASSERT_EQ(21600u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, mainnet_hard_forks[0].version);
   ASSERT_EQ(0u, mainnet_hard_forks[0].height);
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, testnet_hard_forks[0].version);
@@ -302,6 +303,19 @@ TEST(qwc_relaunch, starts_from_current_monero_consensus)
   hf.init();
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, hf.get_current_version());
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, hf.get_ideal_version(0));
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE,
+      hf.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE,
+      hf.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_TRUE(hf.check_for_height(
+      mkblock(HF_VERSION_QWC_EPOSE, HF_VERSION_QWC_EPOSE),
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  EXPECT_TRUE(hf.check_for_height(
+      mkblock(HF_VERSION_QWC_EPOSE, HF_VERSION_QWC_EPOSE),
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_FALSE(hf.check_for_height(
+      mkblock(HF_VERSION_QWC_EPOSE + 1, HF_VERSION_QWC_EPOSE + 1),
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT));
 }
 
 TEST(qwc_relaunch, genesis_block_uses_qwc_epose_protocol)

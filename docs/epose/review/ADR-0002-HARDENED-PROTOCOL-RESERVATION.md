@@ -8,6 +8,11 @@
 - **Reservation manifest canonical SHA-256:**
   `6377b1eb1eca7b44165cf64f66b1d686ec657e99ca057a0041ba4990c83e8699`
 
+> **Post-launch note (2026-10-01):** The public chain launched the hardened
+> EPoSE-v2 protocol as HF17. ADR-0010 activates receipt-relay hardening at
+> height 21,600 without allocating another block version or changing the
+> EPoSE wire-format/state-machine version.
+
 ## Context
 
 The disposable development chain used HF17/EPoSE v1, but the intended

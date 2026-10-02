@@ -16,12 +16,31 @@ latest checkpoint.
 | 2159 | Epoch 2 end | `011bdb8505cc457a3b4be6deccd8fb7fcd55849075b67cbac1f1601b034860a0` | `0x7a9125791` |
 | 2879 | Epoch 3 end | `cc954d4cb4352affc224a9191fb356932e4a9ec405e89b4932654fb1737a50d0` | `0x13e28e554a` |
 | 3599 | Epoch 4 end | `75c7cff8db59f803962fa86ab79a7429ebd3cd2025968bbe80d5744554ba35db` | `0x246cae087a` |
+| 4319 | Epoch 5 end | `b1be6607441fdd441264f5827401207e58052937f7a600287b442c1808d4160e` | `0x39566a3802` |
+| 5039 | Epoch 6 end | `55ac2256275255e99628c19e9fbfb3eb8708016a68af87f9d327f253ea150ecc` | `0x4a90d5fca8` |
+| 5759 | Epoch 7 end | `a39a08b8d95157e6ea39e33e91a2a7c1f25141db36f931911629b9e96d61737b` | `0x5b4dc1a177` |
+| 6479 | Epoch 8 end | `4c4d825d6c1d56e4a173658c7e5dd001d76050ff6b620407d74f5069f3d12996` | `0x6c49228c02` |
+| 7199 | Epoch 9 end | `5f69ac8432e5572d55a4cfca05c4cdef3964a95a09fe4b61ecb384908075072e` | `0x7d83b8cccc` |
+| 7919 | Epoch 10 end | `ae157dc07f24fb8075cfda96bcff3e0c2c303c07f09b37674465ba47a3719b9e` | `0x908fdebe23` |
+| 8639 | Epoch 11 end | `d60ea59c24852ef0c1bc12e25954550bae4592e94437182c0fc14c3755f3015c` | `0xa30db806e8` |
+| 9359 | Epoch 12 end | `1a19876876537d20a2eea9ff6bfb1e55beb9687a666737ad462c28d870a31c4c` | `0xb153f7b7cd` |
+| 10079 | Epoch 13 end | `24a4a4dca58f94bcdeac71795ce0e434023d9dfc086b72b40238dadd5f690998` | `0xbb0d648773` |
+| 10799 | Epoch 14 end | `4c9b3093213620d56a5a26bf58a2a7423e212cd2bc0483eb3c8ca84f8346f5ed` | `0xc4611179c0` |
+| 11519 | Epoch 15 end | `65abb7baad939246dc1dd9c0b5ac04f0e3cd5bc0ee1dca34a6abd873eabda935` | `0xcde8b8a389` |
+| 12239 | Epoch 16 end | `e515a18cdcb584963c19ce289ed064c8bb78d8b51920363e97847da9d6ca01dd` | `0xe00312c3d8` |
+| 12959 | Epoch 17 end | `6959c12d91fecf28a50d629ac5a2a18b37a64d7cde3a5327605792ced3f0300f` | `0xfbfe2feaa0` |
+| 13679 | Epoch 18 end | `a6b9075826b44e14aeb4c3fb2c55d440fe79ef6b5601d7655ca90f1c6ef52ff2` | `0x118e0339a47` |
 
-The five post-genesis entries are the ends of the completed 720-block EPoSE
-epochs. On 2026-09-18, every hash and cumulative difficulty was independently
-queried from three operator Core daemons. The block hashes were also checked
-against the public Qwertycoin Explorer. All queried headers were canonical,
-reported hard-fork version 17, and the newest entry was 178 blocks deep.
+The 19 post-genesis entries are the ends of completed 720-block EPoSE epochs.
+The first five entries were verified on 2026-09-18. On 2026-10-01, every new
+hash and cumulative difficulty was independently queried from six operator Core
+daemons. The block hashes were also checked against the public Qwertycoin
+Explorer. All queried headers were canonical, reported hard-fork version 17,
+and the newest included entry was 817 blocks deep at block count 13057. On
+2026-10-02, epochs 17 and 18 were independently queried from the same six
+operator daemons and cross-checked against the public Explorer. All six daemons
+returned identical canonical HF17 hashes and cumulative difficulties. At block
+count 14016, heights 12959 and 13679 were respectively 1056 and 336 blocks deep.
 
 ## Activation and compatibility
 
@@ -32,14 +51,14 @@ difficulties; fresh nodes enforce them while syncing.
 
 Nodes running older binaries do not gain these checkpoints. During a mixed-version
 rollout, an older node can follow a proof-of-work reorganization that a newer node
-rejects if it conflicts at or below height 3599. Operators should therefore roll
+rejects if it conflicts at or below height 13679. Operators should therefore roll
 the update out consistently across public infrastructure.
 
 ## Reorganization behavior
 
 An upgraded node rejects a block whose hash does not match a checkpoint at that
 height and does not retain alternative blocks at or below the latest applicable
-checkpoint. Reorganizations wholly above height 3599 remain governed by normal
+checkpoint. Reorganizations wholly above height 13679 remain governed by normal
 proof-of-work chain selection and all existing consensus rules.
 
 These entries are separate from `src/blocks/checkpoints.dat`, which is the

@@ -46,13 +46,27 @@ namespace
     const char* cumulative_difficulty;
   };
 
-  constexpr std::array<expected_checkpoint, 6> expected_mainnet_checkpoints{{
+  constexpr std::array<expected_checkpoint, 20> expected_mainnet_checkpoints{{
     {0,    "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39", "0x1"},
     {719,  "69cf9a283099298d1ea9c71b14b0f1d73c7ca81c87e4a2303c1ea91ff8c5b68d", "0xde51cae4"},
     {1439, "019b6a911b0fd41f6e83740f1c4c3fc83f5299339b62cb532b48c97b1e2c35f1", "0x3705926df"},
     {2159, "011bdb8505cc457a3b4be6deccd8fb7fcd55849075b67cbac1f1601b034860a0", "0x7a9125791"},
     {2879, "cc954d4cb4352affc224a9191fb356932e4a9ec405e89b4932654fb1737a50d0", "0x13e28e554a"},
     {3599, "75c7cff8db59f803962fa86ab79a7429ebd3cd2025968bbe80d5744554ba35db", "0x246cae087a"},
+    {4319, "b1be6607441fdd441264f5827401207e58052937f7a600287b442c1808d4160e", "0x39566a3802"},
+    {5039, "55ac2256275255e99628c19e9fbfb3eb8708016a68af87f9d327f253ea150ecc", "0x4a90d5fca8"},
+    {5759, "a39a08b8d95157e6ea39e33e91a2a7c1f25141db36f931911629b9e96d61737b", "0x5b4dc1a177"},
+    {6479, "4c4d825d6c1d56e4a173658c7e5dd001d76050ff6b620407d74f5069f3d12996", "0x6c49228c02"},
+    {7199, "5f69ac8432e5572d55a4cfca05c4cdef3964a95a09fe4b61ecb384908075072e", "0x7d83b8cccc"},
+    {7919, "ae157dc07f24fb8075cfda96bcff3e0c2c303c07f09b37674465ba47a3719b9e", "0x908fdebe23"},
+    {8639, "d60ea59c24852ef0c1bc12e25954550bae4592e94437182c0fc14c3755f3015c", "0xa30db806e8"},
+    {9359, "1a19876876537d20a2eea9ff6bfb1e55beb9687a666737ad462c28d870a31c4c", "0xb153f7b7cd"},
+    {10079, "24a4a4dca58f94bcdeac71795ce0e434023d9dfc086b72b40238dadd5f690998", "0xbb0d648773"},
+    {10799, "4c9b3093213620d56a5a26bf58a2a7423e212cd2bc0483eb3c8ca84f8346f5ed", "0xc4611179c0"},
+    {11519, "65abb7baad939246dc1dd9c0b5ac04f0e3cd5bc0ee1dca34a6abd873eabda935", "0xcde8b8a389"},
+    {12239, "e515a18cdcb584963c19ce289ed064c8bb78d8b51920363e97847da9d6ca01dd", "0xe00312c3d8"},
+    {12959, "6959c12d91fecf28a50d629ac5a2a18b37a64d7cde3a5327605792ced3f0300f", "0xfbfe2feaa0"},
+    {13679, "a6b9075826b44e14aeb4c3fb2c55d440fe79ef6b5601d7655ca90f1c6ef52ff2", "0x118e0339a47"},
   }};
 }
 
@@ -64,9 +78,10 @@ TEST(checkpoints_default_mainnet, includes_completed_epose_epoch_boundaries)
 
   ASSERT_EQ(expected_mainnet_checkpoints.size(), cp.get_points().size());
   ASSERT_EQ(expected_mainnet_checkpoints.size(), cp.get_difficulty_points().size());
-  EXPECT_EQ(3599u, cp.get_max_height());
-  EXPECT_TRUE(cp.is_in_checkpoint_zone(3599));
-  EXPECT_FALSE(cp.is_in_checkpoint_zone(3600));
+  const uint64_t latest_checkpoint_height = expected_mainnet_checkpoints.back().height;
+  EXPECT_EQ(latest_checkpoint_height, cp.get_max_height());
+  EXPECT_TRUE(cp.is_in_checkpoint_zone(latest_checkpoint_height));
+  EXPECT_FALSE(cp.is_in_checkpoint_zone(latest_checkpoint_height + 1));
 
   for (const expected_checkpoint& expected : expected_mainnet_checkpoints)
   {
@@ -98,10 +113,11 @@ TEST(checkpoints_default_mainnet, rejects_conflicts_at_or_below_latest_checkpoin
     EXPECT_TRUE(is_checkpoint);
   }
 
-  EXPECT_FALSE(cp.is_alternative_block_allowed(3599, 3599));
-  EXPECT_FALSE(cp.is_alternative_block_allowed(4000, 3599));
-  EXPECT_TRUE(cp.is_alternative_block_allowed(3599, 3600));
-  EXPECT_TRUE(cp.is_alternative_block_allowed(4000, 3600));
+  const uint64_t latest_checkpoint_height = expected_mainnet_checkpoints.back().height;
+  EXPECT_FALSE(cp.is_alternative_block_allowed(latest_checkpoint_height, latest_checkpoint_height));
+  EXPECT_FALSE(cp.is_alternative_block_allowed(latest_checkpoint_height + 1000, latest_checkpoint_height));
+  EXPECT_TRUE(cp.is_alternative_block_allowed(latest_checkpoint_height, latest_checkpoint_height + 1));
+  EXPECT_TRUE(cp.is_alternative_block_allowed(latest_checkpoint_height + 1000, latest_checkpoint_height + 1));
 }
 
 

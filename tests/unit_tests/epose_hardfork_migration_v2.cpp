@@ -11,6 +11,7 @@
 #include "blockchain_db/testdb.h"
 #include "cryptonote_basic/hardfork.h"
 #include "cryptonote_config.h"
+#include "hardforks/hardforks.h"
 
 namespace
 {
@@ -89,4 +90,38 @@ TEST(epose_hardfork_migration_v2, scheduled_future_version_keeps_epose_active)
   }
 
   EXPECT_EQ(HF_VERSION_QWC_EPOSE + 1, hardfork.get_current_version());
+}
+
+TEST(epose_hardfork_migration_v2, relay_hardening_height_is_not_a_hardfork)
+{
+  ASSERT_EQ(1u, num_mainnet_hard_forks);
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE, mainnet_hard_forks[0].version);
+  EXPECT_EQ(0u, mainnet_hard_forks[0].height);
+  EXPECT_EQ(21600u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+
+  hardfork_test_db db;
+  cryptonote::HardFork hardfork(db, HF_VERSION_QWC_EPOSE, 0, 0, 0, 1, 0);
+  for (size_t index = 0; index < num_mainnet_hard_forks; ++index)
+    ASSERT_TRUE(hardfork.add_fork(
+        mainnet_hard_forks[index].version,
+        mainnet_hard_forks[index].height,
+        mainnet_hard_forks[index].threshold,
+        mainnet_hard_forks[index].time));
+  hardfork.init();
+
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE,
+      hardfork.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE,
+      hardfork.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE,
+      hardfork.get_ideal_version(QWC_EPOSE_RELAY_HARDENING_HEIGHT + 1));
+  EXPECT_TRUE(hardfork.check_for_height(
+      block_with_version(HF_VERSION_QWC_EPOSE),
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
+  EXPECT_TRUE(hardfork.check_for_height(
+      block_with_version(HF_VERSION_QWC_EPOSE),
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+  EXPECT_FALSE(hardfork.check_for_height(
+      block_with_version(HF_VERSION_QWC_EPOSE + 1),
+      QWC_EPOSE_RELAY_HARDENING_HEIGHT));
 }

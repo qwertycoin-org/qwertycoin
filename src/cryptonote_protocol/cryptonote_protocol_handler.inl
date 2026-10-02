@@ -36,6 +36,7 @@
 // developer rfree: this code is caller of our new network code, and is modded; e.g. for rate limiting
 
 #include <boost/optional/optional.hpp>
+#include <chrono>
 #include <list>
 #include <ctime>
 #include <unordered_set>
@@ -2838,24 +2839,91 @@ skip:
   template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::relay_epose_envelopes_v2(NOTIFY_NEW_EPOSE_ENVELOPES_V2::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone)
   {
-    std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>> connections;
-    m_p2p->for_each_connection([&source, zone, &connections](connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)
+    struct relay_peer
+    {
+      epee::net_utils::zone zone;
+      boost::uuids::uuid connection_id;
+      nodetool::peerid_type peer_id;
+    };
+    const uint64_t now_ms = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+    const bool relay_hardening_active =
+        m_core.get_current_blockchain_height()
+            >= QWC_EPOSE_RELAY_HARDENING_HEIGHT;
+    std::vector<relay_peer> peers;
+    m_p2p->for_each_connection([&source, zone, &peers](connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)
     {
       if (peer_id && (support_flags & P2P_SUPPORT_FLAG_EPOSE_V2)
           && source != context.m_connection_id
           && context.m_remote_address.get_zone() == zone)
-        connections.push_back({context.m_remote_address.get_zone(), context.m_connection_id});
+        peers.push_back({context.m_remote_address.get_zone(),
+            context.m_connection_id, peer_id});
       return true;
     });
-    if (!connections.empty())
+
+    if (peers.empty())
+      return false;
+    if (!relay_hardening_active)
     {
+      std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>>
+          connections;
+      connections.reserve(peers.size());
+      for (const relay_peer &peer : peers)
+        connections.push_back({peer.zone, peer.connection_id});
       epee::levin::message_writer blob{16 * 1024};
       epee::serialization::store_t_to_binary(arg, blob.buffer);
-      m_p2p->relay_notify_to_list(
+      return m_p2p->relay_notify_to_list(
           NOTIFY_NEW_EPOSE_ENVELOPES_V2::ID,
           std::move(blob), std::move(connections));
     }
-    return true;
+
+    std::vector<crypto::hash> delivery_hashes;
+    delivery_hashes.reserve(arg.envelopes.size());
+    for (const std::string &envelope : arg.envelopes)
+    {
+      std::string transcript("QWC_EPOSE_ENVELOPE_DELIVERY_V2");
+      const uint64_t size = envelope.size();
+      transcript.append(
+          reinterpret_cast<const char *>(&size), sizeof(size));
+      transcript.append(envelope);
+      delivery_hashes.push_back(crypto::cn_fast_hash(
+          transcript.data(), transcript.size()));
+    }
+
+    bool relayed = false;
+    for (const relay_peer &peer : peers)
+    {
+      NOTIFY_NEW_EPOSE_ENVELOPES_V2::request delivery{};
+      delivery.envelopes.reserve(arg.envelopes.size());
+      {
+        const std::lock_guard<std::mutex> lock(
+            m_epose_relay_delivery_mutex);
+        for (size_t index = 0; index < arg.envelopes.size(); ++index)
+        {
+          std::string delivery_key(
+              reinterpret_cast<const char *>(&delivery_hashes[index]),
+              sizeof(delivery_hashes[index]));
+          // peer_id survives a connection replacement. Keying the budget by
+          // connection UUID would let a reconnect reset the retry bound.
+          delivery_key.append(
+              reinterpret_cast<const char *>(&peer.peer_id),
+              sizeof(peer.peer_id));
+          if (m_epose_relay_delivery_limiter.allow(delivery_key, now_ms))
+            delivery.envelopes.push_back(arg.envelopes[index]);
+        }
+      }
+      if (delivery.envelopes.empty())
+        continue;
+      epee::levin::message_writer blob{16 * 1024};
+      epee::serialization::store_t_to_binary(delivery, blob.buffer);
+      std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>>
+          connection{{peer.zone, peer.connection_id}};
+      relayed = m_p2p->relay_notify_to_list(
+          NOTIFY_NEW_EPOSE_ENVELOPES_V2::ID,
+          std::move(blob), std::move(connection)) || relayed;
+    }
+    return relayed;
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>

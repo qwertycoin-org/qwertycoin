@@ -24,8 +24,15 @@ approved public-test releases.
   records the accepted public-mainnet target: QWC block version 17 and EPoSE v2 from a new
   genesis, with runtime activation still blocked by the release gates.
 - [`ADR-0002-HARDENED-PROTOCOL-RESERVATION.md`](ADR-0002-HARDENED-PROTOCOL-RESERVATION.md)
-  reserves QWC HF17, EPoSE v2, transaction-extra tag `0x05`, epoch ordering, and
-  fail-closed activation rules.
+  preserves the original EPoSE v2 namespace reservation and its superseded
+  block-version allocation note.
+- [`ADR-0008-FUTURE-HARDFORK-CONTINUATION.md`](ADR-0008-FUTURE-HARDFORK-CONTINUATION.md)
+  requires later QWC block versions to continue canonical EPoSE-v2 state.
+- [`ADR-0010-HEIGHT-GATED-RELAY-SLOT-HARDENING.md`](ADR-0010-HEIGHT-GATED-RELAY-SLOT-HARDENING.md)
+  activates receipt-slot relay hardening at height 21,600 without a hard fork.
+- [`Height-21,600 operator notice`](../../releases/EPoSE-RELAY-HARDENING-HEIGHT-21600.md)
+  lists recommended operator updates, unchanged consensus parameters, and the
+  mixed-version, activation and reorg behavior.
 - [`VALIDATION.md`](VALIDATION.md) records the baseline build and test commands,
   results, and explicit gaps.
 - [`RELEASE_READINESS.md`](RELEASE_READINESS.md) records the CO-10/11 no-go

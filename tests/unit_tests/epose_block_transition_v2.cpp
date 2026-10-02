@@ -3,11 +3,13 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstring>
 #include <map>
 
 #include "epose/block_transition_v2.h"
 #include "epose/record_codec_v2.h"
+#include "epose/relay_pool_v2.h"
 
 namespace
 {
@@ -35,6 +37,7 @@ namespace
   {
   public:
     std::map<uint64_t, crypto::hash> blocks;
+    std::map<std::pair<uint64_t, uint64_t>, crypto::hash> round_anchors;
 
     bool block_hash(uint64_t height, crypto::hash &hash) const override
     {
@@ -45,9 +48,14 @@ namespace
       return hash != crypto::null_hash;
     }
 
-    bool round_anchor(uint64_t, uint64_t, crypto::hash &) const override
+    bool round_anchor(
+        uint64_t epoch, uint64_t round, crypto::hash &hash) const override
     {
-      return false;
+      const auto found = round_anchors.find({epoch, round});
+      if (found == round_anchors.end())
+        return false;
+      hash = found->second;
+      return hash != crypto::null_hash;
     }
   };
 
@@ -176,6 +184,147 @@ namespace
         encode_admission_lease_record_v2(lease, context, admission_policy, record));
     return record;
   }
+
+  const epoch_timing_v2 fast_timing{0, 18, 3};
+  const committee_policy_v2 fast_committee{
+      9, 6, 3, 2, 1, {0, 5, 10}, 18};
+
+  block_transition_limits_v2 fast_limits()
+  {
+    block_transition_limits_v2 out = limits();
+    out.block = {1048576, 512, 1024, 64};
+    out.max_recent_undo_blocks = 128;
+    return out;
+  }
+
+  admission_lease_v2 fast_admission(
+      const enrollment &value,
+      uint64_t target_epoch,
+      uint64_t context_height,
+      const crypto::hash &context_hash)
+  {
+    admission_lease_v2 lease{};
+    lease.member.service_public_key = value.descriptor.service_public_key;
+    lease.member.identity_id = value.descriptor.identity_id;
+    lease.member.operator_authorization_public_key =
+        value.descriptor.operator_authorization_public_key;
+    lease.member.descriptor_hash = hash_identity_descriptor_v2(
+        cryptonote::TESTNET, genesis, parameters, value.descriptor);
+    lease.member.reward_binding_hash = hash_reward_binding_v2(
+        cryptonote::TESTNET, genesis, parameters,
+        value.descriptor.reward_address);
+    lease.member.endpoint_descriptor_hash =
+        value.descriptor.endpoint_descriptor_hash;
+    lease.target_epoch = target_epoch;
+    lease.work_algorithm = static_cast<uint8_t>(admission_policy.algorithm);
+    lease.leading_zero_bits = admission_policy.leading_zero_bits;
+    lease.admission_context_height = context_height;
+    lease.admission_context_hash = context_hash;
+    const admission_context_v2 context{
+        cryptonote::TESTNET, genesis, parameters,
+        context_height, context_hash};
+    do
+    {
+      lease.work_hash = calculate_admission_work_v2(lease, context);
+      ++lease.nonce;
+    } while (!admission_work_meets_target_v2(
+        lease.work_hash, admission_policy.leading_zero_bits));
+    --lease.nonce;
+    lease.lease_hash = calculate_admission_lease_hash_v2(lease, context);
+    return lease;
+  }
+
+  envelope_record_v2 fast_admission_record(
+      const enrollment &value,
+      uint64_t target_epoch,
+      uint64_t context_height,
+      const crypto::hash &context_hash)
+  {
+    const admission_lease_v2 lease = fast_admission(
+        value, target_epoch, context_height, context_hash);
+    const admission_context_v2 context{
+        cryptonote::TESTNET, genesis, parameters,
+        context_height, context_hash};
+    envelope_record_v2 record{};
+    EXPECT_EQ(record_codec_status_v2::accepted,
+        encode_admission_lease_record_v2(
+            lease, context, admission_policy, record));
+    return record;
+  }
+
+  const enrollment &find_enrollment(
+      const std::vector<enrollment> &members,
+      const crypto::public_key &service_key)
+  {
+    const auto found = std::find_if(
+        members.begin(), members.end(), [&](const enrollment &member) {
+          return member.service.public_key == service_key;
+        });
+    EXPECT_NE(members.end(), found);
+    return found == members.end() ? members.front() : *found;
+  }
+
+  envelope_record_v2 fast_receipt_record(
+      const semantic_state_v2 &state,
+      const enrollment &subject,
+      const enrollment &verifier,
+      uint64_t epoch,
+      uint64_t round,
+      const crypto::hash &anchor,
+      uint64_t nonce)
+  {
+    const membership_snapshot_v2 *snapshot =
+        state.membership().snapshot(epoch);
+    EXPECT_NE(nullptr, snapshot);
+    authenticated_service_receipt_v2 receipt{};
+    receipt.challenge.service_kind = fast_committee.service_kind;
+    receipt.challenge.epoch = epoch;
+    receipt.challenge.round = round;
+    receipt.challenge.snapshot_hash = snapshot == nullptr
+        ? crypto::null_hash : snapshot->snapshot_hash;
+    receipt.challenge.anchor_hash = anchor;
+    receipt.challenge.subject_public_key = subject.service.public_key;
+    receipt.challenge.verifier_public_key = verifier.service.public_key;
+    receipt.challenge.endpoint_descriptor_hash =
+        subject.descriptor.endpoint_descriptor_hash;
+    receipt.challenge.nonce = hash_text("receipt-" + std::to_string(nonce));
+    receipt.challenge.requested_object_hash = anchor;
+    receipt.response_object_hash = anchor;
+    const receipt_context_v2 context{
+        cryptonote::TESTNET, genesis, parameters};
+    sign_subject_response_v2(receipt, subject.service.secret_key, context);
+    sign_verifier_receipt_v2(receipt, verifier.service.secret_key, context);
+    envelope_record_v2 record{};
+    EXPECT_EQ(record_codec_status_v2::accepted,
+        encode_service_receipt_record_v2(receipt, context, record));
+    return record;
+  }
+
+  block_transition_status_v2 apply_record_block(
+      block_transition_v2 &state,
+      contexts &source,
+      uint64_t height,
+      const std::vector<envelope_record_v2> &records,
+      block_apply_summary_v2 &summary)
+  {
+    std::vector<cryptonote::transaction> transactions;
+    transactions.reserve(records.size());
+    for (const envelope_record_v2 &record : records)
+      transactions.push_back(transaction_with({record}));
+    cryptonote::transaction miner{};
+    std::vector<block_transaction_context_v2> block_transactions;
+    block_transactions.reserve(transactions.size() + 1);
+    block_transactions.push_back({&miner, true, nullptr, nullptr});
+    for (const cryptonote::transaction &transaction : transactions)
+      block_transactions.push_back(
+          {&transaction, false, nullptr, nullptr});
+    const crypto::hash block_hash =
+        hash_text("fast-block-" + std::to_string(height));
+    source.blocks[height] = block_hash;
+    return state.apply_block(
+        HF_VERSION_QWC_EPOSE, height, block_hash,
+        block_transactions, source, summary);
+  }
 }
 
 TEST(epose_block_transition_v2, hf17_dispatch_starts_at_genesis)
@@ -253,6 +402,170 @@ TEST(epose_block_transition_v2, lifecycle_admission_freeze_and_close_follow_boot
   ASSERT_NE(nullptr, qualification);
   EXPECT_TRUE(qualification->qualified_nodes.empty());
   EXPECT_EQ(1379u, qualification->closed_height);
+}
+
+TEST(epose_block_transition_v2, eighteen_nodes_relay_templates_and_finalize_two_fast_epochs)
+{
+  block_transition_v2 chain(
+      cryptonote::TESTNET, genesis, parameters, fast_timing,
+      admission_policy, fast_committee, fast_limits());
+  ASSERT_TRUE(chain.valid());
+  contexts source{};
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_empty(chain, source, 0));
+
+  std::vector<enrollment> members;
+  members.reserve(18);
+  std::vector<envelope_record_v2> enrollment_records;
+  enrollment_records.reserve(36);
+  for (size_t index = 0; index < 18; ++index)
+  {
+    members.push_back(make_enrollment());
+    members.back().descriptor.endpoint_descriptor_hash =
+        hash_text("fast-endpoint-" + std::to_string(index));
+    enrollment_records.push_back(lifecycle_record(members.back()));
+    enrollment_records.push_back(fast_admission_record(
+        members.back(), 1, 0, genesis));
+  }
+  block_apply_summary_v2 summary{};
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_record_block(
+          chain, source, 1, enrollment_records, summary));
+  EXPECT_EQ(18u, summary.semantic.lifecycle_records);
+  EXPECT_EQ(18u, summary.semantic.admission_records);
+
+  for (uint64_t height = 2; height <= 17; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  ASSERT_NE(nullptr, chain.state().membership().snapshot(1));
+  ASSERT_EQ(18u,
+      chain.state().membership().snapshot(1)->members.size());
+
+  relay_record_pool_v2 relay(
+      fast_timing, fast_committee, limits().envelope,
+      relay_queue_limits_v2{
+          2048, 1048576, 512, 1536, 262144, 786432},
+      relay_template_limits_v2{
+          256, 524288, 64, 192, 65536, 458752},
+      0);
+  ASSERT_TRUE(relay.valid());
+
+  const auto include_round = [&](const uint64_t epoch,
+                                 const uint64_t round,
+                                 const uint64_t height,
+                                 const crypto::hash &anchor) {
+    source.round_anchors[{epoch, round}] = anchor;
+    const membership_snapshot_v2 *snapshot =
+        chain.state().membership().snapshot(epoch);
+    ASSERT_NE(nullptr, snapshot);
+    size_t nonce = 0;
+    for (const enrollment &subject : members)
+    {
+      const auto committee = chain.state().membership().committee(
+          epoch, round, subject.service.public_key, anchor);
+      ASSERT_EQ(9u, committee.size());
+      for (const verifier_assignment_v2 &assignment : committee)
+      {
+        const enrollment &verifier = find_enrollment(
+            members, assignment.verifier_public_key);
+        const envelope_record_v2 record = fast_receipt_record(
+            chain.state(), subject, verifier, epoch, round,
+            anchor, epoch * 100000 + round * 1000 + nonce++);
+        ASSERT_EQ(relay_record_status_v2::accepted,
+            relay.enqueue(record, height));
+        EXPECT_EQ(relay_record_status_v2::idempotent_duplicate,
+            relay.enqueue(record, height));
+      }
+    }
+    ASSERT_EQ(162u, relay.size());
+    std::vector<relay_record_selection_v2> selected;
+    ASSERT_EQ(relay_record_status_v2::accepted,
+        relay.select_for_template(height, selected));
+    ASSERT_EQ(162u, selected.size());
+    std::vector<envelope_record_v2> block_records;
+    block_records.reserve(selected.size());
+    for (const relay_record_selection_v2 &selection : selected)
+      block_records.push_back(selection.record);
+    block_apply_summary_v2 round_summary{};
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_record_block(
+            chain, source, height, block_records, round_summary));
+    EXPECT_EQ(162u, round_summary.semantic.receipt_records);
+    relay.erase_confirmed_records(block_records, height);
+    EXPECT_EQ(0u, relay.size());
+    EXPECT_EQ(0u, relay.bytes());
+  };
+
+  const auto check_qualification = [&](const uint64_t epoch) {
+    const qualification_set_v2 *qualification =
+        chain.state().membership().qualification(epoch);
+    ASSERT_NE(nullptr, qualification);
+    EXPECT_EQ(18u, qualification->qualified_nodes.size());
+    for (const enrollment &member : members)
+    {
+      const std::vector<size_t> coverage =
+          chain.state().membership().receipt_coverage(
+              epoch, member.service.public_key);
+      ASSERT_EQ(3u, coverage.size());
+      EXPECT_EQ(9u, coverage[0]);
+      EXPECT_EQ(9u, coverage[1]);
+      EXPECT_EQ(9u, coverage[2]);
+    }
+  };
+
+  include_round(1, 0, 18,
+      chain.state().membership().snapshot(1)->anchor_hash);
+
+  // Provision epoch 2 from the real epoch-1 context block while round 0 is
+  // active; this preserves the production admission and cutoff path.
+  std::vector<envelope_record_v2> epoch_two_admissions;
+  epoch_two_admissions.reserve(members.size());
+  for (const enrollment &member : members)
+    epoch_two_admissions.push_back(fast_admission_record(
+        member, 2, 18, source.blocks.at(18)));
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_record_block(
+          chain, source, 19, epoch_two_admissions, summary));
+  for (uint64_t height = 20; height <= 23; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  include_round(1, 1, 24, source.blocks.at(23));
+  for (uint64_t height = 25; height <= 28; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  include_round(1, 2, 29, source.blocks.at(28));
+  for (uint64_t height = 30; height <= 32; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  check_qualification(1);
+
+  for (uint64_t height = 33; height <= 35; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  ASSERT_NE(nullptr, chain.state().membership().snapshot(2));
+  ASSERT_EQ(18u,
+      chain.state().membership().snapshot(2)->members.size());
+  include_round(2, 0, 36,
+      chain.state().membership().snapshot(2)->anchor_hash);
+  for (uint64_t height = 37; height <= 41; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  include_round(2, 1, 42, source.blocks.at(41));
+  for (uint64_t height = 43; height <= 46; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  include_round(2, 2, 47, source.blocks.at(46));
+  for (uint64_t height = 48; height <= 50; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted,
+        apply_empty(chain, source, height));
+  check_qualification(2);
+
+  const relay_pool_diagnostics_v2 diagnostics = relay.diagnostics();
+  EXPECT_EQ(972u, diagnostics.exact_duplicates);
+  EXPECT_EQ(972u, diagnostics.template_selected_receipts);
+  EXPECT_EQ(972u, diagnostics.canonical_receipts);
+  EXPECT_EQ(0u, diagnostics.capacity_rejections);
+  EXPECT_EQ(0u, diagnostics.queue_items);
 }
 
 TEST(epose_block_transition_v2, later_failure_rolls_back_state_and_height)

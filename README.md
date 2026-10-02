@@ -51,14 +51,15 @@ qualified service node exists, the service portion falls back to the miner.
 
 ## Downloads
 
-The current published Core candidate is
-[`v2.0.0-rc1`](https://github.com/qwertycoin-org/qwertycoin/releases/tag/v2.0.0-rc1)
-for Linux x86_64, macOS Apple Silicon, and Windows x86_64. It is the public
-test release for the Qwertycoin v2 mainnet. The packaged daemon, wallet, mining,
-and EPoSE-v2 service-producer paths are enabled; no release-gate file is read by
-those programs at runtime. The separate EPoSE release gate remains `NO-GO` for
-a later stable/audit classification because several mandatory evidence items
-are incomplete or are not bound to this exact candidate revision.
+<!-- release-metadata:start -->
+The current published Core release is
+[`v2.0.2`](https://github.com/qwertycoin-org/qwertycoin/releases/tag/v2.0.2),
+built from source revision
+[`54308d8473dc5606d054c0ba428cfb2d64e758c1`](https://github.com/qwertycoin-org/qwertycoin/commit/54308d8473dc5606d054c0ba428cfb2d64e758c1).
+Release artifacts are available for Linux x86_64, macOS Apple Silicon, and
+Windows x86_64.
+<!-- release-metadata:end -->
+
 Native candidates and releases are produced only by the manual, candidate-bound
 process in [docs/releases/RELEASE_PROCESS.md](docs/releases/RELEASE_PROCESS.md).
 If no matching release is visible there, build from source and treat other

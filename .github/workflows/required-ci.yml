@@ -1,0 +1,79 @@
+name: Required CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-required-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify canonical release metadata
+        run: python3 tools/release/sync_release_metadata.py
+      - name: Run release-tool contracts
+        run: python3 -m unittest discover -s tools/release/tests -p 'test_*.py'
+      - name: Reject whitespace errors
+        run: git diff --check
+
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout immutable revision and submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Compile daemon and focused tests
+        run: |
+          docker build \
+            --build-arg NPROC=2 \
+            --build-arg EPOSE_BUILD_TARGETS="daemon unit_tests epose_unit_tests" \
+            -f Dockerfile.epose-dev \
+            -t qwertycoin-core:required-ci .
+      - name: Verify daemon binary
+        run: |
+          docker run --rm \
+            --entrypoint /usr/local/bin/qwertycoind \
+            qwertycoin-core:required-ci --version
+      - name: Run EPoSE tests
+        run: |
+          docker run --rm \
+            --entrypoint /usr/local/bin/qwertycoin-epose-unit-tests \
+            qwertycoin-core:required-ci
+      - name: Run serialization and foundational unit tests
+        run: |
+          docker run --rm \
+            --entrypoint /usr/local/bin/qwertycoin-unit-tests \
+            qwertycoin-core:required-ci \
+            --data-dir=/usr/local/share/qwertycoin/tests/data \
+            --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*'
+
+  required:
+    name: required
+    if: always()
+    needs: [metadata, linux]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every gate
+        env:
+          METADATA_RESULT: ${{ needs.metadata.result }}
+          LINUX_RESULT: ${{ needs.linux.result }}
+        run: |
+          test "$METADATA_RESULT" = success
+          test "$LINUX_RESULT" = success

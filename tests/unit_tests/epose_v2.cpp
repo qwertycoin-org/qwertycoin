@@ -13,6 +13,7 @@
 #include "epose/membership_v2.h"
 #include "epose/lifecycle_v2.h"
 #include "epose/record_codec_v2.h"
+#include "epose/relay_pool_v2.h"
 #include "epose/service_receipt_v2.h"
 
 namespace
@@ -183,6 +184,18 @@ namespace
   {
     return std::memcmp(&left, &right, sizeof(left)) == 0;
   }
+
+  envelope_limits_v2 integration_envelope_limits()
+  {
+    envelope_limits_v2 limits{};
+    limits.max_envelope_bytes = 2048;
+    limits.max_records = 4;
+    limits.max_record_payload_bytes = 512;
+    limits.max_signature_verifications = 8;
+    limits.max_admission_verifications = 4;
+    limits.supported_record_versions = {0, 1, 1, 1, 1, 1};
+    return limits;
+  }
 }
 
 TEST(epose_v2, timing_boundaries_are_checked_and_match_co01)
@@ -201,10 +214,29 @@ TEST(epose_v2, timing_boundaries_are_checked_and_match_co01)
   ASSERT_TRUE(timing.evidence_deadline(1, value));
   EXPECT_EQ(1379u, value);
 
+  const committee_policy_v2 rounds{9, 6, 3, 2, 1, {0, 200, 400}, 512};
+  uint64_t first = 0;
+  uint64_t last = 0;
+  ASSERT_TRUE(receipt_inclusion_window_v2(
+      timing, rounds, 30, 0, first, last));
+  EXPECT_EQ(21600u, first);
+  EXPECT_EQ(21799u, last);
+  ASSERT_TRUE(receipt_inclusion_window_v2(
+      timing, rounds, 30, 1, first, last));
+  EXPECT_EQ(21801u, first);
+  EXPECT_EQ(21999u, last);
+  ASSERT_TRUE(receipt_inclusion_window_v2(
+      timing, rounds, 30, 2, first, last));
+  EXPECT_EQ(22001u, first);
+  EXPECT_EQ(22259u, last);
+
   epoch_timing_v2 unaligned{1441, 720, 60};
   EXPECT_FALSE(unaligned.valid());
   epoch_timing_v2 overflowing{1440, 720, 60};
   EXPECT_FALSE(overflowing.epoch_end(std::numeric_limits<uint64_t>::max() / 720 + 1, value));
+  EXPECT_FALSE(receipt_inclusion_window_v2(
+      overflowing, rounds, std::numeric_limits<uint64_t>::max() / 720 + 1,
+      2, first, last));
 }
 
 TEST(epose_v2, invalid_configuration_and_pre_service_epoch_fail_closed)
@@ -573,6 +605,143 @@ TEST(epose_v2, three_round_coverage_reports_partial_later_round_participation)
   ASSERT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
   ASSERT_NE(nullptr, pipeline.qualification(3));
   EXPECT_TRUE(pipeline.qualification(3)->qualified_nodes.empty());
+}
+
+TEST(epose_v2, eighteen_nodes_relay_mine_and_finalize_across_two_complete_epochs)
+{
+  const committee_policy_v2 policy{
+      9, 6, 3, 2, 1, {0, 200, 400}, 512};
+  auto pipeline = make_pipeline(policy);
+  std::vector<keyed_member> members;
+  members.reserve(18);
+  for (size_t index = 0; index < 18; ++index)
+  {
+    members.push_back(make_keyed_member(index + 1));
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        apply_lease(pipeline, make_lease(members.back().member, 3),
+            2000 + index));
+  }
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      pipeline.freeze_membership(3, 2100, hash_text("epoch-3-anchor")));
+
+  const epoch_timing_v2 timing{1440, 720, 60};
+  relay_record_pool_v2 relay(
+      timing, policy, integration_envelope_limits(),
+      relay_queue_limits_v2{
+          2048, 1048576, 512, 512, 262144, 262144},
+      relay_template_limits_v2{
+          256, 262144, 64, 192, 65536, 196608},
+      0);
+  ASSERT_TRUE(relay.valid());
+
+  const auto run_epoch = [&](const uint64_t epoch,
+                             const crypto::hash &round_one_anchor,
+                             const crypto::hash &round_two_anchor) {
+    const membership_snapshot_v2 *snapshot = pipeline.snapshot(epoch);
+    ASSERT_NE(nullptr, snapshot);
+    const crypto::hash anchors[3]{
+        snapshot->anchor_hash, round_one_anchor, round_two_anchor};
+    uint64_t epoch_start = 0;
+    ASSERT_TRUE(timing.epoch_start(epoch, epoch_start));
+    const uint64_t inclusion_heights[3]{
+        epoch_start, epoch_start + 201, epoch_start + 401};
+
+    for (uint64_t round = 0; round < 3; ++round)
+    {
+      std::vector<envelope_record_v2> expected_records;
+      for (const keyed_member &subject : members)
+      {
+        const auto selected = pipeline.committee(
+            epoch, round, subject.member.service_public_key,
+            anchors[round]);
+        ASSERT_EQ(9u, selected.size());
+        for (size_t verifier_index = 0;
+             verifier_index < selected.size(); ++verifier_index)
+        {
+          const keyed_member &verifier = find_keyed_member(
+              members, selected[verifier_index].verifier_public_key);
+          authenticated_service_receipt_v2 receipt = make_receipt(
+              epoch, round, subject, verifier, *snapshot,
+              epoch * 100000 + round * 1000 + expected_records.size(),
+              1, anchors[round]);
+          envelope_record_v2 record{};
+          ASSERT_EQ(record_codec_status_v2::accepted,
+              encode_service_receipt_record_v2(
+                  receipt, receipt_context(), record));
+          ASSERT_EQ(relay_record_status_v2::accepted,
+              relay.enqueue(record, inclusion_heights[round]));
+          // Stable transport retries are exact envelopes and must not grow
+          // the local queue or replace the pending record.
+          EXPECT_EQ(relay_record_status_v2::idempotent_duplicate,
+              relay.enqueue(record, inclusion_heights[round]));
+          expected_records.push_back(std::move(record));
+        }
+      }
+      ASSERT_EQ(162u, relay.size());
+
+      std::vector<relay_record_selection_v2> selected_records;
+      ASSERT_EQ(relay_record_status_v2::accepted,
+          relay.select_for_template(
+              inclusion_heights[round], selected_records));
+      ASSERT_EQ(expected_records.size(), selected_records.size());
+      std::vector<envelope_record_v2> confirmed;
+      confirmed.reserve(selected_records.size());
+      for (const relay_record_selection_v2 &selection : selected_records)
+      {
+        authenticated_service_receipt_v2 receipt{};
+        ASSERT_EQ(record_codec_status_v2::accepted,
+            decode_service_receipt_record_structure_v2(
+                selection.record, receipt));
+        ASSERT_EQ(pipeline_status_v2::accepted,
+            pipeline.apply_authenticated_receipt(
+                receipt, receipt_context(), inclusion_heights[round],
+                anchors[round]));
+        confirmed.push_back(selection.record);
+      }
+      relay.erase_confirmed_records(
+          confirmed, inclusion_heights[round]);
+      EXPECT_EQ(0u, relay.size());
+      EXPECT_EQ(0u, relay.bytes());
+    }
+
+    uint64_t deadline = 0;
+    ASSERT_TRUE(timing.evidence_deadline(epoch, deadline));
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        pipeline.close_qualification(epoch, deadline));
+    const qualification_set_v2 *qualification =
+        pipeline.qualification(epoch);
+    ASSERT_NE(nullptr, qualification);
+    EXPECT_EQ(18u, qualification->qualified_nodes.size());
+    for (const keyed_member &member : members)
+    {
+      const auto coverage = pipeline.receipt_coverage(
+          epoch, member.member.service_public_key);
+      ASSERT_EQ(3u, coverage.size());
+      EXPECT_EQ(9u, coverage[0]);
+      EXPECT_EQ(9u, coverage[1]);
+      EXPECT_EQ(9u, coverage[2]);
+    }
+  };
+
+  run_epoch(3, hash_text("epoch-3-round-1"),
+      hash_text("epoch-3-round-2"));
+
+  const admission_context_v2 epoch_four_context{
+      cryptonote::TESTNET, hash_text("qwc-v2-genesis"),
+      hash_text("parameter-set"), 2160,
+      hash_text("epoch-4-admission-context")};
+  for (size_t index = 0; index < members.size(); ++index)
+  {
+    const admission_lease_v2 lease = make_lease_for(
+        members[index].member, 4, epoch_four_context,
+        admission_policy(), "epoch-4-" + std::to_string(index));
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        pipeline.apply_admission(lease, epoch_four_context, 2700 + index));
+  }
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      pipeline.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+  run_epoch(4, hash_text("epoch-4-round-1"),
+      hash_text("epoch-4-round-2"));
 }
 
 TEST(epose_v2, qualification_closes_once_and_uses_configured_full_committee_quorum)

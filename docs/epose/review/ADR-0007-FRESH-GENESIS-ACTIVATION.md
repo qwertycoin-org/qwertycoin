@@ -10,6 +10,10 @@
 > P2P identity defined here. This document and its evidence remain the
 > historical record for the `90662948...` chain.
 
+> **Post-launch update (2026-10-01):** ADR-0010 activates local receipt-relay
+> hardening at height 21,600 without scheduling another block version. Version
+> 17 remains the only public-chain version.
+
 ## Context
 
 ADR-0001 conservatively treated the observed HF17 pre-publication chain as
