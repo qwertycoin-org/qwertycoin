@@ -68,9 +68,12 @@ node.
 Publish one immutable release containing the fixed activation height and this
 operator guidance no later than canonical height `18,000`. This preserves the
 planned 2,160-block / three-epoch operator lead before height `20,160`.
-Explorer observation at 2026-10-02 09:53:24 UTC reported canonical tip
-`13,718`, leaving 4,282 blocks to that release gate and 6,442 blocks to
-activation. These are planning observations, not consensus inputs.
+The public explorer rendered tip `13,800` at 2026-10-02 11:53:30 UTC, leaving
+4,200 blocks to that release gate and 6,360 blocks to activation. The same
+page warned that its RPC/DB anchor was stale or inconsistent, so this is only
+a release-planning observation. Confirm the canonical height/hash directly
+with synchronized operator daemons before publishing or deploying; neither
+value is a consensus input to the policy.
 
 Do not replace binaries under an existing version. If the release or critical
 template-provider confirmations are not ready by height `18,000`, select one
