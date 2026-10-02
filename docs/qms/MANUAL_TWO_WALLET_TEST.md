@@ -22,4 +22,3 @@ disabled and enter an existing, unchanged node endpoint supplied by the operator
 
 Do not use production seeds for experimental acceptance. Do not use integrated
 addresses, payment IDs, hardware wallets, multisig or light-wallet services.
-

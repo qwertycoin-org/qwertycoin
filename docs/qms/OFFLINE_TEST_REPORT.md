@@ -70,4 +70,3 @@ addresses, user payment IDs and light-wallet services are rejected by the MVP pa
 
 **No node was started, no QWC network connection was opened, and no real transaction
 was sent.**
-
