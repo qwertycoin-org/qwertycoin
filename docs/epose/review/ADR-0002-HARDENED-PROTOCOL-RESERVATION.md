@@ -10,7 +10,7 @@
 
 > **Post-launch note (2026-10-01):** The public chain launched the hardened
 > EPoSE-v2 protocol as HF17. ADR-0010 activates receipt-relay hardening at
-> height 20,000 without allocating another block version or changing the
+> height 20,160 without allocating another block version or changing the
 > EPoSE wire-format/state-machine version.
 
 ## Context

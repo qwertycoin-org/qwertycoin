@@ -29,8 +29,8 @@ approved public-test releases.
 - [`ADR-0008-FUTURE-HARDFORK-CONTINUATION.md`](ADR-0008-FUTURE-HARDFORK-CONTINUATION.md)
   requires later QWC block versions to continue canonical EPoSE-v2 state.
 - [`ADR-0010-HEIGHT-GATED-RELAY-SLOT-HARDENING.md`](ADR-0010-HEIGHT-GATED-RELAY-SLOT-HARDENING.md)
-  activates receipt-slot relay hardening at height 20,000 without a hard fork.
-- [`Height-20,000 operator notice`](../../releases/EPoSE-RELAY-HARDENING-HEIGHT-20000.md)
+  activates receipt-slot relay hardening at height 20,160 without a hard fork.
+- [`Height-20,160 operator notice`](../../releases/EPoSE-RELAY-HARDENING-HEIGHT-20160.md)
   lists recommended operator updates, unchanged consensus parameters, and the
   mixed-version, activation and reorg behavior.
 - [`VALIDATION.md`](VALIDATION.md) records the baseline build and test commands,

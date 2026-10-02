@@ -319,6 +319,7 @@ TEST(epose_service_producer_v2, receipt_retries_are_fair_and_bounded)
   EXPECT_TRUE(submitted.found);
   EXPECT_EQ(121u, submitted.next_attempt_ms);
   EXPECT_FALSE(submitted.in_flight);
+  EXPECT_FALSE(submitted.has_envelope);
   EXPECT_FALSE(tracker.can_attempt(second, 120));
   EXPECT_FALSE(tracker.start(third, 101));
   EXPECT_TRUE(tracker.can_attempt(first, 110));
@@ -350,4 +351,63 @@ TEST(epose_service_producer_v2, receipt_retry_context_reconciles_reorgs)
   EXPECT_TRUE(tracker.can_attempt(slot, 111));
 
   EXPECT_FALSE(tracker.begin_context(1, 1, crypto::null_hash));
+}
+
+TEST(epose_service_producer_v2, transport_retries_reuse_one_envelope_and_stop)
+{
+  receipt_retry_tracker_v2 tracker(4, 10, 40, 20, 3);
+  const crypto::hash anchor = hash_text("stable-envelope-anchor");
+  const crypto::hash slot = hash_text("stable-envelope-slot");
+  ASSERT_TRUE(tracker.begin_context(3, 1, anchor));
+  ASSERT_TRUE(tracker.start(slot, 100));
+  tracker.submitted(slot, 100, "signed-envelope");
+
+  std::string envelope;
+  EXPECT_FALSE(tracker.transport_retry(slot, 119, envelope));
+  ASSERT_TRUE(tracker.transport_retry(slot, 120, envelope));
+  EXPECT_EQ("signed-envelope", envelope);
+  EXPECT_FALSE(tracker.can_attempt(slot, 140));
+  ASSERT_TRUE(tracker.transport_retry(slot, 140, envelope));
+  EXPECT_EQ("signed-envelope", envelope);
+  EXPECT_FALSE(tracker.transport_retry(slot, 160, envelope));
+
+  const auto status = tracker.status(slot);
+  ASSERT_TRUE(status.found);
+  EXPECT_TRUE(status.has_envelope);
+  EXPECT_EQ(3u, status.transport_attempts);
+
+  tracker.canonical(slot);
+  EXPECT_FALSE(tracker.status(slot).found);
+  EXPECT_FALSE(tracker.transport_retry(slot, 200, envelope));
+}
+
+TEST(epose_service_producer_v2, multi_hop_redelivery_is_per_peer_bounded)
+{
+  relay_delivery_limiter_v2 intermediary(8, 60, 3);
+  const std::string verifier_to_intermediary = "receipt/peer-intermediary";
+  const std::string intermediary_to_miner = "receipt/peer-miner";
+
+  ASSERT_TRUE(intermediary.allow(verifier_to_intermediary, 100));
+  ASSERT_TRUE(intermediary.allow(intermediary_to_miner, 100));
+  // The miner misses this first delivery. The same wave cannot loop.
+  EXPECT_FALSE(intermediary.allow(intermediary_to_miner, 101));
+
+  // A later delivery of the identical envelope can cross the intermediary.
+  ASSERT_TRUE(intermediary.allow(verifier_to_intermediary, 160));
+  ASSERT_TRUE(intermediary.allow(intermediary_to_miner, 160));
+  EXPECT_FALSE(intermediary.allow(intermediary_to_miner, 161));
+
+  // A second envelope has an independent per-peer budget. A sender cannot
+  // evade the first envelope's bound by changing only the surrounding batch.
+  ASSERT_TRUE(intermediary.allow("second-receipt/peer-miner", 161));
+  EXPECT_FALSE(intermediary.allow(intermediary_to_miner, 161));
+
+  ASSERT_TRUE(intermediary.allow(intermediary_to_miner, 220));
+  EXPECT_FALSE(intermediary.allow(intermediary_to_miner, 280));
+  EXPECT_EQ(3u, intermediary.size());
+
+  // Reconnecting the same peer must not reset the stable peer budget. A
+  // genuinely different downstream peer still receives its own bounded
+  // delivery opportunity.
+  EXPECT_TRUE(intermediary.allow("receipt/other-miner-peer", 221));
 }

@@ -74,20 +74,26 @@ namespace epose
       uint64_t next_attempt_ms = 0;
       uint32_t failures = 0;
       bool in_flight = false;
+      bool has_envelope = false;
+      uint32_t transport_attempts = 0;
     };
 
     receipt_retry_tracker_v2(
         size_t max_entries = 4096,
         uint64_t base_backoff_ms = 30000,
         uint64_t max_backoff_ms = 120000,
-        uint64_t resubmit_ms = 60000);
+        uint64_t resubmit_ms = 60000,
+        uint32_t max_transport_attempts = 8);
 
     bool begin_context(uint64_t epoch, uint64_t round,
         const crypto::hash &anchor_hash);
     bool can_attempt(const crypto::hash &slot, uint64_t now_ms) const;
     bool start(const crypto::hash &slot, uint64_t now_ms);
     void failed(const crypto::hash &slot, uint64_t now_ms);
-    void submitted(const crypto::hash &slot, uint64_t now_ms);
+    void submitted(const crypto::hash &slot, uint64_t now_ms,
+        const std::string &envelope = {});
+    bool transport_retry(const crypto::hash &slot, uint64_t now_ms,
+        std::string &envelope);
     void canonical(const crypto::hash &slot);
     retry_info status(const crypto::hash &slot) const;
     size_t size() const;
@@ -99,16 +105,48 @@ namespace epose
       uint64_t next_attempt_ms = 0;
       uint32_t failures = 0;
       bool in_flight = false;
+      std::string envelope;
+      uint32_t transport_attempts = 0;
     };
 
     size_t max_entries_ = 0;
     uint64_t base_backoff_ms_ = 0;
     uint64_t max_backoff_ms_ = 0;
     uint64_t resubmit_ms_ = 0;
+    uint32_t max_transport_attempts_ = 0;
     uint64_t epoch_ = 0;
     uint64_t round_ = 0;
     crypto::hash anchor_hash_{};
     bool context_set_ = false;
+    std::vector<entry> entries_;
+  };
+
+  // Per-peer transport limiter for re-delivering an already authenticated
+  // envelope. The caller's key must use stable peer identity rather than a
+  // connection UUID so reconnects cannot reset the bounded retry budget.
+  class relay_delivery_limiter_v2
+  {
+  public:
+    relay_delivery_limiter_v2(
+        size_t max_entries = 16384,
+        uint64_t interval_ms = 60000,
+        uint32_t max_attempts = 8);
+
+    bool allow(const std::string &delivery_key, uint64_t now_ms);
+    size_t size() const;
+
+  private:
+    struct entry
+    {
+      std::string key;
+      uint64_t next_attempt_ms = 0;
+      uint64_t last_attempt_ms = 0;
+      uint32_t attempts = 0;
+    };
+
+    size_t max_entries_ = 0;
+    uint64_t interval_ms_ = 0;
+    uint32_t max_attempts_ = 0;
     std::vector<entry> entries_;
   };
 

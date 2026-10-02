@@ -988,6 +988,8 @@ namespace cryptonote
     qwertycoin::epose::relay_ingress_status_v2 submit_epose_relay_envelopes_v2(
         const std::vector<blobdata> &envelopes,
         std::vector<blobdata> &accepted);
+    qwertycoin::epose::relay_pool_diagnostics_v2
+        get_epose_relay_pool_diagnostics_v2() const;
 
     /**
      * @brief returns the earliest block a given version may activate

@@ -330,6 +330,53 @@ namespace epose
     return actual_committee_size - actual_committee_size / 3;
   }
 
+  bool receipt_inclusion_window_v2(
+      const epoch_timing_v2 &timing,
+      const committee_policy_v2 &policy,
+      const uint64_t epoch,
+      const uint64_t round,
+      uint64_t &first_height,
+      uint64_t &last_height)
+  {
+    first_height = 0;
+    last_height = 0;
+    if (!timing.valid() || !policy.valid()
+        || round >= policy.round_count
+        || round >= policy.round_offsets.size())
+      return false;
+
+    uint64_t epoch_start = 0;
+    uint64_t evidence_deadline = 0;
+    if (!timing.epoch_start(epoch, epoch_start)
+        || !timing.evidence_deadline(epoch, evidence_deadline)
+        || epoch_start > std::numeric_limits<uint64_t>::max()
+            - policy.round_offsets[round])
+      return false;
+
+    first_height = epoch_start + policy.round_offsets[round];
+    if (round != 0)
+    {
+      if (first_height == std::numeric_limits<uint64_t>::max())
+        return false;
+      ++first_height;
+    }
+
+    last_height = evidence_deadline;
+    if (round + 1 < policy.round_count)
+    {
+      if (round + 1 >= policy.round_offsets.size()
+          || epoch_start > std::numeric_limits<uint64_t>::max()
+              - policy.round_offsets[round + 1])
+        return false;
+      const uint64_t next_round_anchor =
+          epoch_start + policy.round_offsets[round + 1];
+      if (next_round_anchor == 0)
+        return false;
+      last_height = next_round_anchor - 1;
+    }
+    return first_height <= last_height;
+  }
+
   membership_pipeline_v2::membership_pipeline_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
@@ -355,6 +402,16 @@ namespace epose
   bool membership_pipeline_v2::valid() const
   {
     return valid_;
+  }
+
+  const epoch_timing_v2 &membership_pipeline_v2::timing() const
+  {
+    return timing_;
+  }
+
+  const committee_policy_v2 &membership_pipeline_v2::committee_policy() const
+  {
+    return policy_;
   }
 
   pipeline_status_v2 membership_pipeline_v2::apply_admission(
@@ -591,31 +648,12 @@ namespace epose
         || challenge.anchor_hash != canonical_round_anchor_hash
         || (challenge.round == 0 && challenge.anchor_hash != frozen->anchor_hash))
       return pipeline_status_v2::receipt_not_prevalidated;
-    uint64_t start = 0;
-    uint64_t deadline = 0;
-    if (!timing_.epoch_start(challenge.epoch, start)
-        || !timing_.evidence_deadline(challenge.epoch, deadline)
-        || challenge.round >= policy_.round_count)
+    uint64_t first_inclusion = 0;
+    uint64_t round_end = 0;
+    if (!receipt_inclusion_window_v2(
+            timing_, policy_, challenge.epoch, challenge.round,
+            first_inclusion, round_end))
       return pipeline_status_v2::invalid_epoch;
-    uint64_t round_start = 0;
-    if (!checked_add(start, policy_.round_offsets[challenge.round], round_start))
-      return pipeline_status_v2::invalid_epoch;
-    uint64_t first_inclusion = round_start;
-    // Round zero is anchored before the service epoch. Later rounds use a
-    // block inside the epoch as their unpredictable anchor, so a receipt
-    // cannot be included in that same block.
-    if (challenge.round != 0
-        && !checked_add(round_start, 1, first_inclusion))
-      return pipeline_status_v2::invalid_epoch;
-    uint64_t round_end = deadline;
-    if (challenge.round + 1 < policy_.round_count)
-    {
-      uint64_t next_round_start = 0;
-      if (!checked_add(start, policy_.round_offsets[challenge.round + 1], next_round_start)
-          || next_round_start == 0)
-        return pipeline_status_v2::invalid_epoch;
-      round_end = next_round_start - 1;
-    }
     if (inclusion_height < first_inclusion)
       return pipeline_status_v2::invalid_epoch;
     if (inclusion_height > round_end)
@@ -637,6 +675,12 @@ namespace epose
         }) == selected.end())
       return pipeline_status_v2::verifier_not_selected;
 
+    // Authenticate before classifying a same-slot race. Relay policy may
+    // safely treat an authentic late variant as expected, but an attacker
+    // cannot gain that classification by merely claiming a confirmed slot.
+    if (!validate_authenticated_service_receipt_v2(receipt, context, counters))
+      return pipeline_status_v2::receipt_not_prevalidated;
+
     const crypto::hash receipt_hash = hash_authenticated_service_receipt_v2(receipt, context);
     for (const stored_receipt &stored : receipts_)
     {
@@ -650,12 +694,8 @@ namespace epose
       // receipt_hash is the verifier's signing message. It intentionally does
       // not contain verifier_signature, so an equal hash alone cannot make a
       // wire record an authenticated idempotent duplicate.
-      if (!validate_authenticated_service_receipt_v2(receipt, context, counters))
-        return pipeline_status_v2::receipt_not_prevalidated;
       return pipeline_status_v2::idempotent_duplicate;
     }
-    if (!validate_authenticated_service_receipt_v2(receipt, context, counters))
-      return pipeline_status_v2::receipt_not_prevalidated;
     receipts_.push_back({challenge.epoch, challenge.round, challenge.service_kind,
         challenge.subject_public_key, challenge.verifier_public_key, receipt_hash, inclusion_height});
     return pipeline_status_v2::accepted;

@@ -440,6 +440,7 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
             false, "Invalid EPoSE-v2 relay/template policy");
         m_epose_v2_relay_pool.reset(new qwertycoin::epose::relay_record_pool_v2(
             m_epose_v2_parameters.timing,
+            m_epose_v2_parameters.committee,
             m_epose_v2_parameters.limits.envelope,
             m_epose_v2_relay_policy.queue,
             m_epose_v2_relay_policy.mining_template,
@@ -829,6 +830,7 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
     if (m_epose_v2_relay_pool)
       m_epose_v2_relay_pool.reset(new qwertycoin::epose::relay_record_pool_v2(
           m_epose_v2_parameters.timing,
+          m_epose_v2_parameters.committee,
           m_epose_v2_parameters.limits.envelope,
           m_epose_v2_relay_policy.queue,
           m_epose_v2_relay_policy.mining_template,
@@ -1062,6 +1064,15 @@ Blockchain::submit_epose_relay_envelopes_v2(
       envelopes, m_db->height(), m_epose_v2_parameters.limits.envelope,
       m_epose_v2_relay_policy, m_epose_v2->state(), contexts,
       *m_epose_v2_relay_pool, accepted);
+}
+//------------------------------------------------------------------
+qwertycoin::epose::relay_pool_diagnostics_v2
+Blockchain::get_epose_relay_pool_diagnostics_v2() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  return m_epose_v2_relay_pool
+      ? m_epose_v2_relay_pool->diagnostics()
+      : qwertycoin::epose::relay_pool_diagnostics_v2{};
 }
 //------------------------------------------------------------------
 std::vector<qwertycoin::epose::service_node_identity> Blockchain::get_epose_service_nodes() const
@@ -1473,10 +1484,6 @@ bool Blockchain::select_epose_template_records_v2(
   if (!m_epose_v2_relay_pool)
     return true;
   m_epose_v2_relay_pool->prune_expired(height);
-  std::vector<qwertycoin::epose::relay_record_selection_v2> selected;
-  if (m_epose_v2_relay_pool->select_for_template(height, selected)
-      != qwertycoin::epose::relay_record_status_v2::accepted)
-    return false;
 
   class template_record_context_source final
       : public qwertycoin::epose::canonical_context_source_v2
@@ -1516,6 +1523,13 @@ bool Blockchain::select_epose_template_records_v2(
     const Blockchain &chain_;
     const qwertycoin::epose::consensus_parameters_v2 &parameters_;
   } contexts(*this, m_epose_v2_parameters);
+
+  m_epose_v2_relay_pool->prune_unusable_receipts(
+      height, m_epose_v2->state(), contexts);
+  std::vector<qwertycoin::epose::relay_record_selection_v2> selected;
+  if (m_epose_v2_relay_pool->select_for_template(height, selected)
+      != qwertycoin::epose::relay_record_status_v2::accepted)
+    return false;
 
   qwertycoin::epose::semantic_state_v2 semantic = m_epose_v2->state();
   for (const qwertycoin::epose::relay_record_selection_v2 &selection : selected)

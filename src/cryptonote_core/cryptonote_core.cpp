@@ -1271,12 +1271,14 @@ namespace cryptonote
             false, false);
         return false;
       }
-      // The hardened relay pool treats a freshly signed variant of an already
-      // pending receipt slot as an idempotent duplicate. Keep the producer's
-      // bounded retry useful by sending that exact variant to direct peers;
-      // peers that already hold any variant stop propagation, while a peer
-      // that missed the earlier broadcast can still admit and relay it.
-      if (!newly_accepted)
+      const bool relay_hardening_active =
+          m_blockchain_storage.get_current_blockchain_height()
+              >= QWC_EPOSE_RELAY_HARDENING_HEIGHT;
+      // Preserve the reviewed pre-activation behavior. Before A, a new signed
+      // variant may be sent directly when the local complete-record queue
+      // reports a duplicate. At and after A, retries retain and redeliver the
+      // exact authenticated envelope under the bounded transport policy.
+      if (!relay_hardening_active && !newly_accepted)
       {
         NOTIFY_NEW_EPOSE_ENVELOPES_V2::request request{};
         request.envelopes.push_back(result.envelope);
@@ -1285,7 +1287,8 @@ namespace cryptonote
             epee::net_utils::zone::public_);
       }
       m_epose_v2_receipt_retries.submitted(
-          result.slot, epose_v2_steady_milliseconds());
+          result.slot, epose_v2_steady_milliseconds(),
+          relay_hardening_active ? result.envelope : std::string{});
       finish_attempt(result,
           qwertycoin::epose::receipt_attempt_outcome_v2::success,
           qwertycoin::epose::receipt_attempt_stage_v2::local_submission,
@@ -1356,25 +1359,12 @@ namespace cryptonote
     uint64_t active_round_deadline = evidence_deadline;
     for (uint64_t round = 0; round < parameters.committee.round_offsets.size(); ++round)
     {
-      if (epoch_start > std::numeric_limits<uint64_t>::max()
-              - parameters.committee.round_offsets[round])
+      uint64_t first = 0;
+      uint64_t last = 0;
+      if (!qwertycoin::epose::receipt_inclusion_window_v2(
+              parameters.timing, parameters.committee, epoch, round,
+              first, last))
         return false;
-      uint64_t first = epoch_start + parameters.committee.round_offsets[round];
-      if (round != 0)
-      {
-        if (first == std::numeric_limits<uint64_t>::max())
-          return false;
-        ++first;
-      }
-      uint64_t last = evidence_deadline;
-      if (round + 1 < parameters.committee.round_offsets.size())
-      {
-        if (epoch_start > std::numeric_limits<uint64_t>::max()
-                - parameters.committee.round_offsets[round + 1]
-            || epoch_start + parameters.committee.round_offsets[round + 1] == 0)
-          return false;
-        last = epoch_start + parameters.committee.round_offsets[round + 1] - 1;
-      }
       if (inclusion_height >= first && inclusion_height <= last)
       {
         active_round = round;
@@ -1450,6 +1440,31 @@ namespace cryptonote
           epoch, active_round, subject.service_public_key,
           m_epose_v2_keystore.service_public_key, anchor_hash);
       const uint64_t now_ms = epose_v2_steady_milliseconds();
+      const auto retry = m_epose_v2_receipt_retries.status(slot);
+      if (inclusion_height >= QWC_EPOSE_RELAY_HARDENING_HEIGHT
+          && retry.found && retry.has_envelope)
+      {
+        std::string envelope;
+        if (m_epose_v2_receipt_retries.transport_retry(
+                slot, now_ms, envelope))
+        {
+          NOTIFY_NEW_EPOSE_ENVELOPES_V2::request request{};
+          request.envelopes.push_back(std::move(envelope));
+          const bool resent = get_protocol()->relay_epose_envelopes_v2(
+              request, boost::uuids::nil_uuid(),
+              epee::net_utils::zone::public_);
+          m_epose_v2_receipt_diagnostics.transport_retry(
+              epoch, active_round, resent);
+          MDEBUG("event=epose_receipt_transport_retry utc_ms="
+              << epose_v2_utc_milliseconds() << " epoch=" << epoch
+              << " round=" << active_round
+              << " height=" << inclusion_height
+              << " attempt=" << (retry.transport_attempts + 1)
+              << " relayed=" << resent
+              << " canonical_inclusion=false");
+        }
+        continue;
+      }
       if (!m_epose_v2_receipt_retries.can_attempt(slot, now_ms))
       {
         m_epose_v2_receipt_diagnostics.skipped(
@@ -2168,6 +2183,18 @@ namespace cryptonote
       const uint64_t requested_epoch) const
   {
     operations = m_epose_v2_receipt_diagnostics.snapshot();
+    const auto relay =
+        m_blockchain_storage.get_epose_relay_pool_diagnostics_v2();
+    operations.relay_queue_items = relay.queue_items;
+    operations.relay_queue_bytes = relay.queue_bytes;
+    operations.relay_exact_duplicates = relay.exact_duplicates;
+    operations.relay_slot_variants = relay.slot_variants;
+    operations.relay_expired_round_receipts = relay.expired_round_receipts;
+    operations.relay_invalid_context_receipts = relay.invalid_context_receipts;
+    operations.relay_canonical_receipts = relay.canonical_receipts;
+    operations.relay_capacity_rejections = relay.capacity_rejections;
+    operations.relay_template_selected_receipts =
+        relay.template_selected_receipts;
     qualification = {};
     if (!m_epose_v2_service_ready)
       return true;
@@ -2518,7 +2545,7 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec: " << e.what());
     }
 
-    // QWC's public chain is HF17-native. The height-20,000 EPoSE relay
+    // QWC's public chain is HF17-native. The height-20,160 EPoSE relay
     // hardening is local policy, not a block-version transition. Starting
     // regtest at v1 creates a different genesis from wallet clients and makes
     // the disposable RPC test network reject itself.

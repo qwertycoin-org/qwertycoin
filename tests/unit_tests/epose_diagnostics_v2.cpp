@@ -414,6 +414,20 @@ TEST(epose_diagnostics_v2, expected_scheduler_skips_are_not_failures)
   EXPECT_TRUE(snapshot.rounds.empty());
 }
 
+TEST(epose_diagnostics_v2, transport_retries_distinguish_attempts_from_relay_success)
+{
+  receipt_diagnostics_v2 diagnostics(4, 4, 100, 42);
+  diagnostics.transport_retry(7, 2, false);
+  diagnostics.transport_retry(7, 2, true);
+  const auto snapshot = diagnostics.snapshot();
+  ASSERT_EQ(1u, snapshot.rounds.size());
+  EXPECT_EQ(7u, snapshot.rounds[0].epoch);
+  EXPECT_EQ(2u, snapshot.rounds[0].round);
+  EXPECT_EQ(2u, snapshot.rounds[0].transport_retries_attempted);
+  EXPECT_EQ(1u, snapshot.rounds[0].transport_retries_relayed);
+  EXPECT_EQ(0u, snapshot.rounds[0].canonical_inclusions_observed);
+}
+
 TEST(epose_diagnostics_v2, operational_history_retains_only_four_epochs)
 {
   receipt_diagnostics_v2 diagnostics(32, 32, 100, 42);

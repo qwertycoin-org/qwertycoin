@@ -2,7 +2,7 @@
 
 - **Status:** Proposed for activation; implementation in review
 - **Date:** 2026-10-01
-- **Activation:** local policy at height 20,000; block version remains 17
+- **Activation:** local policy at height 20,160; block version remains 17
 - **Scope:** EPoSE-v2 local relay queue and mining-template selection
 
 ## Observed failure
@@ -22,9 +22,9 @@ variants accumulated faster than canonical inclusion and starved later rounds.
 ## Decision
 
 1. Keep QWC block version 17 and every consensus rule unchanged.
-2. Activate only local relay/template policy at block height 20,000.
-3. Before height 20,000, preserve complete-record relay identity.
-4. At and after height 20,000, admit at most one pending receipt for each
+2. Activate only local relay/template policy at block height 20,160.
+3. Before height 20,160, preserve complete-record relay identity.
+4. At and after height 20,160, admit at most one usable pending receipt for each
    `(epoch, round, service kind, subject, verifier)` slot.
 5. If pre-activation variants remain in memory at the boundary,
    deterministically keep the variant with the lowest complete-record relay ID
@@ -33,22 +33,29 @@ variants accumulated faster than canonical inclusion and starved later rounds.
 7. Preserve exact-record behavior for lifecycle and admission records.
 8. Report an expired record or exhausted queue as submission failure instead
    of returning success with no accepted envelope.
-9. A bounded local retry may rebroadcast its new signed variant directly.
-   Peers that already cache the slot stop propagation; peers that missed the
-   earlier broadcast can still admit it.
+9. A transport retry reuses the same authenticated envelope, is bounded by
+   stable peer identity and time, and remains relayable through an
+   intermediary without increasing queue occupancy.
+10. Receipt expiry uses the same inclusive per-round carrier windows as
+    canonical validation. Expired or wrong-context entries are removed before
+    allocating the template budget.
+11. A reorganization invalidates stale snapshot/anchor context so a valid
+    replacement for the same logical slot can enter the queue.
+12. Authentic late variants of a canonical slot are expected races, not peer
+    faults; malformed signatures still fail closed.
 
 ## Consensus and compatibility
 
 Receipt-slot deduplication is local relay/template policy. Complete blocks are
 still parsed and validated against canonical EPoSE state. Mainnet, testnet and
 stagenet continue scheduling only block version 17, so updated and older nodes
-accept the same blocks across height 20,000. An older node may keep the faulty
+accept the same blocks across height 20,160. An older node may keep the faulty
 queue policy until upgraded, but it cannot create a version-driven chain split.
 
 There is no state migration. Relay policy is derived from the active chain
 height, so disconnect/reconnect across the boundary deterministically switches
-the local cache behavior. Height 20,000 lies inside epoch 27; the first complete
-epoch under the hardened relay policy starts at height 20,160.
+the local cache behavior. Height 20,160 is the first block of epoch 28, making
+that entire service epoch measurable under one relay policy.
 
 ## Security properties
 
@@ -63,11 +70,12 @@ epoch under the hardened relay policy starts at height 20,160.
 
 ## Required evidence
 
-- exact activation tests at heights 19,999 and 20,000;
-- unchanged HF17 block acceptance before, at and after height 20,000;
+- exact activation tests at heights 20,159, 20,160 and 20,161;
+- unchanged HF17 block acceptance before, at and after height 20,160;
 - mixed old/new relay-policy templates for unique canonical slots;
 - reorg below and recross above the boundary;
 - restart/resync reconstruction from canonical height;
 - semantic-slot duplicate and canonical-purge tests;
-- an 18-node/three-round repeated-resubmission stress regression; and
+- an 18-node/two-epoch relay, template, canonical inclusion and qualification
+  regression with real keys and signatures; and
 - full daemon and EPoSE unit builds on a clean runner.

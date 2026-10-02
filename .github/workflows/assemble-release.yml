@@ -236,7 +236,7 @@ jobs:
           verify_candidate linux "$LINUX_ARTIFACT" tar.gz "$LINUX_RUN_ID" Linux x86_64
           verify_candidate macos "$MACOS_ARTIFACT" tar.gz "$MACOS_RUN_ID" macOS arm64
           verify_candidate windows "$WINDOWS_ARTIFACT" zip "$WINDOWS_RUN_ID" Windows x86_64
-          jq -e '.verification.epose_unit_tests == "239 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
+          jq -e '.verification.epose_unit_tests == "274 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
             "verified/linux/$LINUX_ARTIFACT/BUILD-INFO.json" >/dev/null
           python3 - assembly-gate.json \
             "verified/linux/$LINUX_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json" \

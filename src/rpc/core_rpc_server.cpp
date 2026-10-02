@@ -711,9 +711,21 @@ namespace cryptonote
       return true;
     }
 
-    res.diagnostics_version = 1;
+    res.diagnostics_version = 2;
     res.reset_utc_ms = operations.reset_utc_ms;
     res.attempts_in_flight = operations.attempts_in_flight;
+    res.relay_queue_items = operations.relay_queue_items;
+    res.relay_queue_bytes = operations.relay_queue_bytes;
+    res.relay_exact_duplicates = operations.relay_exact_duplicates;
+    res.relay_slot_variants = operations.relay_slot_variants;
+    res.relay_expired_round_receipts =
+        operations.relay_expired_round_receipts;
+    res.relay_invalid_context_receipts =
+        operations.relay_invalid_context_receipts;
+    res.relay_canonical_receipts = operations.relay_canonical_receipts;
+    res.relay_capacity_rejections = operations.relay_capacity_rejections;
+    res.relay_template_selected_receipts =
+        operations.relay_template_selected_receipts;
     for (const auto &entry : operations.rounds)
     {
       epose_diagnostic_round_entry converted{};
@@ -726,6 +738,10 @@ namespace cryptonote
       converted.attempts_cancelled = entry.attempts_cancelled;
       converted.attempts_expired = entry.attempts_expired;
       converted.local_submissions_accepted = entry.local_submissions_accepted;
+      converted.transport_retries_attempted =
+          entry.transport_retries_attempted;
+      converted.transport_retries_relayed =
+          entry.transport_retries_relayed;
       converted.canonical_inclusions_observed = entry.canonical_inclusions_observed;
       res.rounds.push_back(std::move(converted));
     }

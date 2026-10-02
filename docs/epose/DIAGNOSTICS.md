@@ -84,7 +84,11 @@ curl --netrc-file /secure/path/qwertycoind-rpc.netrc \
 the chain-derived qualification epoch; omitted means current. The response
 contains:
 
-- additive schema identifier `diagnostics_version=1`;
+- additive schema identifier `diagnostics_version=2`;
+- current relay queue items and bytes;
+- bounded counters for exact duplicate redelivery, same-slot signature
+  variants, expired-round receipts, invalid canonical contexts, capacity
+  rejection, template selection, and canonical receipt observation;
 - restart-local round counters and grouped failure counters;
 - expected scheduler skips;
 - bounded recent terminal attempts with public identities and commitments;
@@ -98,6 +102,15 @@ contains:
 - committee sizes and dynamically derived quorum per round;
 - passed/required rounds and `pending`, `qualified`, `not_qualified`, or
   `unknown` qualification state.
+
+The relay counters are restart-local aggregate queue observations. In
+particular, `relay_canonical_receipts` counts pending receipt records removed
+after canonical observation; it is not a qualification count. The
+`rounds[].canonical_inclusions_observed` values cover receipts produced by the
+local service identity and are grouped by epoch and round. The authoritative
+qualification evidence is the chain-derived `canonical_unique_receipts` array,
+paired with the response's chain height/hash and requested qualification
+epoch.
 
 If the snapshot or chain evidence is unavailable, qualification data is
 `unknown`; it is never substituted with zero. Before the qualification set is
