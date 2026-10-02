@@ -123,13 +123,14 @@ rewound three blocks, restarted, replayed the canonical chain and restored
 the same height-14,019 block hash and EPoSE state.
 
 This runtime result proves current-chain forward/backward database operation,
-restart and bounded canonical replay. It does **not** replace the required
-actual-binary mixed-version run at future heights 21,599/21,600/21,601,
-22,259 and 22,320. Mainnet was below those heights during the check. Until
-that isolated production-parameter profile is attached to the final SHA, the
-candidate remains blocked from merge, release and deployment. Deterministic
-unit coverage of those exact heights is necessary but is not represented as
-the missing actual-binary proof.
+restart and bounded canonical replay. Mainnet was below future heights
+21,599/21,600/21,601, 22,259 and 22,320 during the check, so those exact live
+blocks cannot be observed before the chain reaches them. Their deterministic
+production-parameter coverage is a release gate; live mixed-version
+observation at those heights is a rollout and post-activation evidence item.
+Any observed block-acceptance, EPoSE-state, qualification or payment
+divergence between 2.0.2 and 2.0.3 is an immediate release/deployment blocker.
+No such divergence was observed in the current-chain binary run.
 
 ## Rollback
 
