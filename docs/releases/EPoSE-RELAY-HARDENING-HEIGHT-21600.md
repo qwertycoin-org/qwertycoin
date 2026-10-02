@@ -1,5 +1,17 @@
 # EPoSE receipt-relay hardening at height 21,600
 
+## Release candidate
+
+- **Core version:** 2.0.3
+- **Internal compatible version:** 2.0.3.0
+- **Candidate tag:** v2.0.3-rc1
+- **Previous compatible release:** v2.0.2
+
+Version 2.0.3 changes local receipt production and relay policy only. It does
+not change block acceptance, the block version, EPoSE state calculation or
+reward calculation relative to 2.0.2. Published v2.0.2 metadata and historical
+compatibility fixtures remain immutable.
+
 ## Activation
 
 - **Network block version:** remains 17
@@ -84,6 +96,22 @@ later than canonical height 19,440 to preserve the planned 2,160-block lead.
 If that gate is missed, compute a later planning candidate as
 `720 * ceil((release_height + 2160) / 720)` and publish one fixed height in the
 replacement build.
+
+## Rollback
+
+Before rollout, retain the verified v2.0.2 package, its checksum, the active
+data-directory path and a cold backup of the LMDB and EPoSE state. To roll
+back, stop 2.0.3 cleanly, preserve its logs and data directory, start the
+verified 2.0.2 binaries against the same canonical database, and verify the
+reported tip hash and EPoSE state before restoring pool traffic. Do not delete
+or resynchronize the database merely to hide a mismatch.
+
+If 2.0.2 rejects the 2.0.3-produced database, reports a different canonical
+tip/state/qualification/payment result, or requires a destructive migration,
+stop the rollout: that is a release-blocking consensus-compatibility failure.
+Roll back template providers and their relay peers first, then public RPC and
+service nodes. Never roll back only half of a pool's template/relay path without
+confirming receipt delivery remains available.
 
 The design decision and regression requirements are recorded in
 [ADR-0010](../epose/review/ADR-0010-HEIGHT-GATED-RELAY-SLOT-HARDENING.md).
