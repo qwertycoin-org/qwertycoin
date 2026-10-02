@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Exact release tag"
         required: true
-        default: "v2.0.0-rc1"
+        default: "v2.0.3-rc1"
         type: string
       expected_revision:
         description: "Exact lowercase 40-character Core source SHA"
@@ -87,8 +87,8 @@ jobs:
           set -euo pipefail
           case "$GITHUB_REF" in
             refs/heads/main) ;;
-            refs/heads/release/v2.0.2-rc1) test "$EXPECTED_REVISION" = "$GITHUB_SHA" ;;
-            *) echo "assemble workflow must run from main or the bound v2.0.2-rc1 release branch" >&2; exit 1 ;;
+            refs/heads/release/v2.0.3-rc1) test "$EXPECTED_REVISION" = "$GITHUB_SHA" ;;
+            *) echo "assemble workflow must run from main or the bound v2.0.3-rc1 release branch" >&2; exit 1 ;;
           esac
           [[ "$EXPECTED_REVISION" =~ ^[0-9a-f]{40}$ ]]
           [[ "$LINUX_RUN_ID" =~ ^[1-9][0-9]*$ ]]
@@ -137,7 +137,7 @@ jobs:
           set -euo pipefail
           case "$GITHUB_REF" in
             refs/heads/main) candidate_branch=main ;;
-            refs/heads/release/v2.0.2-rc1) candidate_branch=release/v2.0.2-rc1 ;;
+            refs/heads/release/v2.0.3-rc1) candidate_branch=release/v2.0.3-rc1 ;;
             *) echo "unsupported assembly source branch" >&2; exit 1 ;;
           esac
           validate_run() {
@@ -236,7 +236,7 @@ jobs:
           verify_candidate linux "$LINUX_ARTIFACT" tar.gz "$LINUX_RUN_ID" Linux x86_64
           verify_candidate macos "$MACOS_ARTIFACT" tar.gz "$MACOS_RUN_ID" macOS arm64
           verify_candidate windows "$WINDOWS_ARTIFACT" zip "$WINDOWS_RUN_ID" Windows x86_64
-          jq -e '.verification.epose_unit_tests == "239 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
+          jq -e '.verification.epose_unit_tests == "276 tests pass" and .verification.epose_python_tests == "43 tests pass"' \
             "verified/linux/$LINUX_ARTIFACT/BUILD-INFO.json" >/dev/null
           python3 - assembly-gate.json \
             "verified/linux/$LINUX_ARTIFACT/evidence/EPOSE-RELEASE-GATE.json" \

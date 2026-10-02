@@ -73,7 +73,24 @@ class ReleaseMetadataTests(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     sync.load()
 
-    def test_rejects_version_source_mismatch(self) -> None:
+    def test_accepts_source_version_ahead_of_published_metadata(self) -> None:
+        metadata = {
+            "release_tag": "v2.0.2",
+            "source_revision": "5" * 40,
+            "version": "2.0.2",
+        }
+        temporary, metadata_path, readme, version = self.fixture(metadata)
+        self.addCleanup(temporary.cleanup)
+        version.write_text('#define DEF_QWERTYCOIN_VERSION "2.0.3"\n', encoding="utf-8")
+        with mock.patch.multiple(
+            sync,
+            METADATA=metadata_path,
+            README=readme,
+            VERSION_SOURCE=version,
+        ):
+            sync.verify_version(sync.load())
+
+    def test_rejects_source_version_older_than_published_metadata(self) -> None:
         metadata = {
             "release_tag": "v2.0.2",
             "source_revision": "5" * 40,

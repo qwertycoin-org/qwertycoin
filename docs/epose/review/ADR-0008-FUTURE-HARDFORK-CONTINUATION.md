@@ -27,7 +27,9 @@ hardfork.
    parameter-set/schema identifier, deterministic activation-height migration,
    rollback rules, replay tests, and release evidence.
 6. No block version 18 or other future version is scheduled by this ADR.
-   Normal hardfork validation continues to reject unscheduled versions.
+   ADR-0010 deliberately keeps block version 17 across its height-gated local
+   relay-policy activation. Normal hardfork validation continues to reject
+   unscheduled versions.
 
 ## Required invariants
 
@@ -47,4 +49,3 @@ This provides a safe no-op upgrade path for operational or unrelated consensus
 hardforks.  It does not authorize post-launch parameter changes and cannot undo
 historical payouts or state commitments.  Such changes remain forward-only,
 explicit migrations.
-

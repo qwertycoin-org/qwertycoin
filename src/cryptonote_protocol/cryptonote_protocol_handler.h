@@ -35,6 +35,7 @@
 #pragma once
 
 #include <boost/program_options/variables_map.hpp>
+#include <mutex>
 #include <string>
 
 #include "byte_slice.h"
@@ -48,6 +49,7 @@
 #include "cryptonote_basic/connection_context.h"
 #include "net/levin_base.h"
 #include "p2p/net_node_common.h"
+#include "epose/service_producer_v2.h"
 #include <boost/circular_buffer.hpp>
 
 PUSH_WARNINGS
@@ -214,6 +216,10 @@ namespace cryptonote
     boost::circular_buffer<size_t> m_avg_buffer = boost::circular_buffer<size_t>(10);
 
     boost::mutex m_bad_peer_check_lock;
+
+    std::mutex m_epose_relay_delivery_mutex;
+    qwertycoin::epose::relay_delivery_limiter_v2
+        m_epose_relay_delivery_limiter{};
 
     template<class t_parameter>
       bool post_notify(typename t_parameter::request& arg, cryptonote_connection_context& context)

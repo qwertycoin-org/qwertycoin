@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "epose/record_codec_v2.h"
+#include "epose/relay_pool_v2.h"
 #include "epose/semantic_batch_v2.h"
 #include "epose/service_receipt_v2.h"
 
@@ -78,6 +79,34 @@ namespace
   semantic_state_v2 make_state()
   {
     return {cryptonote::TESTNET, genesis, parameters, timing, admission_policy, committee_policy};
+  }
+
+  envelope_limits_v2 relay_envelope_limits()
+  {
+    envelope_limits_v2 limits{};
+    limits.max_envelope_bytes = 2048;
+    limits.max_records = 4;
+    limits.max_record_payload_bytes = 512;
+    limits.max_signature_verifications = 8;
+    limits.max_admission_verifications = 4;
+    limits.supported_record_versions = {0, 1, 1, 1, 1, 1};
+    return limits;
+  }
+
+  relay_policy_v2 relay_policy()
+  {
+    return {
+        relay_queue_limits_v2{64, 65536, 16, 48, 16384, 49152},
+        relay_template_limits_v2{32, 32768, 8, 24, 8192, 24576},
+        0};
+  }
+
+  relay_record_pool_v2 relay_pool()
+  {
+    const relay_policy_v2 policy = relay_policy();
+    return {timing, committee_policy, relay_envelope_limits(),
+        policy.queue, policy.mining_template,
+        policy.receipt_slot_dedup_height};
   }
 
   identity make_identity(const char *endpoint)
@@ -175,6 +204,51 @@ namespace
     EXPECT_EQ(record_codec_status_v2::accepted,
         encode_lifecycle_record_v2(lifecycle, cryptonote::TESTNET, genesis, parameters, record));
     return record;
+  }
+
+  envelope_record_v2 receipt_record(
+      const semantic_state_v2 &state,
+      const identity &subject,
+      const identity &verifier,
+      const crypto::hash &anchor,
+      const char *nonce_text)
+  {
+    const membership_snapshot_v2 *snapshot =
+        state.membership().snapshot(3);
+    EXPECT_NE(nullptr, snapshot);
+    authenticated_service_receipt_v2 receipt{};
+    receipt.challenge.epoch = 3;
+    receipt.challenge.snapshot_hash = snapshot == nullptr
+        ? crypto::null_hash : snapshot->snapshot_hash;
+    receipt.challenge.anchor_hash = anchor;
+    receipt.challenge.subject_public_key = subject.service.public_key;
+    receipt.challenge.verifier_public_key = verifier.service.public_key;
+    receipt.challenge.endpoint_descriptor_hash =
+        subject.descriptor.endpoint_descriptor_hash;
+    receipt.challenge.nonce = hash_text(nonce_text);
+    receipt.challenge.requested_object_hash = anchor;
+    receipt.response_object_hash = anchor;
+    const receipt_context_v2 receipt_context{
+        cryptonote::TESTNET, genesis, parameters};
+    sign_subject_response_v2(
+        receipt, subject.service.secret_key, receipt_context);
+    sign_verifier_receipt_v2(
+        receipt, verifier.service.secret_key, receipt_context);
+    envelope_record_v2 record{};
+    EXPECT_EQ(record_codec_status_v2::accepted,
+        encode_service_receipt_record_v2(
+            receipt, receipt_context, record));
+    return record;
+  }
+
+  std::string envelope(const envelope_record_v2 &record)
+  {
+    std::string encoded;
+    envelope_budget_v2 ignored{};
+    EXPECT_EQ(envelope_status_v2::accepted,
+        encode_envelope_v2(
+            {record}, relay_envelope_limits(), encoded, ignored));
+    return encoded;
   }
 
   semantic_status_v2 enroll(
@@ -556,6 +630,218 @@ TEST(epose_semantic_batch_v2, receipt_duplicates_are_authenticated_before_succes
       batch.apply_transaction(
           {bad_subject}, semantic_transaction_context_v2{2160, false, nullptr}, source, summary));
   EXPECT_EQ(accepted_state, batch.state_hash());
+}
+
+TEST(epose_semantic_batch_v2, pending_exact_receipts_are_reforwarded_without_queue_growth)
+{
+  contexts source;
+  identity subject = make_identity("relay-subject");
+  identity verifier = make_identity("relay-verifier");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, subject, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, verifier, source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(3, 2100, source.round));
+
+  auto relay = relay_pool();
+  const std::string first = envelope(
+      receipt_record(state, subject, verifier, source.round, "first"));
+  const std::string variant = envelope(
+      receipt_record(state, subject, verifier, source.round, "variant"));
+  std::vector<std::string> accepted;
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {first}, 2160, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  ASSERT_EQ(1u, relay.size());
+  ASSERT_EQ(std::vector<std::string>{first}, accepted);
+
+  // An intermediary may re-forward the identical authenticated envelope to
+  // a miner that missed the first delivery, without adding another item.
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {first}, 2160, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_EQ(1u, relay.size());
+  EXPECT_EQ(std::vector<std::string>{first}, accepted);
+
+  // A randomized signature variant in the same canonical slot is neither
+  // queued nor forwarded.
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {variant}, 2160, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_EQ(1u, relay.size());
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(1u, relay.diagnostics().exact_duplicates);
+  EXPECT_EQ(1u, relay.diagnostics().slot_variants);
+}
+
+TEST(epose_semantic_batch_v2, confirmed_slot_races_are_nonfatal_but_still_authenticated)
+{
+  contexts source;
+  identity subject = make_identity("confirmed-subject");
+  identity verifier = make_identity("confirmed-verifier");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, subject, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, verifier, source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(3, 2100, source.round));
+
+  const envelope_record_v2 canonical =
+      receipt_record(state, subject, verifier, source.round, "canonical");
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {canonical}, semantic_transaction_context_v2{2160, false, nullptr},
+          source, summary));
+  const std::string late = envelope(
+      receipt_record(state, subject, verifier, source.round, "late-race"));
+  auto relay = relay_pool();
+  std::vector<std::string> accepted;
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {late}, 2161, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(0u, relay.size());
+
+  std::string malformed = late;
+  ASSERT_FALSE(malformed.empty());
+  malformed.back() ^= 1;
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {malformed}, 2161, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(0u, relay.size());
+}
+
+TEST(epose_semantic_batch_v2, closed_qualification_discards_only_authenticated_late_receipts)
+{
+  contexts source;
+  identity subject = make_identity("closed-subject");
+  identity verifier = make_identity("closed-verifier");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, subject, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, verifier, source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(3, 2100, source.round));
+
+  const envelope_record_v2 canonical =
+      receipt_record(state, subject, verifier, source.round, "canonical");
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {canonical}, semantic_transaction_context_v2{2160, false, nullptr},
+          source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.close_qualification(3, 2819));
+
+  auto relay = relay_pool();
+  std::vector<std::string> accepted;
+  const std::string exact = envelope(canonical);
+  const std::string variant = envelope(
+      receipt_record(state, subject, verifier, source.round, "variant"));
+  const std::string new_slot = envelope(
+      receipt_record(state, verifier, subject, source.round, "new-slot"));
+
+  EXPECT_EQ(relay_ingress_status_v2::expired,
+      admit_relay_envelopes_v2(
+          {exact}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_EQ(relay_ingress_status_v2::expired,
+      admit_relay_envelopes_v2(
+          {variant}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_EQ(relay_ingress_status_v2::expired,
+      admit_relay_envelopes_v2(
+          {new_slot}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(0u, relay.size());
+
+  std::string malformed = new_slot;
+  ASSERT_FALSE(malformed.empty());
+  malformed.back() ^= 1;
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {malformed}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+
+  const std::string forged_context = envelope(receipt_record(
+      state, verifier, subject, hash_text("forged-round-anchor"),
+      "forged-context"));
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {forged_context}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(0u, relay.size());
+}
+
+TEST(epose_semantic_batch_v2, canonical_reorg_replaces_a_pending_receipt_context)
+{
+  contexts anchor_a;
+  contexts anchor_b = anchor_a;
+  anchor_b.round = hash_text("replacement-committee-anchor");
+  identity subject = make_identity("reorg-subject");
+  identity verifier = make_identity("reorg-verifier");
+  semantic_apply_summary_v2 summary{};
+
+  semantic_state_v2 state_a = make_state();
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state_a, subject, anchor_a, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state_a, verifier, anchor_a, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state_a.freeze_membership(3, 2100, anchor_a.round));
+
+  semantic_state_v2 state_b = make_state();
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state_b, subject, anchor_b, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state_b, verifier, anchor_b, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state_b.freeze_membership(3, 2100, anchor_b.round));
+  ASSERT_NE(state_a.membership().snapshot(3)->snapshot_hash,
+      state_b.membership().snapshot(3)->snapshot_hash);
+
+  auto relay = relay_pool();
+  const std::string old_envelope = envelope(
+      receipt_record(state_a, subject, verifier, anchor_a.round, "old"));
+  const envelope_record_v2 replacement_record =
+      receipt_record(state_b, subject, verifier, anchor_b.round, "new");
+  const std::string replacement = envelope(replacement_record);
+  std::vector<std::string> accepted;
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {old_envelope}, 2160, relay_envelope_limits(), relay_policy(),
+          state_a, anchor_a, relay, accepted));
+  ASSERT_EQ(1u, relay.size());
+
+  // The canonical state and anchor are both replaced. The old authenticated
+  // queue entry is no longer semantically usable and cannot suppress the
+  // replacement for the same logical consensus slot.
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {replacement}, 2160, relay_envelope_limits(), relay_policy(),
+          state_b, anchor_b, relay, accepted));
+  ASSERT_EQ(1u, relay.size());
+  ASSERT_EQ(std::vector<std::string>{replacement}, accepted);
+  std::vector<relay_record_selection_v2> selected;
+  ASSERT_EQ(relay_record_status_v2::accepted,
+      relay.select_for_template(2160, selected));
+  ASSERT_EQ(1u, selected.size());
+  EXPECT_EQ(replacement_record.payload, selected.front().record.payload);
+  EXPECT_EQ(1u, relay.diagnostics().invalid_context_receipts);
 }
 
 TEST(epose_semantic_batch_v2, service_keys_are_unique_across_active_identities)

@@ -159,6 +159,8 @@ namespace epose
     uint64_t attempts_cancelled = 0;
     uint64_t attempts_expired = 0;
     uint64_t local_submissions_accepted = 0;
+    uint64_t transport_retries_attempted = 0;
+    uint64_t transport_retries_relayed = 0;
     uint64_t canonical_inclusions_observed = 0;
   };
 
@@ -172,6 +174,15 @@ namespace epose
   {
     uint64_t reset_utc_ms = 0;
     uint64_t attempts_in_flight = 0;
+    uint64_t relay_queue_items = 0;
+    uint64_t relay_queue_bytes = 0;
+    uint64_t relay_exact_duplicates = 0;
+    uint64_t relay_slot_variants = 0;
+    uint64_t relay_expired_round_receipts = 0;
+    uint64_t relay_invalid_context_receipts = 0;
+    uint64_t relay_canonical_receipts = 0;
+    uint64_t relay_capacity_rejections = 0;
+    uint64_t relay_template_selected_receipts = 0;
     std::vector<receipt_round_counters_v2> rounds;
     std::vector<receipt_failure_counter_v2> failures;
     std::vector<receipt_skip_counter_v2> skips;
@@ -227,6 +238,7 @@ namespace epose
         uint64_t warning_now_steady_ms);
     bool canonical_inclusion(
         uint64_t epoch, uint64_t round, const crypto::hash &slot);
+    void transport_retry(uint64_t epoch, uint64_t round, bool relayed);
     void skipped(receipt_scheduler_skip_v2 reason);
     receipt_diagnostics_snapshot_v2 snapshot() const;
 

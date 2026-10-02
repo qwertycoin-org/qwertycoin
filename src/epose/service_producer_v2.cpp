@@ -151,11 +151,13 @@ namespace epose
       const size_t max_entries,
       const uint64_t base_backoff_ms,
       const uint64_t max_backoff_ms,
-      const uint64_t resubmit_ms)
+      const uint64_t resubmit_ms,
+      const uint32_t max_transport_attempts)
     : max_entries_(max_entries),
       base_backoff_ms_(base_backoff_ms),
       max_backoff_ms_(max_backoff_ms),
-      resubmit_ms_(resubmit_ms)
+      resubmit_ms_(resubmit_ms),
+      max_transport_attempts_(max_transport_attempts)
   {
   }
 
@@ -166,6 +168,7 @@ namespace epose
   {
     if (max_entries_ == 0 || base_backoff_ms_ == 0
         || max_backoff_ms_ < base_backoff_ms_ || resubmit_ms_ == 0
+        || max_transport_attempts_ == 0
         || anchor_hash == crypto::null_hash)
       return false;
     if (!context_set_ || epoch_ != epoch || round_ != round
@@ -188,7 +191,8 @@ namespace epose
     const auto found = std::find_if(entries_.begin(), entries_.end(),
         [&slot](const entry &value) { return value.slot == slot; });
     return found == entries_.end()
-        || (!found->in_flight && now_ms >= found->next_attempt_ms);
+        || (!found->in_flight && found->envelope.empty()
+            && now_ms >= found->next_attempt_ms);
   }
 
   bool receipt_retry_tracker_v2::start(
@@ -202,7 +206,7 @@ namespace epose
     {
       if (entries_.size() >= max_entries_)
         return false;
-      entries_.push_back({slot, now_ms, 0, true});
+      entries_.push_back({slot, now_ms, 0, true, {}, 0, 0});
     }
     else
       found->in_flight = true;
@@ -229,16 +233,55 @@ namespace epose
   }
 
   void receipt_retry_tracker_v2::submitted(
-      const crypto::hash &slot, const uint64_t now_ms)
+      const crypto::hash &slot, const uint64_t now_ms,
+      const std::string &envelope)
   {
     const auto found = std::find_if(entries_.begin(), entries_.end(),
         [&slot](const entry &value) { return value.slot == slot; });
     if (found == entries_.end())
       return;
     found->in_flight = false;
+    if (!envelope.empty())
+    {
+      found->envelope = envelope;
+      found->transport_attempts = 1;
+      found->transport_window_attempts = 1;
+    }
+    const uint64_t delay = found->transport_window_attempts
+            >= max_transport_attempts_
+        ? std::max(resubmit_ms_, max_backoff_ms_) : resubmit_ms_;
+    if (found->transport_window_attempts >= max_transport_attempts_)
+      found->transport_window_attempts = 0;
     found->next_attempt_ms =
-        now_ms > std::numeric_limits<uint64_t>::max() - resubmit_ms_
-        ? std::numeric_limits<uint64_t>::max() : now_ms + resubmit_ms_;
+        now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
+  }
+
+  bool receipt_retry_tracker_v2::transport_retry(
+      const crypto::hash &slot, const uint64_t now_ms,
+      std::string &envelope)
+  {
+    envelope.clear();
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    if (found == entries_.end() || found->in_flight
+        || found->envelope.empty()
+        || now_ms < found->next_attempt_ms)
+      return false;
+    envelope = found->envelope;
+    if (found->transport_attempts != std::numeric_limits<uint32_t>::max())
+      ++found->transport_attempts;
+    if (found->transport_window_attempts != std::numeric_limits<uint32_t>::max())
+      ++found->transport_window_attempts;
+    const uint64_t delay = found->transport_window_attempts
+            >= max_transport_attempts_
+        ? std::max(resubmit_ms_, max_backoff_ms_) : resubmit_ms_;
+    if (found->transport_window_attempts >= max_transport_attempts_)
+      found->transport_window_attempts = 0;
+    found->next_attempt_ms =
+        now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
+    return true;
   }
 
   void receipt_retry_tracker_v2::canonical(const crypto::hash &slot)
@@ -255,10 +298,77 @@ namespace epose
         [&slot](const entry &value) { return value.slot == slot; });
     if (found == entries_.end())
       return {};
-    return {true, found->next_attempt_ms, found->failures, found->in_flight};
+    return {true, found->next_attempt_ms, found->failures, found->in_flight,
+        !found->envelope.empty(), found->transport_attempts};
   }
 
   size_t receipt_retry_tracker_v2::size() const
+  {
+    return entries_.size();
+  }
+
+  relay_delivery_limiter_v2::relay_delivery_limiter_v2(
+      const size_t max_entries,
+      const uint64_t interval_ms,
+      const uint32_t max_attempts)
+    : max_entries_(max_entries),
+      interval_ms_(interval_ms),
+      max_attempts_(max_attempts)
+  {
+  }
+
+  bool relay_delivery_limiter_v2::allow(
+      const std::string &delivery_key, const uint64_t now_ms)
+  {
+    if (delivery_key.empty() || max_entries_ == 0 || interval_ms_ == 0
+        || max_attempts_ == 0)
+      return false;
+    auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&delivery_key](const entry &value) {
+          return value.key == delivery_key;
+        });
+    if (found == entries_.end())
+    {
+      if (entries_.size() >= max_entries_)
+      {
+        const auto evict = std::min_element(
+            entries_.begin(), entries_.end(),
+            [](const entry &left, const entry &right) {
+              return left.last_attempt_ms < right.last_attempt_ms;
+            });
+        if (evict == entries_.end())
+          return false;
+        entries_.erase(evict);
+      }
+      const uint64_t delay = interval_ms_;
+      entries_.push_back({delivery_key,
+          now_ms > std::numeric_limits<uint64_t>::max() - delay
+              ? std::numeric_limits<uint64_t>::max()
+              : now_ms + delay,
+          now_ms, 1});
+      return true;
+    }
+    if (now_ms < found->next_attempt_ms)
+      return false;
+    if (found->attempts >= max_attempts_)
+      found->attempts = 0;
+    ++found->attempts;
+    found->last_attempt_ms = now_ms;
+    uint64_t delay = interval_ms_;
+    if (found->attempts >= max_attempts_)
+    {
+      delay = max_attempts_ > std::numeric_limits<uint64_t>::max() / interval_ms_
+          ? std::numeric_limits<uint64_t>::max()
+          : interval_ms_ * max_attempts_;
+    }
+    found->next_attempt_ms =
+        delay == std::numeric_limits<uint64_t>::max()
+            || now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
+    return true;
+  }
+
+  size_t relay_delivery_limiter_v2::size() const
   {
     return entries_.size();
   }

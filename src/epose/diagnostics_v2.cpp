@@ -412,6 +412,19 @@ namespace epose
     return true;
   }
 
+  void receipt_diagnostics_v2::transport_retry(
+      const uint64_t epoch, const uint64_t round, const bool relayed)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    receipt_round_counters_v2 &counters = round_locked(epoch, round);
+    if (counters.transport_retries_attempted
+        != std::numeric_limits<uint64_t>::max())
+      ++counters.transport_retries_attempted;
+    if (relayed && counters.transport_retries_relayed
+        != std::numeric_limits<uint64_t>::max())
+      ++counters.transport_retries_relayed;
+  }
+
   void receipt_diagnostics_v2::skipped(const receipt_scheduler_skip_v2 reason)
   {
     std::lock_guard<std::mutex> lock(mutex_);

@@ -61,6 +61,18 @@ namespace epose
   // bootstrap phase.
   size_t required_receipts_for_committee_size_v2(size_t actual_committee_size);
 
+  // Returns the inclusive block-height window in which a receipt for one
+  // service round may be carried by a block. Round zero is anchored before
+  // the service epoch. Later rounds are anchored at their configured offset,
+  // so their first eligible carrier is the following block.
+  bool receipt_inclusion_window_v2(
+      const epoch_timing_v2 &timing,
+      const committee_policy_v2 &policy,
+      uint64_t epoch,
+      uint64_t round,
+      uint64_t &first_height,
+      uint64_t &last_height);
+
   // CO-02 deliberately freezes opaque commitments instead of guessing the
   // descriptor, reward-proof, or lifecycle wire formats owned by later COs.
   struct frozen_member_v2
@@ -187,6 +199,8 @@ namespace epose
         const committee_policy_v2 &policy);
 
     bool valid() const;
+    const epoch_timing_v2 &timing() const;
+    const committee_policy_v2 &committee_policy() const;
 
     pipeline_status_v2 apply_admission(
         const admission_lease_v2 &lease,
