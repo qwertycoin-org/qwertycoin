@@ -10,7 +10,7 @@ version `2` is active for that public-chain profile. The profile is accepted
 only when the selected network is mainnet and the genesis hash matches the
 compiled value.
 
-At height `20,160`, the first block of service epoch `28`, updated nodes
+At height `21,600`, the first block of service epoch `30`, updated nodes
 activate local relay/template hardening. Pending receipts are deduplicated by
 the consensus slot `(epoch, round, service kind, subject, verifier)` and the
 current canonical snapshot/round-anchor context. Round expiry, stable-envelope
@@ -47,11 +47,11 @@ The identifiers that bind this profile are:
 incomplete profile, or an invalid parameter set. There is no legacy-v1
 fallback on the public QWC-HF17 chain.
 
-Height `20,160` begins epoch `28`, so the first activation epoch is completely
+Height `21,600` begins epoch `30`, so the first activation epoch is completely
 covered by the hardened local policy. Its round inclusion windows are
-`20,160–20,359`, `20,361–20,559`, and `20,561–20,819`; qualification closes
-after block `20,819`, and the corresponding reward epoch begins at `20,880`.
-The anchor blocks `20,360` and `20,560` are not eligible carrier blocks for
+`21,600–21,799`, `21,801–21,999`, and `22,001–22,259`; qualification closes
+after block `22,259`, and the corresponding reward epoch begins at `22,320`.
+The anchor blocks `21,800` and `22,000` are not eligible carrier blocks for
 their newly anchored rounds. Older and updated nodes continue accepting the
 same HF17 blocks across the boundary.
 

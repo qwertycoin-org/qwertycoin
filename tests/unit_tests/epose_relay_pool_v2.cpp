@@ -302,12 +302,12 @@ TEST(epose_relay_pool_v2, confirmed_records_are_removed_by_complete_record_id)
   EXPECT_EQ(0u, relay.bytes());
 }
 
-TEST(epose_relay_pool_v2, receipt_slot_hardening_activates_exactly_at_height_20160)
+TEST(epose_relay_pool_v2, receipt_slot_hardening_activates_exactly_at_height_21600)
 {
   auto relay = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
-  const envelope_record_v2 first = receipt_record(28, 0, 1, 2, 1);
-  const envelope_record_v2 second = receipt_record(28, 0, 1, 2, 2);
-  const envelope_record_v2 third = receipt_record(28, 0, 1, 2, 3);
+  const envelope_record_v2 first = receipt_record(30, 0, 1, 2, 1);
+  const envelope_record_v2 second = receipt_record(30, 0, 1, 2, 2);
+  const envelope_record_v2 third = receipt_record(30, 0, 1, 2, 3);
 
   ASSERT_EQ(relay_record_status_v2::accepted,
       relay.enqueue(first, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
@@ -341,13 +341,13 @@ TEST(epose_relay_pool_v2, receipt_slot_hardening_activates_exactly_at_height_201
   ASSERT_EQ(1u, selected.size());
 }
 
-TEST(epose_relay_pool_v2, per_round_deadlines_activate_exactly_at_height_20160)
+TEST(epose_relay_pool_v2, per_round_deadlines_activate_exactly_at_height_21600)
 {
   auto relay = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   const envelope_record_v2 legacy_deadline =
-      receipt_record(28, 0, 1, 2, 1);
+      receipt_record(30, 0, 1, 2, 1);
   const envelope_record_v2 round_deadline =
-      receipt_record(28, 0, 1, 3, 1);
+      receipt_record(30, 0, 1, 3, 1);
   ASSERT_EQ(relay_record_status_v2::accepted,
       relay.enqueue(
           legacy_deadline, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
@@ -356,12 +356,12 @@ TEST(epose_relay_pool_v2, per_round_deadlines_activate_exactly_at_height_20160)
   ASSERT_EQ(2u, relay.size());
 
   // The pre-activation record retains the reviewed epoch-wide deadline. The
-  // record admitted at A uses R0's inclusive last carrier, 20,359.
-  relay.prune_expired(20360);
+  // record admitted at A uses R0's inclusive last carrier, 21,799.
+  relay.prune_expired(21800);
   ASSERT_EQ(1u, relay.size());
   std::vector<relay_record_selection_v2> selected;
   ASSERT_EQ(relay_record_status_v2::accepted,
-      relay.select_for_template(20360, selected));
+      relay.select_for_template(21800, selected));
   ASSERT_EQ(1u, selected.size());
   EXPECT_EQ(legacy_deadline.payload, selected.front().record.payload);
   EXPECT_EQ(1u, relay.diagnostics().expired_round_receipts);
@@ -372,8 +372,8 @@ TEST(epose_relay_pool_v2, mixed_old_and_new_nodes_build_the_same_unique_template
   auto legacy = pool();
   auto hardened = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   const std::vector<envelope_record_v2> records{
-      receipt_record(28, 0, 1, 2, 1),
-      receipt_record(28, 0, 1, 3, 1)};
+      receipt_record(30, 0, 1, 2, 1),
+      receipt_record(30, 0, 1, 3, 1)};
 
   for (const envelope_record_v2 &record : records)
   {
@@ -411,9 +411,9 @@ TEST(epose_relay_pool_v2, restart_and_resync_reconstruct_hardened_slot_identity)
   // the active policy from the canonical height and rebuilds only unique slots
   // as receipts are replayed or resubmitted.
   auto restarted = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
-  const envelope_record_v2 first = receipt_record(28, 0, 7, 8, 1);
-  const envelope_record_v2 second = receipt_record(28, 0, 7, 8, 2);
-  const envelope_record_v2 third = receipt_record(28, 0, 7, 8, 3);
+  const envelope_record_v2 first = receipt_record(30, 0, 7, 8, 1);
+  const envelope_record_v2 second = receipt_record(30, 0, 7, 8, 2);
+  const envelope_record_v2 third = receipt_record(30, 0, 7, 8, 3);
 
   ASSERT_EQ(relay_record_status_v2::accepted,
       restarted.enqueue(first, QWC_EPOSE_RELAY_HARDENING_HEIGHT));
@@ -438,23 +438,23 @@ TEST(epose_relay_pool_v2, reorg_context_replaces_a_stale_pending_slot)
 {
   auto relay = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   const envelope_record_v2 anchor_a =
-      receipt_record(28, 1, 7, 8, 1, 0xa1);
+      receipt_record(30, 1, 7, 8, 1, 0xa1);
   const envelope_record_v2 anchor_b =
-      receipt_record(28, 1, 7, 8, 2, 0xb2);
+      receipt_record(30, 1, 7, 8, 2, 0xb2);
 
   ASSERT_EQ(relay_record_status_v2::accepted,
-      relay.enqueue(anchor_a, 20361));
+      relay.enqueue(anchor_a, 21801));
   ASSERT_EQ(1u, relay.size());
   // The consensus slot is unchanged, but the canonical round anchor changed.
   // The old-context record must be removed rather than suppressing B as a
   // randomized duplicate of A.
   ASSERT_EQ(relay_record_status_v2::accepted,
-      relay.enqueue(anchor_b, 20361));
+      relay.enqueue(anchor_b, 21801));
   ASSERT_EQ(1u, relay.size());
 
   std::vector<relay_record_selection_v2> selected;
   ASSERT_EQ(relay_record_status_v2::accepted,
-      relay.select_for_template(20361, selected));
+      relay.select_for_template(21801, selected));
   ASSERT_EQ(1u, selected.size());
   authenticated_service_receipt_v2 decoded{};
   ASSERT_EQ(record_codec_status_v2::accepted,
@@ -467,9 +467,9 @@ TEST(epose_relay_pool_v2, reorg_context_replaces_a_stale_pending_slot)
 TEST(epose_relay_pool_v2, hardening_purges_all_variants_of_a_confirmed_slot)
 {
   auto relay = pool(QWC_EPOSE_RELAY_HARDENING_HEIGHT);
-  const envelope_record_v2 first = receipt_record(28, 0, 3, 4, 1);
-  const envelope_record_v2 second = receipt_record(28, 0, 3, 4, 2);
-  const envelope_record_v2 confirmed = receipt_record(28, 0, 3, 4, 3);
+  const envelope_record_v2 first = receipt_record(30, 0, 3, 4, 1);
+  const envelope_record_v2 second = receipt_record(30, 0, 3, 4, 2);
+  const envelope_record_v2 confirmed = receipt_record(30, 0, 3, 4, 3);
   ASSERT_EQ(relay_record_status_v2::accepted,
       relay.enqueue(first, QWC_EPOSE_RELAY_HARDENING_HEIGHT - 1));
   ASSERT_EQ(relay_record_status_v2::accepted,
@@ -491,7 +491,7 @@ TEST(epose_relay_pool_v2, hardening_bounds_retries_and_preserves_all_unique_roun
       QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   ASSERT_TRUE(relay.valid());
 
-  constexpr uint64_t epoch = 28;
+  constexpr uint64_t epoch = 30;
   constexpr size_t subjects = 18;
   constexpr size_t rounds = 3;
   constexpr size_t verifiers = 9;
@@ -564,8 +564,8 @@ TEST(epose_relay_pool_v2, expired_rounds_do_not_consume_the_next_round_template_
       QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   ASSERT_TRUE(relay.valid());
 
-  constexpr uint64_t epoch = 28;
-  constexpr uint64_t epoch_start = 20160;
+  constexpr uint64_t epoch = 30;
+  constexpr uint64_t epoch_start = 21600;
   size_t old_round_records = 0;
   for (uint8_t subject = 1; subject <= 12 && old_round_records < 100; ++subject)
     for (uint8_t verifier = 64; verifier <= 72 && old_round_records < 100;
@@ -583,12 +583,12 @@ TEST(epose_relay_pool_v2, expired_rounds_do_not_consume_the_next_round_template_
               receipt_record(epoch, 2, subject, verifier, 1), epoch_start));
   ASSERT_EQ(262u, relay.size());
 
-  // R0 closes at 20,359. R2 starts after its anchor block, at 20,561.
+  // R0 closes at 21,799. R2 starts after its anchor block, at 22,001.
   // All 100 stale R0 records must be purged before the 256-item template
   // budget is allocated, leaving every one of the 162 R2 records selectable.
   std::vector<relay_record_selection_v2> selected;
   ASSERT_EQ(relay_record_status_v2::accepted,
-      relay.select_for_template(20561, selected));
+      relay.select_for_template(22001, selected));
   EXPECT_EQ(162u, relay.size());
   ASSERT_EQ(162u, selected.size());
   const relay_pool_diagnostics_v2 diagnostics = relay.diagnostics();

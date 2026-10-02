@@ -218,17 +218,17 @@ TEST(epose_v2, timing_boundaries_are_checked_and_match_co01)
   uint64_t first = 0;
   uint64_t last = 0;
   ASSERT_TRUE(receipt_inclusion_window_v2(
-      timing, rounds, 28, 0, first, last));
-  EXPECT_EQ(20160u, first);
-  EXPECT_EQ(20359u, last);
+      timing, rounds, 30, 0, first, last));
+  EXPECT_EQ(21600u, first);
+  EXPECT_EQ(21799u, last);
   ASSERT_TRUE(receipt_inclusion_window_v2(
-      timing, rounds, 28, 1, first, last));
-  EXPECT_EQ(20361u, first);
-  EXPECT_EQ(20559u, last);
+      timing, rounds, 30, 1, first, last));
+  EXPECT_EQ(21801u, first);
+  EXPECT_EQ(21999u, last);
   ASSERT_TRUE(receipt_inclusion_window_v2(
-      timing, rounds, 28, 2, first, last));
-  EXPECT_EQ(20561u, first);
-  EXPECT_EQ(20819u, last);
+      timing, rounds, 30, 2, first, last));
+  EXPECT_EQ(22001u, first);
+  EXPECT_EQ(22259u, last);
 
   epoch_timing_v2 unaligned{1441, 720, 60};
   EXPECT_FALSE(unaligned.valid());

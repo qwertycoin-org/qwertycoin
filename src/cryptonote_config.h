@@ -205,7 +205,7 @@
 // Height-gated local relay/template policy. This is intentionally not a hard
 // fork: block versions and every consensus rule remain HF17 on both sides of
 // the boundary, so mixed old/new deployments continue following one chain.
-constexpr uint64_t QWC_EPOSE_RELAY_HARDENING_HEIGHT = 20160;
+constexpr uint64_t QWC_EPOSE_RELAY_HARDENING_HEIGHT = 21600;
 
 // EPoSE-v2 is the launch state machine, not a one-version feature flag.  A
 // later QWC hardfork continues processing the same parameter-bound state until

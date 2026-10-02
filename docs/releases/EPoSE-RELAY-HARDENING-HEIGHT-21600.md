@@ -1,21 +1,21 @@
-# EPoSE receipt-relay hardening at height 20,160
+# EPoSE receipt-relay hardening at height 21,600
 
 ## Activation
 
 - **Network block version:** remains 17
-- **Local-policy activation height:** 20,160
-- **First completely covered EPoSE epoch:** 28, heights 20,160–20,879
-- **Qualification finalization:** after block 20,819
-- **First subsequent reward epoch:** 29, beginning at block 20,880
+- **Local-policy activation height:** 21,600
+- **First completely covered EPoSE epoch:** 30, heights 21,600–22,319
+- **Qualification finalization:** after block 22,259
+- **First subsequent reward epoch:** 31, beginning at block 22,320
 
-Height 20,160 is not a hard fork. Updated and older nodes validate the same
+Height 21,600 is not a hard fork. Updated and older nodes validate the same
 HF17 blocks before, at and after the boundary. The change is limited to local
 receipt production, relay queues, peer delivery and mining-template policy.
 
 ## Recommended operator update
 
 Update every component that creates or supplies block templates before height
-20,160, in this order:
+21,600, in this order:
 
 1. mining daemons and pool block-template daemons;
 2. the relay paths and seed daemons used by those template providers;
@@ -57,19 +57,19 @@ There is no retrospective qualification and no recognition of receipts after
 their canonical round window. A node still needs valid registration,
 reachability and sufficient authentic receipts from its assigned verifiers.
 
-## Epoch-28 boundaries
+## Epoch-30 boundaries
 
 | Event | Inclusive height range / height |
 | --- | --- |
-| Round 0 carriers | 20,160–20,359 |
-| Round 1 anchor | 20,360 |
-| Round 1 carriers | 20,361–20,559 |
-| Round 2 anchor | 20,560 |
-| Round 2 carriers | 20,561–20,819 |
-| Qualification finalization | after block 20,819 |
-| Reward epoch 29 begins | 20,880 |
+| Round 0 carriers | 21,600–21,799 |
+| Round 1 anchor | 21,800 |
+| Round 1 carriers | 21,801–21,999 |
+| Round 2 anchor | 22,000 |
+| Round 2 carriers | 22,001–22,259 |
+| Qualification finalization | after block 22,259 |
+| Reward epoch 31 begins | 22,320 |
 
-Individual payout timing within epoch 29 remains subject to the existing
+Individual payout timing within epoch 31 remains subject to the existing
 reward scheduler and wallet unlock rules.
 
 ## Release gate
@@ -79,8 +79,8 @@ all required Linux, Windows and ASan checks plus the focused multi-node,
 mixed-version, reorg, restart and activation-boundary profiles. If operational
 lead time is no longer sufficient, choose a later fixed epoch boundary and
 rebuild/retest a new candidate; never mutate an already published binary under
-the same version. For activation at 20,160, publish the verified release no
-later than canonical height 18,000 to preserve the planned 2,160-block lead.
+the same version. For activation at 21,600, publish the verified release no
+later than canonical height 19,440 to preserve the planned 2,160-block lead.
 If that gate is missed, compute a later planning candidate as
 `720 * ceil((release_height + 2160) / 720)` and publish one fixed height in the
 replacement build.

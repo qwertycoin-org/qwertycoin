@@ -2,7 +2,7 @@
 
 - **Status:** Proposed for activation; implementation in review
 - **Date:** 2026-10-01
-- **Activation:** local policy at height 20,160; block version remains 17
+- **Activation:** local policy at height 21,600; block version remains 17
 - **Scope:** EPoSE-v2 local relay queue and mining-template selection
 
 ## Observed failure
@@ -22,9 +22,9 @@ variants accumulated faster than canonical inclusion and starved later rounds.
 ## Decision
 
 1. Keep QWC block version 17 and every consensus rule unchanged.
-2. Activate only local relay/template policy at block height 20,160.
-3. Before height 20,160, preserve complete-record relay identity.
-4. At and after height 20,160, admit at most one usable pending receipt for each
+2. Activate only local relay/template policy at block height 21,600.
+3. Before height 21,600, preserve complete-record relay identity.
+4. At and after height 21,600, admit at most one usable pending receipt for each
    `(epoch, round, service kind, subject, verifier)` slot.
 5. If pre-activation variants remain in memory at the boundary,
    deterministically keep the variant with the lowest complete-record relay ID
@@ -49,12 +49,12 @@ variants accumulated faster than canonical inclusion and starved later rounds.
 Receipt-slot deduplication is local relay/template policy. Complete blocks are
 still parsed and validated against canonical EPoSE state. Mainnet, testnet and
 stagenet continue scheduling only block version 17, so updated and older nodes
-accept the same blocks across height 20,160. An older node may keep the faulty
+accept the same blocks across height 21,600. An older node may keep the faulty
 queue policy until upgraded, but it cannot create a version-driven chain split.
 
 There is no state migration. Relay policy is derived from the active chain
 height, so disconnect/reconnect across the boundary deterministically switches
-the local cache behavior. Height 20,160 is the first block of epoch 28, making
+the local cache behavior. Height 21,600 is the first block of epoch 30, making
 that entire service epoch measurable under one relay policy.
 
 ## Security properties
@@ -70,8 +70,8 @@ that entire service epoch measurable under one relay policy.
 
 ## Required evidence
 
-- exact activation tests at heights 20,159, 20,160 and 20,161;
-- unchanged HF17 block acceptance before, at and after height 20,160;
+- exact activation tests at heights 21,599, 21,600 and 21,601;
+- unchanged HF17 block acceptance before, at and after height 21,600;
 - mixed old/new relay-policy templates for unique canonical slots;
 - reorg below and recross above the boundary;
 - restart/resync reconstruction from canonical height;

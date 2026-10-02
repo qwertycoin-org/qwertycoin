@@ -2545,7 +2545,7 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec: " << e.what());
     }
 
-    // QWC's public chain is HF17-native. The height-20,160 EPoSE relay
+    // QWC's public chain is HF17-native. The height-21,600 EPoSE relay
     // hardening is local policy, not a block-version transition. Starting
     // regtest at v1 creates a different genesis from wallet clients and makes
     // the disposable RPC test network reject itself.

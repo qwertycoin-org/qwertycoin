@@ -97,7 +97,7 @@ TEST(epose_hardfork_migration_v2, relay_hardening_height_is_not_a_hardfork)
   ASSERT_EQ(1u, num_mainnet_hard_forks);
   EXPECT_EQ(HF_VERSION_QWC_EPOSE, mainnet_hard_forks[0].version);
   EXPECT_EQ(0u, mainnet_hard_forks[0].height);
-  EXPECT_EQ(20160u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  EXPECT_EQ(21600u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
 
   hardfork_test_db db;
   cryptonote::HardFork hardfork(db, HF_VERSION_QWC_EPOSE, 0, 0, 0, 1, 0);

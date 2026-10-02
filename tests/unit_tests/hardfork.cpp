@@ -271,7 +271,7 @@ TEST(qwc_relaunch, starts_from_current_monero_consensus)
 
   ASSERT_EQ(16, HF_VERSION_MONERO_CURRENT_CONSENSUS);
   ASSERT_EQ(17, HF_VERSION_QWC_EPOSE);
-  ASSERT_EQ(20160u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
+  ASSERT_EQ(21600u, QWC_EPOSE_RELAY_HARDENING_HEIGHT);
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, mainnet_hard_forks[0].version);
   ASSERT_EQ(0u, mainnet_hard_forks[0].height);
   ASSERT_EQ(HF_VERSION_QWC_EPOSE, testnet_hard_forks[0].version);
