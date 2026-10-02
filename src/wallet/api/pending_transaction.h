@@ -53,6 +53,7 @@ public:
     uint64_t txCount() const override;
     std::vector<uint32_t> subaddrAccount() const override;
     std::vector<std::set<uint32_t>> subaddrIndices() const override;
+    std::string qmsJournalData() const override;
     // TODO: continue with interface;
 
     std::string multisigSignData() override;
@@ -61,6 +62,7 @@ public:
 
 private:
     friend class WalletImpl;
+    void releaseReservations();
     WalletImpl &m_wallet;
 
     int  m_status;
@@ -69,6 +71,7 @@ private:
     std::unordered_set<crypto::public_key> m_signers;
     std::vector<std::string> m_tx_device_aux;
     std::vector<crypto::key_image> m_key_images;
+    std::vector<size_t> m_reserved_transfers;
 };
 
 

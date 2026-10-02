@@ -52,6 +52,7 @@ using namespace epee;
 #include "cryptonote_core/tx_sanity_check.h"
 #include "wallet_rpc_helpers.h"
 #include "wallet2.h"
+#include "qms/protocol.h"
 #include "wallet_args.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "net/parse.h"
@@ -3043,7 +3044,20 @@ void wallet2::process_new_blockchain_entry(const cryptonote::block& b, const cry
     THROW_WALLET_EXCEPTION_IF(bche.txs.size() != parsed_block.txes.size(), error::wallet_internal_error, "Wrong amount of transactions for block");
     for (size_t idx = 0; idx < b.tx_hashes.size(); ++idx)
     {
-      process_new_transaction(b.tx_hashes[idx], parsed_block.txes[idx], parsed_block.o_indices.indices[idx+1].indices, height, b.major_version, b.timestamp, false, false, false, tx_cache_data[tx_cache_data_offset++], output_tracker_cache);
+      const cryptonote::transaction &tx = parsed_block.txes[idx];
+      process_new_transaction(b.tx_hashes[idx], tx, parsed_block.o_indices.indices[idx+1].indices, height, b.major_version, b.timestamp, false, false, false, tx_cache_data[tx_cache_data_offset++], output_tracker_cache);
+      if (m_callback)
+      {
+        try
+        {
+          if (!qwertycoin::qms::extract_carrier_fragments(tx.extra).empty())
+            m_callback->on_qms_carrier(height, bl_id, b.tx_hashes[idx], tx);
+        }
+        catch (...)
+        {
+          // Malformed unauthenticated carrier data is ignored by the wallet sync path.
+        }
+      }
     }
     TIME_MEASURE_FINISH(txs_handle_time);
     m_last_block_reward = cryptonote::get_outs_money_amount(b.miner_tx);
@@ -7668,6 +7682,37 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
   if (ciphertext.empty())
     return false;
   return save_to_file(filename, ciphertext);
+}
+//----------------------------------------------------------------------------------------------------
+std::string wallet2::dump_qms_pending_to_str(const std::vector<pending_tx> &ptx_vector) const
+{
+  std::ostringstream stream;
+  binary_archive<true> archive(stream);
+  std::vector<pending_tx> copy = ptx_vector;
+  if (!::serialization::serialize(archive, copy))
+    return {};
+  return std::string("QMS-PENDING-V1") + encrypt_with_view_secret_key(stream.str());
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::parse_qms_pending_from_str(const std::string &data, std::vector<pending_tx> &ptx_vector) const
+{
+  static const std::string prefix = "QMS-PENDING-V1";
+  if (data.compare(0, prefix.size(), prefix) != 0)
+    return false;
+  try
+  {
+    const std::string plaintext = decrypt_with_view_secret_key(data.substr(prefix.size()));
+    binary_archive<false> archive{epee::strspan<std::uint8_t>(plaintext)};
+    std::vector<pending_tx> parsed;
+    if (!::serialization::serialize(archive, parsed) || !::serialization::check_stream_state(archive))
+      return false;
+    ptx_vector = std::move(parsed);
+    return true;
+  }
+  catch (...)
+  {
+    return false;
+  }
 }
 //----------------------------------------------------------------------------------------------------
 std::string wallet2::dump_tx_to_str(const std::vector<pending_tx> &ptx_vector) const

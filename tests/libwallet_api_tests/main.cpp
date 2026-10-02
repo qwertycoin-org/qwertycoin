@@ -304,6 +304,7 @@ TEST_F(WalletManagerTest, WalletManagerOpensWalletWithPasswordAndReopen)
     std::string wallet_pass = "password";
     std::string wrong_wallet_pass = "1111";
     Monero::Wallet * wallet1 = wmgr->createWallet(WALLET_NAME, wallet_pass, WALLET_LANG, Monero::NetworkType::TESTNET);
+    ASSERT_TRUE(wallet1->qmsStateStorageAvailable());
     std::string seed1 = wallet1->seed();
     ASSERT_TRUE(wmgr->closeWallet(wallet1));
 
@@ -319,6 +320,7 @@ TEST_F(WalletManagerTest, WalletManagerOpensWalletWithPasswordAndReopen)
     open_wallet_helper(wmgr, &wallet3, wallet_pass, nullptr);
     ASSERT_TRUE(wallet3 != nullptr);
     ASSERT_TRUE(wallet3->status() == Monero::Wallet::Status_Ok);
+    ASSERT_TRUE(wallet3->qmsStateStorageAvailable());
     ASSERT_TRUE(wmgr->closeWallet(wallet3));
 }
 
@@ -378,6 +380,7 @@ TEST_F(WalletManagerTest, WalletManagerRecoversWallet)
     Utils::deleteWallet(WALLET_NAME);
     Monero::Wallet * wallet2 = wmgr->recoveryWallet(WALLET_NAME, seed1, Monero::NetworkType::MAINNET);
     ASSERT_TRUE(wallet2->status() == Monero::Wallet::Status_Ok);
+    ASSERT_FALSE(wallet2->qmsStateStorageAvailable());
     ASSERT_TRUE(wallet2->seed() == seed1);
     ASSERT_TRUE(wallet2->mainAddress() == address1);
     ASSERT_TRUE(wmgr->closeWallet(wallet2));

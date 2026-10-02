@@ -103,6 +103,7 @@ struct PendingTransaction
     virtual uint64_t txCount() const = 0;
     virtual std::vector<uint32_t> subaddrAccount() const = 0;
     virtual std::vector<std::set<uint32_t>> subaddrIndices() const = 0;
+    virtual std::string qmsJournalData() const = 0;
 
     /**
      * @brief multisigSignData
@@ -374,6 +375,13 @@ struct WalletListener
      * @param height        - block height
      */
     virtual void newBlock(uint64_t height) = 0;
+
+    // Called for authenticated-candidate QMS carrier transactions observed by the
+    // full wallet sync path. The application must still validate discovery/MAC/signature.
+    virtual void qmsCarrier(uint64_t height, const std::string &blockHash,
+                            const std::string &txId, const std::string &extraHex) {}
+
+    virtual void qmsReorg(uint64_t height, uint64_t blocksDetached) {}
 
     /**
      * @brief updated  - generic callback, called when any event (sent/received/block reveived/etc) happened with the wallet;
@@ -871,6 +879,14 @@ struct Wallet
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
 
+    virtual PendingTransaction * createQmsCarrierTransactions(
+                                                   const std::vector<std::vector<uint8_t>> &fragment_extras,
+                                                   uint64_t self_amount, uint32_t mixin_count,
+                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low,
+                                                   uint32_t subaddr_account = 0,
+                                                   std::set<uint32_t> subaddr_indices = {}) = 0;
+    virtual PendingTransaction * restoreQmsCarrierTransactions(const std::string &encryptedJournal) = 0;
+
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
@@ -1008,6 +1024,14 @@ struct Wallet
      * \return the attached string, or empty string if there is none
      */
     virtual std::string getCacheAttribute(const std::string &key) const = 0;
+    /*!
+     * \brief qmsStateStorageAvailable - whether QMS1 state can be persisted
+     *        inside a password-protected, unlocked wallet cache
+     *
+     * Native clients use this as a fail-closed UI capability gate.  A
+     * passwordless wallet must not expose or initialize Messenger state.
+     */
+    virtual bool qmsStateStorageAvailable() const = 0;
     /*!
      * \brief setUserNote - attach an arbitrary string note to a txid
      * \param txid - the transaction id to attach the note to
