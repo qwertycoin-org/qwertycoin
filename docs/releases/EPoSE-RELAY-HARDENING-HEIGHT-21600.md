@@ -97,6 +97,40 @@ If that gate is missed, compute a later planning candidate as
 `720 * ceil((release_height + 2160) / 720)` and publish one fixed height in the
 replacement build.
 
+## Candidate verification record
+
+The release gate is evaluated against the immutable PR head, not merely a
+version string. The final PR description must name that SHA and link its CI
+checks. The following checks are required again if the head changes:
+
+- the complete EPoSE unit suite, including the height-21,600 boundary, late
+  receipt authentication, production retry limits, qualification close at
+  22,259, reward-source transition at 22,320 and the reorg profiles;
+- daemon, wallet CLI and wallet RPC builds and version output;
+- release-request validation and release-tool tests; and
+- Linux, Windows and ASan CI jobs.
+
+On 2026-10-02 the signed `v2.0.2` Linux daemon and the locally built `2.0.3`
+candidate were also exercised against the same receipt-bearing mainnet LMDB.
+The EPoSE processing path was active (`protocol_version=2`, epoch 19,
+2,337 attestations). Both binaries reported the same height 14,020, tip
+`ed7ebf58e5435e57f5370116c3f61d941539eb01f90e2a6be272426873c897ff`,
+EPoSE state hash
+`9a2d02edfcc7c2ecf5dcf6779d7ba14f5b5fbd07f833a16157b25ea648a20e12`,
+service-node count 16, qualified count 0 and reward view for height 14,019.
+The candidate database opened unchanged under `v2.0.2`; the candidate then
+rewound three blocks, restarted, replayed the canonical chain and restored
+the same height-14,019 block hash and EPoSE state.
+
+This runtime result proves current-chain forward/backward database operation,
+restart and bounded canonical replay. It does **not** replace the required
+actual-binary mixed-version run at future heights 21,599/21,600/21,601,
+22,259 and 22,320. Mainnet was below those heights during the check. Until
+that isolated production-parameter profile is attached to the final SHA, the
+candidate remains blocked from merge, release and deployment. Deterministic
+unit coverage of those exact heights is necessary but is not represented as
+the missing actual-binary proof.
+
 ## Rollback
 
 Before rollout, retain the verified v2.0.2 package, its checksum, the active
