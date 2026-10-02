@@ -353,7 +353,7 @@ TEST(epose_service_producer_v2, receipt_retry_context_reconciles_reorgs)
   EXPECT_FALSE(tracker.begin_context(1, 1, crypto::null_hash));
 }
 
-TEST(epose_service_producer_v2, transport_retries_reuse_one_envelope_and_stop)
+TEST(epose_service_producer_v2, transport_retries_reuse_one_envelope_after_bounded_cooldown)
 {
   receipt_retry_tracker_v2 tracker(4, 10, 40, 20, 3);
   const crypto::hash anchor = hash_text("stable-envelope-anchor");
@@ -370,11 +370,13 @@ TEST(epose_service_producer_v2, transport_retries_reuse_one_envelope_and_stop)
   ASSERT_TRUE(tracker.transport_retry(slot, 140, envelope));
   EXPECT_EQ("signed-envelope", envelope);
   EXPECT_FALSE(tracker.transport_retry(slot, 160, envelope));
+  ASSERT_TRUE(tracker.transport_retry(slot, 180, envelope));
+  EXPECT_EQ("signed-envelope", envelope);
 
   const auto status = tracker.status(slot);
   ASSERT_TRUE(status.found);
   EXPECT_TRUE(status.has_envelope);
-  EXPECT_EQ(3u, status.transport_attempts);
+  EXPECT_EQ(4u, status.transport_attempts);
 
   tracker.canonical(slot);
   EXPECT_FALSE(tracker.status(slot).found);
@@ -404,10 +406,48 @@ TEST(epose_service_producer_v2, multi_hop_redelivery_is_per_peer_bounded)
 
   ASSERT_TRUE(intermediary.allow(intermediary_to_miner, 220));
   EXPECT_FALSE(intermediary.allow(intermediary_to_miner, 280));
+  EXPECT_TRUE(intermediary.allow(intermediary_to_miner, 400));
   EXPECT_EQ(3u, intermediary.size());
 
   // Reconnecting the same peer must not reset the stable peer budget. A
   // genuinely different downstream peer still receives its own bounded
   // delivery opportunity.
   EXPECT_TRUE(intermediary.allow("receipt/other-miner-peer", 221));
+}
+
+TEST(epose_service_producer_v2, eight_failed_deliveries_recover_through_a_new_intermediary)
+{
+  receipt_retry_tracker_v2 producer;
+  relay_delivery_limiter_v2 relay;
+  const crypto::hash anchor = hash_text("production-recovery-anchor");
+  const crypto::hash slot = hash_text("production-recovery-slot");
+  const std::string signed_envelope = "same-authenticated-envelope";
+  ASSERT_TRUE(producer.begin_context(30, 0, anchor));
+  ASSERT_TRUE(producer.start(slot, 0));
+  producer.submitted(slot, 0, signed_envelope);
+  ASSERT_TRUE(relay.allow("envelope/old-unreachable-peer", 0));
+
+  std::string retry;
+  for (uint64_t attempt = 1; attempt < 8; ++attempt)
+  {
+    const uint64_t now_ms = attempt * 60000;
+    ASSERT_TRUE(producer.transport_retry(slot, now_ms, retry));
+    EXPECT_EQ(signed_envelope, retry);
+    ASSERT_TRUE(relay.allow("envelope/old-unreachable-peer", now_ms));
+  }
+  EXPECT_FALSE(producer.transport_retry(slot, 480000, retry));
+
+  // The eighth failed transport starts the bounded production cooldown. Once
+  // it expires, the producer reuses the exact signed bytes. A newly available
+  // intermediary and its miner-facing hop each have independent bounded
+  // delivery state, so the same envelope can still reach a template daemon
+  // during the unchanged round context.
+  ASSERT_TRUE(producer.transport_retry(slot, 540000, retry));
+  EXPECT_EQ(signed_envelope, retry);
+  ASSERT_TRUE(relay.allow("envelope/new-intermediary", 540000));
+  ASSERT_TRUE(relay.allow("envelope/miner", 540000));
+  EXPECT_EQ(3u, relay.size());
+
+  producer.canonical(slot);
+  EXPECT_FALSE(producer.transport_retry(slot, 600000, retry));
 }

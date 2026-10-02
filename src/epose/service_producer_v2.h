@@ -107,6 +107,7 @@ namespace epose
       bool in_flight = false;
       std::string envelope;
       uint32_t transport_attempts = 0;
+      uint32_t transport_window_attempts = 0;
     };
 
     size_t max_entries_ = 0;

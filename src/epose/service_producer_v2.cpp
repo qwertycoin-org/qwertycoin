@@ -206,7 +206,7 @@ namespace epose
     {
       if (entries_.size() >= max_entries_)
         return false;
-      entries_.push_back({slot, now_ms, 0, true, {}, 0});
+      entries_.push_back({slot, now_ms, 0, true, {}, 0, 0});
     }
     else
       found->in_flight = true;
@@ -245,10 +245,16 @@ namespace epose
     {
       found->envelope = envelope;
       found->transport_attempts = 1;
+      found->transport_window_attempts = 1;
     }
+    const uint64_t delay = found->transport_window_attempts
+            >= max_transport_attempts_
+        ? std::max(resubmit_ms_, max_backoff_ms_) : resubmit_ms_;
+    if (found->transport_window_attempts >= max_transport_attempts_)
+      found->transport_window_attempts = 0;
     found->next_attempt_ms =
-        now_ms > std::numeric_limits<uint64_t>::max() - resubmit_ms_
-        ? std::numeric_limits<uint64_t>::max() : now_ms + resubmit_ms_;
+        now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
   }
 
   bool receipt_retry_tracker_v2::transport_retry(
@@ -260,14 +266,21 @@ namespace epose
         [&slot](const entry &value) { return value.slot == slot; });
     if (found == entries_.end() || found->in_flight
         || found->envelope.empty()
-        || found->transport_attempts >= max_transport_attempts_
         || now_ms < found->next_attempt_ms)
       return false;
     envelope = found->envelope;
-    ++found->transport_attempts;
+    if (found->transport_attempts != std::numeric_limits<uint32_t>::max())
+      ++found->transport_attempts;
+    if (found->transport_window_attempts != std::numeric_limits<uint32_t>::max())
+      ++found->transport_window_attempts;
+    const uint64_t delay = found->transport_window_attempts
+            >= max_transport_attempts_
+        ? std::max(resubmit_ms_, max_backoff_ms_) : resubmit_ms_;
+    if (found->transport_window_attempts >= max_transport_attempts_)
+      found->transport_window_attempts = 0;
     found->next_attempt_ms =
-        now_ms > std::numeric_limits<uint64_t>::max() - resubmit_ms_
-        ? std::numeric_limits<uint64_t>::max() : now_ms + resubmit_ms_;
+        now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
     return true;
   }
 
@@ -327,20 +340,31 @@ namespace epose
           return false;
         entries_.erase(evict);
       }
+      const uint64_t delay = interval_ms_;
       entries_.push_back({delivery_key,
-          now_ms > std::numeric_limits<uint64_t>::max() - interval_ms_
+          now_ms > std::numeric_limits<uint64_t>::max() - delay
               ? std::numeric_limits<uint64_t>::max()
-              : now_ms + interval_ms_,
+              : now_ms + delay,
           now_ms, 1});
       return true;
     }
-    if (found->attempts >= max_attempts_ || now_ms < found->next_attempt_ms)
+    if (now_ms < found->next_attempt_ms)
       return false;
+    if (found->attempts >= max_attempts_)
+      found->attempts = 0;
     ++found->attempts;
     found->last_attempt_ms = now_ms;
+    uint64_t delay = interval_ms_;
+    if (found->attempts >= max_attempts_)
+    {
+      delay = max_attempts_ > std::numeric_limits<uint64_t>::max() / interval_ms_
+          ? std::numeric_limits<uint64_t>::max()
+          : interval_ms_ * max_attempts_;
+    }
     found->next_attempt_ms =
-        now_ms > std::numeric_limits<uint64_t>::max() - interval_ms_
-        ? std::numeric_limits<uint64_t>::max() : now_ms + interval_ms_;
+        delay == std::numeric_limits<uint64_t>::max()
+            || now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
     return true;
   }
 

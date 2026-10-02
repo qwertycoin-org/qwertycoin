@@ -722,6 +722,71 @@ TEST(epose_semantic_batch_v2, confirmed_slot_races_are_nonfatal_but_still_authen
   EXPECT_EQ(0u, relay.size());
 }
 
+TEST(epose_semantic_batch_v2, closed_qualification_discards_only_authenticated_late_receipts)
+{
+  contexts source;
+  identity subject = make_identity("closed-subject");
+  identity verifier = make_identity("closed-verifier");
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, subject, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      enroll(state, verifier, source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(3, 2100, source.round));
+
+  const envelope_record_v2 canonical =
+      receipt_record(state, subject, verifier, source.round, "canonical");
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {canonical}, semantic_transaction_context_v2{2160, false, nullptr},
+          source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.close_qualification(3, 2819));
+
+  auto relay = relay_pool();
+  std::vector<std::string> accepted;
+  const std::string exact = envelope(canonical);
+  const std::string variant = envelope(
+      receipt_record(state, subject, verifier, source.round, "variant"));
+  const std::string new_slot = envelope(
+      receipt_record(state, verifier, subject, source.round, "new-slot"));
+
+  EXPECT_EQ(relay_ingress_status_v2::expired,
+      admit_relay_envelopes_v2(
+          {exact}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_EQ(relay_ingress_status_v2::expired,
+      admit_relay_envelopes_v2(
+          {variant}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_EQ(relay_ingress_status_v2::expired,
+      admit_relay_envelopes_v2(
+          {new_slot}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(0u, relay.size());
+
+  std::string malformed = new_slot;
+  ASSERT_FALSE(malformed.empty());
+  malformed.back() ^= 1;
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {malformed}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+
+  const std::string forged_context = envelope(receipt_record(
+      state, verifier, subject, hash_text("forged-round-anchor"),
+      "forged-context"));
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {forged_context}, 2820, relay_envelope_limits(), relay_policy(),
+          state, source, relay, accepted));
+  EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(0u, relay.size());
+}
+
 TEST(epose_semantic_batch_v2, canonical_reorg_replaces_a_pending_receipt_context)
 {
   contexts anchor_a;

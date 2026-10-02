@@ -638,8 +638,6 @@ namespace epose
     const service_challenge_v2 &challenge = receipt.challenge;
     if (challenge.service_kind != policy_.service_kind)
       return pipeline_status_v2::invalid_service_kind;
-    if (qualifications_.count(challenge.epoch) != 0)
-      return pipeline_status_v2::qualification_already_closed;
     const membership_snapshot_v2 *frozen = snapshot(challenge.epoch);
     if (frozen == nullptr)
       return pipeline_status_v2::snapshot_missing;
@@ -696,6 +694,14 @@ namespace epose
       // wire record an authenticated idempotent duplicate.
       return pipeline_status_v2::idempotent_duplicate;
     }
+    // A closed qualification set is immutable, but the relay layer still
+    // needs an authenticated classification for late transport races. Keep
+    // this check after canonical-context, membership, committee and signature
+    // validation (and after confirmed-slot duplicate detection) so callers
+    // may discard a genuine late receipt without treating an unauthenticated
+    // claim as benign.
+    if (qualifications_.count(challenge.epoch) != 0)
+      return pipeline_status_v2::qualification_already_closed;
     receipts_.push_back({challenge.epoch, challenge.round, challenge.service_kind,
         challenge.subject_public_key, challenge.verifier_public_key, receipt_hash, inclusion_height});
     return pipeline_status_v2::accepted;

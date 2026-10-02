@@ -547,7 +547,9 @@ namespace epose
                   canonical_anchor);
           if (late_status == pipeline_status_v2::accepted
               || late_status == pipeline_status_v2::idempotent_duplicate
-              || late_status == pipeline_status_v2::receipt_slot_conflict)
+              || late_status == pipeline_status_v2::receipt_slot_conflict
+              || late_status
+                  == pipeline_status_v2::qualification_already_closed)
             return relay_ingress_status_v2::expired;
           return relay_ingress_status_v2::invalid_batch;
         }
