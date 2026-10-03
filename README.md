@@ -53,9 +53,9 @@ qualified service node exists, the service portion falls back to the miner.
 
 <!-- release-metadata:start -->
 The current published Core release is
-[`v2.0.2`](https://github.com/qwertycoin-org/qwertycoin/releases/tag/v2.0.2),
+[`v2.0.3`](https://github.com/qwertycoin-org/qwertycoin/releases/tag/v2.0.3),
 built from source revision
-[`54308d8473dc5606d054c0ba428cfb2d64e758c1`](https://github.com/qwertycoin-org/qwertycoin/commit/54308d8473dc5606d054c0ba428cfb2d64e758c1).
+[`766839bb49475200977f6302b60c01e34d66e253`](https://github.com/qwertycoin-org/qwertycoin/commit/766839bb49475200977f6302b60c01e34d66e253).
 Release artifacts are available for Linux x86_64, macOS Apple Silicon, and
 Windows x86_64.
 <!-- release-metadata:end -->

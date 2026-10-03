@@ -1,10 +1,10 @@
 # EPoSE receipt-relay hardening at height 21,600
 
-## Release candidate
+## Release
 
 - **Core version:** 2.0.3
 - **Internal compatible version:** 2.0.3.0
-- **Candidate tag:** v2.0.3-rc1
+- **Release tag:** v2.0.3
 - **Previous compatible release:** v2.0.2
 
 Version 2.0.3 changes local receipt production and relay policy only. It does

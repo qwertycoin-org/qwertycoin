@@ -9,8 +9,8 @@ replace them with a moving branch.
 
 | Component | Release/source | Compatible dependency |
 | --- | --- | --- |
-| Qwertycoin Core | `v2.0.2` / `54308d8473dc5606d054c0ba428cfb2d64e758c1` | QWC v2 mainnet, HF17 |
-| Qwertycoin GUI | `v2.0.2` / release source | Core gitlink `54308d8473dc5606d054c0ba428cfb2d64e758c1` |
+| Qwertycoin Core | `v2.0.3` / `766839bb49475200977f6302b60c01e34d66e253` | QWC v2 mainnet, HF17 |
+| Qwertycoin GUI | `v2.0.3` / `f45788f2589404de2baa50612d1f9833b731e16b` | Core gitlink `766839bb49475200977f6302b60c01e34d66e253` |
 
 The downloadable Core and GUI packages are the supported end-user release
 pair. A matching version number is not sufficient evidence: release packages
@@ -18,12 +18,12 @@ must retain their source revision, checksums, and build provenance.
 
 ## Development source graph
 
-Verified 2026-10-01:
+Verified 2026-10-03:
 
 | Consumer | Branch revision | Required dependency pin |
 | --- | --- | --- |
-| Qwertycoin Core | `a71c0eb2c5b5675f9664fde5738e9cd9ba2e1eac` (`main`) | No SDK consumer implied |
-| Qwertycoin GUI | `ecd1844f1b2e3416dec16c07a21e6850e11b630c` (`master`) | Core `54308d8473dc5606d054c0ba428cfb2d64e758c1` |
+| Qwertycoin Core | `766839bb49475200977f6302b60c01e34d66e253` (`main`) | No SDK consumer implied |
+| Qwertycoin GUI | `f45788f2589404de2baa50612d1f9833b731e16b` (`master`) | Core `766839bb49475200977f6302b60c01e34d66e253` |
 | `qwertycoin-cpp` | `81ba6d82c4e4de7ed820b61df778653ab0304bd3` (`master`) | Core `cd6ce02da439cd54eafbda68d952f9d88c7fd994` |
 | `qwertycoin-ts` | `5771d407315b941e456770f0dc6d7d8ee47300e9` (`master`) | C++ bridge `46179a320807fd5f90541b3c6e61b654b07e963a`, transitively Core `cd6ce02da439cd54eafbda68d952f9d88c7fd994` |
 
@@ -41,4 +41,3 @@ When a dependency pin changes:
 4. for a release, bind packages, checksums, and provenance to immutable source
    revisions; and
 5. never infer compatibility from a branch name or version string alone.
-
