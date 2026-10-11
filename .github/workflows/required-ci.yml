@@ -64,16 +64,40 @@ jobs:
             --data-dir=/usr/local/share/qwertycoin/tests/data \
             --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*'
 
+  nix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Nix
+        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            cores = 2
+            max-jobs = 2
+      - name: Evaluate Linux and Darwin modules on both architectures
+        run: nix flake check --all-systems --no-build
+      - name: Build the Linux package
+        run: nix build --no-link --print-build-logs .#packages.x86_64-linux.qwertycoin
+      - name: Check modules and daemon runtime behavior
+        run: nix flake check --print-build-logs
+
   required:
     name: required
     if: always()
-    needs: [metadata, linux]
+    needs: [metadata, linux, nix]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every gate
         env:
           METADATA_RESULT: ${{ needs.metadata.result }}
           LINUX_RESULT: ${{ needs.linux.result }}
+          NIX_RESULT: ${{ needs.nix.result }}
         run: |
           test "$METADATA_RESULT" = success
           test "$LINUX_RESULT" = success
+          test "$NIX_RESULT" = success

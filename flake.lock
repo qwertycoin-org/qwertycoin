@@ -1,0 +1,121 @@
+{
+  "nodes": {
+    "nix-darwin": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1772129556,
+        "narHash": "sha256-Utk0zd8STPsUJPyjabhzPc5BpPodLTXrwkpXBHYnpeg=",
+        "owner": "nix-darwin",
+        "repo": "nix-darwin",
+        "rev": "ebec37af18215214173c98cf6356d0aca24a2585",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-darwin",
+        "ref": "nix-darwin-25.11",
+        "repo": "nix-darwin",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1782847189,
+        "narHash": "sha256-twXPFqFsrrY5r28Zh7Homgcp2gUMBgQ6WDS98Q/3xFI=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b6018f87da91d19d0ab4cf979885689b469cdd41",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-25.11",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "randomx": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778395166,
+        "narHash": "sha256-15hRPPEo48SL09gYpGtdpXqsVlOTQuMRn4AoXQJWEMI=",
+        "owner": "tevador",
+        "repo": "RandomX",
+        "rev": "6c4340ba4561aec9a3611c1aedf9931239777fb3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tevador",
+        "repo": "RandomX",
+        "rev": "6c4340ba4561aec9a3611c1aedf9931239777fb3",
+        "type": "github"
+      }
+    },
+    "rapidjson": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1530620904,
+        "narHash": "sha256-8bOIOmPL2uC6tic1s5MEBgxLRpI2wsyJvkcyzvygHBQ=",
+        "owner": "Tencent",
+        "repo": "rapidjson",
+        "rev": "129d19ba7f496df5e33658527a7158c79b99c21c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Tencent",
+        "repo": "rapidjson",
+        "rev": "129d19ba7f496df5e33658527a7158c79b99c21c",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nix-darwin": "nix-darwin",
+        "nixpkgs": "nixpkgs",
+        "randomx": "randomx",
+        "rapidjson": "rapidjson",
+        "supercop": "supercop",
+        "trezor-common": "trezor-common"
+      }
+    },
+    "supercop": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1598473549,
+        "narHash": "sha256-26UmESotSWnQ21VbAYEappLpkEMyl0jiuCaezRYd/sE=",
+        "owner": "monero-project",
+        "repo": "supercop",
+        "rev": "633500ad8c8759995049ccd022107d1fa8a1bbc9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "monero-project",
+        "repo": "supercop",
+        "rev": "633500ad8c8759995049ccd022107d1fa8a1bbc9",
+        "type": "github"
+      }
+    },
+    "trezor-common": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1586847171,
+        "narHash": "sha256-VNypeEz9AV0ts8X3vINwYMOgO8VpNmyUPC4iY3OOuZI=",
+        "owner": "trezor",
+        "repo": "trezor-common",
+        "rev": "bff7fdfe436c727982cc553bdfb29a9021b423b0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "trezor",
+        "repo": "trezor-common",
+        "rev": "bff7fdfe436c727982cc553bdfb29a9021b423b0",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

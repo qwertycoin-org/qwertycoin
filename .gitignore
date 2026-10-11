@@ -4,6 +4,8 @@
 ._*
 /doc
 /build
+/result
+/result-*
 /tags
 log/
 

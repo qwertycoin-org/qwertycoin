@@ -78,6 +78,216 @@ git submodule update --init --recursive
 Build outputs are written below `build/<platform>/<branch>/release/bin` when
 the multi-build-directory layout is active.
 
+### Nix
+
+With Nix installed and the `nix-command` and `flakes` experimental features
+enabled, build the daemon, wallets, and blockchain utilities with:
+
+```bash
+nix build
+./result/bin/qwertycoind --version
+```
+
+The flake provides packages and development shells for x86_64 and ARM64 Linux
+and macOS. `flake.lock` pins Nixpkgs and the four submodule sources, so
+`nix build` also works without initializing the checkout's submodules. Keep
+the source revisions in `flake.nix` aligned with the Git submodules when
+updating them, then regenerate the lock file with `nix flake lock`.
+The package uses dynamic system libraries and disables optional Trezor support.
+On macOS, the package and development shell use Clang 19, which supports the
+legacy Boost enum conversions used by the wallet's serialization code.
+
+For local development and tests, initialize the submodules as above, then run:
+
+```bash
+nix develop
+cmake -S . -B build/nix -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DARCH=default -DBUILD_64=ON -DSTATIC=OFF \
+  -DBUILD_TESTS=ON -DBUILD_DOCUMENTATION=OFF \
+  -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT_DIR" \
+  -DReadline_ROOT_DIR="$Readline_ROOT_DIR" \
+  -DReadline_LIBRARY="$Readline_LIBRARY" \
+  -DMANUAL_SUBMODULES=ON -DUSE_DEVICE_TREZOR=OFF
+cmake --build build/nix --parallel 2
+ctest --test-dir build/nix -R '^epose_unit_tests$' --output-on-failure
+```
+
+#### NixOS node service
+
+Add this repository as an input to your server's flake, replacing `<revision>`
+with a Git commit or release tag. Your server's `flake.lock` pins that input:
+
+```nix
+{
+  inputs.qwertycoin.url = "github:qwertycoin-org/qwertycoin/<revision>";
+
+  outputs = { nixpkgs, qwertycoin, ... }: {
+    nixosConfigurations.node = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        qwertycoin.nixosModules.default
+        {
+          nixpkgs.overlays = [ qwertycoin.overlays.default ];
+          services.qwertycoin-node = {
+            enable = true;
+            openFirewall = true;
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+The module installs the package, creates a `qwertycoin` system user, and starts
+`qwertycoin-node.service`. Mainnet is the default, data persists in
+`/var/lib/qwertycoin`, P2P listens on TCP 8196, and RPC listens on
+`127.0.0.1:8197`. ZMQ is disabled. UPnP support has been removed from the
+daemon. `openFirewall` opens P2P, plus the restricted probe port when EPoSe
+is enabled. Administrative RPC and ZMQ ports are never opened automatically.
+The overlay is optional for the module; it also provides `pkgs.qwertycoin` for
+installing the programs without enabling a service.
+
+After rebuilding your server, inspect the service with
+`systemctl status qwertycoin-node` and `journalctl -u qwertycoin-node`.
+
+#### nix-darwin node service
+
+Import `qwertycoin.darwinModules.default` in your existing nix-darwin flake.
+The service uses the same `services.qwertycoin-node` options as NixOS:
+
+```nix
+{
+  inputs.qwertycoin.url = "github:qwertycoin-org/qwertycoin/<revision>";
+
+  outputs = { nix-darwin, qwertycoin, ... }: {
+    darwinConfigurations.mac = nix-darwin.lib.darwinSystem {
+      system = "aarch64-darwin"; # or x86_64-darwin
+      modules = [
+        ./darwin-configuration.nix
+        qwertycoin.darwinModules.default
+        { services.qwertycoin-node.enable = true; }
+      ];
+    };
+  };
+}
+```
+
+The module creates a hidden service account and a launch daemon named
+`org.qwertycoin.node`. It prepares the state directories before startup,
+waits for the Nix store at boot, and restarts the daemon after failures.
+The default macOS UID/GID are `398`; set `darwin.uid` and `darwin.gid` to
+unused IDs on your host if needed. Daemon logs are in `logging.file`;
+launchd stdout/stderr logs are in the effective network data directory. Inspect the job with
+`sudo launchctl print system/org.qwertycoin.node`.
+
+On macOS, `openFirewall` and `rpc.restrictedListener.openFirewall` add an
+application-firewall exception for the daemon executable. macOS grants access
+per application; listener bind addresses determine which interfaces are
+accessible. This does not enable the global firewall or alter PF rules.
+No administrative RPC or ZMQ binding is made public by these options.
+
+#### Shared node configuration
+
+The platform modules share one option definition and one daemon argument
+renderer. For example, this configuration enables EPoSe v2 and dual-stack
+P2P/RPC listeners on either platform:
+
+```nix
+services.qwertycoin-node = {
+  enable = true;
+  openFirewall = true;
+  p2p.ipv6.enable = true;
+  rpc.ipv6.enable = true;
+  epose = {
+    enable = true;
+    rewardAddress = "QWC..."; # replace with your primary public QWC address
+    endpoint.host = "node.example.org"; # replace with your public host
+    discoveryEndpoints = [
+      "http://seed-00.qwertycoin.org:8198"
+      "http://seed-01.qwertycoin.org:8198"
+    ];
+  };
+};
+```
+
+`dataDir` is the base directory passed to the daemon, defaulting to
+`/var/lib/qwertycoin`. The daemon appends `testnet`, `stagenet`, or `fake` for
+the corresponding network, including when `dataDir` is explicitly configured.
+For example, `dataDir = "/srv/qwertycoin"` with `network = "stagenet"` stores
+the database in `/srv/qwertycoin/stagenet/lmdb`. Logs, working directory, and
+service permissions follow this effective network directory.
+
+Regtest services preserve their blockchain across restarts by default using
+`keepFakechain = true`. Set it to `false` only for an intentionally ephemeral
+regtest service: the daemon deletes its regtest database on every startup.
+
+EPoSe uses an online, synchronized, unpruned mainnet node. Enabling it defaults
+the separate restricted RPC listener to `0.0.0.0:8198` and, when RPC IPv6 is
+enabled, `[::]:8198`. Administrative RPC remains on `127.0.0.1:8197` and
+`[::1]:8197`. The module supplies `--confirm-external-bind` for the probe
+listener. Set `epose.endpoint.port` separately when NAT exposes a different
+public port.
+
+The persistent identity defaults to `/var/lib/qwertycoin-epose/keystore`,
+separate from blockchain state. Back it up and retain it when moving or
+rebuilding the node. Both modules prepare the default identity directory with
+service ownership and mode `0700`; the daemon protects the keystore file.
+NixOS creates the directory before setting up the service sandbox and grants
+write access while retaining `ProtectSystem = "strict"`.
+For a custom keystore path, prepare its parent directory for the service
+account. The module never copies key material into the Nix store.
+`epose.repairKeystorePermissions` is a one-time recovery switch; disable it
+after recovery. See [EPoSe service-node setup](docs/epose/SERVICE_NODE.md).
+
+| Options | Purpose |
+| --- | --- |
+| `package`, `user`, `group`, `dataDir`, `network`, `keepFakechain` | Package, service identity, base data directory, network selection, and regtest persistence |
+| `p2p.address`, `p2p.port`, `p2p.ipv6.*`, `p2p.externalPort` | IPv4/IPv6 listeners and NAT advertisement |
+| `p2p.peers`, `priorityNodes`, `exclusiveNodes`, `seedNodes` | Peer selection (all names under `p2p`) |
+| `p2p.banList`, `hidePort`, `allowLocalIP`, `dnsBlocklist`, `padTransactions` | Peer policy and relay behavior |
+| `p2p.txProxy`, `p2p.anonymousInbound`, `proxy.*` | Outbound proxies and anonymous-network endpoints |
+| `rpc.address`, `rpc.port`, `rpc.ipv6.*`, `rpc.restrictedListener.*` | Local administrative RPC and separate restricted RPC |
+| `rpc.restricted`, `confirmExternalBind`, `publicNode`, `accessControlOrigins`, `disableBan`, `banExemptAddresses` | RPC policy (all names under `rpc`) |
+| `rpc.tls.*`, `rpc.bootstrap.*` | TLS certificate paths and bootstrap daemon settings |
+| `epose.*` | EPoSe v2 identity, reward address, probe endpoint, and discovery |
+| `limits.*`, `logging.*`, `restartDelay`, `stopTimeout`, `limitNOFILE` | Bandwidth, connections, threads, logs, and service lifecycle |
+| `prune`, `sync.*`, `database.*`, `checkUpdates` | Chain synchronization, LMDB, and update checks |
+| `zmq.*`, `mining.*` | Optional ZMQ RPC/publications and mining |
+| `configFile`, `settings`, `extraArgs`, `extraWritablePaths` | Runtime credentials, remaining daemon settings, literal argv, and additional writable paths |
+| `darwin.uid`, `darwin.gid` | macOS service account IDs |
+
+For daemon options that do not have a typed convenience option, use `settings`
+with the option names shown by `qwertycoind --help`:
+
+```nix
+services.qwertycoin-node.settings = {
+  "block-notify" = "/path/to/notify %s";
+  "show-time-stats" = 1;
+};
+```
+
+`true` emits a switch, `false` and `null` omit it, and lists repeat the option.
+Typed options take precedence over `settings`; `extraArgs` are passed last,
+without shell expansion. Use `configFile` for RPC logins or other credentials
+instead of putting them in Nix expressions. Runtime TLS keys and external
+configuration files must be readable by the service account. Custom writable
+paths must be provisioned with suitable ownership; NixOS grants access through
+`extraWritablePaths` without recursively changing existing file ownership.
+
+Run `nix flake check --all-systems --no-build` to evaluate both modules for
+Intel and ARM Linux/macOS. The checks verify EPoSe/IPv6 flags, repeated options,
+firewall rules, lifecycle settings, invalid configurations, and equality of
+the shared daemon arguments across both backends. `nix flake check` also starts
+isolated offline daemons in temporary directories to verify actual database
+paths for every network, regtest persistence and explicit ephemeral restarts.
+It does not activate the host service.
+Testnet/stagenet currently reject their unset public-chain launch parameters;
+the runtime checks verify the database paths they open before that rejection.
+
 ### Linux
 
 Install build dependencies on Ubuntu/Debian:
