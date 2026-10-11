@@ -30,15 +30,17 @@ in
     user = opt types.str "qwertycoin" "Dedicated service account name.";
     group = opt types.str "qwertycoin" "Dedicated service group name.";
     dataDir =
-      opt types.str
-        ("/var/lib/qwertycoin" + lib.optionalString (cfg.network != "mainnet") "/${cfg.network}")
-        "Persistent blockchain and node data directory. Non-mainnet networks default to separate subdirectories.";
+      opt types.str "/var/lib/qwertycoin"
+        "Base directory passed to the daemon. The daemon appends testnet, stagenet, or fake for non-mainnet networks, including for custom paths.";
     network = opt (types.enum [
       "mainnet"
       "testnet"
       "stagenet"
       "regtest"
     ]) "mainnet" "Network to join.";
+    keepFakechain =
+      opt types.bool (cfg.network == "regtest")
+        "Preserve the regtest blockchain across restarts. Disabling this deletes the regtest database at every daemon startup; other networks are unaffected.";
     openFirewall = flag "Allow inbound P2P traffic: open TCP ports on NixOS, or allow the daemon application through the macOS application firewall.";
     configFile = nullable types.str "Runtime configuration file readable by the service account. Store credentials here, outside the Nix store.";
     extraArgs = strings "Additional daemon arguments, passed literally after the generated settings.";
@@ -128,7 +130,7 @@ in
     epose = {
       enable = lib.mkEnableOption "the EPoSe v2 service producer";
       keystore =
-        opt types.str "${cfg.dataDir}/epose/keystore"
+        opt types.str "/var/lib/qwertycoin-epose/keystore"
           "Persistent EPoSe v2 identity keystore, outside the Nix store. The daemon creates it with protected permissions.";
       rewardAddress =
         opt types.str ""
@@ -144,7 +146,7 @@ in
     };
 
     logging = {
-      file = opt types.str "${cfg.dataDir}/qwertycoind.log" "Daemon log file.";
+      file = opt types.str "${cfg.effectiveDataDir}/qwertycoind.log" "Daemon log file.";
       level = nullable types.str "Log level or category filter.";
       maxFileSize = nullable types.ints.unsigned "Maximum log file size in bytes.";
       maxFiles = nullable types.ints.unsigned "Maximum rotated log file count.";
@@ -204,6 +206,21 @@ in
       readOnly = true;
       description = "Shared daemon argv, including the executable.";
     };
+    effectiveDataDir = lib.mkOption {
+      type = types.str;
+      internal = true;
+      readOnly = true;
+      default =
+        cfg.dataDir
+        + {
+          mainnet = "";
+          testnet = "/testnet";
+          stagenet = "/stagenet";
+          regtest = "/fake";
+        }
+        .${cfg.network};
+      description = "Data directory after the daemon applies its network suffix.";
+    };
     managedDirectories = lib.mkOption {
       type = types.listOf types.str;
       internal = true;
@@ -215,11 +232,11 @@ in
   config = lib.mkIf cfg.enable {
     services.qwertycoin-node.daemonArguments = import ./node-arguments.nix { inherit cfg lib; };
     services.qwertycoin-node.managedDirectories = [
-      cfg.dataDir
+      cfg.effectiveDataDir
     ]
     ++ lib.optional (
-      cfg.epose.enable && dirOf cfg.epose.keystore == "${cfg.dataDir}/epose"
-    ) "${cfg.dataDir}/epose";
+      cfg.epose.enable && dirOf cfg.epose.keystore == "/var/lib/qwertycoin-epose"
+    ) "/var/lib/qwertycoin-epose";
     environment.systemPackages = [ cfg.package ];
     assertions = [
       {

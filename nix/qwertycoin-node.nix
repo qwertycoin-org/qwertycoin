@@ -27,22 +27,34 @@ in
     users.users.${cfg.user} = {
       isSystemUser = true;
       group = cfg.group;
-      home = cfg.dataDir;
+      home = cfg.effectiveDataDir;
       createHome = true;
       homeMode = "0700";
     };
+    # Create state before systemd builds the service's read-only namespace.
+    systemd.tmpfiles.settings.qwertycoin-node = lib.genAttrs cfg.managedDirectories (_: {
+      d = {
+        mode = "0700";
+        user = cfg.user;
+        group = cfg.group;
+      };
+    });
     systemd.services.qwertycoin-node = {
       description = "Qwertycoin node";
       wantedBy = [ "multi-user.target" ];
       wants = [ "network-online.target" ];
-      after = [ "network-online.target" ];
-      unitConfig.RequiresMountsFor = [ cfg.dataDir ];
+      unitConfig.RequiresMountsFor =
+        cfg.managedDirectories ++ lib.optional cfg.epose.enable (dirOf cfg.epose.keystore);
+      after = [
+        "network-online.target"
+        "systemd-tmpfiles-setup.service"
+      ];
       preStart = prepare;
       serviceConfig = {
         Type = "simple";
         User = cfg.user;
         Group = cfg.group;
-        WorkingDirectory = cfg.dataDir;
+        WorkingDirectory = cfg.effectiveDataDir;
         ExecStart = utils.escapeSystemdExecArgs cfg.daemonArguments;
         Restart = "on-failure";
         RestartSec = cfg.restartDelay;
@@ -54,14 +66,11 @@ in
         ProtectHome = true;
         ProtectSystem = "strict";
         ReadWritePaths = lib.unique (
-          [ cfg.dataDir ]
-          # The default identity directory is created by preStart. Its parent
-          # is already writable; systemd must not require the child to exist
-          # while setting up the namespace before preStart runs.
+          [ cfg.effectiveDataDir ]
           ++ lib.optional (
             cfg.epose.enable
-            && dirOf cfg.epose.keystore != cfg.dataDir
-            && !lib.hasPrefix "${cfg.dataDir}/" (dirOf cfg.epose.keystore)
+            && dirOf cfg.epose.keystore != cfg.effectiveDataDir
+            && !lib.hasPrefix "${cfg.effectiveDataDir}/" (dirOf cfg.epose.keystore)
           ) (dirOf cfg.epose.keystore)
           ++ cfg.extraWritablePaths
         );

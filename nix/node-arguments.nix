@@ -24,6 +24,7 @@ let
     testnet = cfg.network == "testnet";
     stagenet = cfg.network == "stagenet";
     regtest = cfg.network == "regtest";
+    keep-fakechain = cfg.network == "regtest" && cfg.keepFakechain;
     p2p-bind-ip = cfg.p2p.address;
     p2p-bind-port = cfg.p2p.port;
     p2p-use-ipv6 = cfg.p2p.ipv6.enable;

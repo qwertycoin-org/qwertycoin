@@ -181,7 +181,7 @@ The module creates a hidden service account and a launch daemon named
 waits for the Nix store at boot, and restarts the daemon after failures.
 The default macOS UID/GID are `398`; set `darwin.uid` and `darwin.gid` to
 unused IDs on your host if needed. Daemon logs are in `logging.file`;
-launchd stdout/stderr logs are in `dataDir`. Inspect the job with
+launchd stdout/stderr logs are in the effective network data directory. Inspect the job with
 `sudo launchctl print system/org.qwertycoin.node`.
 
 On macOS, `openFirewall` and `rpc.restrictedListener.openFirewall` add an
@@ -214,9 +214,16 @@ services.qwertycoin-node = {
 };
 ```
 
-Non-mainnet networks default to their own subdirectories under
-`/var/lib/qwertycoin`, so changing `network` does not reuse the mainnet database.
-An explicitly configured `dataDir` takes precedence.
+`dataDir` is the base directory passed to the daemon, defaulting to
+`/var/lib/qwertycoin`. The daemon appends `testnet`, `stagenet`, or `fake` for
+the corresponding network, including when `dataDir` is explicitly configured.
+For example, `dataDir = "/srv/qwertycoin"` with `network = "stagenet"` stores
+the database in `/srv/qwertycoin/stagenet/lmdb`. Logs, working directory, and
+service permissions follow this effective network directory.
+
+Regtest services preserve their blockchain across restarts by default using
+`keepFakechain = true`. Set it to `false` only for an intentionally ephemeral
+regtest service: the daemon deletes its regtest database on every startup.
 
 EPoSe uses an online, synchronized, unpruned mainnet node. Enabling it defaults
 the separate restricted RPC listener to `0.0.0.0:8198` and, when RPC IPv6 is
@@ -225,9 +232,12 @@ enabled, `[::]:8198`. Administrative RPC remains on `127.0.0.1:8197` and
 listener. Set `epose.endpoint.port` separately when NAT exposes a different
 public port.
 
-The persistent identity defaults to `dataDir/epose/keystore`. Back it up and
-retain it when moving or rebuilding the node. The module prepares the default
-identity directory; the daemon creates the keystore with protected permissions.
+The persistent identity defaults to `/var/lib/qwertycoin-epose/keystore`,
+separate from blockchain state. Back it up and retain it when moving or
+rebuilding the node. Both modules prepare the default identity directory with
+service ownership and mode `0700`; the daemon protects the keystore file.
+NixOS creates the directory before setting up the service sandbox and grants
+write access while retaining `ProtectSystem = "strict"`.
 For a custom keystore path, prepare its parent directory for the service
 account. The module never copies key material into the Nix store.
 `epose.repairKeystorePermissions` is a one-time recovery switch; disable it
@@ -235,7 +245,7 @@ after recovery. See [EPoSe service-node setup](docs/epose/SERVICE_NODE.md).
 
 | Options | Purpose |
 | --- | --- |
-| `package`, `user`, `group`, `dataDir`, `network` | Package, service identity, persistent data, and network selection |
+| `package`, `user`, `group`, `dataDir`, `network`, `keepFakechain` | Package, service identity, base data directory, network selection, and regtest persistence |
 | `p2p.address`, `p2p.port`, `p2p.ipv6.*`, `p2p.externalPort` | IPv4/IPv6 listeners and NAT advertisement |
 | `p2p.peers`, `priorityNodes`, `exclusiveNodes`, `seedNodes` | Peer selection (all names under `p2p`) |
 | `p2p.banList`, `hidePort`, `allowLocalIP`, `dnsBlocklist`, `padTransactions` | Peer policy and relay behavior |
@@ -271,8 +281,12 @@ paths must be provisioned with suitable ownership; NixOS grants access through
 Run `nix flake check --all-systems --no-build` to evaluate both modules for
 Intel and ARM Linux/macOS. The checks verify EPoSe/IPv6 flags, repeated options,
 firewall rules, lifecycle settings, invalid configurations, and equality of
-the shared daemon arguments across both backends. They do not activate a
-service on the development machine.
+the shared daemon arguments across both backends. `nix flake check` also starts
+isolated offline daemons in temporary directories to verify actual database
+paths for every network, regtest persistence and explicit ephemeral restarts.
+It does not activate the host service.
+Testnet/stagenet currently reject their unset public-chain launch parameters;
+the runtime checks verify the database paths they open before that rejection.
 
 ### Linux
 

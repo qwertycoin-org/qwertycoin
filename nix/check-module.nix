@@ -62,6 +62,19 @@ let
       ];
     };
   };
+  regtest = evaluate {
+    services.qwertycoin-node = {
+      enable = true;
+      network = "regtest";
+    };
+  };
+  ephemeral = evaluate {
+    services.qwertycoin-node = {
+      enable = true;
+      network = "regtest";
+      keepFakechain = false;
+    };
+  };
   overridden = evaluate {
     services.qwertycoin-node = {
       enable = true;
@@ -80,6 +93,7 @@ let
 in
 assert !(disabled.systemd.services ? qwertycoin-node);
 assert !(disabled.users.users ? qwertycoin);
+assert disabled.services.qwertycoin-node.logging.file == "/var/lib/qwertycoin/qwertycoind.log";
 assert fixture.check complete.services.qwertycoin-node;
 assert fixture.checkOptional optionalServices.services.qwertycoin-node;
 assert lib.all (entry: entry.assertion) optionalServices.assertions;
@@ -90,7 +104,24 @@ assert builtins.elem 18196 complete.networking.firewall.allowedTCPPorts;
 assert builtins.elem 8198 complete.networking.firewall.allowedTCPPorts;
 assert !(builtins.elem 8197 complete.networking.firewall.allowedTCPPorts);
 assert
-  complete.systemd.services.qwertycoin-node.serviceConfig.ReadWritePaths == [ "/var/lib/qwertycoin" ];
+  complete.systemd.services.qwertycoin-node.serviceConfig.ReadWritePaths == [
+    "/var/lib/qwertycoin"
+    "/var/lib/qwertycoin-epose"
+  ];
+assert complete.systemd.services.qwertycoin-node.serviceConfig.ProtectSystem == "strict";
+assert
+  complete.systemd.tmpfiles.settings.qwertycoin-node."/var/lib/qwertycoin-epose".d.mode == "0700";
+assert
+  complete.systemd.tmpfiles.settings.qwertycoin-node."/var/lib/qwertycoin-epose".d.user
+  == "qwertycoin";
+assert
+  complete.systemd.tmpfiles.settings.qwertycoin-node."/var/lib/qwertycoin-epose".d.group
+  == "qwertycoin";
+assert builtins.elem "systemd-tmpfiles-setup.service"
+  complete.systemd.services.qwertycoin-node.after;
+assert regtest.services.qwertycoin-node.effectiveDataDir == "/var/lib/qwertycoin/fake";
+assert builtins.elem "--keep-fakechain" regtest.services.qwertycoin-node.daemonArguments;
+assert !(builtins.elem "--keep-fakechain" ephemeral.services.qwertycoin-node.daemonArguments);
 assert lib.hasInfix "notify $$literal %%s"
   complete.systemd.services.qwertycoin-node.serviceConfig.ExecStart;
 assert lib.all (entry: entry.assertion) enabled.assertions;
@@ -108,7 +139,12 @@ assert service.serviceConfig.User == "qwertycoin";
 assert service.serviceConfig.ReadWritePaths == [ "/var/lib/qwertycoin" ];
 assert enabled.users.users.qwertycoin.homeMode == "0700";
 assert builtins.elem enabled.services.qwertycoin-node.package enabled.environment.systemPackages;
-assert custom.users.users.qwertycoin.home == "/srv/qwertycoin";
+assert custom.users.users.qwertycoin.home == "/srv/qwertycoin/testnet";
+assert
+  custom.systemd.services.qwertycoin-node.serviceConfig.ReadWritePaths
+  == [ "/srv/qwertycoin/testnet" ];
+assert
+  custom.systemd.services.qwertycoin-node.serviceConfig.WorkingDirectory == "/srv/qwertycoin/testnet";
 assert lib.hasInfix "--testnet" customCommand;
 assert lib.hasInfix "--p2p-bind-port=18196" customCommand;
 assert lib.hasInfix "--rpc-bind-port=18197" customCommand;

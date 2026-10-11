@@ -56,7 +56,13 @@
         let
           pkgs = pkgsFor system;
         in
-        pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+        {
+          daemon-runtime = import ./nix/check-daemon.nix {
+            inherit self nixpkgs system;
+            nix-darwin = inputs.nix-darwin;
+          };
+        }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           nixos-module =
             assert import ./nix/check-module.nix { inherit self nixpkgs system; };
             pkgs.runCommand "qwertycoin-node-module-check" { } ''touch "$out"'';
@@ -86,6 +92,12 @@
               filter =
                 path: type:
                 lib.cleanSourceFilter path type
+                # Module and flake edits do not change the C++ build inputs.
+                && !(builtins.elem (lib.removePrefix "${self}/" path) [
+                  "nix"
+                  "flake.nix"
+                  "flake.lock"
+                ])
                 && !(builtins.elem (baseNameOf path) [
                   "build"
                   "result"

@@ -48,7 +48,7 @@ in
       /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp ${lib.escapeShellArg "${cfg.package}/bin/qwertycoind"}
     '';
     launchd.daemons.qwertycoin-node = {
-      environment.HOME = cfg.dataDir;
+      environment.HOME = cfg.effectiveDataDir;
       # nix-darwin wraps command with wait4path so the Nix volume is available
       # during boot. Shell quoting preserves literal arguments, including $/%.
       command = lib.escapeShellArgs cfg.daemonArguments;
@@ -56,7 +56,7 @@ in
         Label = "org.qwertycoin.node";
         UserName = cfg.user;
         GroupName = cfg.group;
-        WorkingDirectory = cfg.dataDir;
+        WorkingDirectory = cfg.effectiveDataDir;
         RunAtLoad = true;
         KeepAlive = {
           SuccessfulExit = false;
@@ -65,8 +65,8 @@ in
         ExitTimeOut = cfg.stopTimeout;
         Umask = 63;
         SoftResourceLimits.NumberOfFiles = cfg.limitNOFILE;
-        StandardOutPath = "${cfg.dataDir}/launchd.stdout.log";
-        StandardErrorPath = "${cfg.dataDir}/launchd.stderr.log";
+        StandardOutPath = "${cfg.effectiveDataDir}/launchd.stdout.log";
+        StandardErrorPath = "${cfg.effectiveDataDir}/launchd.stderr.log";
       };
     };
   };

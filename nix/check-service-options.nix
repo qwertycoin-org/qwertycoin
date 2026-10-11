@@ -75,7 +75,8 @@ let
       has = arg: builtins.elem arg cfg.daemonArguments;
     in
     assert has "--stagenet" && has "--prune-blockchain" && has "--sync-pruned-blocks";
-    assert has "--data-dir=/var/lib/qwertycoin/stagenet";
+    assert has "--data-dir=/var/lib/qwertycoin";
+    assert cfg.effectiveDataDir == "/var/lib/qwertycoin/stagenet";
     assert has "--fast-block-sync=0";
     assert !(has "--no-zmq");
     assert has "--zmq-rpc-bind-ip=127.0.0.1" && has "--restricted-zmq-rpc";
@@ -92,7 +93,7 @@ let
       has = arg: builtins.elem arg args;
     in
     assert has "--epose-v2-service";
-    assert has "--epose-v2-keystore=/var/lib/qwertycoin/epose/keystore";
+    assert has "--epose-v2-keystore=/var/lib/qwertycoin-epose/keystore";
     assert has "--epose-v2-endpoint-port=8198";
     assert has "--rpc-bind-ip=127.0.0.1";
     assert has "--rpc-bind-ipv6-address=::1";

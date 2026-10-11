@@ -24,6 +24,20 @@ let
   enabled = evaluate { services.qwertycoin-node.enable = true; };
   full = evaluate { services.qwertycoin-node = fixture.settings; };
   optionalServices = evaluate { services.qwertycoin-node = fixture.optionalSettings; };
+  regtest = evaluate {
+    services.qwertycoin-node = {
+      enable = true;
+      network = "regtest";
+      dataDir = "/srv/qwertycoin";
+    };
+  };
+  ephemeral = evaluate {
+    services.qwertycoin-node = {
+      enable = true;
+      network = "regtest";
+      keepFakechain = false;
+    };
+  };
   linux =
     (nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
@@ -43,6 +57,7 @@ let
 in
 assert !(disabled.launchd.daemons ? qwertycoin-node);
 assert !(disabled.users.users ? qwertycoin);
+assert disabled.services.qwertycoin-node.logging.file == "/var/lib/qwertycoin/qwertycoind.log";
 assert lib.all (entry: entry.assertion) enabled.assertions;
 assert lib.all (entry: entry.assertion) full.assertions;
 assert fixture.check cfg;
@@ -61,7 +76,13 @@ assert service.StandardErrorPath == "/var/lib/qwertycoin/launchd.stderr.log";
 assert builtins.elem "qwertycoin" full.users.knownUsers;
 assert full.users.users.qwertycoin.uid == cfg.darwin.uid;
 assert lib.hasInfix "/usr/bin/install -d -m 0700" full.system.activationScripts.launchd.text;
-assert lib.hasInfix "/var/lib/qwertycoin/epose" full.system.activationScripts.launchd.text;
+assert lib.hasInfix "-m 0700 -o qwertycoin -g qwertycoin -- /var/lib/qwertycoin-epose"
+  full.system.activationScripts.launchd.text;
+assert builtins.elem "--keep-fakechain" regtest.services.qwertycoin-node.daemonArguments;
+assert !(builtins.elem "--keep-fakechain" ephemeral.services.qwertycoin-node.daemonArguments);
+assert
+  regtest.launchd.daemons.qwertycoin-node.serviceConfig.WorkingDirectory == "/srv/qwertycoin/fake";
+assert regtest.launchd.daemons.qwertycoin-node.environment.HOME == "/srv/qwertycoin/fake";
 assert lib.hasInfix "--unblockapp" full.system.activationScripts.postActivation.text;
 assert !(lib.hasInfix "--unblockapp" enabled.system.activationScripts.postActivation.text);
 assert lib.hasInfix "wait4path /nix/store" (lib.last service.ProgramArguments);
