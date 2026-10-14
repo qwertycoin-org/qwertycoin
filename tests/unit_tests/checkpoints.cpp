@@ -31,6 +31,7 @@
 
 #include "gtest/gtest.h"
 
+#include "cryptonote_config.h"
 #include "checkpoints/checkpoints.cpp"
 
 #include <array>
@@ -46,7 +47,7 @@ namespace
     const char* cumulative_difficulty;
   };
 
-  constexpr std::array<expected_checkpoint, 20> expected_mainnet_checkpoints{{
+  constexpr std::array<expected_checkpoint, 32> expected_mainnet_checkpoints{{
     {0,    "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39", "0x1"},
     {719,  "69cf9a283099298d1ea9c71b14b0f1d73c7ca81c87e4a2303c1ea91ff8c5b68d", "0xde51cae4"},
     {1439, "019b6a911b0fd41f6e83740f1c4c3fc83f5299339b62cb532b48c97b1e2c35f1", "0x3705926df"},
@@ -67,6 +68,18 @@ namespace
     {12239, "e515a18cdcb584963c19ce289ed064c8bb78d8b51920363e97847da9d6ca01dd", "0xe00312c3d8"},
     {12959, "6959c12d91fecf28a50d629ac5a2a18b37a64d7cde3a5327605792ced3f0300f", "0xfbfe2feaa0"},
     {13679, "a6b9075826b44e14aeb4c3fb2c55d440fe79ef6b5601d7655ca90f1c6ef52ff2", "0x118e0339a47"},
+    {14399, "56cbd63c9d17270f553f5ecb56b211f183494e13bb225672b02dda76a7e4f9ee", "0x136f1dacfa2"},
+    {15119, "7220cff68f89e75718948e2208cc61426180f5388fd2de5193d22ce284620526", "0x15a0ea5d9da"},
+    {15839, "da196c6bfe5d25ca7a2c292ed7569add1a52baffd59ca2bc1b023dd4658708b2", "0x17be5c8170a"},
+    {16559, "8d5f2b38f90260e2f1845e3987ec9f471bf58564b2f0d93602b7f0dbdac81f58", "0x1a52f36c67d"},
+    {17279, "530dfec4570e59d75b6c91138c04b2eb1ac371f453f670c21af47cfbbdf13898", "0x1caa4ca2d0b"},
+    {17999, "0872682cfa0da18a74e120a87aabfc3e577cb4788b6b205a58d93420f79bd662", "0x1ed19db6cbd"},
+    {18719, "945a7de00e4b7b068126798c0ec09ec4efae8fd7ff9e674888be37bca8735ae6", "0x208d442be99"},
+    {19439, "420601b1815153173c93218329123a9880b45adf119ef9ee0b23ced4dfef5457", "0x233cea81a8a"},
+    {20159, "4398911ef51c5b811ec9cb1d0d5573e0daa032888e648d2591429f7a25642799", "0x24e07830570"},
+    {20879, "8e47cad1a2ec1fdc5279cb1edfb4b257f29086a2028bf3288eba6947cd0771ef", "0x2600457e393"},
+    {21599, "e37634450115b43429452dc120d9ee26c2aba74326c4a594db8ea1d85c31dc00", "0x2700e6d87d7"},
+    {21600, "459877a4083844295a54c52197e2e74f9e912ca055f9262841f7ab340bac35a2", "0x27013be15c9"},
   }};
 }
 
@@ -94,7 +107,7 @@ TEST(checkpoints_default_mainnet, includes_completed_epose_epoch_boundaries)
     EXPECT_EQ(expected_hash, cp.get_points().at(expected.height));
     EXPECT_EQ(difficulty_type(expected.cumulative_difficulty), cp.get_difficulty_points().at(expected.height));
 
-    if (expected.height != 0)
+    if (expected.height != 0 && expected.height != QWC_EPOSE_RELAY_HARDENING_HEIGHT)
     {
       EXPECT_EQ(719u, expected.height % 720u);
     }
