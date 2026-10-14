@@ -30,8 +30,22 @@ latest checkpoint.
 | 12239 | Epoch 16 end | `e515a18cdcb584963c19ce289ed064c8bb78d8b51920363e97847da9d6ca01dd` | `0xe00312c3d8` |
 | 12959 | Epoch 17 end | `6959c12d91fecf28a50d629ac5a2a18b37a64d7cde3a5327605792ced3f0300f` | `0xfbfe2feaa0` |
 | 13679 | Epoch 18 end | `a6b9075826b44e14aeb4c3fb2c55d440fe79ef6b5601d7655ca90f1c6ef52ff2` | `0x118e0339a47` |
+| 14399 | Epoch 19 end | `56cbd63c9d17270f553f5ecb56b211f183494e13bb225672b02dda76a7e4f9ee` | `0x136f1dacfa2` |
+| 15119 | Epoch 20 end | `7220cff68f89e75718948e2208cc61426180f5388fd2de5193d22ce284620526` | `0x15a0ea5d9da` |
+| 15839 | Epoch 21 end | `da196c6bfe5d25ca7a2c292ed7569add1a52baffd59ca2bc1b023dd4658708b2` | `0x17be5c8170a` |
+| 16559 | Epoch 22 end | `8d5f2b38f90260e2f1845e3987ec9f471bf58564b2f0d93602b7f0dbdac81f58` | `0x1a52f36c67d` |
+| 17279 | Epoch 23 end | `530dfec4570e59d75b6c91138c04b2eb1ac371f453f670c21af47cfbbdf13898` | `0x1caa4ca2d0b` |
+| 17999 | Epoch 24 end | `0872682cfa0da18a74e120a87aabfc3e577cb4788b6b205a58d93420f79bd662` | `0x1ed19db6cbd` |
+| 18719 | Epoch 25 end | `945a7de00e4b7b068126798c0ec09ec4efae8fd7ff9e674888be37bca8735ae6` | `0x208d442be99` |
+| 19439 | Epoch 26 end | `420601b1815153173c93218329123a9880b45adf119ef9ee0b23ced4dfef5457` | `0x233cea81a8a` |
+| 20159 | Epoch 27 end | `4398911ef51c5b811ec9cb1d0d5573e0daa032888e648d2591429f7a25642799` | `0x24e07830570` |
+| 20879 | Epoch 28 end | `8e47cad1a2ec1fdc5279cb1edfb4b257f29086a2028bf3288eba6947cd0771ef` | `0x2600457e393` |
+| 21599 | Epoch 29 end | `e37634450115b43429452dc120d9ee26c2aba74326c4a594db8ea1d85c31dc00` | `0x2700e6d87d7` |
+| 21600 | Relay-hardening activation | `459877a4083844295a54c52197e2e74f9e912ca055f9262841f7ab340bac35a2` | `0x27013be15c9` |
 
-The 19 post-genesis entries are the ends of completed 720-block EPoSE epochs.
+Thirty post-genesis entries are the ends of completed 720-block EPoSE epochs.
+Height 21600 is additionally pinned as the first block at the EPoSE
+relay-hardening activation height.
 The first five entries were verified on 2026-09-18. On 2026-10-01, every new
 hash and cumulative difficulty was independently queried from six operator Core
 daemons. The block hashes were also checked against the public Qwertycoin
@@ -41,6 +55,12 @@ and the newest included entry was 817 blocks deep at block count 13057. On
 operator daemons and cross-checked against the public Explorer. All six daemons
 returned identical canonical HF17 hashes and cumulative difficulties. At block
 count 14016, heights 12959 and 13679 were respectively 1056 and 336 blocks deep.
+On 2026-10-14, epochs 19 through 29 were independently queried from three
+operator Core daemons. All three returned identical canonical HF17 hashes and
+cumulative difficulties, and every hash was cross-checked against the public
+Qwertycoin Explorer. The activation checkpoint at height 21600 was verified by
+the same three daemons and the public Explorer. At block count 21704, it was
+104 blocks behind the reported current height.
 
 ## Activation and compatibility
 
@@ -51,14 +71,16 @@ difficulties; fresh nodes enforce them while syncing.
 
 Nodes running older binaries do not gain these checkpoints. During a mixed-version
 rollout, an older node can follow a proof-of-work reorganization that a newer node
-rejects if it conflicts at or below height 13679. Operators should therefore roll
+rejects if it conflicts at or below height 21600. The activation checkpoint makes
+the observed post-activation chain authoritative for updated builds; it cannot
+change the behavior of already-built old software. Operators should therefore roll
 the update out consistently across public infrastructure.
 
 ## Reorganization behavior
 
 An upgraded node rejects a block whose hash does not match a checkpoint at that
 height and does not retain alternative blocks at or below the latest applicable
-checkpoint. Reorganizations wholly above height 13679 remain governed by normal
+checkpoint. Reorganizations wholly above height 21600 remain governed by normal
 proof-of-work chain selection and all existing consensus rules.
 
 These entries are separate from `src/blocks/checkpoints.dat`, which is the
