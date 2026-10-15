@@ -142,12 +142,8 @@ jobs:
               --body-file "$body"
           fi
 
-      - name: Dispatch Required CI for the bot-authored revision
-        if: ${{ steps.publish-branch.outputs.branch_changed == 'true' }}
-        run: gh workflow run required-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$PROPOSAL_BRANCH"
-
       - name: Preserve candidate evidence
-        if: ${{ steps.collect.outputs.candidate_count != '0' }}
+        if: ${{ always() && steps.collect.outputs.candidate_count != '0' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: mainnet-epoch-checkpoint-evidence
@@ -156,3 +152,9 @@ jobs:
             ${{ runner.temp }}/checkpoint-summary.md
           if-no-files-found: error
           retention-days: 30
+
+      - name: Dispatch native CI for the bot-authored revision
+        if: ${{ steps.publish-branch.outputs.branch_changed == 'true' }}
+        run: |
+          gh workflow run required-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$PROPOSAL_BRANCH"
+          gh workflow run epose-diagnostics.yml --repo "$GITHUB_REPOSITORY" --ref "$PROPOSAL_BRANCH"
