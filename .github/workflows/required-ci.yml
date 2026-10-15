@@ -26,7 +26,9 @@ jobs:
       - name: Verify canonical release metadata
         run: python3 tools/release/sync_release_metadata.py
       - name: Run release-tool contracts
-        run: python3 -m unittest discover -s tools/release/tests -p 'test_*.py'
+        run: |
+          python3 -m unittest discover -s tools/release/tests -p 'test_*.py'
+          python3 -m unittest discover -s tools/checkpoints/tests -p 'test_*.py'
       - name: Reject whitespace errors
         run: git diff --check
 
@@ -62,7 +64,7 @@ jobs:
             --entrypoint /usr/local/bin/qwertycoin-unit-tests \
             qwertycoin-core:required-ci \
             --data-dir=/usr/local/share/qwertycoin/tests/data \
-            --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*'
+            --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*:checkpoints_default_mainnet.*:checkpoints_is_alternative_block_allowed.*'
 
   nix:
     runs-on: ubuntu-24.04
