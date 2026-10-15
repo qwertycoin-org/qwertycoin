@@ -1,0 +1,160 @@
+name: qwc/propose-epoch-checkpoints
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/propose-epoch-checkpoints.yml
+      - .github/workflows/required-ci.yml
+      - tools/checkpoints/**
+      - src/checkpoints/checkpoints.cpp
+      - tests/unit_tests/checkpoints.cpp
+      - docs/MAINNET_CHECKPOINTS.md
+  schedule:
+    - cron: "27 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qwc-epoch-checkpoint-proposal
+  cancel-in-progress: false
+
+jobs:
+  verify-tool:
+    name: Verify checkpoint proposer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run proposer contracts
+        run: python3 -m unittest discover -s tools/checkpoints/tests -p 'test_*.py'
+
+  propose:
+    name: Propose finalized epoch checkpoints
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: verify-tool
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PROPOSAL_BRANCH: automation/mainnet-epoch-checkpoints
+      BASE_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Checkout trusted default-branch source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Collect quorum evidence and update review files
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(python3 tools/checkpoints/update_epoch_checkpoints.py apply \
+            --evidence "$RUNNER_TEMP/checkpoint-evidence.json" \
+            --summary "$RUNNER_TEMP/checkpoint-summary.md")"
+          candidate_count="$(jq -er '.candidate_count' <<<"$result")"
+          printf 'candidate_count=%s\n' "$candidate_count" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/checkpoint-summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit dedicated proposal branch
+        id: publish-branch
+        if: ${{ steps.collect.outputs.candidate_count != '0' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch -c "$PROPOSAL_BRANCH"
+          git add \
+            src/checkpoints/checkpoints.cpp \
+            tests/unit_tests/checkpoints.cpp \
+            docs/MAINNET_CHECKPOINTS.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "checkpoints: advance finalized EPoSE epoch snapshots"
+
+          remote_sha="$(git ls-remote --heads origin "refs/heads/$PROPOSAL_BRANCH" | awk '{print $1}')"
+          local_tree="$(git show -s --format=%T HEAD)"
+          if [[ -n "$remote_sha" ]]; then
+            git fetch --no-tags origin "refs/heads/$PROPOSAL_BRANCH"
+            remote_tree="$(git show -s --format=%T "$remote_sha")"
+            if [[ "$local_tree" != "$remote_tree" ]]; then
+              git push \
+                --force-with-lease="refs/heads/$PROPOSAL_BRANCH:$remote_sha" \
+                origin "HEAD:refs/heads/$PROPOSAL_BRANCH"
+              branch_changed=true
+            else
+              branch_changed=false
+            fi
+          else
+            git push origin "HEAD:refs/heads/$PROPOSAL_BRANCH"
+            branch_changed=true
+          fi
+          printf 'branch_changed=%s\n' "$branch_changed" >> "$GITHUB_OUTPUT"
+
+      - name: Open or refresh the maintainer-review pull request
+        if: ${{ steps.collect.outputs.candidate_count != '0' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/checkpoint-pr-body.md"
+          cp "$RUNNER_TEMP/checkpoint-summary.md" "$body"
+          cat >> "$body" <<'EOF'
+
+          ## Required maintainer gates
+
+          - confirm the exact block hash and cumulative difficulty from an additional independently operated Core node;
+          - inspect the public Explorer and observed depth;
+          - require the focused checkpoint tests and Required CI;
+          - do not merge if any source disagrees or if a reorganization crosses the candidate;
+          - do not publish DNS checkpoints from this proposal.
+
+          The scheduled workflow owns `automation/mainnet-epoch-checkpoints`; do not place manual work on that branch.
+          EOF
+
+          number="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --head "$PROPOSAL_BRANCH" \
+            --json number \
+            --jq '.[0].number // empty')"
+          if [[ -n "$number" ]]; then
+            gh pr edit "$number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "checkpoints: advance finalized EPoSE epoch snapshots" \
+              --body-file "$body"
+          else
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base "$BASE_BRANCH" \
+              --head "$PROPOSAL_BRANCH" \
+              --title "checkpoints: advance finalized EPoSE epoch snapshots" \
+              --body-file "$body"
+          fi
+
+      - name: Preserve candidate evidence
+        if: ${{ always() && steps.collect.outputs.candidate_count != '0' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mainnet-epoch-checkpoint-evidence
+          path: |
+            ${{ runner.temp }}/checkpoint-evidence.json
+            ${{ runner.temp }}/checkpoint-summary.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Dispatch native CI for the bot-authored revision
+        if: ${{ steps.publish-branch.outputs.branch_changed == 'true' }}
+        run: |
+          gh workflow run required-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$PROPOSAL_BRANCH"
+          gh workflow run epose-diagnostics.yml --repo "$GITHUB_REPOSITORY" --ref "$PROPOSAL_BRANCH"

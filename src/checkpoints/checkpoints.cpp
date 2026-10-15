@@ -233,6 +233,7 @@ namespace cryptonote
 
     // First block at the EPoSE relay-hardening activation height.
     ADD_CHECKPOINT2(21600, "459877a4083844295a54c52197e2e74f9e912ca055f9262841f7ab340bac35a2", "0x27013be15c9");
+    ADD_CHECKPOINT2(22319, "45b311b0a6be0cfa50661494228021d9ff9a41f00d5d18487ec4b24c54835ad1", "0x28065e5b322");
     return true;
   }
 

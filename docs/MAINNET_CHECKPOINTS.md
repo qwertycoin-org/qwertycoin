@@ -42,8 +42,11 @@ latest checkpoint.
 | 20879 | Epoch 28 end | `8e47cad1a2ec1fdc5279cb1edfb4b257f29086a2028bf3288eba6947cd0771ef` | `0x2600457e393` |
 | 21599 | Epoch 29 end | `e37634450115b43429452dc120d9ee26c2aba74326c4a594db8ea1d85c31dc00` | `0x2700e6d87d7` |
 | 21600 | Relay-hardening activation | `459877a4083844295a54c52197e2e74f9e912ca055f9262841f7ab340bac35a2` | `0x27013be15c9` |
+| 22319 | Epoch 30 end | `45b311b0a6be0cfa50661494228021d9ff9a41f00d5d18487ec4b24c54835ad1` | `0x28065e5b322` |
 
-Thirty post-genesis entries are the ends of completed 720-block EPoSE epochs.
+Each post-genesis `Epoch N end` entry is the end of a completed 720-block
+EPoSE epoch. The table is intentionally append-only: existing height, hash, and
+cumulative-difficulty values must never be rewritten by automation.
 Height 21600 is additionally pinned as the first block at the EPoSE
 relay-hardening activation height.
 The first five entries were verified on 2026-09-18. On 2026-10-01, every new
@@ -60,7 +63,11 @@ operator Core daemons. All three returned identical canonical HF17 hashes and
 cumulative difficulties, and every hash was cross-checked against the public
 Qwertycoin Explorer. The activation checkpoint at height 21600 was verified by
 the same three daemons and the public Explorer. At block count 21704, it was
-104 blocks behind the reported current height.
+104 blocks behind the reported current height. On 2026-10-15, epoch 30 was
+queried from all six public operator Core RPCs and cross-checked against the
+HTTPS public Explorer. Every source returned the same canonical HF17 block
+hash; the Core RPCs also agreed on cumulative difficulty. The shallowest Core
+observation placed height 22319 251 blocks behind its reported tip.
 
 ## Activation and compatibility
 
@@ -94,3 +101,44 @@ height, block hash, and cumulative difficulty against multiple independently
 operated Core daemons; cross-check the hash with an independent public view;
 record the observed depth; and add positive and negative regression tests. Do
 not derive or advance checkpoints automatically from a single RPC endpoint.
+
+### Automated epoch proposals
+
+`.github/workflows/propose-epoch-checkpoints.yml` runs every six hours. It only
+creates or refreshes the dedicated `automation/mainnet-epoch-checkpoints`
+review branch after all of these gates pass:
+
+1. the candidate is an exact 720-block epoch boundary;
+2. every configured public Core RPC reports mainnet, synchronized state, and
+   at least 60 blocks above the candidate;
+3. all six Core RPCs return the same lowercase block hash, cumulative
+   difficulty, and hard-fork major version;
+4. the HTTPS public Explorer independently reports the same height and block
+   hash; and
+5. source, unit-test, and documentation tables agree before and after the
+   append-only update.
+
+The workflow may prepare a pull request, but it cannot approve or merge it.
+Maintainers must still confirm the candidate from an additional independently
+operated Core node and review CI. HTTP transport to the restricted seed RPCs is
+not an authentication boundary; the multi-source and HTTPS checks are evidence
+for review, not a replacement for it.
+
+At one boundary per day, retaining each historical row is small (roughly 365
+rows per year) and useful for releases, incident analysis, and bootstrap
+review. If checkpoint review or release cadence becomes less frequent, the bot
+keeps one rolling PR containing every missing mature boundary instead of
+opening one PR per epoch.
+
+### DNS checkpoint boundary
+
+This workflow does not publish DNS. `checkpoints.qwertycoin.org` and Core's DNS
+checkpoint loader remain disabled until a separate reviewed design defines
+QWC-owned signing keys, a signed and versioned payload, generation and rollback
+rules, bounded record retention, DNSSEC operations, and independent operator
+approval. DNSSEC authenticates the zone response; it does not by itself prove
+that a block is canonical.
+
+Once that design exists, DNS should carry only a bounded rolling set of mature
+reviewed checkpoints for update between binary releases. It should not mirror
+the unbounded historical source table or publish a running-epoch tip.
