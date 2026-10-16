@@ -47,7 +47,7 @@ namespace
     const char* cumulative_difficulty;
   };
 
-  constexpr std::array<expected_checkpoint, 33> expected_mainnet_checkpoints{{
+  constexpr std::array<expected_checkpoint, 34> expected_mainnet_checkpoints{{
     {0,    "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39", "0x1"},
     {719,  "69cf9a283099298d1ea9c71b14b0f1d73c7ca81c87e4a2303c1ea91ff8c5b68d", "0xde51cae4"},
     {1439, "019b6a911b0fd41f6e83740f1c4c3fc83f5299339b62cb532b48c97b1e2c35f1", "0x3705926df"},
@@ -81,6 +81,7 @@ namespace
     {21599, "e37634450115b43429452dc120d9ee26c2aba74326c4a594db8ea1d85c31dc00", "0x2700e6d87d7"},
     {21600, "459877a4083844295a54c52197e2e74f9e912ca055f9262841f7ab340bac35a2", "0x27013be15c9"},
     {22319, "45b311b0a6be0cfa50661494228021d9ff9a41f00d5d18487ec4b24c54835ad1", "0x28065e5b322"},
+    {23039, "cb30509efe6dbe1641578dd6a8f28944272f7281228ce4fcf00f7b6c38b78345", "0x2923e77ff2e"},
   }};
 }
 

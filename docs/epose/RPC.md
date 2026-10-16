@@ -18,7 +18,7 @@ when `m_restricted` is true.
 | `get_service_node_status` | yes | yes | yes | Lookup by service public key. |
 | `get_service_node_registration_payload` | yes | yes | yes | Retired-v1 compatibility response; v2 enrollment is automatic. |
 | `get_epose_epoch` | yes | yes | yes | Epoch boundaries and active/qualified counts. |
-| `get_epose_service_endpoint_v2` | yes | no | yes | Return a signed local endpoint descriptor. |
+| `get_epose_service_endpoint_v2` | yes | no | yes | Return a signed local endpoint descriptor and optional display-only local telemetry. |
 | `epose_service_challenge_v2` | yes | no | yes | Serve/sign the requested canonical block object. |
 | `get_service_rewards` | yes | yes | yes | Preview source qualification and expected payee. |
 | `get_epose_block_reward` | yes | yes | yes | Verify and map a canonical block's EPoSE reward. |
@@ -74,6 +74,18 @@ curl -s http://127.0.0.1:8198/get_epose_service_endpoint_v2
 
 An optional `descriptor_hash` requests one exact signed descriptor. `ready` is
 false when the local producer cannot serve the requested canonical descriptor.
+When that descriptor belongs to the responding local service node, the response
+also sets `telemetry_available` and returns telemetry schema version 1,
+`software_version`, `tip_height`, `tip_hash`, and `synchronized`. Cached remote
+descriptors never receive local telemetry. The fields are informational
+self-reports: they are not signed into the descriptor, do not change EPoSE
+qualification or rewards, and must not be used as consensus evidence. Consumers
+that show chain status must compare `tip_hash` with an independently observed
+canonical block at the same `tip_height`.
+
+Old nodes omit these optional fields and remain wire-compatible. Publishing the
+restricted service endpoint makes the daemon release easier to fingerprint;
+operators already publish that endpoint as part of EPoSE service discovery.
 
 `epose_service_challenge_v2` accepts the fully context-bound challenge fields
 defined by `COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2`. The response contains the
