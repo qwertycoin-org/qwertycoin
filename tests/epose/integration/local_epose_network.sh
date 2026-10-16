@@ -615,7 +615,12 @@ assert_restart_persists() {
 
     if [ "${i}" -ne 0 ]; then
       if ! printf '%s' "${endpoint_view}" | jq -e \
-          '.result.telemetry_available == false' >/dev/null; then
+          '.result.telemetry_available == false
+           and .result.telemetry_version == 0
+           and .result.software_version == ""
+           and .result.tip_height == 0
+           and .result.tip_hash == ""
+           and .result.synchronized == false' >/dev/null; then
         printf '%s\n' "${endpoint_view}" >&2
         echo "EPoSE cached remote descriptor incorrectly exposed local telemetry: ${endpoint_hash}" >&2
         exit 1
@@ -637,6 +642,7 @@ assert_restart_persists() {
           and $endpoint.result.telemetry_available == true
           and $endpoint.result.telemetry_version == 1
           and ($endpoint.result.software_version | type == "string" and length > 0)
+          and $endpoint.result.software_version == $info.result.version
           and $endpoint.result.tip_height == ($info.result.height - 1)
           and $endpoint.result.tip_hash == $info.result.top_block_hash
           and ($endpoint.result.tip_hash | test("^[0-9a-f]{64}$"))

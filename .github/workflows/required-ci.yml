@@ -39,6 +39,7 @@ jobs:
       - name: Checkout immutable revision and submodules
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           submodules: recursive
       - name: Compile daemon and focused tests
@@ -65,6 +66,34 @@ jobs:
             qwertycoin-core:required-ci \
             --data-dir=/usr/local/share/qwertycoin/tests/data \
             --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*:checkpoints_default_mainnet.*:checkpoints_is_alternative_block_allowed.*'
+
+      - name: Export checksum-bound canary binaries from the tested image
+        env:
+          EXPECTED_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_REVISION"
+          mkdir canary-binaries
+          container=$(docker create qwertycoin-core:required-ci)
+          trap 'docker rm "$container" >/dev/null' EXIT
+          for program in qwertycoind qwertycoin-unit-tests qwertycoin-epose-unit-tests; do
+            docker cp "$container:/usr/local/bin/$program" "canary-binaries/$program"
+          done
+          git rev-parse HEAD > canary-binaries/source-revision.txt
+          git submodule status --recursive > canary-binaries/submodules.txt
+          docker run --rm --entrypoint /usr/local/bin/qwertycoind \
+            qwertycoin-core:required-ci --version > canary-binaries/version.txt
+          (cd canary-binaries && sha256sum qwertycoind qwertycoin-unit-tests \
+            qwertycoin-epose-unit-tests source-revision.txt submodules.txt version.txt > SHA256SUMS)
+
+      - name: Retain tested binaries for an explicitly authorized canary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: core-canary-${{ github.event.pull_request.head.sha || github.sha }}
+          path: canary-binaries
+          if-no-files-found: error
+          retention-days: 7
 
   nix:
     runs-on: ubuntu-24.04
