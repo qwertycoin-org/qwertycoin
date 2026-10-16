@@ -43,6 +43,7 @@ latest checkpoint.
 | 21599 | Epoch 29 end | `e37634450115b43429452dc120d9ee26c2aba74326c4a594db8ea1d85c31dc00` | `0x2700e6d87d7` |
 | 21600 | Relay-hardening activation | `459877a4083844295a54c52197e2e74f9e912ca055f9262841f7ab340bac35a2` | `0x27013be15c9` |
 | 22319 | Epoch 30 end | `45b311b0a6be0cfa50661494228021d9ff9a41f00d5d18487ec4b24c54835ad1` | `0x28065e5b322` |
+| 23039 | Epoch 31 end | `cb30509efe6dbe1641578dd6a8f28944272f7281228ce4fcf00f7b6c38b78345` | `0x2923e77ff2e` |
 
 Each post-genesis `Epoch N end` entry is the end of a completed 720-block
 EPoSE epoch. The table is intentionally append-only: existing height, hash, and
