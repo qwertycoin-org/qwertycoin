@@ -596,12 +596,12 @@ assert_restart_persists() {
     [ -n "${endpoint_hash}" ] || continue
     deadline="$(($(now) + RPC_READY_TIMEOUT))"
     while true; do
-      endpoint_view="$(json_rpc_node_params 0 \
+      endpoint_view="$(daemon_rpc_node 0 \
         "get_epose_service_endpoint_v2" \
         "{\"descriptor_hash\":\"${endpoint_hash}\"}" 2>/dev/null || true)"
       if printf '%s' "${endpoint_view}" | jq -e \
           --arg hash "${endpoint_hash}" \
-          '.result.ready == true and .result.descriptor_hash == $hash' \
+          '.ready == true and .descriptor_hash == $hash' \
           >/dev/null 2>&1; then
         break
       fi
@@ -615,12 +615,12 @@ assert_restart_persists() {
 
     if [ "${i}" -ne 0 ]; then
       if ! printf '%s' "${endpoint_view}" | jq -e \
-          '.result.telemetry_available == false
-           and .result.telemetry_version == 0
-           and .result.software_version == ""
-           and .result.tip_height == 0
-           and .result.tip_hash == ""
-           and .result.synchronized == false' >/dev/null; then
+          '.telemetry_available == false
+           and .telemetry_version == 0
+           and .software_version == ""
+           and .tip_height == 0
+           and .tip_hash == ""
+           and .synchronized == false' >/dev/null; then
         printf '%s\n' "${endpoint_view}" >&2
         echo "EPoSE cached remote descriptor incorrectly exposed local telemetry: ${endpoint_hash}" >&2
         exit 1
@@ -631,22 +631,22 @@ assert_restart_persists() {
   for i in $(seq 0 "$((SERVICE_NODE_COUNT - 1))"); do
     endpoint_hash="${current_endpoint_hashes[${i}]}"
     [ -n "${endpoint_hash}" ] || continue
-    endpoint_view="$(json_rpc_node_params "${i}" \
+    endpoint_view="$(daemon_rpc_node "${i}" \
       "get_epose_service_endpoint_v2" \
       "{\"descriptor_hash\":\"${endpoint_hash}\"}")"
     node_info="$(json_rpc_node_params "${i}" "get_info" '{}')"
     if ! jq -en \
         --argjson endpoint "${endpoint_view}" \
         --argjson info "${node_info}" '
-          $endpoint.result.ready == true
-          and $endpoint.result.telemetry_available == true
-          and $endpoint.result.telemetry_version == 1
-          and ($endpoint.result.software_version | type == "string" and length > 0)
-          and $endpoint.result.software_version == $info.result.version
-          and $endpoint.result.tip_height == ($info.result.height - 1)
-          and $endpoint.result.tip_hash == $info.result.top_block_hash
-          and ($endpoint.result.tip_hash | test("^[0-9a-f]{64}$"))
-          and $endpoint.result.synchronized == true
+          $endpoint.ready == true
+          and $endpoint.telemetry_available == true
+          and $endpoint.telemetry_version == 1
+          and ($endpoint.software_version | type == "string" and length > 0)
+          and $endpoint.software_version == $info.result.version
+          and $endpoint.tip_height == ($info.result.height - 1)
+          and $endpoint.tip_hash == $info.result.top_block_hash
+          and ($endpoint.tip_hash | test("^[0-9a-f]{64}$"))
+          and $endpoint.synchronized == true
         ' >/dev/null; then
       printf '%s\n' "${endpoint_view}" >&2
       printf '%s\n' "${node_info}" >&2
