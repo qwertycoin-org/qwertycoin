@@ -85,7 +85,15 @@
           stdenv = stdenvFor pkgs;
           qwertycoin = stdenv.mkDerivation {
             pname = "qwertycoin";
-            version = (builtins.fromJSON (builtins.readFile ./docs/releases/current.json)).version;
+            # Candidate packages follow the compiled version, not the latest
+            # published release (which may legitimately be older).
+            version =
+              let
+                versionLine = lib.findFirst (lib.hasPrefix "#define DEF_QWERTYCOIN_VERSION ")
+                  (throw "canonical Core version is missing")
+                  (lib.splitString "\n" (builtins.readFile ./src/version.cpp.in));
+              in
+              builtins.elemAt (lib.splitString "\"" versionLine) 1;
 
             src = lib.cleanSourceWith {
               src = self;
