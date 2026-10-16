@@ -399,6 +399,41 @@ namespace epose
   {
   }
 
+  state_memory_usage_v2 membership_pipeline_v2::memory_usage() const
+  {
+    state_memory_usage_v2 usage{};
+    usage.leases = leases_.size();
+    usage.receipts = receipts_.size();
+    usage.snapshots = snapshots_.size();
+    usage.qualifications = qualifications_.size();
+    usage.vector_payload_bytes = leases_.capacity() * sizeof(stored_lease)
+        + receipts_.capacity() * sizeof(stored_receipt);
+    usage.map_value_bytes = snapshots_.size() * sizeof(decltype(snapshots_)::value_type)
+        + qualifications_.size() * sizeof(decltype(qualifications_)::value_type);
+    for (const auto &entry : snapshots_)
+      usage.vector_payload_bytes += entry.second.members.capacity() * sizeof(frozen_member_v2);
+    for (const auto &entry : qualifications_)
+      usage.vector_payload_bytes += entry.second.qualified_nodes.capacity() * sizeof(crypto::public_key);
+    return usage;
+  }
+
+  membership_pipeline_v2::undo_journal membership_pipeline_v2::checkpoint() const
+  {
+    return {leases_.size(), receipts_.size(), {}, {}, {}};
+  }
+
+  void membership_pipeline_v2::rollback(const undo_journal &undo) noexcept
+  {
+    for (auto it = undo.replaced_leases.rbegin(); it != undo.replaced_leases.rend(); ++it)
+      leases_[it->index] = {it->lease, it->inclusion_height};
+    leases_.resize(undo.leases_size);
+    receipts_.resize(undo.receipts_size);
+    for (uint64_t epoch : undo.inserted_snapshots)
+      snapshots_.erase(epoch);
+    for (uint64_t epoch : undo.inserted_qualifications)
+      qualifications_.erase(epoch);
+  }
+
   bool membership_pipeline_v2::valid() const
   {
     return valid_;
@@ -418,7 +453,8 @@ namespace epose
       const admission_lease_v2 &lease,
       const admission_context_v2 &context,
       uint64_t inclusion_height,
-      verification_counters_v2 *counters)
+      verification_counters_v2 *counters,
+      undo_journal *undo)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
@@ -470,6 +506,9 @@ namespace epose
         return pipeline_status_v2::idempotent_duplicate;
       if (lease.member.sequence > stored.lease.member.sequence)
       {
+        if (undo != nullptr)
+          undo->replaced_leases.push_back({
+              static_cast<size_t>(&stored - leases_.data()), stored.lease, stored.inclusion_height});
         stored = {lease, inclusion_height};
         return pipeline_status_v2::accepted;
       }
@@ -492,23 +531,25 @@ namespace epose
       uint64_t height,
       const crypto::hash &anchor_hash)
   {
-    return freeze_membership_impl(epoch, height, anchor_hash, nullptr);
+    return freeze_membership_impl(epoch, height, anchor_hash, nullptr, nullptr);
   }
 
   pipeline_status_v2 membership_pipeline_v2::freeze_membership(
       uint64_t epoch,
       uint64_t height,
       const crypto::hash &anchor_hash,
-      const std::vector<frozen_member_v2> &authorized_members)
+      const std::vector<frozen_member_v2> &authorized_members,
+      undo_journal *undo)
   {
-    return freeze_membership_impl(epoch, height, anchor_hash, &authorized_members);
+    return freeze_membership_impl(epoch, height, anchor_hash, &authorized_members, undo);
   }
 
   pipeline_status_v2 membership_pipeline_v2::freeze_membership_impl(
       uint64_t epoch,
       uint64_t height,
       const crypto::hash &anchor_hash,
-      const std::vector<frozen_member_v2> *authorized_members)
+      const std::vector<frozen_member_v2> *authorized_members,
+      undo_journal *undo)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
@@ -574,6 +615,8 @@ namespace epose
     for (const frozen_member_v2 &member : frozen.members)
       append_member(blob, member);
     frozen.snapshot_hash = hash_blob(blob);
+    if (undo != nullptr)
+      undo->inserted_snapshots.push_back(epoch);
     snapshots_.emplace(epoch, std::move(frozen));
     return pipeline_status_v2::accepted;
   }
@@ -707,7 +750,8 @@ namespace epose
     return pipeline_status_v2::accepted;
   }
 
-  pipeline_status_v2 membership_pipeline_v2::close_qualification(uint64_t epoch, uint64_t height)
+  pipeline_status_v2 membership_pipeline_v2::close_qualification(
+      uint64_t epoch, uint64_t height, undo_journal *undo)
   {
     if (!valid_)
       return pipeline_status_v2::invalid_configuration;
@@ -765,6 +809,8 @@ namespace epose
     for (const crypto::public_key &key : closed.qualified_nodes)
       append_bytes(blob, key);
     closed.qualification_hash = hash_blob(blob);
+    if (undo != nullptr)
+      undo->inserted_qualifications.push_back(epoch);
     qualifications_.emplace(epoch, std::move(closed));
     return pipeline_status_v2::accepted;
   }
@@ -845,15 +891,23 @@ namespace epose
     append_u64_le(blob, policy_.round_offsets.size());
     for (const uint64_t offset : policy_.round_offsets)
       append_u64_le(blob, offset);
-    std::vector<stored_lease> leases = leases_;
-    std::sort(leases.begin(), leases.end(), [](const stored_lease &left, const stored_lease &right) {
+    // Preserve the canonical value ordering/serialization without duplicating
+    // the historical payload just to sort it. No mutation occurs while hashing.
+    std::vector<const stored_lease *> leases;
+    leases.reserve(leases_.size());
+    for (const auto &stored : leases_)
+      leases.push_back(&stored);
+    std::sort(leases.begin(), leases.end(), [](const stored_lease *a, const stored_lease *b) {
+      const auto &left = *a;
+      const auto &right = *b;
       if (left.lease.target_epoch != right.lease.target_epoch)
         return left.lease.target_epoch < right.lease.target_epoch;
       return member_less(left.lease.member, right.lease.member);
     });
     append_u64_le(blob, leases.size());
-    for (const stored_lease &stored : leases)
+    for (const stored_lease *entry : leases)
     {
+      const auto &stored = *entry;
       append_u64_le(blob, stored.lease.target_epoch);
       append_member(blob, stored.lease.member);
       append_bytes(blob, stored.lease.lease_hash);
@@ -862,10 +916,13 @@ namespace epose
     append_u64_le(blob, snapshots_.size());
     for (const auto &entry : snapshots_)
       append_bytes(blob, entry.second.snapshot_hash);
-    std::vector<stored_receipt> receipts = receipts_;
-    std::sort(receipts.begin(), receipts.end(), [](const stored_receipt &left, const stored_receipt &right) {
-      const auto &a = left;
-      const auto &b = right;
+    std::vector<const stored_receipt *> receipts;
+    receipts.reserve(receipts_.size());
+    for (const auto &stored : receipts_)
+      receipts.push_back(&stored);
+    std::sort(receipts.begin(), receipts.end(), [](const stored_receipt *left, const stored_receipt *right) {
+      const auto &a = *left;
+      const auto &b = *right;
       if (a.epoch != b.epoch)
         return a.epoch < b.epoch;
       if (a.round != b.round)
@@ -877,8 +934,9 @@ namespace epose
       return bytes_less(a.verifier_public_key, b.verifier_public_key);
     });
     append_u64_le(blob, receipts.size());
-    for (const stored_receipt &stored : receipts)
+    for (const stored_receipt *entry : receipts)
     {
+      const auto &stored = *entry;
       append_u64_le(blob, stored.epoch);
       append_u64_le(blob, stored.round);
       append_u8(blob, stored.service_kind);

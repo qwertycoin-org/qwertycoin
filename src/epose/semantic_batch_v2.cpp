@@ -4,7 +4,10 @@
 #include "epose/semantic_batch_v2.h"
 
 #include <limits>
+#include <stdexcept>
+#include <boost/scope_exit.hpp>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "epose/record_codec_v2.h"
@@ -12,6 +15,37 @@
 
 namespace
 {
+  template<typename T>
+  void reserve_append(std::vector<T> &target, const std::vector<T> &source)
+  {
+    static_assert(std::is_nothrow_copy_constructible<T>::value
+        && std::is_nothrow_copy_assignable<T>::value,
+        "Journal merge requires nonthrowing fixed-size entries");
+    if (source.size() > target.max_size() - target.size())
+      throw std::length_error("EPoSE undo journal overflow");
+    target.reserve(target.size() + source.size());
+  }
+
+  // Reserve every destination before changing any logical length. The entries
+  // contain only fixed-size values, so the following inserts cannot throw.
+  void append_undo(
+      qwertycoin::epose::semantic_state_v2::undo_journal &target,
+      const qwertycoin::epose::semantic_state_v2::undo_journal &source)
+  {
+    reserve_append(target.lifecycle.record_sizes, source.lifecycle.record_sizes);
+    reserve_append(target.membership.replaced_leases, source.membership.replaced_leases);
+    reserve_append(target.membership.inserted_snapshots, source.membership.inserted_snapshots);
+    reserve_append(target.membership.inserted_qualifications, source.membership.inserted_qualifications);
+    target.lifecycle.record_sizes.insert(target.lifecycle.record_sizes.end(),
+        source.lifecycle.record_sizes.begin(), source.lifecycle.record_sizes.end());
+    target.membership.replaced_leases.insert(target.membership.replaced_leases.end(),
+        source.membership.replaced_leases.begin(), source.membership.replaced_leases.end());
+    target.membership.inserted_snapshots.insert(target.membership.inserted_snapshots.end(),
+        source.membership.inserted_snapshots.begin(), source.membership.inserted_snapshots.end());
+    target.membership.inserted_qualifications.insert(target.membership.inserted_qualifications.end(),
+        source.membership.inserted_qualifications.begin(), source.membership.inserted_qualifications.end());
+  }
+
   crypto::hash combined_state_hash(
       const crypto::hash &lifecycle, const crypto::hash &membership)
   {
@@ -44,13 +78,25 @@ namespace epose
   {
   }
 
+  semantic_state_v2::undo_journal semantic_state_v2::checkpoint() const
+  {
+    return {lifecycle_.checkpoint(), membership_.checkpoint()};
+  }
+
+  void semantic_state_v2::rollback(const undo_journal &undo) noexcept
+  {
+    membership_.rollback(undo.membership);
+    lifecycle_.rollback(undo.lifecycle);
+  }
+
   bool semantic_state_v2::valid() const { return valid_; }
 
   semantic_status_v2 semantic_state_v2::apply_transaction(
       const std::vector<envelope_record_v2> &records,
       const semantic_transaction_context_v2 &transaction,
       const canonical_context_source_v2 &contexts,
-      semantic_apply_summary_v2 &summary)
+      semantic_apply_summary_v2 &summary,
+      undo_journal *block_undo)
   {
     summary = {};
     if (!valid_)
@@ -71,8 +117,13 @@ namespace epose
       ++minimum_effective_epoch;
     }
 
-    lifecycle_registry_v2 next_lifecycle = lifecycle_;
-    membership_pipeline_v2 next_membership = membership_;
+    // Keep all configuration/height checks above, even for an empty record list.
+    if (records.empty())
+      return semantic_status_v2::accepted;
+    undo_journal undo = checkpoint();
+    bool committed = false;
+    BOOST_SCOPE_EXIT_ALL(&) { if (!committed) rollback(undo); };
+
     semantic_apply_summary_v2 next_summary{};
     const auto reject = [&](semantic_status_v2 status) {
       // Record counters remain atomic, but attempted cryptographic work is
@@ -92,9 +143,9 @@ namespace epose
           if (decode_lifecycle_record_structure_v2(record, lifecycle)
               != record_codec_status_v2::accepted)
             return reject(semantic_status_v2::invalid_record);
-          const lifecycle_status_v2 status = next_lifecycle.apply(
+          const lifecycle_status_v2 status = lifecycle_.apply(
               lifecycle, inclusion_epoch, minimum_effective_epoch,
-              &next_summary.verifications);
+              &next_summary.verifications, &undo.lifecycle);
           if (status != lifecycle_status_v2::accepted
               && status != lifecycle_status_v2::idempotent_duplicate)
             return reject(semantic_status_v2::invalid_lifecycle);
@@ -122,7 +173,7 @@ namespace epose
               || transaction.inclusion_height > enrollment_cutoff)
             return reject(semantic_status_v2::invalid_admission);
 
-          const identity_descriptor_v2 *descriptor = next_lifecycle.descriptor_for_epoch(
+          const identity_descriptor_v2 *descriptor = lifecycle_.descriptor_for_epoch(
               lease.member.identity_id, lease.target_epoch);
           if (descriptor == nullptr
               || descriptor->service_public_key != lease.member.service_public_key
@@ -145,9 +196,9 @@ namespace epose
           const admission_context_v2 admission_context{
               nettype_, genesis_hash_, parameter_set_hash_,
               expected_context_height, context_hash};
-          const pipeline_status_v2 status = next_membership.apply_admission(
+          const pipeline_status_v2 status = membership_.apply_admission(
               lease, admission_context, transaction.inclusion_height,
-              &next_summary.verifications);
+              &next_summary.verifications, &undo.membership);
           if (status != pipeline_status_v2::accepted
               && status != pipeline_status_v2::idempotent_duplicate)
             return reject(semantic_status_v2::invalid_admission);
@@ -166,7 +217,7 @@ namespace epose
                   receipt.challenge.epoch, receipt.challenge.round, round_anchor)
               || round_anchor == crypto::null_hash)
             return reject(semantic_status_v2::context_unavailable);
-          const pipeline_status_v2 status = next_membership.apply_authenticated_receipt(
+          const pipeline_status_v2 status = membership_.apply_authenticated_receipt(
               receipt, receipt_context, transaction.inclusion_height, round_anchor,
               &next_summary.verifications);
           if (status != pipeline_status_v2::accepted
@@ -214,8 +265,9 @@ namespace epose
       }
     }
 
-    lifecycle_ = std::move(next_lifecycle);
-    membership_ = std::move(next_membership);
+    if (block_undo != nullptr)
+      append_undo(*block_undo, undo);
+    committed = true;
     summary = next_summary;
     return semantic_status_v2::accepted;
   }
@@ -229,7 +281,8 @@ namespace epose
     return parameter_set_hash_;
   }
   pipeline_status_v2 semantic_state_v2::freeze_membership(
-      uint64_t epoch, uint64_t height, const crypto::hash &anchor_hash)
+      uint64_t epoch, uint64_t height, const crypto::hash &anchor_hash,
+      undo_journal *undo)
   {
     std::vector<frozen_member_v2> authorized_members;
     const std::vector<identity_descriptor_v2> descriptors = lifecycle_.descriptors_for_epoch(epoch);
@@ -248,11 +301,13 @@ namespace epose
       member.sequence = descriptor.sequence;
       authorized_members.push_back(member);
     }
-    return membership_.freeze_membership(epoch, height, anchor_hash, authorized_members);
+    return membership_.freeze_membership(
+        epoch, height, anchor_hash, authorized_members, undo ? &undo->membership : nullptr);
   }
-  pipeline_status_v2 semantic_state_v2::close_qualification(uint64_t epoch, uint64_t height)
+  pipeline_status_v2 semantic_state_v2::close_qualification(
+      uint64_t epoch, uint64_t height, undo_journal *undo)
   {
-    return membership_.close_qualification(epoch, height);
+    return membership_.close_qualification(epoch, height, undo ? &undo->membership : nullptr);
   }
   crypto::hash semantic_state_v2::state_hash() const
   {

@@ -4,6 +4,7 @@
 #include "epose/block_transition_v2.h"
 
 #include <limits>
+#include <boost/scope_exit.hpp>
 
 namespace
 {
@@ -112,7 +113,18 @@ namespace epose
         return block_transition_status_v2::resource_limit_exceeded;
     }
 
-    semantic_state_v2 next = state_;
+    // Allocate the retained journal before the first mutation. Never evict an
+    // older entry until the whole block has succeeded.
+    undo_.push_back({height, state_.checkpoint(), have_tip_, tip_height_});
+    semantic_state_v2::undo_journal &undo = undo_.back().changes;
+    bool committed = false;
+    BOOST_SCOPE_EXIT_ALL(&) {
+      if (!committed)
+      {
+        state_.rollback(undo);
+        undo_.pop_back();
+      }
+    };
 
     // Freeze before processing the anchor block: records through cutoff
     // height anchor-1 are eligible, records in the anchor block are not.
@@ -127,7 +139,7 @@ namespace epose
           return block_transition_status_v2::arithmetic_overflow;
         if (epoch >= first_service_epoch)
         {
-          const pipeline_status_v2 status = next.freeze_membership(epoch, height, block_hash);
+          const pipeline_status_v2 status = state_.freeze_membership(epoch, height, block_hash, &undo);
           if (status != pipeline_status_v2::accepted)
             return block_transition_status_v2::freeze_failed;
         }
@@ -143,9 +155,9 @@ namespace epose
       const semantic_transaction_context_v2 transaction_context{
           height, transactions[index].coinbase, transactions[index].payment,
           transactions[index].validated_payment};
-      if (next.apply_transaction(
+      if (state_.apply_transaction(
               parsed[index].records, transaction_context, contexts,
-              transaction_summary) != semantic_status_v2::accepted)
+              transaction_summary, &undo) != semantic_status_v2::accepted)
         return block_transition_status_v2::invalid_semantics;
       if (!add_semantic_summary(next_summary.semantic, transaction_summary))
         return block_transition_status_v2::arithmetic_overflow;
@@ -173,7 +185,7 @@ namespace epose
             return block_transition_status_v2::arithmetic_overflow;
           if (epoch >= first_service_epoch)
           {
-            const pipeline_status_v2 status = next.close_qualification(epoch, height);
+            const pipeline_status_v2 status = state_.close_qualification(epoch, height, &undo);
             if (status != pipeline_status_v2::accepted)
               return block_transition_status_v2::qualification_close_failed;
           }
@@ -181,10 +193,9 @@ namespace epose
       }
     }
 
-    undo_.push_back({height, state_, have_tip_, tip_height_});
+    committed = true;
     while (undo_.size() > limits_.max_recent_undo_blocks)
       undo_.pop_front();
-    state_ = std::move(next);
     have_tip_ = true;
     tip_height_ = height;
     summary = next_summary;
@@ -192,6 +203,23 @@ namespace epose
   }
 
   const semantic_state_v2 &block_transition_v2::state() const { return state_; }
+
+  size_t block_transition_v2::recent_undo_count() const { return undo_.size(); }
+
+  size_t block_transition_v2::undo_payload_bytes() const
+  {
+    size_t bytes = undo_.size() * sizeof(undo_entry);
+    for (const auto &entry : undo_)
+    {
+      bytes += entry.changes.lifecycle.record_sizes.capacity()
+          * sizeof(lifecycle_registry_v2::history_change);
+      bytes += entry.changes.membership.replaced_leases.capacity()
+          * sizeof(membership_pipeline_v2::lease_change);
+      bytes += (entry.changes.membership.inserted_snapshots.capacity()
+          + entry.changes.membership.inserted_qualifications.capacity()) * sizeof(uint64_t);
+    }
+    return bytes;
+  }
 
   block_transition_status_v2 block_transition_v2::disconnect_tip(uint64_t height)
   {
@@ -203,7 +231,7 @@ namespace epose
       return block_transition_status_v2::deep_replay_required;
     undo_entry prior = std::move(undo_.back());
     undo_.pop_back();
-    state_ = std::move(prior.prior_state);
+    state_.rollback(prior.changes);
     have_tip_ = prior.prior_have_tip;
     tip_height_ = prior.prior_tip_height;
     return block_transition_status_v2::accepted;

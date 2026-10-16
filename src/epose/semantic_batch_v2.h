@@ -68,15 +68,28 @@ namespace epose
         const admission_policy_v2 &admission_policy,
         const committee_policy_v2 &committee_policy);
 
+    // Checkpoints must be rolled back once, in reverse order, on this state.
+    // Mutations must receive the journal; these are not reusable snapshots.
+    struct undo_journal
+    {
+      lifecycle_registry_v2::undo_journal lifecycle;
+      membership_pipeline_v2::undo_journal membership;
+    };
+    undo_journal checkpoint() const;
+    void rollback(const undo_journal &undo) noexcept;
+
     bool valid() const;
     semantic_status_v2 apply_transaction(
         const std::vector<envelope_record_v2> &records,
         const semantic_transaction_context_v2 &transaction,
         const canonical_context_source_v2 &contexts,
-        semantic_apply_summary_v2 &summary);
+        semantic_apply_summary_v2 &summary,
+        undo_journal *block_undo = nullptr);
     pipeline_status_v2 freeze_membership(
-        uint64_t epoch, uint64_t height, const crypto::hash &anchor_hash);
-    pipeline_status_v2 close_qualification(uint64_t epoch, uint64_t height);
+        uint64_t epoch, uint64_t height, const crypto::hash &anchor_hash,
+        undo_journal *undo = nullptr);
+    pipeline_status_v2 close_qualification(
+        uint64_t epoch, uint64_t height, undo_journal *undo = nullptr);
 
     const lifecycle_registry_v2 &lifecycle() const;
     const membership_pipeline_v2 &membership() const;

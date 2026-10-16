@@ -4,9 +4,11 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <vector>
 
 #include "crypto/crypto.h"
+#include "epose/memory_usage_v2.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_config.h"
 #include "epose/verification_v2.h"
@@ -121,13 +123,30 @@ namespace epose
         const crypto::hash &genesis_hash,
         const crypto::hash &parameter_set_hash);
 
+    // A journal owns only lengths of histories changed since its checkpoint.
+    // It is process-local, strictly LIFO undo data, never consensus state.
+    struct history_change
+    {
+      size_t index = 0;
+      size_t records_size = 0;
+    };
+    struct undo_journal
+    {
+      size_t histories_size = 0;
+      std::vector<history_change> record_sizes;
+    };
+    state_memory_usage_v2 memory_usage() const;
+    undo_journal checkpoint() const;
+    void rollback(const undo_journal &undo) noexcept;
+
     bool valid() const;
 
     lifecycle_status_v2 apply(
         const lifecycle_record_v2 &record,
         uint64_t inclusion_epoch,
         uint64_t minimum_effective_epoch,
-        verification_counters_v2 *counters = nullptr);
+        verification_counters_v2 *counters = nullptr,
+        undo_journal *undo = nullptr);
 
     const identity_descriptor_v2 *latest(const crypto::hash &identity_id) const;
     const identity_descriptor_v2 *descriptor_for_epoch(
