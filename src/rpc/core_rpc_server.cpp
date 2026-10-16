@@ -73,6 +73,7 @@ using namespace epee;
 namespace
 {
   constexpr uint64_t EPOSE_RPC_SERVICE_NODE_LIMIT = 1000;
+  constexpr uint64_t EPOSE_RPC_TELEMETRY_VERSION = 1;
 
   bool public_key_matches_hex(const crypto::public_key &key, const std::string &hex)
   {
@@ -946,6 +947,13 @@ namespace cryptonote
       COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response& res,
       const connection_context *ctx)
   {
+    res.telemetry_available = false;
+    res.telemetry_version = 0;
+    res.software_version.clear();
+    res.tip_height = 0;
+    res.tip_hash.clear();
+    res.synchronized = false;
+
     qwertycoin::epose::endpoint_descriptor_v2 descriptor{};
     qwertycoin::epose::consensus_parameters_v2 parameters{};
     crypto::hash required_hash{};
@@ -981,6 +989,19 @@ namespace cryptonote
         qwertycoin::epose::hash_endpoint_descriptor_v2(
             parameters.nettype, parameters.genesis_hash,
             parameters.parameter_set_hash, descriptor));
+
+    const bool local_descriptor = m_core.is_epose_v2_service_ready()
+        && descriptor.service_public_key == m_core.get_epose_v2_local_service_public_key();
+    if (local_descriptor)
+    {
+      crypto::hash top_hash{};
+      m_core.get_blockchain_top(res.tip_height, top_hash);
+      res.telemetry_available = true;
+      res.telemetry_version = EPOSE_RPC_TELEMETRY_VERSION;
+      res.software_version = QWERTYCOIN_VERSION_FULL;
+      res.tip_hash = epee::string_tools::pod_to_hex(top_hash);
+      res.synchronized = check_core_ready();
+    }
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

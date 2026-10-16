@@ -1262,6 +1262,12 @@ namespace cryptonote
       uint64_t expiry_epoch;
       std::string signature;
       std::string descriptor_hash;
+      bool telemetry_available;
+      uint64_t telemetry_version;
+      std::string software_version;
+      uint64_t tip_height;
+      std::string tip_hash;
+      bool synchronized;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
@@ -1277,6 +1283,12 @@ namespace cryptonote
         KV_SERIALIZE(expiry_epoch)
         KV_SERIALIZE(signature)
         KV_SERIALIZE(descriptor_hash)
+        KV_SERIALIZE(telemetry_available)
+        KV_SERIALIZE(telemetry_version)
+        KV_SERIALIZE(software_version)
+        KV_SERIALIZE(tip_height)
+        KV_SERIALIZE(tip_hash)
+        KV_SERIALIZE(synchronized)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

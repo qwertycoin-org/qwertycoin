@@ -571,7 +571,7 @@ coinbase_service_payment_fingerprint_any_network() {
 
 assert_restart_persists() {
   require_node_count
-  local before after i endpoint_info endpoint_hash deadline endpoint_view
+  local before after i endpoint_info endpoint_hash deadline endpoint_view node_info
   local -a current_endpoint_hashes=()
   before="$(network_fingerprint)"
   if [ "${SERVICE_NODE_COUNT}" -gt 0 ]; then
@@ -591,7 +591,8 @@ assert_restart_persists() {
     exit 1
   fi
 
-  for endpoint_hash in "${current_endpoint_hashes[@]}"; do
+  for i in $(seq 0 "$((SERVICE_NODE_COUNT - 1))"); do
+    endpoint_hash="${current_endpoint_hashes[${i}]}"
     [ -n "${endpoint_hash}" ] || continue
     deadline="$(($(now) + RPC_READY_TIMEOUT))"
     while true; do
@@ -611,6 +612,41 @@ assert_restart_persists() {
       fi
       sleep 2
     done
+
+    if [ "${i}" -ne 0 ]; then
+      if ! printf '%s' "${endpoint_view}" | jq -e \
+          '.result.telemetry_available == false' >/dev/null; then
+        printf '%s\n' "${endpoint_view}" >&2
+        echo "EPoSE cached remote descriptor incorrectly exposed local telemetry: ${endpoint_hash}" >&2
+        exit 1
+      fi
+    fi
+  done
+
+  for i in $(seq 0 "$((SERVICE_NODE_COUNT - 1))"); do
+    endpoint_hash="${current_endpoint_hashes[${i}]}"
+    [ -n "${endpoint_hash}" ] || continue
+    endpoint_view="$(json_rpc_node_params "${i}" \
+      "get_epose_service_endpoint_v2" \
+      "{\"descriptor_hash\":\"${endpoint_hash}\"}")"
+    node_info="$(json_rpc_node_params "${i}" "get_info" '{}')"
+    if ! jq -en \
+        --argjson endpoint "${endpoint_view}" \
+        --argjson info "${node_info}" '
+          $endpoint.result.ready == true
+          and $endpoint.result.telemetry_available == true
+          and $endpoint.result.telemetry_version == 1
+          and ($endpoint.result.software_version | type == "string" and length > 0)
+          and $endpoint.result.tip_height == ($info.result.height - 1)
+          and $endpoint.result.tip_hash == $info.result.top_block_hash
+          and ($endpoint.result.tip_hash | test("^[0-9a-f]{64}$"))
+          and $endpoint.result.synchronized == true
+        ' >/dev/null; then
+      printf '%s\n' "${endpoint_view}" >&2
+      printf '%s\n' "${node_info}" >&2
+      echo "EPoSE local endpoint telemetry is missing or inconsistent on node ${i}" >&2
+      exit 1
+    fi
   done
 
   printf "%s\n" "${after}"
