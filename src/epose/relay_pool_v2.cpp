@@ -305,9 +305,11 @@ namespace epose
       const canonical_context_source_v2 &contexts)
   {
     prune_expired(current_height);
-    if (current_height < receipt_slot_dedup_height_)
+    if (current_height < receipt_slot_dedup_height_ || records_.empty())
       return;
     std::vector<crypto::hash> remove;
+    // One isolated preview for the sweep; each probe is journaled and undone.
+    semantic_state_v2 next = canonical_state;
     for (const stored_record_v2 &stored : records_)
     {
       if (stored.record.type
@@ -329,12 +331,13 @@ namespace epose
         remove.push_back(stored.id);
         continue;
       }
-      semantic_state_v2 next = canonical_state;
+      auto undo = next.checkpoint();
       semantic_apply_summary_v2 summary{};
       const semantic_transaction_context_v2 transaction{
           current_height, true, nullptr, nullptr};
       const semantic_status_v2 status = next.apply_transaction(
-          {stored.record}, transaction, contexts, summary);
+          {stored.record}, transaction, contexts, summary, &undo);
+      next.rollback(undo);
       if (status != semantic_status_v2::accepted
           && status != semantic_status_v2::context_unavailable)
       {
@@ -574,9 +577,9 @@ namespace epose
       semantic_apply_summary_v2 summary{};
       const semantic_transaction_context_v2 transaction{
           inclusion_height, false, nullptr, nullptr};
-      semantic_state_v2 next_semantic = semantic;
-      if (next_semantic.apply_transaction(
-              records, transaction, contexts, summary)
+      auto undo = semantic.checkpoint();
+      if (semantic.apply_transaction(
+              records, transaction, contexts, summary, &undo)
           != semantic_status_v2::accepted)
         return relay_ingress_status_v2::invalid_batch;
 
@@ -600,6 +603,7 @@ namespace epose
 
       if (queue_status == relay_record_status_v2::receipt_slot_variant)
       {
+        semantic.rollback(undo);
         next_pool = std::move(tentative);
         continue;
       }
@@ -609,7 +613,6 @@ namespace epose
         // this batch's semantic preview.  Otherwise a following admission or
         // lifecycle record could lose a valid in-order dependency merely
         // because its prerequisite arrived in an earlier relay wave.
-        semantic = std::move(next_semantic);
         next_pool = std::move(tentative);
         // Exact, already-authenticated envelopes are eligible for bounded
         // transport redelivery. This is intentionally separate from local
@@ -621,7 +624,6 @@ namespace epose
           next_accepted.push_back(encoded);
         continue;
       }
-      semantic = std::move(next_semantic);
       next_pool = std::move(tentative);
       next_accepted.push_back(encoded);
     }

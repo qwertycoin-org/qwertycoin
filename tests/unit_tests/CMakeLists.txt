@@ -272,6 +272,16 @@ set_property(TARGET epose_admission_bench
   PROPERTY
     FOLDER "tests")
 
+# Reuse the upstream crypto-test RNG only in this synthetic probe: receipt
+# commitments contain the randomized subject signature and must be reproducible.
+monero_add_minimal_executable(epose_memory_probe
+  epose_memory_probe.cpp ../crypto/random.c)
+target_link_libraries(epose_memory_probe PRIVATE
+  epose cryptonote_basic common epee version
+  ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SYSTEM_LIBRARY}
+  ${CMAKE_THREAD_LIBS_INIT} ${EXTRA_LIBRARIES})
+set_property(TARGET epose_memory_probe PROPERTY FOLDER "tests")
+
 monero_add_minimal_executable(epose_sybil_sim
   epose_sybil_sim.cpp)
 target_link_libraries(epose_sybil_sim

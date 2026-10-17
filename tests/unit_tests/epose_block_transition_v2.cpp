@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstring>
 #include <map>
+#include <new>
 
 #include "epose/block_transition_v2.h"
 #include "epose/record_codec_v2.h"
@@ -630,4 +631,109 @@ TEST(epose_block_transition_v2, bounded_disconnect_restores_state_and_requires_d
   EXPECT_EQ(at_one, state.state().state_hash());
   EXPECT_EQ(block_transition_status_v2::deep_replay_required, state.disconnect_tip(1));
   EXPECT_EQ(block_transition_status_v2::nonsequential_height, state.disconnect_tip(0));
+}
+
+TEST(epose_block_transition_v2, journal_undoes_empty_boundary_blocks_and_failed_freeze_block)
+{
+  block_transition_v2 chain(cryptonote::TESTNET, genesis, parameters, fast_timing,
+      admission_policy, fast_committee, fast_limits());
+  contexts source;
+  for (uint64_t height = 0; height < 15; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, height));
+  const auto before_freeze = chain.state().state_hash();
+  const auto undo_count = chain.recent_undo_count();
+  auto member = make_enrollment();
+  member.descriptor.effective_epoch = 2; // anchor-block records miss epoch 1 cutoff
+  auto invalid = lifecycle_record(member);
+  invalid.payload.pop_back();
+  block_apply_summary_v2 summary{};
+  // The freeze and a complete earlier transaction both precede this failure.
+  ASSERT_EQ(block_transition_status_v2::invalid_semantics,
+      apply_record_block(chain, source, 15, {lifecycle_record(member), invalid}, summary));
+  EXPECT_EQ(before_freeze, chain.state().state_hash());
+  EXPECT_EQ(nullptr, chain.state().membership().snapshot(1));
+  EXPECT_EQ(undo_count, chain.recent_undo_count());
+  EXPECT_EQ(0u, summary.transactions);
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, 15));
+  EXPECT_NE(nullptr, chain.state().membership().snapshot(1));
+  ASSERT_EQ(block_transition_status_v2::accepted, chain.disconnect_tip(15));
+  EXPECT_EQ(before_freeze, chain.state().state_hash());
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, 15));
+  for (uint64_t height = 16; height < 32; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, height));
+  const auto before_close = chain.state().state_hash();
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, 32));
+  ASSERT_NE(nullptr, chain.state().membership().qualification(1));
+  ASSERT_EQ(block_transition_status_v2::accepted, chain.disconnect_tip(32));
+  EXPECT_EQ(before_close, chain.state().state_hash());
+  EXPECT_EQ(nullptr, chain.state().membership().qualification(1));
+}
+
+TEST(epose_block_transition_v2, allocation_exception_after_prior_transaction_preserves_full_undo_horizon)
+{
+  class throwing_context final : public canonical_context_source_v2
+  {
+    bool block_hash(uint64_t, crypto::hash &) const override
+    { throw std::bad_alloc(); }
+    bool round_anchor(uint64_t, uint64_t, crypto::hash &) const override
+    { throw std::bad_alloc(); }
+  } throwing;
+  auto chain = transition();
+  contexts source;
+  for (uint64_t height = 0; height < 4; ++height)
+    ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, height));
+  const auto before = chain.state().state_hash();
+  const auto count = chain.recent_undo_count();
+  auto member = make_enrollment();
+  auto first = transaction_with({lifecycle_record(member)});
+  auto second = transaction_with({admission_record(member)});
+  cryptonote::transaction miner{};
+  block_apply_summary_v2 summary{};
+  EXPECT_THROW(chain.apply_block(17, 4, hash_text("throwing-block"),
+      {{&miner, true, nullptr}, {&first, false, nullptr}, {&second, false, nullptr}},
+      throwing, summary), std::bad_alloc);
+  EXPECT_EQ(before, chain.state().state_hash());
+  EXPECT_EQ(count, chain.recent_undo_count());
+  // A rejected block at full capacity must not evict the oldest valid undo.
+  for (uint64_t height = 4; height-- > 0;)
+    ASSERT_EQ(block_transition_status_v2::accepted, chain.disconnect_tip(height));
+  EXPECT_EQ(0u, chain.recent_undo_count());
+}
+
+TEST(epose_block_transition_v2, unchanged_history_does_not_multiply_retained_undo_payload)
+{
+  block_transition_limits_v2 bounded = fast_limits();
+  bounded.max_recent_undo_blocks = 2160;
+  block_transition_v2 chain(cryptonote::TESTNET, genesis, parameters, fast_timing,
+      admission_policy, fast_committee, bounded);
+  contexts source;
+  ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, 0));
+  auto member = make_enrollment();
+  member.descriptor.expiry_epoch = 1000;
+  block_apply_summary_v2 summary{};
+  ASSERT_EQ(block_transition_status_v2::accepted,
+      apply_record_block(chain, source, 1, {lifecycle_record(member)}, summary));
+  size_t first_full_payload = 0;
+  crypto::hash rollback_target{};
+  for (uint64_t height = 2; height < 6480; ++height)
+  {
+    ASSERT_EQ(block_transition_status_v2::accepted, apply_empty(chain, source, height));
+    if (height == 4319)
+    {
+      first_full_payload = chain.undo_payload_bytes();
+      rollback_target = chain.state().state_hash();
+    }
+  }
+  EXPECT_EQ(2160u, chain.recent_undo_count());
+  // Same-sized steady-state window, more historical epochs. Only keys
+  // for the boundaries in this window are retained, not any snapshot values.
+  EXPECT_EQ(first_full_payload, chain.undo_payload_bytes());
+  EXPECT_GT(chain.state().membership().memory_usage().snapshots, 350u);
+  EXPECT_NE(nullptr, chain.state().lifecycle().descriptor_for_epoch(
+      member.descriptor.identity_id, 359));
+  for (uint64_t height = 6480; height-- > 4320;)
+    ASSERT_EQ(block_transition_status_v2::accepted, chain.disconnect_tip(height));
+  EXPECT_EQ(rollback_target, chain.state().state_hash());
+  EXPECT_EQ(0u, chain.undo_payload_bytes());
+  EXPECT_EQ(block_transition_status_v2::deep_replay_required, chain.disconnect_tip(4319));
 }

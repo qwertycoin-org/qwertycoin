@@ -24,6 +24,7 @@ and block-validation tests are authoritative.
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Assets, trust boundaries, implemented mitigations, and residual risks. |
 | [`COMMUNITY_SETUP.md`](COMMUNITY_SETUP.md) | Public-test wallet, node, mining, and service-node setup. |
 | [`BENCHMARKS.md`](BENCHMARKS.md) | Admission-work and capacity measurements; not a consensus parameter source. |
+| [`MEMORY.md`](MEMORY.md) | State ownership, journal undo, retention constraints and memory verification. |
 | [`DNS_RECORDS.md`](DNS_RECORDS.md) | QWC-owned DNS records and publication constraints. |
 
 Machine-readable files:

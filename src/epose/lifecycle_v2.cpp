@@ -247,6 +247,31 @@ namespace epose
         && parameter_set_hash != crypto::null_hash;
   }
 
+  state_memory_usage_v2 lifecycle_registry_v2::memory_usage() const
+  {
+    state_memory_usage_v2 usage{};
+    usage.identities = histories_.size();
+    usage.vector_payload_bytes = histories_.capacity() * sizeof(identity_history);
+    for (const auto &history : histories_)
+    {
+      usage.lifecycle_records += history.records.size();
+      usage.vector_payload_bytes += history.records.capacity() * sizeof(lifecycle_record_v2);
+    }
+    return usage;
+  }
+
+  lifecycle_registry_v2::undo_journal lifecycle_registry_v2::checkpoint() const
+  {
+    return {histories_.size(), {}};
+  }
+
+  void lifecycle_registry_v2::rollback(const undo_journal &undo) noexcept
+  {
+    for (auto it = undo.record_sizes.rbegin(); it != undo.record_sizes.rend(); ++it)
+      histories_[it->index].records.resize(it->records_size);
+    histories_.resize(undo.histories_size);
+  }
+
   bool lifecycle_registry_v2::valid() const
   {
     return valid_;
@@ -256,7 +281,8 @@ namespace epose
       const lifecycle_record_v2 &record,
       uint64_t inclusion_epoch,
       uint64_t minimum_effective_epoch,
-      verification_counters_v2 *counters)
+      verification_counters_v2 *counters,
+      undo_journal *undo)
   {
     if (!valid_)
       return lifecycle_status_v2::invalid_context;
@@ -373,7 +399,13 @@ namespace epose
       histories_.push_back(std::move(history));
     }
     else
+    {
+      // Log before mutation, including before a possibly throwing allocation.
+      if (undo != nullptr)
+        undo->record_sizes.push_back({
+            static_cast<size_t>(history_it - histories_.begin()), history_it->records.size()});
       history_it->records.push_back(record);
+    }
     return lifecycle_status_v2::accepted;
   }
 

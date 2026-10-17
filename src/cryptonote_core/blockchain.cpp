@@ -1534,15 +1534,13 @@ bool Blockchain::select_epose_template_records_v2(
   qwertycoin::epose::semantic_state_v2 semantic = m_epose_v2->state();
   for (const qwertycoin::epose::relay_record_selection_v2 &selection : selected)
   {
-    qwertycoin::epose::semantic_state_v2 next = semantic;
     qwertycoin::epose::semantic_apply_summary_v2 summary{};
     const qwertycoin::epose::semantic_transaction_context_v2 transaction{
         height, true, nullptr, nullptr};
-    if (next.apply_transaction(
+    if (semantic.apply_transaction(
             {selection.record}, transaction, contexts, summary)
         != qwertycoin::epose::semantic_status_v2::accepted)
       continue;
-    semantic = std::move(next);
     records.push_back(selection.record);
   }
   return true;
