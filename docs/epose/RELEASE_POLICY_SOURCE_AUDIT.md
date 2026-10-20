@@ -8,7 +8,12 @@ software actually deployed by operators. Owner: Sw0rdfish.
 All default-branch links are pinned to
 [`5a834c2e95ced1b6285605ea9282776fcbe0d382`](https://github.com/qwertycoin-org/qwertycoin/tree/5a834c2e95ced1b6285605ea9282776fcbe0d382).
 The same SHA was the supplied preliminary baseline and was still `origin/main`
-at clone/fetch. Published source tags are not the default branch:
+at clone/fetch. No open PRs/issues were returned. Explicit ancestry checks showed
+`feature/secure-updater`, `feature/automate-release-dns`,
+`feature/epose-node-telemetry-v204`, `feature/p1-governance-ci`,
+`hardening/epose-v2-semantic-batch` and `perf/epose-undo-journal` already contained
+in that baseline; these are not independent pending PRs to duplicate or adopt.
+Published source tags are not the default branch:
 
 - [`v2.0.4`](https://github.com/qwertycoin-org/qwertycoin/tree/1e479cc9feda48e07dd07ba6abcb89ca3934b5e2)
   resolves to `1e479cc9feda48e07dd07ba6abcb89ca3934b5e2`.
@@ -19,6 +24,13 @@ at clone/fetch. Published source tags are not the default branch:
   policy or claim wrapper. Existing signed protocol version 2 cannot establish
   whether the peer runs one of those two releases. The numeric IDs/labels used in
   tests are explicitly fictional registry fixtures, not retroactive attestations.
+
+Both published tags also expose `software_version=QWERTYCOIN_VERSION_FULL` in
+`on_get_epose_service_endpoint_v2` for the local descriptor, alongside
+`telemetry_available` and `telemetry_version`. This is **unsigned RPC telemetry**,
+not a field in the descriptor signing message or authenticated receipt. See
+[`core_rpc_server.cpp`](https://github.com/qwertycoin-org/qwertycoin/blob/f1db1c0df16b180c608d609a6e5966c701d1c292/src/rpc/core_rpc_server.cpp#L993).
+It is useful for operator display, not a historical consensus release claim.
 
 ### Validation and state paths
 
