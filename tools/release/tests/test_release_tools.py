@@ -322,6 +322,21 @@ class RequestValidationTests(unittest.TestCase):
         self.assertIn("options: [require-ready, public-test]", workflow)
         self.assertEqual(workflow.count("STABLE_GATE_POLICY"), 11)
 
+    def test_release_preserves_candidate_bound_epose_verification(self) -> None:
+        import re
+
+        repository = ROOT.parents[1]
+        candidate = (repository / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        assembly = (repository / ".github/workflows/assemble-release.yml").read_text(encoding="utf-8")
+        # Count the compiled Linux suite, not both sides of platform-specific TESTs.
+        # Keep enumeration, execution, recorded evidence and assembly bound together.
+        count = int(re.search(r'test "\$actual_epose_tests" -eq ([0-9]+)', candidate).group(1))
+        self.assertEqual(count, 282)
+        self.assertIn('epose_unit_tests --gtest_list_tests', candidate)
+        self.assertIn("ctest --test-dir build/linux -R '^epose_unit_tests$' --output-on-failure", candidate)
+        self.assertIn(f'"epose_unit_tests": "{count} tests pass"', candidate)
+        self.assertIn(f'.verification.epose_unit_tests == "{count} tests pass"', assembly)
+
     def test_docker_publish_is_called_after_release_verification(self) -> None:
         workflow = (ROOT.parents[1] / ".github/workflows/assemble-release.yml").read_text(
             encoding="utf-8"
