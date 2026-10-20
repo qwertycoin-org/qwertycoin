@@ -100,7 +100,7 @@ namespace daemonizer
     }
     else
     {
-      //LOG_PRINT_L0("Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL);
+      //LOG_PRINT_L0("Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL);
       return executor.run_interactive(vm);
     }
   }

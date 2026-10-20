@@ -11,8 +11,27 @@ import subprocess
 
 
 VERSION_RE = re.compile(r'^#define DEF_QWERTYCOIN_VERSION "([0-9]+\.[0-9]+\.[0-9]+)"$', re.MULTILINE)
-COMPATIBLE_VERSION_RE = re.compile(r'^#define DEF_MONERO_VERSION "([0-9]+(?:\.[0-9]+){3})"$', re.MULTILINE)
+COMPATIBLE_VERSION_RE = re.compile(
+    r'^#define DEF_QWERTYCOIN_COMPATIBLE_VERSION DEF_QWERTYCOIN_VERSION "(\.[0-9]+)"$',
+    re.MULTILINE,
+)
+# Release control tools may also build older, immutable source revisions.
+LEGACY_COMPATIBLE_VERSION_RE = re.compile(r'^#define DEF_MONERO_VERSION "([0-9]+(?:\.[0-9]+){3})"$', re.MULTILINE)
 RELEASE_NAME_RE = re.compile(r'^#define DEF_QWERTYCOIN_RELEASE_NAME "([^"]+)"$', re.MULTILINE)
+
+
+def parse_version_source(source: str) -> tuple[str, str, str]:
+    versions = VERSION_RE.findall(source)
+    names = RELEASE_NAME_RE.findall(source)
+    compatible_suffixes = COMPATIBLE_VERSION_RE.findall(source)
+    legacy_versions = LEGACY_COMPATIBLE_VERSION_RE.findall(source)
+    if len(versions) != 1 or len(names) != 1 or len(compatible_suffixes) + len(legacy_versions) != 1:
+        raise SystemExit("cannot parse unique Core release version/name")
+    version = versions[0]
+    compatible_version = version + compatible_suffixes[0] if compatible_suffixes else legacy_versions[0]
+    if compatible_version.rsplit(".", 1)[0] != version:
+        raise SystemExit("compatible version does not match the Core public version")
+    return version, compatible_version, names[0]
 
 
 def git(*arguments: str) -> str:
@@ -57,12 +76,7 @@ def main() -> None:
     if source_revision != args.expected_revision:
         raise SystemExit("checked-out source revision does not match expected revision")
     source = Path("src/version.cpp.in").read_text(encoding="utf-8")
-    version_match = VERSION_RE.search(source)
-    compatible_version_match = COMPATIBLE_VERSION_RE.search(source)
-    release_name_match = RELEASE_NAME_RE.search(source)
-    if not version_match or not compatible_version_match or not release_name_match:
-        raise SystemExit("cannot parse Core release version/name")
-    version = version_match.group(1)
+    version, compatible_version, release_name = parse_version_source(source)
     if not (args.release_tag == f"v{version}" or re.fullmatch(rf"v{re.escape(version)}-rc[1-9][0-9]*", args.release_tag)):
         raise SystemExit("release tag does not match the Core public version")
 
@@ -80,10 +94,10 @@ def main() -> None:
         "schema_version": 1,
         "release": {
             "version": version,
-            "compatible_version": compatible_version_match.group(1),
+            "compatible_version": compatible_version,
             "tag": args.release_tag,
             "source_revision": source_revision,
-            "release_name": release_name_match.group(1),
+            "release_name": release_name,
             "tag_state": "exact-tag-at-head",
         },
         "workflow": {

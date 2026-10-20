@@ -34,7 +34,8 @@
 TEST(rpc, is_version_string_valid)
 {
   using namespace cryptonote::rpc;
-  ASSERT_TRUE(is_version_string_valid(MONERO_VERSION));
+  ASSERT_TRUE(is_version_string_valid(QWERTYCOIN_COMPATIBLE_VERSION));
+  ASSERT_TRUE(is_version_string_valid(QWERTYCOIN_COMPATIBLE_VERSION_FULL));
   ASSERT_TRUE(is_version_string_valid(QWERTYCOIN_VERSION));
   ASSERT_TRUE(is_version_string_valid(QWERTYCOIN_VERSION_FULL));
   ASSERT_TRUE(is_version_string_valid("0.14.1.2"));
@@ -52,4 +53,25 @@ TEST(rpc, is_version_string_valid)
   ASSERT_FALSE(is_version_string_valid("0.15.0.0-release "));
   ASSERT_FALSE(is_version_string_valid("0.15.0.0-fe3f6a3e60"));
   ASSERT_FALSE(is_version_string_valid("0.15.0.0-fe3f6a3e6 "));
+}
+
+TEST(version, canonical_and_compatible_formats)
+{
+  const std::string version = QWERTYCOIN_VERSION;
+  const std::string tag = QWERTYCOIN_VERSION_TAG;
+  EXPECT_EQ(version + "-" + tag, QWERTYCOIN_VERSION_FULL);
+  EXPECT_EQ(version + ".0", QWERTYCOIN_COMPATIBLE_VERSION);
+  EXPECT_EQ(version + ".0-" + tag, QWERTYCOIN_COMPATIBLE_VERSION_FULL);
+  EXPECT_FALSE(std::string(QWERTYCOIN_RELEASE_NAME).empty());
+}
+
+TEST(version, legacy_source_aliases)
+{
+  // Downstream source consumers retain the exact four-component bytes without
+  // defining or maintaining a second set of version objects.
+  EXPECT_EQ(QWERTYCOIN_COMPATIBLE_VERSION, MONERO_VERSION);
+  EXPECT_EQ(QWERTYCOIN_COMPATIBLE_VERSION_FULL, MONERO_VERSION_FULL);
+  EXPECT_EQ(QWERTYCOIN_VERSION_TAG, MONERO_VERSION_TAG);
+  EXPECT_EQ(QWERTYCOIN_RELEASE_NAME, MONERO_RELEASE_NAME);
+  EXPECT_EQ(&QWERTYCOIN_VERSION_IS_RELEASE, &MONERO_VERSION_IS_RELEASE);
 }

@@ -5,6 +5,31 @@ current published release and the reviewed development source graph. Git
 submodule commits are compatibility boundaries: consumers must not silently
 replace them with a moving branch.
 
+## Core version identifiers
+
+`src/version.cpp.in` defines the product version and release name once, using
+`QWERTYCOIN_*` names. `QWERTYCOIN_VERSION` is the three-component product
+version; `QWERTYCOIN_VERSION_FULL` appends the generated source tag. The tag and
+release flag are exposed as `QWERTYCOIN_VERSION_TAG` and
+`QWERTYCOIN_VERSION_IS_RELEASE`.
+
+`QWERTYCOIN_COMPATIBLE_VERSION` derives the existing four-component format by
+appending `.0` to the product version. Its `_FULL` form appends the same source
+tag. Ledger/Trezor version payloads and the legacy ZMQ info response retain
+their previous four-component bytes; protocol field names, RPC schemas and
+release status semantics are unchanged. This is not a version bump, hard fork
+or network migration.
+
+`version.h` retains the five old `MONERO_*` names as source-only macro aliases
+to the corresponding Qwertycoin identifiers. Downstream source projects can
+rebuild unchanged, but these aliases are not old link-time symbols: consumers
+must rebuild against the matching headers and libraries when updating the
+Core pin. New Core code uses only the Qwertycoin names. The release metadata
+writer derives the compatible version from the canonical definition and also
+accepts the previous literal format when building older immutable source pins.
+Historical upstream copyright notices and hardware protocol names are not
+branding identifiers and remain intact. No Explorer changes are included.
+
 ## Published release
 
 | Component | Release/source | Compatible dependency |

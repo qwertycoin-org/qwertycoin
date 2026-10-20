@@ -579,7 +579,7 @@ namespace rpc
     res.info.block_size_median = res.info.block_weight_median = m_core.get_blockchain_storage().get_current_cumulative_block_weight_median();
     res.info.adjusted_time = m_core.get_blockchain_storage().get_adjusted_time(res.info.height);
     res.info.start_time = m_restricted ? 0 : (uint64_t)m_core.get_start_time();
-    res.info.version = m_restricted ? "" : MONERO_VERSION;
+    res.info.version = m_restricted ? "" : QWERTYCOIN_COMPATIBLE_VERSION;
 
     res.status = Message::STATUS_OK;
     res.error_details = "";
