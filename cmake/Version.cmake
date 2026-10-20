@@ -27,7 +27,7 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 function (write_version tag)
-  set(VERSIONTAG "${tag}" CACHE STRING "The tag portion of the Monero software version" FORCE)
+  set(VERSIONTAG "${tag}" CACHE STRING "The tag portion of the Qwertycoin software version" FORCE)
   configure_file("${PROJECT_SOURCE_DIR}/src/version.cpp.in" "${PROJECT_BINARY_DIR}/version.cpp")
 endfunction ()
 

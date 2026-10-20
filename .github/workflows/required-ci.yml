@@ -65,7 +65,7 @@ jobs:
             --entrypoint /usr/local/bin/qwertycoin-unit-tests \
             qwertycoin-core:required-ci \
             --data-dir=/usr/local/share/qwertycoin/tests/data \
-            --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*:checkpoints_default_mainnet.*:checkpoints_is_alternative_block_allowed.*'
+            --gtest_filter='Serialization.*:JsonSerialization.*:JsonRpcSerialization.*:base58_*.*:qwc_address_branding.*:vercmp.*:checkpoints_default_mainnet.*:checkpoints_is_alternative_block_allowed.*:version.*:rpc.is_version_string_valid'
 
       - name: Export checksum-bound canary binaries from the tested image
         env:
