@@ -362,9 +362,10 @@ class RequestValidationTests(unittest.TestCase):
         workflow = (ROOT.parents[1] / ".github/workflows/docker-packaging.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("RELEASE_TAG: v2.0.1", workflow)
-        self.assertIn("EXPECTED_REVISION: 24d66aab67c96fb46806818bf26cc3615e8d507a", workflow)
-        self.assertNotIn("v2.0.1-rc1", workflow)
+        self.assertIn("RELEASE_TAG: v2.0.4", workflow)
+        self.assertIn("EXPECTED_REVISION: 1e479cc9feda48e07dd07ba6abcb89ca3934b5e2", workflow)
+        self.assertIn('EXPECTED_RUN_ID: "38921122882"', workflow)
+        self.assertNotIn("v2.0.4-rc1", workflow)
         self.assertIn("QWC_RELEASE_ARCHIVE_SHA256=${{ steps.release.outputs.archive_sha256 }}", workflow)
         self.assertNotIn("QWC_RELEASE_ARCHIVE_SHA256=${{ hashFiles(", workflow)
         self.assertIn(".draft == false and .target_commitish == $revision", workflow)
