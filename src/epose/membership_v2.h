@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "crypto/crypto.h"
+#include "epose/memory_usage_v2.h"
 #include "crypto/hash.h"
 #include "cryptonote_config.h"
 #include "epose/verification_v2.h"
@@ -198,6 +199,26 @@ namespace epose
         const admission_policy_v2 &admission_policy,
         const committee_policy_v2 &policy);
 
+    struct lease_change
+    {
+      size_t index = 0;
+      admission_lease_v2 lease{};
+      uint64_t inclusion_height = 0;
+    };
+    // Lengths undo appends; replacements own only the previous fixed-size lease.
+    // Strictly LIFO and process-local, like lifecycle_registry_v2::undo_journal.
+    struct undo_journal
+    {
+      size_t leases_size = 0;
+      size_t receipts_size = 0;
+      std::vector<lease_change> replaced_leases;
+      std::vector<uint64_t> inserted_snapshots;
+      std::vector<uint64_t> inserted_qualifications;
+    };
+    state_memory_usage_v2 memory_usage() const;
+    undo_journal checkpoint() const;
+    void rollback(const undo_journal &undo) noexcept;
+
     bool valid() const;
     const epoch_timing_v2 &timing() const;
     const committee_policy_v2 &committee_policy() const;
@@ -206,7 +227,8 @@ namespace epose
         const admission_lease_v2 &lease,
         const admission_context_v2 &context,
         uint64_t inclusion_height,
-        verification_counters_v2 *counters = nullptr);
+        verification_counters_v2 *counters = nullptr,
+        undo_journal *undo = nullptr);
 
     pipeline_status_v2 freeze_membership(
         uint64_t epoch,
@@ -217,7 +239,8 @@ namespace epose
         uint64_t epoch,
         uint64_t height,
         const crypto::hash &anchor_hash,
-        const std::vector<frozen_member_v2> &authorized_members);
+        const std::vector<frozen_member_v2> &authorized_members,
+        undo_journal *undo = nullptr);
 
     pipeline_status_v2 apply_authenticated_receipt(
         const authenticated_service_receipt_v2 &receipt,
@@ -226,7 +249,8 @@ namespace epose
         const crypto::hash &canonical_round_anchor_hash,
         verification_counters_v2 *counters = nullptr);
 
-    pipeline_status_v2 close_qualification(uint64_t epoch, uint64_t height);
+    pipeline_status_v2 close_qualification(
+        uint64_t epoch, uint64_t height, undo_journal *undo = nullptr);
 
     const membership_snapshot_v2 *snapshot(uint64_t epoch) const;
     const qualification_set_v2 *qualification(uint64_t epoch) const;
@@ -283,7 +307,8 @@ namespace epose
         uint64_t epoch,
         uint64_t height,
         const crypto::hash &anchor_hash,
-        const std::vector<frozen_member_v2> *authorized_members);
+        const std::vector<frozen_member_v2> *authorized_members,
+        undo_journal *undo);
   };
 } // namespace epose
 } // namespace qwertycoin

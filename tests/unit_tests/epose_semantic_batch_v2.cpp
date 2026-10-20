@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <stdexcept>
 
 #include "epose/record_codec_v2.h"
 #include "epose/relay_pool_v2.h"
@@ -328,6 +329,101 @@ TEST(epose_semantic_batch_v2, later_failure_rolls_back_valid_prefix)
   EXPECT_EQ(before, state.state_hash());
   EXPECT_EQ(0u, summary.lifecycle_records);
   EXPECT_EQ(nullptr, state.lifecycle().descriptor_for_epoch(subject.descriptor.identity_id, 3));
+}
+
+TEST(epose_semantic_batch_v2, journal_restores_replaced_lease_and_nested_lifecycle_changes)
+{
+  contexts source;
+  identity original = make_identity("original");
+  auto state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction({registration_record(original)},
+          {1500, false, nullptr}, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction({admission_record(original, source, 4, 2160)},
+          {2200, false, nullptr}, source, summary));
+  const crypto::hash before = state.state_hash();
+  identity recovered = original;
+  recovered.service = make_keys();
+  recovered.descriptor.service_public_key = recovered.service.public_key;
+  recovered.descriptor.effective_epoch = 4;
+  recovered.descriptor.sequence = 1;
+  const std::vector<envelope_record_v2> changes{
+      lifecycle_record(lifecycle_action_v2::recover_service_key, original.descriptor, recovered),
+      admission_record(recovered, source, 4, 2160)};
+  auto invalid = changes;
+  invalid.push_back({255, 1, "invalid"});
+  EXPECT_EQ(semantic_status_v2::invalid_record,
+      state.apply_transaction(invalid, {2201, false, nullptr}, source, summary));
+  EXPECT_EQ(before, state.state_hash());
+
+  auto undo = state.checkpoint();
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(changes, {2201, false, nullptr}, source, summary, &undo));
+  ASSERT_EQ(1u, undo.membership.replaced_leases.size());
+  EXPECT_NE(before, state.state_hash());
+  // A failed nested transaction must not poison the enclosing block's journal.
+  identity newcomer = make_identity("newcomer");
+  newcomer.descriptor.effective_epoch = 4;
+  EXPECT_EQ(semantic_status_v2::invalid_record,
+      state.apply_transaction({registration_record(newcomer), {255, 1, "invalid"}},
+          {2202, false, nullptr}, source, summary, &undo));
+  state.rollback(undo);
+  EXPECT_EQ(before, state.state_hash());
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+  ASSERT_EQ(1u, state.membership().snapshot(4)->members.size());
+  EXPECT_EQ(original.service.public_key,
+      state.membership().snapshot(4)->members.front().service_public_key);
+}
+
+TEST(epose_semantic_batch_v2, journal_reverses_multiple_changes_to_a_new_identity)
+{
+  contexts source;
+  auto state = make_state();
+  const auto before = state.state_hash();
+  identity original = make_identity("new-history");
+  identity updated = original;
+  updated.descriptor.effective_epoch = 4;
+  updated.descriptor.sequence = 1;
+  updated.descriptor.endpoint_descriptor_hash = hash_text("changed-endpoint");
+  semantic_apply_summary_v2 summary{};
+  auto undo = state.checkpoint();
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction({registration_record(original)},
+          {1500, false, nullptr}, source, summary, &undo));
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction({lifecycle_record(lifecycle_action_v2::update_descriptor,
+              original.descriptor, updated)},
+          {1501, false, nullptr}, source, summary, &undo));
+  state.rollback(undo);
+  EXPECT_EQ(before, state.state_hash());
+  EXPECT_EQ(0u, state.lifecycle().memory_usage().lifecycle_records);
+}
+
+TEST(epose_semantic_batch_v2, throwing_context_restores_valid_lifecycle_prefix)
+{
+  class throwing_context final : public canonical_context_source_v2
+  {
+    bool block_hash(uint64_t, crypto::hash &) const override
+    { throw std::runtime_error("context failure"); }
+    bool round_anchor(uint64_t, uint64_t, crypto::hash &) const override
+    { throw std::runtime_error("context failure"); }
+  } throwing;
+  contexts source;
+  auto state = make_state();
+  const auto before = state.state_hash();
+  identity member = make_identity("throwing-context");
+  const std::vector<envelope_record_v2> records{
+      registration_record(member), admission_record(member, source)};
+  semantic_apply_summary_v2 summary{};
+  EXPECT_THROW(state.apply_transaction(records, {1500, false, nullptr}, throwing, summary),
+      std::runtime_error);
+  EXPECT_EQ(before, state.state_hash());
+  EXPECT_EQ(0u, summary.lifecycle_records);
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(records, {1500, false, nullptr}, source, summary));
 }
 
 TEST(epose_semantic_batch_v2, admission_must_match_authorized_historical_descriptor)

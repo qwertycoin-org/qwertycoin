@@ -59,8 +59,8 @@ namespace epose
 
   // Canonical, fail-atomic block adapter. It performs a structural/resource
   // pass over every transaction before any RandomX or signature verification,
-  // then applies records in miner/transaction wire order to a copied semantic
-  // state. The state is committed only after boundary transitions also pass.
+  // then applies records in miner/transaction wire order using a change journal.
+  // Any failure (including an exception) restores the state and tip metadata.
   class block_transition_v2
   {
   public:
@@ -84,6 +84,9 @@ namespace epose
     block_transition_status_v2 disconnect_tip(uint64_t height);
 
     const semantic_state_v2 &state() const;
+    size_t recent_undo_count() const;
+    // Diagnostic payload/capacity only, excluding deque/allocator overhead.
+    size_t undo_payload_bytes() const;
 
   private:
     epoch_timing_v2 timing_{};
@@ -95,7 +98,7 @@ namespace epose
     struct undo_entry
     {
       uint64_t height = 0;
-      semantic_state_v2 prior_state;
+      semantic_state_v2::undo_journal changes;
       bool prior_have_tip = false;
       uint64_t prior_tip_height = 0;
     };
