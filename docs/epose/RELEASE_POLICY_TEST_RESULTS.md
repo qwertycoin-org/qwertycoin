@@ -25,6 +25,8 @@ build/release-policy/tests/unit_tests/epose_unit_tests \
   --gtest_filter='epose_release_policy_prototype.*'
 build/release-policy/tests/unit_tests/epose_unit_tests \
   --gtest_filter='-epose_release_policy_prototype.*'
+# Final combined run after the post-lock early-updater review fix:
+build/release-policy/tests/unit_tests/epose_unit_tests
 ```
 
 At configuration, optional Python functional RPC tests were skipped because the
@@ -35,15 +37,17 @@ new-code indentation warnings found during the first compile were corrected.
 
 ## Results
 
-- Native C++ Release build: succeeded. Incremental rebuild of new sources has no
-  new compiler warnings.
-- New prototype suite: **22/22 passed**, zero failures/errors, 14.364 seconds;
-  GTest XML timestamp `2026-10-20T22:44:00` (host clock).
-- Existing EPoSE regression suite: **282/282 passed**,
-  zero failures/errors, 132.228 seconds; GTest XML timestamp
-  `2026-10-20T22:44:21` (host clock). Together the two runs cover all 304
-  cases in the augmented EPoSE test target.
-- `git diff --check`: passed.
+- Native C++ Release build: succeeded. Final incremental rebuild of new sources
+  has no new compiler warnings.
+- Final combined EPoSE target: **305/305 passed**, including **23 prototype**
+  and **282 existing** cases, zero failures/errors/disabled tests;
+  134.842 seconds; GTest XML timestamp `2026-10-20T22:51:50` (host clock).
+- Earlier focused/regression runs passed 22 new and 282 existing cases. Review
+  then added post-lock stable publication without retroactive rescue and explicit
+  historical-height lookups. The first combined attempt exposed a boundary-test
+  fixture that referenced receipt heights beyond its built chain prefix; it was
+  corrected and the final combined run above passed after all source changes.
+- `git diff --check`: passed. No production `src/` or workflow changes.
 - GitHub CI was still running when this record was written. The PR's
   commit-bound checks (including Linux/Nix, diagnostics ASan and Windows ACL)
   are the source of final CI results; earlier cancelled documentation-head runs
@@ -53,7 +57,7 @@ new-code indentation warnings found during the first compile were corrected.
 
 | Area | What the prototype cases exercise |
 | --- | --- |
-| Stable order | 2.0.4 → 2.0.5 → 2.1.0 with explicit IDs, skipped ordinals, known early updater, unknown/zero/high IDs, duplicate and bad predecessor, prerelease/nightly rejection |
+| Stable order | 2.0.4 → 2.0.5 → 2.1.0 with explicit IDs, skipped ordinals, known early updater including post-lock publication without retroactive rescue, unknown/zero/high IDs, duplicate and bad predecessor, prerelease/nightly rejection |
 | Epoch rule | Publication independent of schedule; multiple pending records, immutable epoch view before admission, exact notice boundary and overflowing epoch rejection |
 | Authority | Two distinct existing-crypto signatures, missing/wrong/duplicate/unused slots, wrong network/genesis/parameter hash, old+new rotation quorum and old-generation rejection |
 | Canonical sequence | First continuation wins, identical-sequence alternative rejected, failures leave state hash unchanged |

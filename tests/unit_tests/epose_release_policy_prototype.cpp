@@ -131,7 +131,9 @@ TEST(epose_release_policy_prototype, epochs_are_frozen_before_admission_and_not_
   driver d; d.bootstrap(); d.empty_to(59); rp::epoch_view original; ASSERT_TRUE(d.state.view(4,original));
   d.publish(3,2,"2.1.0"); d.schedule(3,6); d.empty_to(120);
   rp::epoch_view later; ASSERT_TRUE(d.state.view(4,later)); EXPECT_EQ(original.policy_hash,later.policy_hash);
-  EXPECT_EQ(rp::status::unknown_release,d.state.eligible(3,4)); // published after E4's lock
+  EXPECT_EQ(rp::status::policy_unavailable,d.state.eligible(1,4,58)); // never use a future lock
+  EXPECT_EQ(rp::status::unknown_release,d.state.eligible(3,4,59)); // unavailable before publication
+  EXPECT_EQ(rp::status::accepted,d.state.eligible(3,4,80)); // early updater after publication
   EXPECT_EQ(rp::status::accepted,d.state.eligible(3,5));
   EXPECT_EQ(rp::status::accepted,d.state.eligible(1,5));
   EXPECT_EQ(rp::status::below_minimum,d.state.eligible(1,6));
@@ -358,6 +360,7 @@ TEST(epose_release_policy_prototype, activation_round_and_deadline_boundary_bloc
     EXPECT_EQ(h==119 ? rp::status::accepted : rp::status::below_minimum,
         d.state.eligible(1,h/20)); // H-1 / H / H+1
   }
+  d.empty_to(138); // canonical prefix must exist before testing later receipt heights
   std::vector<node> nodes; for (unsigned i=0;i<4;++i) nodes.emplace_back(d.c.context);
   auto p=pipeline(d.c); enroll(p,d.c,nodes,6);
   auto r=proof(d,p,nodes[0],nodes[1],6,0,2,2); const auto a=r.service.challenge.anchor_hash;
@@ -386,5 +389,19 @@ TEST(epose_release_policy_prototype, policy_archive_limit_and_uint64_ids_fail_cl
   r=exhausted.make(rp::operation::publish); r.release_id=0;
   r.predecessor=std::numeric_limits<uint64_t>::max(); r.label="2.0.0";
   EXPECT_EQ(rp::status::invalid_release,exhausted.try_record(r));
+}
+TEST(epose_release_policy_prototype, post_lock_publication_admits_early_updater_without_retroactive_rescue) {
+  driver d; d.bootstrap(); d.empty_to(80); rp::epoch_view before;
+  ASSERT_TRUE(d.state.view(4,before));
+  d.publish(3,2,"2.1.0"); // publication at 81, well after E4 lock at 59
+  d.empty_to(100); rp::epoch_view after; ASSERT_TRUE(d.state.view(4,after));
+  EXPECT_EQ(before.policy_hash,after.policy_hash); EXPECT_EQ(before.minimum,after.minimum);
+  EXPECT_EQ(rp::status::unknown_release,d.state.eligible(3,4,80));
+  EXPECT_EQ(rp::status::accepted,d.state.eligible(3,4,81));
+  std::vector<node> nodes; for (unsigned i=0;i<4;++i) nodes.emplace_back(d.c.context);
+  auto p=pipeline(d.c); enroll(p,d.c,nodes,4);
+  auto r=proof(d,p,nodes[0],nodes[1],4,0,3,2);
+  EXPECT_EQ(rp::status::unknown_release,rp::apply_receipt(r,d.state,p,80,r.service.challenge.anchor_hash));
+  EXPECT_EQ(rp::status::accepted,rp::apply_receipt(r,d.state,p,81,r.service.challenge.anchor_hash));
 }
 } // namespace

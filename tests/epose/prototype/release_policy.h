@@ -73,6 +73,7 @@ public:
   bool disconnect_tip(); // bounded; beyond undo_depth requires canonical replay
   bool view(uint64_t epoch, epoch_view &out) const;
   status eligible(uint64_t release, uint64_t epoch) const;
+  status eligible(uint64_t release, uint64_t epoch, uint64_t inclusion_height) const;
   uint64_t next_sequence() const;
   crypto::hash tip_policy_hash() const;
   crypto::hash state_hash() const;

@@ -25,7 +25,7 @@ are consensus decisions, not command-line convenience flags on public networks.
 | --- | --- |
 | H0 | Initial protocol rollout: policy carrier/parsing enabled (Mainnet **unset**) |
 | Hp | Height of canonical policy announcement, not website publication time |
-| L(E) | Last block fixing policy/release availability for target service epoch E |
+| L(E) | Last block fixing the minimum window for target service epoch E (later stable publications may add eligible early updaters) |
 | H | `start(E)`; start of affected service epoch, NOT a stop-all-payouts height |
 | E | First wholly affected service/qualification epoch |
 | R | Reward epoch `E+1`, beginning at `(E+1)*720` in the current zero-offset profile |
@@ -43,7 +43,7 @@ Assume a previously bootstrapped compatible network with existing window IDs
 
 | Event/boundary | Height | Consequence |
 | --- | ---: | --- |
-| Stable ID6 published in canonical registry | 29000 | Early use permitted for target epochs whose lock includes this record; GitHub publication alone is insufficient. |
+| Stable ID6 published in canonical registry | 29000 | Early use permitted for evidence included after this canonical publication, against the target epoch's frozen floor; GitHub publication alone is insufficient. |
 | Hp: schedule head6 for E50 | 29500 | Announced, not yet the effective floor; no current earned claim removed. |
 | Last acceptable Hp for notice=5040 | 30239 | `L(50)-5040`; height 30240 is too late. |
 | L(50) | 35279 | `49*720-1`; 5779 blocks after Hp, exceeds minimum. |

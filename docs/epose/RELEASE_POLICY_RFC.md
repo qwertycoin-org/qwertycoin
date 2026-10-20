@@ -51,6 +51,22 @@ centralized release authorization, **not decentralized release governance**.
 It cannot install unknown service functions, record formats or consensus rules
 into an old validator. Bootstrap and later protocol upgrades still need rollout.
 
+### Proposed integration flow (not yet wired into the daemon)
+
+```mermaid
+flowchart LR
+  A[Developer release keys] --> B[Canonical publication and schedule]
+  B --> C[Frozen target-epoch minimum]
+  B --> D[Registered releases at evidence inclusion]
+  C --> E[Signed subject and verifier evidence]
+  D --> E
+  E --> F[Existing positive qualification]
+  F --> G[Next reward epoch]
+```
+
+Off-chain service checks still establish only what a verifier observed. Optional
+DNS/HTTP/GitHub mirrors are not inputs to the above consensus derivation.
+
 ## Safety boundary
 
 | Goal/attack | Guarantee |
@@ -109,14 +125,18 @@ nonzero optional H0 and an independently supplied test genesis/parameter hash.
   outside this register. Leading zero components do not create numeric semantics.
 - `schedule` chooses a registered stable head and target service epoch E. Its
   predecessor is the floor. **Registered newer stable releases** are also allowed
-  early, provided they were published by that epoch's lock. A fabricated higher
-  ID, zero ID, missing ID or a release published after the lock is rejected.
+  early, including when published after that epoch's lock. Registration must
+  exist in the canonical prefix at the receipt's inclusion height. A fabricated
+  higher ID, zero ID, missing ID or not-yet-published ID is rejected. Later
+  publication cannot rescue an earlier invalid receipt on historical replay.
 - Lock `L(E)=start(E-1)-1`, BEFORE the first admission-context block. Records
   through L(E) determine E's binding; that binding cannot change on descendants
-  merely because another release was announced. A new early updater published
-  after L(E) must use already authorized evidence for E and start its new claim
-  in the next epoch with an applicable frozen register. This boundary must be
-  explained by the future producer/RPC, not silently treated as an invalid binary.
+  merely because another release was announced. The **minimum window** is
+  frozen; the publication register can grow monotonically. Newly registered
+  stable releases above the frozen floor are allowed for subsequent evidence,
+  without changing that floor/hash or invalidating any existing proof. The
+  receipt inclusion height is explicit in this lookup, even if a test/replay
+  object already holds later publications; there is no future-register shortcut.
 - For every scheduled change included at Hp, enforce `L(E)-Hp >= notice`, using
   checked ordering/subtraction rather than potentially overflowing addition.
   The policy is known before admission, freeze, anchor and round zero. H is
@@ -139,7 +159,9 @@ nonzero optional H0 and an independently supplied test genesis/parameter hash.
 
 A frozen epoch view returns head, minimum, lock, last included policy sequence
 and a binding hash of context, target epoch, lock and last included record hash.
-Only registry membership plus this view determines release eligibility. DNS,
+Only registry membership at the receipt inclusion height plus this frozen view
+determines release eligibility. Later publication never changes earlier heights.
+DNS,
 HTTP, peer version lists, the current GitHub release and descriptor caches are
 not inputs. Canonical release metadata is carried in full, not only a hash.
 The parameter-set hash must commit the reviewed production configuration at

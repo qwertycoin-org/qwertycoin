@@ -245,10 +245,14 @@ bool chain::view(uint64_t epoch, epoch_view &out) const
   return out.minimum!=0;
 }
 status chain::eligible(uint64_t release, uint64_t epoch) const
+{ return eligible(release,epoch,tip_ ? *tip_ : 0); }
+status chain::eligible(uint64_t release, uint64_t epoch, uint64_t inclusion_height) const
 {
-  epoch_view v{}; if (!view(epoch,v)) return status::policy_unavailable;
+  epoch_view v{};
+  if (!view(epoch,v) || !tip_ || inclusion_height<v.lock_height || inclusion_height>*tip_)
+    return status::policy_unavailable;
   bool found=false;
-  for (const auto &e:records_) if (e.height<=v.lock_height && e.value.op==operation::publish
+  for (const auto &e:records_) if (e.height<=inclusion_height && e.value.op==operation::publish
       && e.value.release_id==release) found=true;
   if (!found) return status::unknown_release;
   return release<v.minimum ? status::below_minimum : status::accepted;
@@ -297,7 +301,7 @@ status apply_receipt(const receipt &r, const chain &policies, membership_pipelin
   if (!policies.view(r.service.challenge.epoch,v)) return status::policy_unavailable;
   if (r.version!=1 || r.policy_hash!=v.policy_hash) return status::wrong_policy;
   for (uint64_t id:{r.subject_release,r.verifier_release}) {
-    const status result=policies.eligible(id,r.service.challenge.epoch);
+    const status result=policies.eligible(id,r.service.challenge.epoch,height);
     if (result!=status::accepted) return result;
   }
   const auto &ctx=policies.config().context;
