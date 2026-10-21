@@ -221,8 +221,16 @@ rules. Do not make a negative ban list or operator-address control a side effect
 ### Authority and bounded recovery
 
 Test policy uses ordinary existing cryptographic signatures, **2 of 3 independent
-keys**, not a new threshold signature algorithm. Distinct keys are enforced;
-distinct custodians/locations are operational requirements, not cryptographic facts.
+keys**, not a new threshold signature algorithm. All three configured keys and
+all three proposed rotation keys must be distinct, canonically encoded,
+non-identity points in the prime-order subgroup, including any slot not selected
+by the signature mask. Curve decoding alone (`crypto::check_key`) is insufficient:
+the identity permits signatures using the publicly known zero scalar and can
+reduce a nominal 2/3 authorization to one real signing secret. Reuse the existing
+RingCT subgroup check with an explicit identity rejection; no new cryptographic
+primitive is introduced. Invalid key sets must be rejected before accepting
+signatures from that set, without advancing policy sequence or key generation.
+Distinct custodians/locations are operational requirements, not cryptographic facts.
 Lead developers authorize official service releases. Their technical powers are
 publication, forward two-release-window scheduling, bounded pending cancellation
 and key rotation. They cannot write node IDs, wallet addresses, emission, PoW,
@@ -250,7 +258,9 @@ H0 and bootstrap IDs are intentionally absent.
 
 At most one policy record per synthetic block, 768 bytes before parsing,
 three current signature checks (plus three new on rotation), label 32 bytes,
-4096 policy records total and 128 retained undo blocks. After the research cap,
+4096 policy records total and 128 retained undo blocks. Bootstrap and each
+proposed rotation also validate all three public keys, including subgroup
+checks; production resource accounting must include that work. After the research cap,
 additional records fail closed; this is **not a final production lifetime-cap
 policy**. Canonical history is retained for reproducibility; scans are bounded by
 that cap (cancellation lookup uses a set, not nested history scans). Tip undo

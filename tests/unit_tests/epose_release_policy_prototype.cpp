@@ -3,11 +3,13 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <limits>
 #include "../epose/prototype/release_policy.h"
 #include "epose/lifecycle_v2.h"
 #include "epose/reward_v2.h"
 #include "epose/canonical_service_v2.h"
+#include "ringct/rctOps.h"
 
 namespace {
 using namespace qwertycoin::epose;
@@ -157,6 +159,69 @@ TEST(epose_release_policy_prototype, rotation_needs_old_and_new_quorums_and_reje
   EXPECT_EQ(rp::status::invalid_authorization,d.try_record(next));
   next.generation=1; rp::sign(next,0,fresh[0].secret,d.c.context); rp::sign(next,1,fresh[1].secret,d.c.context);
   EXPECT_EQ(rp::status::accepted,d.state.apply_block(d.next,{rp::encode(next)}));
+}
+std::vector<crypto::public_key> weak_authority_keys() {
+  const auto identity=rct::rct2pk(rct::identity());
+  const crypto::public_key order_four{};
+  keys ordinary;
+  const auto mixed=rct::rct2pk(rct::addKeys(rct::pk2rct(ordinary.pub),rct::pk2rct(order_four)));
+  return {identity,order_four,mixed};
+}
+TEST(epose_release_policy_prototype, authority_configuration_rejects_identity_torsion_and_mixed_order_keys) {
+  authorities a;
+  for (const auto &bad:weak_authority_keys()) {
+    ASSERT_TRUE(crypto::check_key(bad)); // curve decoding alone is insufficient
+    for (size_t slot=0;slot<3;++slot) {
+      auto c=config(a); c.authority[slot]=bad;
+      rp::chain state(c);
+      EXPECT_FALSE(state.valid());
+      EXPECT_EQ(rp::status::invalid_configuration,state.apply_block(0,{}));
+    }
+  }
+}
+TEST(epose_release_policy_prototype, authority_configuration_rejects_malformed_and_duplicate_keys) {
+  authorities a;
+  crypto::public_key malformed;
+  std::memset(&malformed,0xff,sizeof(malformed));
+  ASSERT_FALSE(crypto::check_key(malformed));
+  for (size_t slot=0;slot<3;++slot) {
+    auto c=config(a); c.authority[slot]=malformed;
+    EXPECT_FALSE(rp::chain(c).valid());
+    c=config(a); c.authority[slot]=c.authority[(slot+1)%3];
+    EXPECT_FALSE(rp::chain(c).valid());
+  }
+}
+TEST(epose_release_policy_prototype, identity_authority_signature_needs_no_secret_and_must_not_count) {
+  authorities a; auto c=config(a);
+  const crypto::secret_key public_zero_scalar{};
+  ASSERT_TRUE(crypto::secret_key_to_public_key(public_zero_scalar,c.authority[0]));
+  ASSERT_EQ(rct::rct2pk(rct::identity()),c.authority[0]);
+  rp::record r; r.sequence=1; r.release_id=1; r.label="2.0.4"; r.signer_mask=3;
+  // An identity slot contributes a valid signature using only the public zero
+  // scalar: accepting this key would reduce 2-of-3 to one real signing secret.
+  rp::sign(r,0,public_zero_scalar,c.context); rp::sign(r,1,a[1].secret,c.context);
+  ASSERT_TRUE(crypto::check_signature(rp::signing_hash(r,c.context),c.authority[0],r.signatures[0]));
+  ASSERT_TRUE(crypto::check_signature(rp::signing_hash(r,c.context),c.authority[1],r.signatures[1]));
+  rp::chain state(c);
+  EXPECT_FALSE(state.valid());
+  EXPECT_EQ(rp::status::invalid_configuration,state.apply_block(0,{}));
+}
+TEST(epose_release_policy_prototype, rotation_rejects_weak_keys_including_the_unused_slot_atomically) {
+  for (const auto &bad:weak_authority_keys()) {
+    for (size_t slot=0;slot<3;++slot) {
+      driver d; d.bootstrap(); authorities fresh;
+      auto r=d.make(rp::operation::rotate); r.next_keys=public_keys(fresh);
+      r.next_keys[slot]=bad;
+      r.next_signer_mask=static_cast<uint8_t>(7u ^ (1u<<slot));
+      for (size_t i=0;i<3;++i) if (i!=slot)
+        rp::sign(r,i,fresh[i].secret,d.c.context,true);
+      const auto before=d.state.state_hash();
+      EXPECT_EQ(rp::status::invalid_authorization,d.try_record(r));
+      EXPECT_EQ(before,d.state.state_hash());
+      // Rejection must not advance the key generation or policy sequence.
+      d.publish(3,2,"2.1.0");
+    }
+  }
 }
 TEST(epose_release_policy_prototype, parser_is_bounded_canonical_and_failure_atomic) {
   driver d; d.bootstrap(); auto r=d.make(rp::operation::publish); r.release_id=3; r.predecessor=2; r.label="2.1.0"; d.authorize(r);

@@ -1,6 +1,7 @@
 // Copyright (c) 2026, Qwertycoin
 // SPDX-License-Identifier: BSD-3-Clause
 #include "release_policy.h"
+#include "ringct/rctOps.h"
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -32,7 +33,9 @@ template<class T> bool zero(const T &v) { const T z{}; return std::memcmp(&v,&z,
 bool keys_valid(const key_set &keys)
 {
   for (size_t i=0;i<keys.size();++i) {
-    if (!crypto::check_key(keys[i])) return false;
+    if (!crypto::check_key(keys[i])
+        || keys[i]==rct::rct2pk(rct::identity())
+        || !rct::isInMainSubgroup(rct::pk2rct(keys[i]))) return false;
     for (size_t j=0;j<i;++j) if (keys[i]==keys[j]) return false;
   }
   return true;
