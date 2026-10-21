@@ -204,6 +204,8 @@ add_test(
   COMMAND epose_keystore_v2_tests)
 
 monero_add_minimal_executable(epose_unit_tests
+  epose_release_policy_prototype.cpp
+  ../epose/prototype/release_policy.cpp
   epose.cpp
   epose_block_transition_v2.cpp
   epose_replay_v2.cpp
