@@ -48,6 +48,10 @@ latest checkpoint.
 | 24479 | Epoch 33 end | `8bf8433b1bd11881acf71f750af9da264749126865fc8b170b41cc2979711e28` | `0x2ad2f01f417` |
 | 25199 | Epoch 34 end | `28d4f0c224cd7ba84ecca9c64c36763ad38cdd4b8c830b2e9a0338e719e0b19c` | `0x2ba9342a571` |
 | 25919 | Epoch 35 end | `152427834b4352c836b94620114c9594a8f1e4394669ce594b9db0b153606e23` | `0x2c86a5fc17f` |
+| 26639 | Epoch 36 end | `23f9718efdb5b8fdd84bc1378fa2a9d28c810c04dd986b19e916a93fa9560f64` | `0x2d1085577ac` |
+| 27359 | Epoch 37 end | `42be2bf41a3c6b098332203342c72c9334f5d4d84e43f822eff52e6ed7d405bf` | `0x2d90b126250` |
+| 28079 | Epoch 38 end | `97d0ba66793444def007f4884f17591900d616b1e51daa1c1268c7624893195c` | `0x2de9fb17a04` |
+| 28799 | Epoch 39 end | `ffa3bb6be59c98d8767be76da85ebade66385e0458b203eccc92d205e74a353d` | `0x2e52e89879b` |
 
 Each post-genesis `Epoch N end` entry is the end of a completed 720-block
 EPoSE epoch. The table is intentionally append-only: existing height, hash, and
