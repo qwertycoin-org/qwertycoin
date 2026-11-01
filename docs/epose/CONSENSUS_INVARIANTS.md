@@ -6,16 +6,26 @@ source of truth.
 
 ## Chain and activation
 
-1. RandomX proof of work is the sole block-production and chain-selection
-   mechanism.
+1. RandomX proof of work is the sole block-production mechanism. Chain
+   selection is cumulative difficulty, except that from QWC-HF18 a chain whose
+   highest on-chain ChainLock is lower than the current chain's cannot replace
+   a ChainLocked block; compiled and JSON checkpoints override and tombstone
+   conflicting ChainLocks.
 2. Public QWC-HF17 starts at height `0` and remains the only scheduled block
    version. Height `21,600`, the start of service epoch `30`, activates only
    local receipt relay/template policy in updated nodes; it does not change
-   consensus or split block validity.
+   consensus or split block validity. QWC-HF18 (`HF_VERSION_QWC_CONTRACTS`)
+   is the next block version; none of its rules, ChainLocks included, apply
+   below the activation height compiled into the hard-fork table.
 3. Mainnet consensus parameters are compiled and bound to the exact genesis
    and parameter-set hashes.
 4. Runtime files, CLI options, DNS, RPC, explorer, and monitoring cannot change
-   block validity.
+   block validity. A ChainLock affects block validity only when carried in a
+   coinbase `0x09` tx-extra field: it must lock an ancestor no more than 720
+   blocks deep, be newer than the chain's last on-chain lock, name
+   `epoch_of(height)`, and carry exactly `ceil(0.68*n)` ascending quorum
+   signatures. Locks received over P2P only steer fork choice between
+   otherwise valid chains.
 5. Legacy-v1 records and configuration never populate v2 state.
 
 ## Determinism and ordering
@@ -28,6 +38,29 @@ source of truth.
 9. Qualification closes after processing the inclusive evidence-deadline block.
 10. Committee selection and payee selection depend only on committed canonical
     data, never arrival order or local cache order.
+
+The schema-1 state hash is pinned after every block in a deterministic
+multi-epoch fixture. The change journal is local undo data and does not alter
+these HF17 commitment bytes. The contracts
+version has a fork-gated schema-2 membership fold, specified in
+[ADR-0011](review/ADR-0011-ROLLING-EPOCH-WINDOW.md). Mainnet and stagenet
+remain unscheduled. Blockchain epoch queries distinguish folded epochs from
+absent retained records.
+
+Schema 2 retains eight closed epochs and the open epoch. Each live identity
+keeps one baseline lifecycle record before the retained floor and every later
+effective record. Earlier records and identities expired or deregistered before
+the floor are folded into the history root. Retroactive-change and duplicate
+checks, service-key conflict intervals, epoch descriptor lookup, and key reuse
+use only this retained data and the permanent retired-key vector. The state
+bound includes the retained window, retired-key vector capacity, and retired
+keys held by unexpired fold journals. A fixed 32-byte-per-key bound omits the
+journal and vector spare capacity.
+Only explicit deregistration permanently retires operator and service keys.
+An expiry-only fold permits re-registration with the same keys.
+Schema-2 lifecycle changes may become effective at most eight epochs after
+inclusion, and their lease length is capped at 30 epochs. Earlier schema-1
+future commitments remain until they take effect.
 
 ## Identity and admission
 
@@ -50,8 +83,11 @@ source of truth.
 20. Positive evidence requires both subject and verifier signatures.
 21. The response object must equal the requested canonical object in the
     verifier's local chain view.
-22. Consensus receipt validation performs no network I/O, DNS lookup, wall-clock
-    comparison, or external API call.
+22. Consensus receipt and ChainLock validation performs no network I/O, DNS
+    lookup, wall-clock comparison, or external API call. The ChainLock quorum
+    is at most 50 members of the epoch snapshot qualified in the previous
+    epoch, a lock needs 34 of 50 (`ceil(0.68*n)`), and no lock forms below 10
+    members.
 23. One semantic receipt slot counts at most once; an authenticated exact
     duplicate is idempotent and a conflict is invalid.
 24. Quorum is `ceil(2*n/3)` of the committee that can actually be formed, and
