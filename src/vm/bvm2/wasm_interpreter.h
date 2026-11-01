@@ -11,11 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Modified by the Qwertycoin developers, 2026.
 
 #pragma once
-#include "../utility/common.h"
-#include "../utility/containers.h"
-#include "../utility/byteorder.h"
+#include "common.h"
+#include "containers.h"
+#include "byteorder.h"
 
 #include <limits>
 #include <set>
@@ -25,7 +26,6 @@ namespace Wasm {
 
 	typedef uint32_t Word;
 
-	// wasm uses LE format
 	template <typename T>
 	inline T to_wasm(T x)
 	{
@@ -49,7 +49,7 @@ namespace Wasm {
 	inline T from_wasm(const uint8_t* p)
 	{
 		T x;
-		memcpy(&x, p, sizeof(x)); // fix alignment
+		memcpy(&x, p, sizeof(x));
 		return from_wasm(x);
 	}
 
@@ -70,17 +70,7 @@ namespace Wasm {
 		const uint8_t* m_p0;
 		const uint8_t* m_p1;
 
-		enum struct Mode {
-			AutoWorkAround, // automatically remove conflicting flags. Default during compilation
-			Restrict,       // fail if conflicting flags are detected. Default for tx verification
-			Emulate_x86,    // emulate unfixed x86/amd64 behavior
-			Standard,       // Comply to wasm standard. Will be activated on the HF4
-
-		} m_Mode;
-
-		bool m_ModeTriggered = false;
-
-		Reader(Mode eMode = Mode::AutoWorkAround) :m_Mode(eMode) {}
+		Reader() = default;
 
 		void Ensure(uint32_t n);
 		const uint8_t* Consume(uint32_t n);
@@ -142,7 +132,7 @@ namespace Wasm {
 		struct PerImport {
 			Vec<char> m_sMod;
 			Vec<char> m_sName;
-			uint32_t m_Binding; // set by the env before compiling
+			uint32_t m_Binding;
 		};
 
 		struct PerImportFunc :public PerImport {
@@ -202,7 +192,7 @@ namespace Wasm {
 					uint32_t m_PosWords;
 				};
 
-				std::vector<PerType> m_v; // including args
+				std::vector<PerType> m_v;
 
 				uint32_t get_SizeWords() const;
 				void Add(uint8_t nType);
@@ -220,8 +210,8 @@ namespace Wasm {
 
 		struct PerExport {
 			Vec<char> m_sName;
-			uint8_t m_Kind; // 0 for function
-			uint32_t m_Idx; // Type index for function
+			uint8_t m_Kind;
+			uint32_t m_Idx;
 		};
 
 		std::vector<PerExport> m_Exports;
@@ -244,8 +234,7 @@ namespace Wasm {
 		Word m_cmplData0;
 		Word m_cmplTable0;
 
-		void Parse(const Reader&); // parses the wasm file info, sets labels for local functions. No compilation yet.
-		// Time to set the external bindings, create a header, etc.
+		void Parse(const Reader&);
 
 		void BuildPass(bool bDependentOnly);
 		void Build();
@@ -300,8 +289,8 @@ namespace Wasm {
 			Word* m_pPtr;
 			Word m_Pos;
 			Word m_PosMin;
-			Word m_BytesMax; // total stack size
-			Word m_BytesCurrent; // operand stack remaining, before it collides with alias stack
+			Word m_BytesMax;
+			Word m_BytesCurrent;
 
 			static const Word s_Alignment = 16;
 			static Word AlignUp(Word);
@@ -363,15 +352,15 @@ namespace Wasm {
 				}
 			}
 
-			IMPLEMENT_GET_PARENT_OBJ(Processor, m_Stack) // for logging
+			IMPLEMENT_GET_PARENT_OBJ(Processor, m_Stack)
 
 		private:
 
 #ifdef WASM_INTERPRETER_DEBUG
 			template <typename T> void Log(T, bool bPush);
-#else // WASM_INTERPRETER_DEBUG
+#else
 			template <typename T> void Log(T, bool bPush) {}
-#endif // WASM_INTERPRETER_DEBUG
+#endif
 		} m_Stack;
 
 #ifdef WASM_INTERPRETER_DEBUG
@@ -382,12 +371,9 @@ namespace Wasm {
 			bool m_Instructions = false;
 			bool m_ExtCall = false;
 		} m_Dbg;
-#endif // WASM_INTERPRETER_DEBUG
+#endif
 
-		Processor()
-			:m_Instruction(Reader::Mode::Standard)
-		{
-		}
+		Processor() = default;
 
 		Word get_Ip() const;
 		void Jmp(uint32_t ip);
@@ -421,5 +407,5 @@ namespace Wasm {
 	std::ostream& operator << (std::ostream&, const Compiler::PerImport&);
 	std::ostream& operator << (std::ostream&, const Compiler::PerImportFunc&);
 
-} // namespace Wasm
-} // namespace beam
+}
+}

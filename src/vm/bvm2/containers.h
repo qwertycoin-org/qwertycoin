@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Modified by the Qwertycoin developers, 2026.
 
 #pragma once
 #include "common.h"
@@ -26,7 +27,7 @@ namespace intrusive
 	{
 		TKey m_Key;
 		bool operator < (const set_base_hook& x) const { return m_Key < x.m_Key; }
-	
+
 		struct Comparator
 		{
 			bool operator()(const TKey& a, const set_base_hook& b) const { return a < b.m_Key; }
@@ -109,6 +110,5 @@ namespace intrusive
 		~list_autoclear() { list<TEntry>::Clear(); }
 	};
 
-} // namespace intrusive
-} // namespace beam
-
+}
+}
