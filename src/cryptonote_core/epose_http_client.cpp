@@ -50,6 +50,8 @@ namespace
     return *slot;
   }
 
+  thread_local bool owns_transport = false;
+
   boost::asio::io_context &timer_context(boost::asio::steady_timer &timer)
   {
 #if BOOST_VERSION >= 107000
@@ -83,7 +85,7 @@ namespace
     // client's handlers remain alive; no handlers refer to a returned caller.
     io.restart();
     io.poll();
-    if (transport().resolving || std::chrono::steady_clock::now() >= deadline)
+    if (std::chrono::steady_clock::now() >= deadline)
       throw boost::system::system_error(boost::asio::error::timed_out);
     struct lookup
     {
@@ -104,6 +106,19 @@ namespace
       auto cancel = std::move(pending->cancel);
       if (cancel) cancel();
     });
+    // A cancelled libc lookup still owns the slot. Spend this caller's budget
+    // waiting for its completion without enqueueing another resolver operation.
+    while (transport().resolving && !pending->done)
+    {
+      io.restart();
+      io.run_one();
+    }
+    if (pending->done || std::chrono::steady_clock::now() >= deadline)
+    {
+      pending->done = true;
+      pending->timer.cancel();
+      throw boost::system::system_error(boost::asio::error::timed_out);
+    }
     transport().resolving = true;
     const auto complete = [pending, deadline](boost::system::error_code error,
         std::vector<boost::asio::ip::address> addresses) {
@@ -261,7 +276,11 @@ namespace
   }
 
   epose_http_client::epose_http_client()
-    : lease_(transport().mutex, std::try_to_lock) {}
+    : lease_(transport().mutex, std::defer_lock)
+  {
+    // try_lock on a non-recursive mutex already owned by this thread is UB.
+    if (!owns_transport && lease_.try_lock()) owns_transport = true;
+  }
 
   epose_http_client::~epose_http_client()
   {
@@ -270,6 +289,7 @@ namespace
       transport().client.disconnect();
       // Drop injected functions and per-request addresses before returning.
       transport().client.set_connector(epee::net_utils::direct_connect{});
+      owns_transport = false;
     }
   }
 

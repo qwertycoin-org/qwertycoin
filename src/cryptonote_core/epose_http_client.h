@@ -36,6 +36,8 @@ namespace cryptonote
     // after cancellation). Cancellation must also return promptly. Late
     // completions must own their state; io outlives the caller. A pending lookup
     // occupies the sole resolver slot until completion, even after cancellation.
+    // Throwing must leave no outstanding operation or future completion: the
+    // caller releases admission on exception. Synchronous completion is allowed.
     std::function<cancel_resolve(const std::string &, boost::asio::io_context &,
         resolve_handler)> resolve;
     std::function<boost::unique_future<boost::asio::ip::tcp::socket>(

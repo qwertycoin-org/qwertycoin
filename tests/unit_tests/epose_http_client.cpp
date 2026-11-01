@@ -34,6 +34,32 @@ namespace
     };
   }
 
+  // Complete held test lookups and drain cancelled timers even after ASSERT
+  // returns early. Declare before leases so cleanup runs after they are released.
+  struct resolver_cleanup
+  {
+    boost::asio::io_context *executor = nullptr;
+    epose_network_v2::resolve_handler late;
+    void track(boost::asio::io_context &io, epose_network_v2::resolve_handler complete)
+    {
+      executor = &io;
+      late = std::move(complete);
+    }
+    ~resolver_cleanup()
+    {
+      if (!executor) return;
+      epose_http_client lease;
+      EXPECT_TRUE(lease.available());
+      if (!lease.available()) return;
+      if (late)
+        boost::asio::post(*executor, [complete = std::move(late)] {
+          complete(boost::asio::error::operation_aborted, {});
+        });
+      executor->restart();
+      executor->poll();
+    }
+  };
+
   consensus_parameters_v2 parameters()
   {
     consensus_parameters_v2 out{};
@@ -574,8 +600,9 @@ TEST(epose_http_client, fallback_stops_at_shared_deadline)
 
 TEST(epose_http_client, unresolved_lookup_is_bounded_and_does_not_queue_replacements)
 {
-  epose_network_v2::resolve_handler late;
-  boost::asio::io_context *executor = nullptr;
+  resolver_cleanup cleanup;
+  auto &late = cleanup.late;
+  auto &executor = cleanup.executor;
   unsigned resolves = 0, cancels = 0, connects = 0;
   epose_network_v2 network;
   network.resolve = [&](const std::string &, boost::asio::io_context &io,
@@ -590,13 +617,15 @@ TEST(epose_http_client, unresolved_lookup_is_bounded_and_does_not_queue_replacem
     throw boost::system::system_error(boost::asio::error::connection_refused);
   };
   std::chrono::steady_clock::duration elapsed{};
-  for (unsigned i = 0; i < 100; ++i)
+  for (unsigned i = 0; i < 3; ++i)
   {
     epose_http_client client;
     ASSERT_TRUE(prepare_epose_http_client(client, "subject.example.org", 8198, network).accepted());
     const auto started = std::chrono::steady_clock::now();
     EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(30)));
-    elapsed += std::chrono::steady_clock::now() - started;
+    const auto attempt_elapsed = std::chrono::steady_clock::now() - started;
+    EXPECT_GE(attempt_elapsed, std::chrono::milliseconds(25));
+    elapsed += attempt_elapsed;
     EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
   }
   EXPECT_GE(elapsed, std::chrono::milliseconds(25));
@@ -618,8 +647,9 @@ TEST(epose_http_client, unresolved_lookup_is_bounded_and_does_not_queue_replacem
 
 TEST(epose_http_client, late_completion_after_return_is_ignored_and_capacity_recovers)
 {
-  epose_network_v2::resolve_handler late;
-  boost::asio::io_context *executor = nullptr;
+  resolver_cleanup cleanup;
+  auto &late = cleanup.late;
+  auto &executor = cleanup.executor;
   {
     epose_network_v2 network;
     network.resolve = [&](const std::string &, boost::asio::io_context &io,
@@ -722,10 +752,12 @@ TEST(epose_http_client, public_literals_bypass_resolver)
 
 TEST(epose_http_client, dns_deadline_classified_for_discovery_and_service)
 {
+  resolver_cleanup cleanup;
   unsigned cancels = 0;
   epose_network_v2 network;
   network.resolve = [&](const std::string &, boost::asio::io_context &io,
       epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    cleanup.track(io, complete);
     // Never finishes until cancelled. Exercise the real five-second budget in
     // both public callers, including late delivery of operation_aborted.
     return [&io, complete, &cancels] {
@@ -763,4 +795,131 @@ TEST(epose_http_client, concurrent_client_lease_fails_without_waiting)
     EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
   });
   contender.join();
+}
+
+TEST(epose_http_client, busy_resolver_waits_for_capacity_within_own_deadline)
+{
+  resolver_cleanup cleanup;
+  unsigned resolves = 0, cancels = 0, connects = 0;
+  epose_network_v2 network;
+  network.resolve = [&](const std::string &host, boost::asio::io_context &io,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    ++resolves;
+    if (resolves == 1)
+    {
+      EXPECT_EQ("slow.example.org", host);
+      cleanup.track(io, std::move(complete));
+      return [&] { ++cancels; };
+    }
+    EXPECT_EQ("healthy.example.org", host);
+    EXPECT_EQ(2u, resolves);
+    boost::asio::post(io, [complete] { complete({}, {make_address("1.1.1.1")}); });
+    return [] {};
+  };
+  std::chrono::steady_clock::time_point started;
+  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &timeout)
+      -> boost::unique_future<tcp::socket> {
+    ++connects;
+    EXPECT_EQ(make_address("1.1.1.1"), endpoint.address());
+    EXPECT_EQ(8198, endpoint.port());
+    // Admission must consume the original budget, not start a fresh one.
+    EXPECT_LT(timeout.expiry() - std::chrono::steady_clock::now(), std::chrono::milliseconds(175));
+    throw boost::system::system_error(boost::asio::error::connection_refused);
+  };
+  {
+    epose_http_client client;
+    ASSERT_TRUE(prepare_epose_http_client(client, "slow.example.org", 8198, network).accepted());
+    EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(20)));
+    EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
+  }
+  ASSERT_NE(nullptr, cleanup.executor);
+  ASSERT_TRUE(bool(cleanup.late));
+  epose_http_client client;
+  ASSERT_TRUE(prepare_epose_http_client(client, "healthy.example.org", 8198, network).accepted());
+  boost::asio::steady_timer release(*cleanup.executor);
+  release.expires_after(std::chrono::milliseconds(40));
+  release.async_wait([complete = cleanup.late](const boost::system::error_code &error) {
+    if (!error) complete({}, {make_address("127.0.0.1")});
+  });
+  started = std::chrono::steady_clock::now();
+  EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(200)));
+  const auto elapsed = std::chrono::steady_clock::now() - started;
+  EXPECT_EQ(boost::asio::error::connection_refused, client.client().get_last_error());
+  EXPECT_GE(elapsed, std::chrono::milliseconds(35));
+  EXPECT_LT(elapsed, std::chrono::seconds(1));
+  EXPECT_EQ(2u, resolves);
+  EXPECT_EQ(1u, cancels);
+  EXPECT_EQ(1u, connects);
+}
+
+TEST(epose_http_client, nested_client_lease_fails_and_owner_recovers)
+{
+  {
+    epose_http_client held;
+    ASSERT_TRUE(held.available());
+    {
+      epose_http_client nested;
+      EXPECT_FALSE(nested.available());
+      EXPECT_EQ(receipt_failure_reason_v2::transport_timeout,
+          prepare_epose_http_client(nested, "subject.example.org", 8198).reason);
+    }
+    EXPECT_TRUE(held.available());
+    epose_http_client nested_again;
+    EXPECT_FALSE(nested_again.available());
+  }
+  epose_http_client next;
+  EXPECT_TRUE(next.available());
+}
+
+TEST(epose_http_client, synchronous_resolver_completion_releases_capacity)
+{
+  unsigned resolves = 0, connects = 0, cancels = 0;
+  epose_network_v2 network;
+  network.resolve = [&](const std::string &, boost::asio::io_context &,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    ++resolves;
+    complete({}, {make_address("8.8.8.8")});
+    return [&] { ++cancels; };
+  };
+  network.connect = [&](const tcp::endpoint &, boost::asio::steady_timer &)
+      -> boost::unique_future<tcp::socket> {
+    ++connects;
+    throw boost::system::system_error(boost::asio::error::connection_refused);
+  };
+  for (unsigned i = 0; i < 2; ++i)
+  {
+    epose_http_client client;
+    ASSERT_TRUE(prepare_epose_http_client(client, "healthy.example.org", 8198, network).accepted());
+    EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(100)));
+    EXPECT_EQ(boost::asio::error::connection_refused, client.client().get_last_error());
+  }
+  EXPECT_EQ(2u, resolves);
+  EXPECT_EQ(2u, connects);
+  EXPECT_EQ(0u, cancels);
+}
+
+TEST(epose_http_client, resolver_success_after_deadline_before_timer_is_rejected)
+{
+  resolver_cleanup cleanup;
+  epose_network_v2 network;
+  network.resolve = [&](const std::string &, boost::asio::io_context &io,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    cleanup.track(io, complete);
+    boost::asio::post(io, [complete] {
+      // Occupy the executor across the deadline, then complete before the
+      // ready timeout handler gets its turn.
+      std::this_thread::sleep_for(std::chrono::milliseconds(60));
+      complete({}, {make_address("8.8.8.8")});
+    });
+    return [] {};
+  };
+  network.connect = [](const tcp::endpoint &, boost::asio::steady_timer &)
+      -> boost::unique_future<tcp::socket> {
+    ADD_FAILURE() << "expired lookup must not connect";
+    throw boost::system::system_error(boost::asio::error::connection_refused);
+  };
+  epose_http_client client;
+  ASSERT_TRUE(prepare_epose_http_client(client, "slow.example.org", 8198, network).accepted());
+  EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(20)));
+  EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
 }
