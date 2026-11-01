@@ -684,6 +684,35 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
   EXPECT_TRUE(accepted.empty());
 }
 
+TEST(epose_relay_pool_v2, epoch46_canonical_lifecycle_is_not_relayed_again)
+{
+  semantic_state_v2 state(cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+      epoch_timing_v2{0, 720, 60},
+      admission_policy_v2{admission_work_algorithm_v2::randomx, 1, 1},
+      committee_policy_v2{1, 1, 1, 1, 1, {0}});
+  const auto record = lifecycle_record(1);
+  const fixed_contexts contexts{};
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted, state.apply_transaction(
+      {record}, semantic_transaction_context_v2{1, true, nullptr, nullptr},
+      contexts, summary));
+  std::string encoded;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_envelope_v2({record}, envelope_limits(), encoded, budget));
+  auto relay = pool();
+  std::vector<std::string> accepted;
+  ASSERT_EQ(relay_ingress_status_v2::accepted, admit_relay_envelopes_v2(
+      {encoded}, 2, envelope_limits(), relay_policy(), state, contexts,
+      relay, accepted));
+  EXPECT_EQ(0u, relay.size());
+  EXPECT_TRUE(accepted.empty());
+  encoded.back() ^= 1;
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch, admit_relay_envelopes_v2(
+      {encoded}, 2, envelope_limits(), relay_policy(), state, contexts,
+      relay, accepted));
+}
+
 TEST(epose_relay_pool_v2, semantic_ingress_reports_queue_exhaustion_and_keeps_batch_atomic)
 {
   const epoch_timing_v2 timing{0, 720, 60};
@@ -802,6 +831,50 @@ TEST(epose_relay_pool_v2, pending_duplicate_preserves_following_semantic_depende
           encoded, 1, envelope_limits(), relay_policy(), state, contexts,
           relay, accepted));
   EXPECT_EQ(2u, relay.size());
-  ASSERT_EQ(1u, accepted.size());
-  EXPECT_EQ(encoded.back(), accepted.front());
+  EXPECT_EQ(encoded, accepted);
+}
+
+TEST(epose_relay_pool_v2, epoch47_registration_replay_102_times)
+{
+  semantic_state_v2 state(cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+      epoch_timing_v2{0, 720, 60},
+      admission_policy_v2{admission_work_algorithm_v2::randomx, 1, 1},
+      committee_policy_v2{1, 1, 1, 1, 1, {0}});
+  const auto record = lifecycle_record(1);
+  const fixed_contexts contexts{};
+  std::string encoded;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      encode_envelope_v2({record}, envelope_limits(), encoded, budget));
+  auto relay = pool();
+  std::vector<std::string> accepted;
+  ASSERT_EQ(relay_ingress_status_v2::accepted, admit_relay_envelopes_v2(
+      {encoded}, 1, envelope_limits(), relay_policy(), state, contexts, relay, accepted));
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted, state.apply_transaction(
+      {record}, {1, true, nullptr, nullptr}, contexts, summary));
+  relay.erase_confirmed_records({record}, 1);
+  for (uint64_t height = 2; height <= 102; ++height)
+  {
+    ASSERT_EQ(relay_ingress_status_v2::accepted, admit_relay_envelopes_v2(
+        {encoded}, height, envelope_limits(), relay_policy(), state, contexts, relay, accepted));
+    EXPECT_TRUE(accepted.empty());
+    std::vector<relay_record_selection_v2> selected;
+    ASSERT_EQ(relay_record_status_v2::accepted, relay.select_for_template(height, selected));
+    EXPECT_TRUE(selected.empty());
+    EXPECT_EQ(0u, relay.size());
+  }
+}
+
+TEST(epose_relay_pool_v2, epoch47_confirmation_prunes_lifecycle_payload_variants)
+{
+  const auto record = lifecycle_record(1);
+  auto variant = record;
+  // Queue APIs operate on structural records; ingress authenticates signatures.
+  // A different signature must not make the same canonical payload selectable.
+  variant.payload.back() ^= 1;
+  auto relay = pool();
+  ASSERT_EQ(relay_record_status_v2::accepted, relay.enqueue(variant, 1));
+  relay.erase_confirmed_records({record}, 1);
+  EXPECT_EQ(0u, relay.size());
 }

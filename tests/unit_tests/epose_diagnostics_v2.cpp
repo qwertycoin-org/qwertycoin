@@ -67,7 +67,8 @@ TEST(epose_diagnostics_v2, reason_codes_are_stable_unique_and_machine_readable)
       receipt_failure_reason_v2::local_submission_rejected,
       receipt_failure_reason_v2::cancelled,
       receipt_failure_reason_v2::deadline_expired,
-      receipt_failure_reason_v2::internal_execution_failure};
+      receipt_failure_reason_v2::internal_execution_failure,
+      receipt_failure_reason_v2::address_prohibited};
   std::set<std::string> names;
   for (const auto reason : reasons)
   {

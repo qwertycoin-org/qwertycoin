@@ -624,3 +624,199 @@ TEST(epose_reward_v2, production_miner_constructor_emits_verifiable_v2_payment)
   EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof),
       records.back().type);
 }
+
+
+TEST(epose_reward_v2, epoch46_miner_equals_payee)
+{
+  uint64_t scheduled_subsidy = 0;
+  ASSERT_TRUE(cryptonote::get_block_reward(
+      CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0,
+      scheduled_subsidy, HF_VERSION_QWC_EPOSE));
+  const uint64_t fees = 25;
+  const uint64_t service_reward = scheduled_subsidy / 10;
+  ASSERT_GT(service_reward, 0u);
+
+  service_payment_expectation_v2 expected{};
+  expected.nettype = cryptonote::TESTNET;
+  expected.genesis_hash = hash_text("miner-constructor-genesis");
+  expected.parameter_set_hash = hash_text("miner-constructor-parameters");
+  expected.height = 1440;
+  expected.parent_hash = hash_text("miner-constructor-parent");
+  expected.payout_epoch = 2;
+  expected.qualification_hash = hash_text("miner-constructor-qualification");
+  expected.payee_service_public_key = make_public_key();
+  cryptonote::account_base owner;
+  owner.generate();
+  expected.reward_address = owner.get_keys().m_account_address;
+  expected.service_reward = service_reward;
+
+  const cryptonote::account_public_address miner_address = expected.reward_address;
+  const envelope_limits_v2 limits = envelope_limits();
+  envelope_record_v2 relay_record{};
+  relay_record.type = static_cast<uint8_t>(record_type_v2::descriptor_lifecycle);
+  relay_record.version = EPOSE_LIFECYCLE_RECORD_VERSION_V2;
+  relay_record.payload = "relay-record";
+  const std::vector<envelope_record_v2> relay_records{relay_record};
+  service_payment_context_v2 generated{};
+  const cryptonote::miner_service_payment_v2 payment{
+      &expected,
+      0,
+      scheduled_subsidy + fees,
+      2,
+      &limits,
+      &relay_records,
+      &generated};
+  cryptonote::transaction coinbase{};
+  ASSERT_TRUE(cryptonote::construct_miner_tx(
+      expected.height,
+      CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
+      0,
+      1,
+      fees,
+      miner_address,
+      coinbase,
+      {},
+      1,
+      HF_VERSION_QWC_EPOSE,
+      nullptr,
+      0,
+      &payment));
+
+  std::vector<size_t> owned_outputs;
+  uint64_t received = 0;
+  ASSERT_TRUE(cryptonote::lookup_acc_outs(
+      owner.get_keys(), coinbase, owned_outputs, received));
+  EXPECT_EQ(coinbase.vout.size(), owned_outputs.size());
+  EXPECT_EQ(scheduled_subsidy + fees, received);
+  EXPECT_EQ(coinbase.vout.size(),
+      cryptonote::get_additional_tx_pub_keys_from_extra(coinbase).size());
+
+  service_payment_context_v2 verified{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      verify_coinbase_service_payment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2, limits,
+          expected, verified));
+  EXPECT_EQ(generated.coinbase_commitment, verified.coinbase_commitment);
+  EXPECT_EQ(service_reward, verified.service_reward);
+  ASSERT_FALSE(verified.outputs.empty());
+  uint64_t paid = 0;
+  for (const service_payment_output_v2 &output : verified.outputs)
+    paid += output.amount;
+  EXPECT_EQ(service_reward, paid);
+  std::vector<envelope_record_v2> records;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      parse_transaction_extra_v2(
+          coinbase.extra, HF_VERSION_QWC_EPOSE, 2, limits,
+          records, budget));
+  ASSERT_EQ(2u, records.size());
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::descriptor_lifecycle),
+      records.front().type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof),
+      records.back().type);
+}
+
+
+TEST(epose_reward_v2, epoch46_receipt_survives_enrollment)
+{
+  uint64_t scheduled_subsidy = 0;
+  ASSERT_TRUE(cryptonote::get_block_reward(
+      CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 1, 0,
+      scheduled_subsidy, HF_VERSION_QWC_EPOSE));
+  const uint64_t fees = 25;
+  const uint64_t service_reward = scheduled_subsidy / 10;
+  ASSERT_GT(service_reward, 0u);
+
+  service_payment_expectation_v2 expected{};
+  expected.nettype = cryptonote::TESTNET;
+  expected.genesis_hash = hash_text("miner-constructor-genesis");
+  expected.parameter_set_hash = hash_text("miner-constructor-parameters");
+  expected.height = 1440;
+  expected.parent_hash = hash_text("miner-constructor-parent");
+  expected.payout_epoch = 2;
+  expected.qualification_hash = hash_text("miner-constructor-qualification");
+  expected.payee_service_public_key = make_public_key();
+  expected.reward_address = make_address();
+  expected.service_reward = service_reward;
+
+  const cryptonote::account_public_address miner_address = make_address();
+  const envelope_limits_v2 limits = envelope_limits();
+  envelope_record_v2 relay_record{};
+  relay_record.type = static_cast<uint8_t>(record_type_v2::descriptor_lifecycle);
+  relay_record.version = EPOSE_LIFECYCLE_RECORD_VERSION_V2;
+  relay_record.payload.assign(EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2, 0);
+  envelope_record_v2 receipt{static_cast<uint8_t>(record_type_v2::service_receipt), 1,
+      std::string(EPOSE_SERVICE_RECEIPT_PAYLOAD_BYTES_V2, 0)};
+  envelope_record_v2 admission{static_cast<uint8_t>(record_type_v2::admission_lease), 1,
+      std::string(EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2, 0)};
+  // This admission has no pending lifecycle dependency among these candidates.
+  admission.payload[32] = 1;
+  std::vector<envelope_record_v2> relay_records{relay_record, relay_record, admission, receipt};
+  service_payment_context_v2 generated{};
+  const cryptonote::miner_service_payment_v2 payment{
+      &expected,
+      0,
+      scheduled_subsidy + fees,
+      2,
+      &limits,
+      &relay_records,
+      &generated};
+  cryptonote::transaction coinbase{};
+  const auto construct = [&] { return cryptonote::construct_miner_tx(
+      expected.height,
+      CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
+      0,
+      1,
+      fees,
+      miner_address,
+      coinbase,
+      {},
+      1,
+      HF_VERSION_QWC_EPOSE,
+      nullptr,
+      0,
+      &payment); };
+  // Replay the deployed template's suffix fallback. With the old constructor,
+  // this succeeds only after discarding the receipt and the admission.
+  while (!construct() && !relay_records.empty())
+    relay_records.pop_back();
+  ASSERT_TRUE(construct());
+
+  service_payment_context_v2 verified{};
+  ASSERT_EQ(reward_status_v2::accepted,
+      verify_coinbase_service_payment_v2(
+          coinbase, HF_VERSION_QWC_EPOSE, 2, limits,
+          expected, verified));
+  EXPECT_EQ(generated.coinbase_commitment, verified.coinbase_commitment);
+  EXPECT_EQ(service_reward, verified.service_reward);
+  ASSERT_FALSE(verified.outputs.empty());
+  uint64_t paid = 0;
+  for (const service_payment_output_v2 &output : verified.outputs)
+    paid += output.amount;
+  EXPECT_EQ(service_reward, paid);
+  std::vector<envelope_record_v2> records;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      parse_transaction_extra_v2(
+          coinbase.extra, HF_VERSION_QWC_EPOSE, 2, limits,
+          records, budget));
+  ASSERT_EQ(3u, records.size());
+  EXPECT_LE(coinbase.extra.size(), MAX_TX_EXTRA_SIZE);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_receipt),
+      records.front().type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::admission_lease), records[1].type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof),
+      records.back().type);
+  // Without an admission group, the original evidence reservation still
+  // leaves room for a standalone lifecycle and its payment proof.
+  relay_records = {relay_record, receipt};
+  ASSERT_TRUE(construct());
+  records.clear();
+  ASSERT_EQ(envelope_status_v2::accepted, parse_transaction_extra_v2(
+      coinbase.extra, HF_VERSION_QWC_EPOSE, 2, limits, records, budget));
+  ASSERT_EQ(3u, records.size());
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_receipt), records[0].type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::descriptor_lifecycle), records[1].type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof), records[2].type);
+
+}

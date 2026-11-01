@@ -64,7 +64,8 @@ namespace epose
     local_submission_rejected,
     cancelled,
     deadline_expired,
-    internal_execution_failure
+    internal_execution_failure,
+    address_prohibited // Local dialing policy, never serialized into consensus records.
   };
 
   enum class receipt_attempt_outcome_v2 : uint8_t

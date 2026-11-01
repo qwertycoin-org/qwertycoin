@@ -10,6 +10,7 @@
 #include "epose/relay_pool_v2.h"
 #include "epose/semantic_batch_v2.h"
 #include "epose/service_receipt_v2.h"
+#include "epose/service_producer_v2.h"
 
 namespace
 {
@@ -755,8 +756,8 @@ TEST(epose_semantic_batch_v2, pending_exact_receipts_are_reforwarded_without_que
   ASSERT_EQ(1u, relay.size());
   ASSERT_EQ(std::vector<std::string>{first}, accepted);
 
-  // An intermediary may re-forward the identical authenticated envelope to
-  // a miner that missed the first delivery, without adding another item.
+  // An intermediary gives a downstream miner another chance without
+  // growing its queue (deployed v2.0.5 behaviour).
   ASSERT_EQ(relay_ingress_status_v2::accepted,
       admit_relay_envelopes_v2(
           {first}, 2160, relay_envelope_limits(), relay_policy(),
@@ -1104,4 +1105,51 @@ TEST(epose_semantic_batch_v2, coinbase_accepts_one_context_bound_payment_proof_o
           {record, record}, semantic_transaction_context_v2{2880, true, &payment}, source, summary));
   EXPECT_EQ(before, state.state_hash());
   EXPECT_EQ(0u, summary.payment_proof_records);
+}
+
+TEST(epose_semantic_batch_v2, receipt_retry_reaches_restarted_miner_through_intermediary)
+{
+  contexts source;
+  const identity subject = make_identity("multi-hop-subject");
+  const identity verifier = make_identity("multi-hop-verifier");
+  auto state = make_state();
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted, enroll(state, subject, source, summary));
+  ASSERT_EQ(semantic_status_v2::accepted, enroll(state, verifier, source, summary));
+  ASSERT_EQ(pipeline_status_v2::accepted, state.freeze_membership(3, 2100, source.round));
+  const auto record = receipt_record(state, subject, verifier, source.round, "retry");
+  const std::vector<std::string> receipt{envelope(record)};
+  auto origin = relay_pool(), x = relay_pool(), miner = relay_pool();
+  relay_delivery_limiter_v2 origin_limiter, x_limiter;
+  std::vector<std::string> accepted;
+  ASSERT_EQ(relay_ingress_status_v2::accepted, admit_relay_envelopes_v2(
+      receipt, 2160, relay_envelope_limits(), relay_policy(), state, source, origin, accepted));
+  for (uint64_t now : {0u, 30000u, 60000u})
+  {
+    const auto from_origin = filter_envelope_delivery_v2(origin_limiter, receipt, 2, now, true);
+    if (now == 30000)
+    {
+      EXPECT_TRUE(from_origin.empty()); // locally generated receipts are bounded too
+      continue;
+    }
+    ASSERT_EQ(receipt, from_origin);
+    ASSERT_EQ(relay_ingress_status_v2::accepted, admit_relay_envelopes_v2(
+        from_origin, 2160, relay_envelope_limits(), relay_policy(), state, source, x, accepted));
+    ASSERT_EQ(receipt, accepted); // second wave is an exact duplicate at X
+    const auto from_x = filter_envelope_delivery_v2(x_limiter, accepted, 3, now, false);
+    ASSERT_EQ(receipt, from_x);
+    EXPECT_TRUE(filter_envelope_delivery_v2(x_limiter, accepted, 3, now, false).empty());
+    ASSERT_EQ(relay_ingress_status_v2::accepted, admit_relay_envelopes_v2(
+        from_x, 2160, relay_envelope_limits(), relay_policy(), state, source, miner, accepted));
+    EXPECT_EQ(receipt, accepted);
+    EXPECT_EQ(1u, origin.size());
+    EXPECT_EQ(1u, x.size());
+    EXPECT_EQ(1u, miner.size());
+    if (now == 0)
+      miner = relay_pool(); // M restarts; X retains the first receipt.
+  }
+  std::vector<relay_record_selection_v2> selected;
+  ASSERT_EQ(relay_record_status_v2::accepted, miner.select_for_template(2160, selected));
+  ASSERT_EQ(1u, selected.size());
+  EXPECT_EQ(record.payload, selected.front().record.payload);
 }

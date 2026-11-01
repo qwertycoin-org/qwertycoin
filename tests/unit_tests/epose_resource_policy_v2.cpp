@@ -385,3 +385,26 @@ TEST(epose_resource_policy_v2, relay_template_selection_preserves_both_shares_an
       queue.select_for_template(10, invalid, selected));
   EXPECT_TRUE(selected.empty());
 }
+
+TEST(epose_resource_policy_v2, epoch46_third_party_discovery)
+{
+  crypto::secret_key secret{};
+  auto value = descriptor(secret);
+  value.transport = endpoint_transport_v2::tcp_ipv6;
+  value.host = "2a01:4f8:201:6016::547";
+  value.port = 8198;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(cryptonote::TESTNET,
+      hash_text("genesis"), hash_text("parameters"), value, secret));
+  const auto commitment = hash_endpoint_descriptor_v2(cryptonote::TESTNET,
+      hash_text("genesis"), hash_text("parameters"), value);
+  EXPECT_EQ(resource_status_v2::accepted, validate_discovered_endpoint_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"),
+      value, commitment));
+  EXPECT_NE(resource_status_v2::accepted, validate_discovered_endpoint_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"),
+      value, hash_text("wrong commitment")));
+  value.signature = {};
+  EXPECT_NE(resource_status_v2::accepted, validate_discovered_endpoint_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"),
+      value, commitment));
+}

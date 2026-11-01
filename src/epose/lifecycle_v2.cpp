@@ -277,6 +277,19 @@ namespace epose
     return valid_;
   }
 
+  bool lifecycle_registry_v2::contains(const lifecycle_record_v2 &record) const
+  {
+    const auto message = hash_lifecycle_record_v2(
+        nettype_, genesis_hash_, parameter_set_hash_, record);
+    for (const auto &history : histories_)
+      if (history.identity_id == record.next_descriptor.identity_id)
+        for (const auto &stored : history.records)
+          if (message == hash_lifecycle_record_v2(
+                  nettype_, genesis_hash_, parameter_set_hash_, stored))
+            return true;
+    return false;
+  }
+
   lifecycle_status_v2 lifecycle_registry_v2::apply(
       const lifecycle_record_v2 &record,
       uint64_t inclusion_epoch,

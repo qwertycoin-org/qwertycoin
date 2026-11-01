@@ -4,6 +4,8 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
+#include "epose/relay_pool_v2.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -60,6 +62,17 @@ namespace epose
     admission_lease_v2 admission{};
     std::vector<envelope_record_v2> records;
   };
+
+  // Public signed work only; bounded parsing on load. The caller must still
+  // validate against canonical lifecycle state before relaying restored work.
+  bool save_pending_enrollment_v2(const std::string &path,
+      const consensus_parameters_v2 &parameters,
+      const std::vector<envelope_record_v2> &records);
+  bool load_pending_enrollment_v2(const std::string &path,
+      const consensus_parameters_v2 &parameters,
+      const crypto::hash &identity, uint64_t target_epoch,
+      uint64_t inclusion_height, const crypto::hash &context_hash,
+      std::vector<envelope_record_v2> &records);
 
   // Bounded, non-consensus retry state for authenticated receipt production.
   // Slot identities already include epoch, round, subject, verifier and anchor.
@@ -150,6 +163,24 @@ namespace epose
     uint32_t max_attempts_ = 0;
     std::vector<entry> entries_;
   };
+
+  // Origin enrollment stays complete on its producer's retry clock. All other
+  // deliveries are keyed per envelope and peer. If an intermediary filters an
+  // enrollment prerequisite, withhold the enrollment suffix; never emit lone A
+  // after dropping its received L. Receipts are independent of that decision.
+  std::vector<std::string> filter_envelope_delivery_v2(relay_delivery_limiter_v2 &limiter,
+      const std::vector<std::string> &envelopes, uint64_t peer_id,
+      uint64_t now_ms, bool origin);
+
+  // One origin tick, using the same submission and transport callbacks as core.
+  // Persistence failure is reported independently of admission and delivery.
+  relay_ingress_status_v2 redeliver_pending_enrollment_v2(
+      const std::string &path, const consensus_parameters_v2 &parameters,
+      const std::vector<std::string> &envelopes, uint64_t height, bool confirmed,
+      const std::function<relay_ingress_status_v2(const std::vector<std::string> &,
+          std::vector<std::string> &)> &submit,
+      const std::function<void(const std::vector<std::string> &)> &relay,
+      bool &save_failed, bool &newly_accepted);
 
   // Builds the canonical first registration and admission for one target
   // epoch. The caller must supply the exact canonical block hash at the
