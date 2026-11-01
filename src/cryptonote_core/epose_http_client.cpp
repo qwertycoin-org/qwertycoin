@@ -22,16 +22,125 @@ namespace
         std::chrono::steady_clock::now().time_since_epoch()).count();
   }
 
-  std::vector<boost::asio::ip::address> resolve_host(
-      const std::string &host, boost::system::error_code &error)
+  boost::system::error_code prohibited_address_error()
   {
-    boost::asio::io_context io;
-    boost::asio::ip::tcp::resolver resolver(io);
-    const auto results = resolver.resolve(host, "0", error);
-    std::vector<boost::asio::ip::address> addresses;
-    for (const auto &result : results)
-      addresses.push_back(result.endpoint().address());
-    return addresses;
+    struct policy_category final : boost::system::error_category
+    {
+      const char *name() const noexcept override { return "epose_dial_policy"; }
+      std::string message(int) const override { return "prohibited endpoint address"; }
+    };
+    static const policy_category category;
+    return {1, category};
+  }
+
+  struct transport_slot
+  {
+    std::mutex mutex;
+    epee::net_utils::http::http_simple_client client;
+    bool resolving = false;
+  };
+
+  transport_slot &transport()
+  {
+    // Deliberately process-lifetime: Asio's resolver service joins its worker
+    // during io_context destruction, and libc getaddrinfo is not interruptible.
+    // There is exactly one executor / resolver worker and at most one unresolved
+    // operation, including cancelled operations. Never enqueue behind it.
+    static auto *slot = new transport_slot;
+    return *slot;
+  }
+
+  boost::asio::io_context &timer_context(boost::asio::steady_timer &timer)
+  {
+#if BOOST_VERSION >= 107000
+    return static_cast<boost::asio::io_context &>(timer.get_executor().context());
+#else
+    return timer.get_io_context();
+#endif
+  }
+
+  epose_network_v2::cancel_resolve resolve_host(const std::string &host,
+      boost::asio::io_context &io, epose_network_v2::resolve_handler complete)
+  {
+    const auto resolver = std::make_shared<boost::asio::ip::tcp::resolver>(io);
+    resolver->async_resolve(host, "0",
+        [resolver, complete = std::move(complete)](const boost::system::error_code &error,
+            boost::asio::ip::tcp::resolver::results_type results) {
+      std::vector<boost::asio::ip::address> addresses;
+      for (const auto &result : results)
+        addresses.push_back(result.endpoint().address());
+      complete(error, std::move(addresses));
+    });
+    return [resolver] { resolver->cancel(); };
+  }
+
+  std::vector<boost::asio::ip::address> resolve_addresses(const std::string &host,
+      const decltype(epose_network_v2::resolve) &resolve, boost::asio::steady_timer &timeout)
+  {
+    auto &io = timer_context(timeout);
+    const auto deadline = timeout.expiry();
+    // Drain late completions before checking admission. The persistent HTTP
+    // client's handlers remain alive; no handlers refer to a returned caller.
+    io.restart();
+    io.poll();
+    if (transport().resolving || std::chrono::steady_clock::now() >= deadline)
+      throw boost::system::system_error(boost::asio::error::timed_out);
+    struct lookup
+    {
+      boost::asio::steady_timer timer;
+      epose_network_v2::cancel_resolve cancel;
+      std::vector<boost::asio::ip::address> addresses;
+      boost::system::error_code error;
+      bool done = false;
+      bool completed = false;
+      explicit lookup(boost::asio::io_context &io) : timer(io) {}
+    };
+    const auto pending = std::make_shared<lookup>(io);
+    pending->timer.expires_at(deadline);
+    pending->timer.async_wait([pending](const boost::system::error_code &error) {
+      if (error || pending->done) return;
+      pending->done = true;
+      pending->error = boost::asio::error::timed_out;
+      auto cancel = std::move(pending->cancel);
+      if (cancel) cancel();
+    });
+    transport().resolving = true;
+    const auto complete = [pending, deadline](boost::system::error_code error,
+        std::vector<boost::asio::ip::address> addresses) {
+      if (pending->completed) return;
+      pending->completed = true;
+      transport().resolving = false;
+      if (pending->done) return; // Includes completions after the caller returned.
+      pending->done = true;
+      pending->cancel = {};
+      pending->timer.cancel();
+      pending->error = std::chrono::steady_clock::now() >= deadline
+          ? boost::asio::error::timed_out : error;
+      pending->addresses = std::move(addresses);
+    };
+    try
+    {
+      auto cancel = resolve ? resolve(host, io, complete) : resolve_host(host, io, complete);
+      if (!pending->done) pending->cancel = std::move(cancel);
+    }
+    catch (...)
+    {
+      transport().resolving = false;
+      pending->done = true;
+      pending->completed = true;
+      pending->timer.cancel();
+      throw;
+    }
+    while (!pending->done)
+    {
+      io.restart();
+      io.run_one();
+    }
+    if (pending->error == boost::asio::error::timed_out)
+      throw boost::system::system_error(pending->error);
+    if (pending->error || pending->addresses.empty())
+      throw boost::system::system_error(boost::asio::error::host_not_found);
+    return std::move(pending->addresses);
   }
 
   boost::unique_future<boost::asio::ip::tcp::socket> connect_addresses(
@@ -43,9 +152,10 @@ namespace
 #else
     auto &io = timeout.get_io_context();
 #endif
+    const auto deadline = timeout.expiry();
     for (size_t i = 0; i < addresses.size(); ++i)
     {
-      if (std::chrono::steady_clock::now() >= timeout.expiry())
+      if (std::chrono::steady_clock::now() >= deadline)
         throw boost::system::system_error(boost::asio::error::timed_out);
       try
       {
@@ -59,6 +169,8 @@ namespace
           io.restart();
           io.run_one();
         }
+        if (std::chrono::steady_clock::now() >= deadline)
+          throw boost::system::system_error(boost::asio::error::timed_out);
         if (pending.has_exception())
           pending.get();
         // try_connect runs one handler before checking the returned future.
@@ -67,7 +179,7 @@ namespace
       }
       catch (const boost::system::system_error &)
       {
-        if (std::chrono::steady_clock::now() >= timeout.expiry())
+        if (std::chrono::steady_clock::now() >= deadline)
           throw boost::system::system_error(boost::asio::error::timed_out);
         if (i + 1 == addresses.size())
           throw;
@@ -122,10 +234,15 @@ namespace
     {
       boost::promise<boost::asio::ip::tcp::socket> result;
       boost::asio::ip::tcp::socket socket;
-      explicit connection(boost::asio::steady_timer &timer) : socket(MONERO_GET_EXECUTOR(timer)) {}
+      boost::asio::steady_timer deadline;
+      explicit connection(boost::asio::steady_timer &timer)
+        : socket(MONERO_GET_EXECUTOR(timer)), deadline(MONERO_GET_EXECUTOR(timer))
+      { deadline.expires_at(timer.expiry()); }
     };
     const auto pending = std::make_shared<connection>(timeout);
-    timeout.async_wait([pending](const boost::system::error_code &error) {
+    // The HTTP client's deadline actor can reset its timer and cancel waits.
+    // Own a wait at the same expiry so it cannot suppress socket cancellation.
+    pending->deadline.async_wait([pending](const boost::system::error_code &error) {
       if (!error)
       {
         boost::system::error_code ignored;
@@ -134,6 +251,7 @@ namespace
     });
     // Endpoint overload: no resolver, including on HTTP reconnect / SSL fallback.
     pending->socket.async_connect(endpoint, [pending](const boost::system::error_code &error) {
+      pending->deadline.cancel();
       if (error)
         pending->result.set_exception(boost::system::system_error(error));
       else
@@ -142,39 +260,62 @@ namespace
     return pending->result.get_future();
   }
 
+  epose_http_client::epose_http_client()
+    : lease_(transport().mutex, std::try_to_lock) {}
+
+  epose_http_client::~epose_http_client()
+  {
+    if (available())
+    {
+      transport().client.disconnect();
+      // Drop injected functions and per-request addresses before returning.
+      transport().client.set_connector(epee::net_utils::direct_connect{});
+    }
+  }
+
+  epee::net_utils::http::http_simple_client &epose_http_client::client()
+  {
+    if (!available()) throw boost::system::system_error(boost::asio::error::timed_out);
+    return transport().client;
+  }
+
   qwertycoin::epose::receipt_step_result_v2 prepare_epose_http_client(
-      epee::net_utils::http::http_simple_client &client,
+      epose_http_client &lease,
       const std::string &host, uint16_t port, const epose_network_v2 &network)
   {
     using namespace qwertycoin::epose;
+    if (!lease.available())
+      return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::transport_timeout};
     boost::system::error_code error;
     const auto literal = boost::asio::ip::make_address(host, error);
     std::vector<boost::asio::ip::address> addresses;
     if (!error)
-      addresses.push_back(literal);
-    else
     {
-      error.clear();
-      addresses = network.resolve ? network.resolve(host, error) : resolve_host(host, error);
-      if (error || addresses.empty())
-        return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::dns_resolution_failed};
+      if (!public_epose_dial_address(literal))
+        return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::address_prohibited};
+      addresses.push_back(literal);
     }
-    addresses.erase(std::remove_if(addresses.begin(), addresses.end(),
-        [](const boost::asio::ip::address &address) { return !public_epose_dial_address(address); }),
-        addresses.end());
-    if (addresses.empty())
-      return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::address_prohibited};
-    // Preserve v2.0.5's IPv4 preference and resolver order within each family.
-    std::stable_partition(addresses.begin(), addresses.end(),
-        [](const boost::asio::ip::address &address) { return address.is_v4(); });
+    auto &client = lease.client();
     client.set_server(host, std::to_string(port), boost::none);
-    client.set_connector([addresses = std::move(addresses), port, connect = network.connect,
+    client.set_connector([addresses = std::move(addresses), host, port, network,
         deadline = std::chrono::steady_clock::time_point::max()](
         const std::string &, const std::string &, boost::asio::steady_timer &timeout) mutable {
-      // TLS autodetection / HTTP reconnects share the original connection budget.
+      // DNS, address fallback and reconnect dials share the original deadline.
       deadline = std::min(deadline, timeout.expiry());
       timeout.expires_at(deadline);
-      return connect_addresses(addresses, port, connect, timeout);
+      if (addresses.empty())
+      {
+        addresses = resolve_addresses(host, network.resolve, timeout);
+        addresses.erase(std::remove_if(addresses.begin(), addresses.end(),
+            [](const boost::asio::ip::address &address) { return !public_epose_dial_address(address); }),
+            addresses.end());
+        if (addresses.empty())
+          throw boost::system::system_error(prohibited_address_error());
+        // Preserve resolver order within each family and the IPv4 preference.
+        std::stable_partition(addresses.begin(), addresses.end(),
+            [](const boost::asio::ip::address &address) { return address.is_v4(); });
+      }
+      return connect_addresses(addresses, port, network.connect, timeout);
     });
     return {};
   }
@@ -210,8 +351,9 @@ namespace
       const boost::system::error_code &error = client.get_last_error();
       return {error ? receipt_attempt_stage_v2::network_connect
                     : receipt_attempt_stage_v2::http_exchange,
-          classify_transport_failure_v2(
-              error, duration_ms, EPOSE_V2_PROBE_TIMEOUT_MS)};
+          error == prohibited_address_error()
+              ? receipt_failure_reason_v2::address_prohibited
+              : classify_transport_failure_v2(error, duration_ms, EPOSE_V2_PROBE_TIMEOUT_MS)};
     }
     if (http_response == nullptr)
       return {receipt_attempt_stage_v2::http_exchange,
@@ -257,7 +399,7 @@ namespace
     if (!parse_epose_discovery_url(url, host, port))
       return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_lookup,
           qwertycoin::epose::receipt_failure_reason_v2::descriptor_unavailable};
-    epee::net_utils::http::http_simple_client client;
+    epose_http_client client;
     const auto dial = prepare_epose_http_client(client, host, port, network);
     if (!dial.accepted())
       return dial;
@@ -265,7 +407,7 @@ namespace
     request.descriptor_hash = epee::string_tools::pod_to_hex(required_hash);
     cryptonote::COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response response{};
     const auto http_result = invoke_epose_http_json(
-        "/get_epose_service_endpoint_v2", request, response, client, 4096);
+        "/get_epose_service_endpoint_v2", request, response, client.client(), 4096);
     if (!http_result.accepted())
       return http_result;
     if (response.status != CORE_RPC_STATUS_OK || !response.ready)
@@ -329,7 +471,7 @@ namespace
       const epose_network_v2 &network)
   {
     service_response = {};
-    epee::net_utils::http::http_simple_client client;
+    epose_http_client client;
     const auto dial = prepare_epose_http_client(
         client, endpoint.host, endpoint.port, network);
     if (!dial.accepted())
@@ -350,7 +492,7 @@ namespace
     const size_t max_http_response =
         EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES * 2 + 4096;
     const auto http_result = invoke_epose_http_json(
-        "/epose_service_challenge_v2", request, response, client,
+        "/epose_service_challenge_v2", request, response, client.client(),
         max_http_response);
     if (!http_result.accepted())
       return http_result;
