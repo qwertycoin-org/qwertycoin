@@ -33,6 +33,48 @@ namespace
       addresses.push_back(result.endpoint().address());
     return addresses;
   }
+
+  boost::unique_future<boost::asio::ip::tcp::socket> connect_addresses(
+      const std::vector<boost::asio::ip::address> &addresses, uint16_t port,
+      const decltype(epose_network_v2::connect) &connect, boost::asio::steady_timer &timeout)
+  {
+#if BOOST_VERSION >= 107000
+    auto &io = static_cast<boost::asio::io_context &>(timeout.get_executor().context());
+#else
+    auto &io = timeout.get_io_context();
+#endif
+    for (size_t i = 0; i < addresses.size(); ++i)
+    {
+      if (std::chrono::steady_clock::now() >= timeout.expiry())
+        throw boost::system::system_error(boost::asio::error::timed_out);
+      try
+      {
+        const boost::asio::ip::tcp::endpoint endpoint(addresses[i], port);
+        auto pending = connect ? connect(endpoint, timeout) : connect_epose_address(endpoint, timeout);
+        // The blocking HTTP client normally drives this same executor. Consume
+        // each failed future here so the next checked endpoint can be attempted
+        // without restarting the deadline or resolving the hostname again.
+        while (!pending.is_ready())
+        {
+          io.restart();
+          io.run_one();
+        }
+        if (pending.has_exception())
+          pending.get();
+        // try_connect runs one handler before checking the returned future.
+        boost::asio::post(io, [] {});
+        return pending;
+      }
+      catch (const boost::system::system_error &)
+      {
+        if (std::chrono::steady_clock::now() >= timeout.expiry())
+          throw boost::system::system_error(boost::asio::error::timed_out);
+        if (i + 1 == addresses.size())
+          throw;
+      }
+    }
+    throw boost::system::system_error(boost::asio::error::host_not_found);
+  }
 }
 
   bool public_epose_dial_address(const boost::asio::ip::address &address)
@@ -57,11 +99,13 @@ namespace
     if (v6.scope_id() != 0)
       return false;
     const bool nat64 = b[0] == 0 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b
-        && std::all_of(b.begin() + 4, b.begin() + 12, [](uint8_t x) { return x == 0; });
+        && b[4] == 0 && (b[5] == 0 || b[5] == 1)
+        && std::all_of(b.begin() + 6, b.begin() + 12, [](uint8_t x) { return x == 0; });
     if (v6.is_v4_mapped() || nat64)
       return public_epose_dial_address(boost::asio::ip::address_v4(
           boost::asio::ip::address_v4::bytes_type{{b[12], b[13], b[14], b[15]}}));
-    // Only native global unicast; excludes local-use NAT64, compatible IPv4,
+    // Only native global unicast otherwise; excludes the rest of the local-use
+    // NAT64 /48 outside 64:ff9b:1::/96, compatible IPv4,
     // unspecified, loopback, ULA, link/site-local, multicast and reserved space.
     // Also exclude protocol assignments (including Teredo), 6to4 and documentation.
     return (b[0] & 0xe0) == 0x20
@@ -115,14 +159,22 @@ namespace
       if (error || addresses.empty())
         return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::dns_resolution_failed};
     }
-    // Fail closed for mixed public/private answers, before any socket is opened.
-    if (!std::all_of(addresses.begin(), addresses.end(), public_epose_dial_address))
+    addresses.erase(std::remove_if(addresses.begin(), addresses.end(),
+        [](const boost::asio::ip::address &address) { return !public_epose_dial_address(address); }),
+        addresses.end());
+    if (addresses.empty())
       return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::address_prohibited};
-    const boost::asio::ip::tcp::endpoint endpoint(addresses.front(), port);
+    // Preserve v2.0.5's IPv4 preference and resolver order within each family.
+    std::stable_partition(addresses.begin(), addresses.end(),
+        [](const boost::asio::ip::address &address) { return address.is_v4(); });
     client.set_server(host, std::to_string(port), boost::none);
-    client.set_connector([endpoint, connect = network.connect](
-        const std::string &, const std::string &, boost::asio::steady_timer &timeout) {
-      return connect ? connect(endpoint, timeout) : connect_epose_address(endpoint, timeout);
+    client.set_connector([addresses = std::move(addresses), port, connect = network.connect,
+        deadline = std::chrono::steady_clock::time_point::max()](
+        const std::string &, const std::string &, boost::asio::steady_timer &timeout) mutable {
+      // TLS autodetection / HTTP reconnects share the original connection budget.
+      deadline = std::min(deadline, timeout.expiry());
+      timeout.expires_at(deadline);
+      return connect_addresses(addresses, port, connect, timeout);
     });
     return {};
   }

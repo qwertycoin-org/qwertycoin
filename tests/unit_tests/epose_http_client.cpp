@@ -224,15 +224,18 @@ TEST(epose_http_client, public_address_classifier)
   }
   for (const char *host : {"::", "::1", "::127.0.0.1", "fc00::1", "fdff::1", "fe80::1", "fec0::1",
       "ff02::1", "2001:db8::1", "3fff::1", "3fff:fff:ffff::1", "100::1", "100:0:0:1::1",
-      "2001:2::1", "2001::1", "2002:7f00:1::", "2001:4860::1%1"})
+      "2001:2::1", "2001::1", "2002:7f00:1::", "2001:4860::1%1",
+      "64:ff9b:1:1::8.8.8.8", "64:ff9b:1:0:1::8.8.8.8", "64:ff9b:1::1:8.8.8.8",
+      "64:ff9b:1:ffff:ffff:ffff:808:808", "64:ff9b:2::8.8.8.8"})
     EXPECT_FALSE(public_epose_dial_address(make_address(host))) << host;
   for (const char *host : {"1.1.1.1", "8.8.8.8", "100.63.255.255", "100.128.0.0", "172.15.255.255",
       "172.32.0.0", "192.0.1.255", "192.0.3.0", "198.17.255.255", "198.20.0.0", "223.255.255.255",
-      "::ffff:8.8.8.8", "64:ff9b::8.8.8.8", "2001:4860:4860::8888", "2a01:4f8:201:6016::547", "3fff:1000::1"})
+      "::ffff:8.8.8.8", "64:ff9b::8.8.8.8", "64:ff9b:1::8.8.8.8",
+      "2001:4860:4860::8888", "2a01:4f8:201:6016::547", "3fff:1000::1"})
     EXPECT_TRUE(public_epose_dial_address(make_address(host))) << host;
 }
 
-TEST(epose_http_client, discovery_and_verifier_reject_nonpublic_dns_before_connect)
+TEST(epose_http_client, discovery_and_verifier_filter_nonpublic_dns_before_connect)
 {
   std::vector<std::string> hosts = prohibited_v4;
   hosts.insert(hosts.end(), {"::1", "fc00::1", "fe80::1", "ff02::1", "2001:db8::1", "::ffff:127.0.0.1",
@@ -240,31 +243,36 @@ TEST(epose_http_client, discovery_and_verifier_reject_nonpublic_dns_before_conne
   for (const auto &host : hosts)
   {
     SCOPED_TRACE(host);
-    for (bool mixed : {false, true})
+    // All-private, public first, and public last must use the same filtering.
+    for (unsigned mixed : {0u, 1u, 2u})
     {
       unsigned resolves = 0, connects = 0;
       epose_network_v2 network;
       network.resolve = [&](const std::string &, boost::system::error_code &) {
         ++resolves;
-        std::vector<boost::asio::ip::address> out{make_address(host)};
-        if (mixed) out.insert(out.begin(), make_address("8.8.8.8"));
+        std::vector<boost::asio::ip::address> out{make_address(host), make_address("fd00::1")};
+        if (mixed == 1) out.insert(out.begin(), make_address("8.8.8.8"));
+        if (mixed == 2) out.push_back(make_address("8.8.8.8"));
         return out;
       };
-      network.connect = [&](const tcp::endpoint &, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+      network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
         ++connects;
+        EXPECT_EQ(make_address("8.8.8.8"), endpoint.address());
         throw boost::system::system_error(boost::asio::error::connection_refused);
       };
       endpoint_descriptor_v2 discovered{};
       auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
           parameters(), crypto::null_hash, discovered, network);
       EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
-      EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, result.reason);
+      EXPECT_EQ(mixed ? receipt_failure_reason_v2::connection_refused
+          : receipt_failure_reason_v2::address_prohibited, result.reason);
       canonical_service_response_v2 response{};
       result = request_epose_service_response({}, signed_descriptor("subject.example.org"), parameters(), response, network);
       EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
-      EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, result.reason);
+      EXPECT_EQ(mixed ? receipt_failure_reason_v2::connection_refused
+          : receipt_failure_reason_v2::address_prohibited, result.reason);
       EXPECT_EQ(2, resolves);
-      EXPECT_EQ(0, connects);
+      EXPECT_EQ(mixed ? 2u : 0u, connects);
     }
   }
 }
@@ -384,4 +392,168 @@ TEST(epose_http_client, system_resolver_rejects_localhost_before_connect)
   canonical_service_response_v2 response{};
   EXPECT_EQ(receipt_failure_reason_v2::address_prohibited,
       request_epose_service_response({}, signed_descriptor("localhost"), parameters(), response, network).reason);
+}
+
+
+TEST(epose_http_client, dns64_public_and_private_answers)
+{
+  for (const std::string prefix : {"64:ff9b::", "64:ff9b:1::"})
+  {
+    SCOPED_TRACE(prefix);
+    for (const std::string v4 : {"95.216.221.239", "202.61.202.161", "159.195.216.239",
+        "159.195.194.92", "148.251.24.156", "10.0.0.1", "172.31.254.30", "192.168.1.1"})
+    {
+      SCOPED_TRACE(v4);
+      const bool allowed = public_epose_dial_address(make_address(v4));
+      EXPECT_EQ(allowed, public_epose_dial_address(make_address(prefix + v4)));
+      // AAAA only, AAAA then A, and A then AAAA (CT 547 with and without CLAT).
+      for (unsigned layout : {0u, 1u, 2u})
+      {
+        unsigned resolves = 0;
+        std::vector<boost::asio::ip::address> dialed;
+        epose_network_v2 network;
+        network.resolve = [&](const std::string &, boost::system::error_code &) {
+          ++resolves;
+          std::vector<boost::asio::ip::address> answers{make_address(prefix + v4)};
+          if (layout == 1) answers.push_back(make_address(v4));
+          if (layout == 2) answers.insert(answers.begin(), make_address(v4));
+          return answers;
+        };
+        network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+          dialed.push_back(endpoint.address());
+          throw boost::system::system_error(boost::asio::error::connection_refused);
+        };
+        endpoint_descriptor_v2 discovered{};
+        const auto fetched = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
+            parameters(), {}, discovered, network);
+        canonical_service_response_v2 response{};
+        const auto probed = request_epose_service_response({}, signed_descriptor("subject.example.org"),
+            parameters(), response, network);
+        const auto expected = allowed ? receipt_failure_reason_v2::connection_refused
+            : receipt_failure_reason_v2::address_prohibited;
+        EXPECT_EQ(expected, fetched.reason);
+        EXPECT_EQ(expected, probed.reason);
+        EXPECT_EQ(2u, resolves);
+        std::vector<boost::asio::ip::address> expected_dials;
+        if (allowed)
+          for (unsigned attempt = 0; attempt < 2; ++attempt)
+          {
+            if (layout) expected_dials.push_back(make_address(v4));
+            expected_dials.push_back(make_address(prefix + v4));
+          }
+        EXPECT_EQ(expected_dials, dialed);
+      }
+    }
+  }
+}
+
+TEST(epose_http_client, fallback_to_second_checked_address_completes_http)
+{
+  const auto descriptor = signed_descriptor();
+  discovery_server server(descriptor);
+  for (const char *second : {"1.1.1.1", "64:ff9b:1::5fd8:ddef", "64:ff9b::5fd8:ddef"})
+  {
+    SCOPED_TRACE(second);
+    unsigned resolves = 0;
+    std::vector<boost::asio::ip::address> dialed;
+    std::vector<std::chrono::steady_clock::time_point> deadlines;
+    epose_network_v2 network;
+    network.resolve = [&](const std::string &, boost::system::error_code &) {
+      ++resolves;
+      return std::vector<boost::asio::ip::address>{make_address("10.0.0.1"),
+          make_address("8.8.8.8"), make_address("fd00::1"), make_address(second)};
+    };
+    network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &timeout) {
+      dialed.push_back(endpoint.address());
+      deadlines.push_back(timeout.expiry());
+      EXPECT_EQ(8197, endpoint.port());
+      if (endpoint.address() == make_address("8.8.8.8"))
+      {
+        // Asynchronous failure exercises the same future path as a real socket.
+        auto result = std::make_shared<boost::promise<tcp::socket>>();
+        auto delay = std::make_shared<boost::asio::steady_timer>(MONERO_GET_EXECUTOR(timeout));
+        delay->expires_after(std::chrono::milliseconds(10));
+        delay->async_wait([result, delay](const boost::system::error_code &) {
+          result->set_exception(boost::system::system_error(boost::asio::error::connection_refused));
+        });
+        return result->get_future();
+      }
+      EXPECT_EQ(make_address(second), endpoint.address());
+      return connect_epose_address(server.endpoint(), timeout);
+    };
+    endpoint_descriptor_v2 actual{};
+    const auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
+        parameters(), commitment(descriptor), actual, network);
+    EXPECT_TRUE(result.accepted()) << to_string(result.reason);
+    EXPECT_EQ(commitment(descriptor), commitment(actual));
+    EXPECT_EQ(1u, resolves);
+    const std::vector<boost::asio::ip::address> expected{
+        make_address("8.8.8.8"), make_address(second),
+        make_address("8.8.8.8"), make_address(second)};
+    EXPECT_EQ(expected, dialed); // Also covers TLS autodetection reconnect.
+    ASSERT_EQ(4u, deadlines.size());
+    for (const auto deadline : deadlines) EXPECT_EQ(deadlines.front(), deadline);
+  }
+  EXPECT_EQ(3u, server.request_count());
+  EXPECT_TRUE(server.valid_request());
+}
+
+TEST(epose_http_client, fallback_preserves_resolver_order_with_ipv4_first)
+{
+  for (bool asynchronous : {false, true})
+  {
+    unsigned resolves = 0;
+    std::vector<boost::asio::ip::address> dialed;
+    epose_network_v2 network;
+    network.resolve = [&](const std::string &, boost::system::error_code &) {
+      ++resolves;
+      return std::vector<boost::asio::ip::address>{make_address("2606:4700::1111"),
+          make_address("8.8.8.8"), make_address("fd00::1"), make_address("64:ff9b:1::5fd8:ddef"),
+          make_address("1.1.1.1"), make_address("127.0.0.1")};
+    };
+    network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &timeout) -> boost::unique_future<tcp::socket> {
+      dialed.push_back(endpoint.address());
+      const boost::system::system_error error(dialed.size() == 4
+          ? boost::asio::error::connection_refused : boost::asio::error::network_unreachable);
+      if (!asynchronous) throw error;
+      auto result = std::make_shared<boost::promise<tcp::socket>>();
+      boost::asio::post(MONERO_GET_EXECUTOR(timeout), [result, error] { result->set_exception(error); });
+      return result->get_future();
+    };
+    canonical_service_response_v2 response{};
+    const auto result = request_epose_service_response({}, signed_descriptor("subject.example.org"),
+        parameters(), response, network);
+    EXPECT_EQ(receipt_failure_reason_v2::connection_refused, result.reason);
+    EXPECT_EQ(1u, resolves);
+    const std::vector<boost::asio::ip::address> expected{make_address("8.8.8.8"),
+        make_address("1.1.1.1"), make_address("2606:4700::1111"), make_address("64:ff9b:1::5fd8:ddef")};
+    EXPECT_EQ(expected, dialed);
+  }
+}
+
+TEST(epose_http_client, fallback_stops_at_shared_deadline)
+{
+  unsigned connects = 0;
+  std::chrono::steady_clock::time_point started;
+  epose_network_v2 network;
+  network.resolve = [](const std::string &, boost::system::error_code &) {
+    return std::vector<boost::asio::ip::address>{make_address("8.8.8.8"), make_address("1.1.1.1")};
+  };
+  network.connect = [&](const tcp::endpoint &, boost::asio::steady_timer &timeout) {
+    ++connects;
+    started = std::chrono::steady_clock::now();
+    auto result = std::make_shared<boost::promise<tcp::socket>>();
+    timeout.async_wait([result](const boost::system::error_code &) {
+      result->set_exception(boost::system::system_error(boost::asio::error::operation_aborted));
+    });
+    return result->get_future();
+  };
+  epee::net_utils::http::http_simple_client client;
+  ASSERT_TRUE(prepare_epose_http_client(client, "subject.example.org", 8198, network).accepted());
+  EXPECT_FALSE(client.invoke("/", "POST", "{}", std::chrono::milliseconds(30)));
+  const auto elapsed = std::chrono::steady_clock::now() - started;
+  EXPECT_EQ(1u, connects);
+  EXPECT_EQ(boost::asio::error::timed_out, client.get_last_error());
+  EXPECT_GE(elapsed, std::chrono::milliseconds(25));
+  EXPECT_LT(elapsed, std::chrono::seconds(1));
 }
