@@ -319,6 +319,44 @@ TEST(epose_rpc_followups, global_byte_budget_refills)
       now + std::chrono::milliseconds(steps * QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_REFILL_MS)));
 }
 
+TEST(epose_rpc_followups, endpoint_response_serializes_default_capabilities)
+{
+  for (const uint64_t version : {1u, 2u})
+  {
+    SCOPED_TRACE(version);
+    cryptonote::COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response response{};
+    response.version = version;
+    response.dial_capabilities = 1;
+    response.dns_address_families = 0;
+    std::string body;
+    ASSERT_TRUE(epee::serialization::store_t_to_json(response, body));
+    epee::serialization::portable_storage json;
+    ASSERT_TRUE(json.load_from_json(body));
+    uint64_t value = 0;
+    ASSERT_TRUE(json.get_value("dial_capabilities", value, nullptr));
+    EXPECT_EQ(1u, value);
+    ASSERT_TRUE(json.get_value("dns_address_families", value, nullptr));
+    EXPECT_EQ(0u, value);
+  }
+}
+
+TEST(epose_rpc_followups, endpoint_response_loads_missing_and_explicit_capabilities)
+{
+  for (const bool explicit_fields : {false, true})
+  {
+    SCOPED_TRACE(explicit_fields);
+    cryptonote::COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response response{};
+    response.dial_capabilities = 7;
+    response.dns_address_families = 7;
+    const std::string body = explicit_fields
+        ? R"({"dial_capabilities":3,"dns_address_families":2})"
+        : "{}";
+    ASSERT_TRUE(epee::serialization::load_t_from_json(response, body));
+    EXPECT_EQ(explicit_fields ? 3u : 1u, response.dial_capabilities);
+    EXPECT_EQ(explicit_fields ? 2u : 0u, response.dns_address_families);
+  }
+}
+
 TEST(epose_rpc_followups, maximum_block_response_fits_reservation)
 {
   cryptonote::COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::response response{};

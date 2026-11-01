@@ -1346,8 +1346,16 @@ namespace cryptonote
         KV_SERIALIZE(version)
         KV_SERIALIZE(service_public_key)
         KV_SERIALIZE(transport)
-        KV_SERIALIZE_OPT(dial_capabilities, (uint64_t)1)
-        KV_SERIALIZE_OPT(dns_address_families, (uint64_t)0)
+        if (is_store)
+        {
+          KV_SERIALIZE(dial_capabilities)
+          KV_SERIALIZE(dns_address_families)
+        }
+        else
+        {
+          KV_SERIALIZE_OPT(dial_capabilities, (uint64_t)1)
+          KV_SERIALIZE_OPT(dns_address_families, (uint64_t)0)
+        }
         KV_SERIALIZE(host)
         KV_SERIALIZE(port)
         KV_SERIALIZE(service_kind)
