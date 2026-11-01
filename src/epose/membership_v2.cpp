@@ -832,6 +832,13 @@ namespace epose
     return receipts_.size();
   }
 
+  bool membership_pipeline_v2::contains_admission(const admission_lease_v2 &lease) const
+  {
+    return std::any_of(leases_.begin(), leases_.end(), [&](const stored_lease &stored) {
+      return same_lease(stored.lease, lease);
+    });
+  }
+
   bool membership_pipeline_v2::has_admission(
       const crypto::hash &identity_id, uint64_t target_epoch) const
   {

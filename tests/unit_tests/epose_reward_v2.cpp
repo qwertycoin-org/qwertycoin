@@ -749,6 +749,8 @@ TEST(epose_reward_v2, epoch46_receipt_survives_enrollment)
       std::string(EPOSE_SERVICE_RECEIPT_PAYLOAD_BYTES_V2, 0)};
   envelope_record_v2 admission{static_cast<uint8_t>(record_type_v2::admission_lease), 1,
       std::string(EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2, 0)};
+  // This admission has no pending lifecycle dependency among these candidates.
+  admission.payload[32] = 1;
   std::vector<envelope_record_v2> relay_records{relay_record, relay_record, admission, receipt};
   service_payment_context_v2 generated{};
   const cryptonote::miner_service_payment_v2 payment{
@@ -802,7 +804,19 @@ TEST(epose_reward_v2, epoch46_receipt_survives_enrollment)
   EXPECT_LE(coinbase.extra.size(), MAX_TX_EXTRA_SIZE);
   EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_receipt),
       records.front().type);
-  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::descriptor_lifecycle), records[1].type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::admission_lease), records[1].type);
   EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof),
       records.back().type);
+  // Without an admission group, the original evidence reservation still
+  // leaves room for a standalone lifecycle and its payment proof.
+  relay_records = {relay_record, receipt};
+  ASSERT_TRUE(construct());
+  records.clear();
+  ASSERT_EQ(envelope_status_v2::accepted, parse_transaction_extra_v2(
+      coinbase.extra, HF_VERSION_QWC_EPOSE, 2, limits, records, budget));
+  ASSERT_EQ(3u, records.size());
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_receipt), records[0].type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::descriptor_lifecycle), records[1].type);
+  EXPECT_EQ(static_cast<uint8_t>(record_type_v2::service_payment_proof), records[2].type);
+
 }

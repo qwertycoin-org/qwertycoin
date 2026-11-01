@@ -2878,40 +2878,15 @@ skip:
           std::move(blob), std::move(connections));
     }
 
-    std::vector<crypto::hash> delivery_hashes;
-    delivery_hashes.reserve(arg.envelopes.size());
-    for (const std::string &envelope : arg.envelopes)
-    {
-      std::string transcript("QWC_EPOSE_ENVELOPE_DELIVERY_V2");
-      const uint64_t size = envelope.size();
-      transcript.append(
-          reinterpret_cast<const char *>(&size), sizeof(size));
-      transcript.append(envelope);
-      delivery_hashes.push_back(crypto::cn_fast_hash(
-          transcript.data(), transcript.size()));
-    }
-
     bool relayed = false;
     for (const relay_peer &peer : peers)
     {
       NOTIFY_NEW_EPOSE_ENVELOPES_V2::request delivery{};
-      delivery.envelopes.reserve(arg.envelopes.size());
       {
-        const std::lock_guard<std::mutex> lock(
-            m_epose_relay_delivery_mutex);
-        for (size_t index = 0; index < arg.envelopes.size(); ++index)
-        {
-          std::string delivery_key(
-              reinterpret_cast<const char *>(&delivery_hashes[index]),
-              sizeof(delivery_hashes[index]));
-          // peer_id survives a connection replacement. Keying the budget by
-          // connection UUID would let a reconnect reset the retry bound.
-          delivery_key.append(
-              reinterpret_cast<const char *>(&peer.peer_id),
-              sizeof(peer.peer_id));
-          if (m_epose_relay_delivery_limiter.allow(delivery_key, now_ms))
-            delivery.envelopes.push_back(arg.envelopes[index]);
-        }
+        const std::lock_guard<std::mutex> lock(m_epose_relay_delivery_mutex);
+        delivery.envelopes = qwertycoin::epose::filter_envelope_delivery_v2(
+            m_epose_relay_delivery_limiter, arg.envelopes, peer.peer_id,
+            now_ms, source == boost::uuids::nil_uuid());
       }
       if (delivery.envelopes.empty())
         continue;

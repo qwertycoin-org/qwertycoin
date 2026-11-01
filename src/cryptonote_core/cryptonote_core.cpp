@@ -795,13 +795,19 @@ namespace cryptonote
     uint64_t cutoff = 0;
     if (!parameters.timing.enrollment_cutoff(target_epoch, cutoff))
       return false;
-    if (chain_height > cutoff)
+    if (chain_height >= cutoff)
     {
       if (target_epoch == std::numeric_limits<uint64_t>::max())
         return false;
       ++target_epoch;
     }
 
+    const std::string pending_path = (boost::filesystem::path(m_config_folder)
+        / "epose-v2-pending-enrollment.bin").string();
+    const auto discard_pending = [&] {
+      boost::system::error_code error;
+      boost::filesystem::remove(pending_path, error);
+    };
     const auto descriptors =
         m_blockchain_storage.get_epose_identity_descriptors_v2(target_epoch);
     const auto existing = std::find_if(
@@ -845,6 +851,7 @@ namespace cryptonote
       {
         m_epose_v2_producer_cancel.store(true, std::memory_order_relaxed);
         m_epose_v2_pending_envelopes.clear();
+        discard_pending();
         m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
         return true;
       }
@@ -863,6 +870,52 @@ namespace cryptonote
       m_epose_v2_pending_envelopes.clear();
       m_epose_v2_pending_epoch = target_epoch;
       m_epose_v2_producer_cancel.store(false, std::memory_order_relaxed);
+    }
+
+    if (m_epose_v2_pending_envelopes.empty() && !m_epose_v2_producer_future.valid())
+    {
+      uint64_t context_height = 0;
+      if (target_epoch < parameters.admission.context_epoch_offset
+          || !parameters.timing.epoch_start(
+              target_epoch - parameters.admission.context_epoch_offset, context_height)
+          || chain_height <= context_height)
+        return true;
+      const auto context_hash = m_blockchain_storage.get_block_id_by_height(context_height);
+      if (context_hash == crypto::null_hash)
+        return true;
+      std::vector<qwertycoin::epose::envelope_record_v2> restored;
+      if (qwertycoin::epose::load_pending_enrollment_v2(pending_path, parameters,
+              m_epose_v2_identity_id, target_epoch, chain_height, context_hash, restored))
+      {
+        std::vector<blobdata> envelopes;
+        for (const auto &record : restored)
+        {
+          blobdata envelope;
+          qwertycoin::epose::envelope_budget_v2 budget{};
+          if (qwertycoin::epose::encode_envelope_v2({record},
+                  parameters.limits.envelope, envelope, budget)
+              != qwertycoin::epose::envelope_status_v2::accepted)
+            return false;
+          envelopes.push_back(std::move(envelope));
+        }
+        // Authenticate against current canonical state, including predecessor,
+        // descriptor binding, cutoff and reorg context, before any P2P relay.
+        std::vector<blobdata> accepted;
+        const auto status = m_blockchain_storage.submit_epose_relay_envelopes_v2(envelopes, accepted);
+        if (status == qwertycoin::epose::relay_ingress_status_v2::capacity_exhausted
+            || status == qwertycoin::epose::relay_ingress_status_v2::context_unavailable
+            || status == qwertycoin::epose::relay_ingress_status_v2::invalid_configuration)
+          return true; // Keep solved work on disk and retry when capacity returns.
+        if (status == qwertycoin::epose::relay_ingress_status_v2::accepted)
+        {
+          m_epose_v2_pending_envelopes = std::move(envelopes);
+          m_epose_v2_last_submission = {};
+        }
+        else
+          discard_pending();
+      }
+      else
+        discard_pending();
     }
 
     if (m_epose_v2_pending_envelopes.empty())
@@ -932,7 +985,7 @@ namespace cryptonote
         m_epose_v2_producer_future = std::async(
             std::launch::async,
             [parameters, configuration, context_hash, renewal,
-             current_descriptor, this]() mutable {
+             current_descriptor, pending_path, this]() mutable {
               qwertycoin::epose::service_enrollment_v2 enrollment{};
               const auto status = renewal
                   ? qwertycoin::epose::build_service_renewal_enrollment_v2(
@@ -944,6 +997,12 @@ namespace cryptonote
                       parameters, configuration, context_hash,
                       qwertycoin::epose::EPOSE_V2_LAUNCH_ADMISSION_MAX_NONCE_ATTEMPTS,
                       enrollment, &m_epose_v2_producer_cancel);
+              // Publish immediately on completion, even if shutdown has not
+              // yet collected the future. No private keys are persisted here.
+              if (status == qwertycoin::epose::service_producer_status_v2::accepted
+                  && !qwertycoin::epose::save_pending_enrollment_v2(
+                      pending_path, parameters, enrollment.records))
+                MERROR("Failed to persist completed EPoSE-v2 admission work");
               return std::make_pair(status, std::move(enrollment));
             });
         MGINFO("Started bounded EPoSE-v2 "
@@ -959,9 +1018,33 @@ namespace cryptonote
       return true;
     bool newly_accepted = false;
     bool relayed = false;
-    if (!submit_local_epose_envelopes_v2(
-            m_epose_v2_pending_envelopes, newly_accepted, relayed))
-      return false;
+    bool save_failed = false;
+    const auto status = qwertycoin::epose::redeliver_pending_enrollment_v2(
+        pending_path, parameters, m_epose_v2_pending_envelopes, chain_height,
+        m_blockchain_storage.has_epose_admission_v2(m_epose_v2_identity_id, target_epoch),
+        [&](const std::vector<blobdata> &envelopes, std::vector<blobdata> &accepted) {
+          return m_blockchain_storage.submit_epose_relay_envelopes_v2(envelopes, accepted);
+        },
+        [&](const std::vector<blobdata> &envelopes) {
+          NOTIFY_NEW_EPOSE_ENVELOPES_V2::request request{};
+          request.envelopes = envelopes;
+          relayed = get_protocol()->relay_epose_envelopes_v2(
+              request, boost::uuids::nil_uuid(), epee::net_utils::zone::public_);
+        }, save_failed, newly_accepted);
+    if (save_failed)
+      MERROR("Failed to persist completed EPoSE-v2 admission work; continuing delivery");
+    if (status != qwertycoin::epose::relay_ingress_status_v2::accepted)
+    {
+      // Only stale work is discarded. Missing context/capacity/configuration
+      // is transient and must not restart a completed RandomX search.
+      if (status == qwertycoin::epose::relay_ingress_status_v2::invalid_batch
+          || status == qwertycoin::epose::relay_ingress_status_v2::expired)
+      {
+        discard_pending();
+        m_epose_v2_pending_envelopes.clear();
+      }
+      return true;
+    }
     m_epose_v2_last_submission = now;
     if (newly_accepted)
       MGINFO("Submitted EPoSE-v2 lifecycle and admission for epoch "
@@ -1686,6 +1769,7 @@ namespace cryptonote
     // Capacity and expiry are local, non-malicious conditions. Ignore these
     // P2P submissions without relaying them, but do not punish the sender.
     return status == qwertycoin::epose::relay_ingress_status_v2::accepted
+        || status == qwertycoin::epose::relay_ingress_status_v2::context_unavailable
         || status == qwertycoin::epose::relay_ingress_status_v2::expired
         || status
             == qwertycoin::epose::relay_ingress_status_v2::capacity_exhausted;

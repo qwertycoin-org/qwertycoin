@@ -1528,26 +1528,31 @@ bool Blockchain::select_epose_template_records_v2(
   m_epose_v2_relay_pool->prune_unusable_receipts(
       height, m_epose_v2->state(), contexts);
   std::vector<qwertycoin::epose::relay_record_selection_v2> selected;
-  if (m_epose_v2_relay_pool->select_for_template(height, selected)
+  if (m_epose_v2_relay_pool->select_for_template(height, selected, &m_epose_v2->state())
       != qwertycoin::epose::relay_record_status_v2::accepted)
     return false;
 
   qwertycoin::epose::semantic_state_v2 semantic = m_epose_v2->state();
-  for (const qwertycoin::epose::relay_record_selection_v2 &selection : selected)
+  std::vector<qwertycoin::epose::envelope_record_v2> candidates;
+  for (const auto &selection : selected)
+    candidates.push_back(selection.record);
+  std::vector<bool> included(candidates.size());
+  for (const auto &group : qwertycoin::epose::enrollment_template_groups_v2(
+      candidates, semantic.nettype(), semantic.genesis_hash(), semantic.parameter_set_hash()))
   {
+    std::vector<qwertycoin::epose::envelope_record_v2> batch;
+    for (auto i : group)
+      if (!included[i])
+        batch.push_back(candidates[i]);
     qwertycoin::epose::semantic_apply_summary_v2 summary{};
     const qwertycoin::epose::semantic_transaction_context_v2 transaction{
         height, true, nullptr, nullptr};
-    if (semantic.apply_transaction(
-            {selection.record}, transaction, contexts, summary)
+    if (semantic.apply_transaction(batch, transaction, contexts, summary)
         != qwertycoin::epose::semantic_status_v2::accepted)
       continue;
-    qwertycoin::epose::lifecycle_record_v2 lifecycle{};
-    if (qwertycoin::epose::decode_lifecycle_record_structure_v2(selection.record, lifecycle)
-            == qwertycoin::epose::record_codec_status_v2::accepted
-        && m_epose_v2->state().lifecycle().contains(lifecycle))
-      continue;
-    records.push_back(selection.record);
+    records.insert(records.end(), batch.begin(), batch.end());
+    for (auto i : group)
+      included[i] = true;
   }
   return true;
 }
@@ -2763,6 +2768,9 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
     service_payment.max_envelopes_per_transaction =
         m_epose_v2_parameters.limits.max_envelopes_per_transaction;
     service_payment.limits = &m_epose_v2_parameters.limits.envelope;
+    service_payment.nettype = m_epose_v2_parameters.nettype;
+    service_payment.genesis_hash = m_epose_v2_parameters.genesis_hash;
+    service_payment.parameter_set_hash = m_epose_v2_parameters.parameter_set_hash;
     CHECK_AND_ASSERT_MES(
         select_epose_template_records_v2(height, relay_records),
         false, "Failed to select EPoSE-v2 relay records for template");

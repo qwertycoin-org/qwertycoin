@@ -305,6 +305,21 @@ namespace epose
       const canonical_context_source_v2 &contexts)
   {
     prune_expired(current_height);
+    std::vector<crypto::hash> canonical_lifecycles;
+    for (const auto &stored : records_)
+    {
+      lifecycle_record_v2 lifecycle{};
+      if (decode_lifecycle_record_structure_v2(stored.record, lifecycle)
+              == record_codec_status_v2::accepted
+          && canonical_state.lifecycle().contains(lifecycle))
+        canonical_lifecycles.push_back(stored.id);
+      admission_lease_v2 admission{};
+      if (decode_admission_lease_record_structure_v2(stored.record, admission)
+              == record_codec_status_v2::accepted
+          && canonical_state.membership().contains_admission(admission))
+        canonical_lifecycles.push_back(stored.id);
+    }
+    erase_confirmed(canonical_lifecycles);
     if (current_height < receipt_slot_dedup_height_ || records_.empty())
       return;
     std::vector<crypto::hash> remove;
@@ -381,13 +396,17 @@ namespace epose
 
   relay_record_status_v2 relay_record_pool_v2::select_for_template(
       uint64_t current_height,
-      std::vector<relay_record_selection_v2> &selected)
+      std::vector<relay_record_selection_v2> &selected,
+      const semantic_state_v2 *canonical_state)
   {
     selected.clear();
     prune_expired(current_height);
     std::vector<relay_item_v2> items;
     const resource_status_v2 status =
-        queue_.select_for_template(current_height, template_limits_, items);
+        queue_.select_for_template(current_height,
+            {queue_limits_.max_items, queue_limits_.max_bytes,
+             queue_limits_.reserved_enrollment_items, queue_limits_.reserved_evidence_items,
+             queue_limits_.reserved_enrollment_bytes, queue_limits_.reserved_evidence_bytes}, items);
     if (status != resource_status_v2::accepted)
       return relay_record_status_v2::invalid_configuration;
     std::vector<relay_record_selection_v2> next;
@@ -401,7 +420,56 @@ namespace epose
         return relay_record_status_v2::invalid_configuration;
       next.push_back({found->id, found->record});
     }
-    selected.swap(next);
+    std::vector<envelope_record_v2> candidates;
+    for (const auto &entry : next)
+      candidates.push_back(entry.record);
+    std::vector<bool> included(next.size());
+    size_t bytes = 0;
+    const auto add_group = [&](const std::vector<size_t> &group) {
+      if (canonical_state)
+        for (auto i : group)
+        {
+          admission_lease_v2 admission{};
+          if (decode_admission_lease_record_structure_v2(next[i].record, admission)
+                  == record_codec_status_v2::accepted
+              && canonical_state->membership().contains_admission(admission))
+            return false;
+        }
+      size_t group_bytes = 0, group_items = 0;
+      for (auto i : group)
+        if (!included[i])
+        {
+          group_bytes += items[i].bytes;
+          ++group_items;
+        }
+      if (group_items > template_limits_.max_items - selected.size()
+          || group_bytes > template_limits_.max_bytes - bytes)
+        return false;
+      for (auto i : group)
+        if (!included[i])
+        {
+          selected.push_back(next[i]);
+          included[i] = true;
+        }
+      bytes += group_bytes;
+      return true;
+    };
+    // Reserve evidence as before, then prioritize complete admission groups.
+    size_t evidence_items = 0, evidence_bytes = 0;
+    for (size_t i = 0; i < next.size(); ++i)
+      if (items[i].record_class == relay_class_v2::evidence
+          && evidence_items < template_limits_.reserved_evidence_items
+          && items[i].bytes <= template_limits_.reserved_evidence_bytes - evidence_bytes
+          && add_group({i}))
+      {
+        ++evidence_items;
+        evidence_bytes += items[i].bytes;
+      }
+    for (const auto &group : enrollment_template_groups_v2(candidates,
+        canonical_state ? canonical_state->nettype() : cryptonote::MAINNET,
+        canonical_state ? canonical_state->genesis_hash() : crypto::null_hash,
+        canonical_state ? canonical_state->parameter_set_hash() : crypto::null_hash))
+      add_group(group);
     const uint64_t receipt_count = std::count_if(
         selected.begin(), selected.end(), [](const relay_record_selection_v2 &entry) {
           return entry.record.type
@@ -431,6 +499,19 @@ namespace epose
     uint64_t canonical_receipts = 0;
     for (const envelope_record_v2 &record : records)
     {
+      lifecycle_record_v2 confirmed{};
+      if (decode_lifecycle_record_structure_v2(record, confirmed) == record_codec_status_v2::accepted)
+      {
+        const auto hash = hash_lifecycle_record_v2(cryptonote::MAINNET, {}, {}, confirmed);
+        for (const auto &stored : records_)
+        {
+          lifecycle_record_v2 pending{};
+          if (decode_lifecycle_record_structure_v2(stored.record, pending) == record_codec_status_v2::accepted
+              && hash_lifecycle_record_v2(cryptonote::MAINNET, {}, {}, pending) == hash)
+            ids.push_back(stored.id);
+        }
+        continue;
+      }
       const std::string slot = receipt_slot(record);
       if (current_height >= receipt_slot_dedup_height_ && !slot.empty())
       {
@@ -502,6 +583,8 @@ namespace epose
     semantic_state_v2 semantic = canonical_state;
     std::vector<std::string> next_accepted;
     next_accepted.reserve(envelopes.size());
+    std::vector<envelope_record_v2> received_records;
+    std::vector<bool> forward(envelopes.size(), false);
     for (const std::string &encoded : envelopes)
     {
       std::vector<envelope_record_v2> records;
@@ -511,6 +594,8 @@ namespace epose
           || records.size() != 1)
         return relay_ingress_status_v2::invalid_batch;
 
+      const size_t index = received_records.size();
+      received_records.push_back(records.front());
       if (inclusion_height >= policy.receipt_slot_dedup_height
           && records.front().type
           == static_cast<uint8_t>(record_type_v2::service_receipt))
@@ -578,9 +663,11 @@ namespace epose
       const semantic_transaction_context_v2 transaction{
           inclusion_height, false, nullptr, nullptr};
       auto undo = semantic.checkpoint();
-      if (semantic.apply_transaction(
-              records, transaction, contexts, summary, &undo)
-          != semantic_status_v2::accepted)
+      const auto semantic_status = semantic.apply_transaction(
+          records, transaction, contexts, summary, &undo);
+      if (semantic_status == semantic_status_v2::context_unavailable)
+        return relay_ingress_status_v2::context_unavailable;
+      if (semantic_status != semantic_status_v2::accepted)
         return relay_ingress_status_v2::invalid_batch;
 
       // Authenticate before suppressing a canonical replay. A duplicate remains
@@ -589,6 +676,12 @@ namespace epose
       if (decode_lifecycle_record_structure_v2(records.front(), lifecycle)
               == record_codec_status_v2::accepted
           && canonical_state.lifecycle().contains(lifecycle))
+        continue;
+
+      admission_lease_v2 admission{};
+      if (decode_admission_lease_record_structure_v2(records.front(), admission)
+              == record_codec_status_v2::accepted
+          && canonical_state.membership().contains_admission(admission))
         continue;
 
       relay_record_pool_v2 tentative = next_pool;
@@ -622,19 +715,31 @@ namespace epose
         // lifecycle record could lose a valid in-order dependency merely
         // because its prerequisite arrived in an earlier relay wave.
         next_pool = std::move(tentative);
-        // Exact, already-authenticated envelopes are eligible for bounded
-        // transport redelivery. This is intentionally separate from local
-        // queue admission so an intermediary can give a downstream miner a
-        // second chance without growing its queue.
+        // Preserve v2.0.5 receipt redelivery: a downstream miner may have
+        // restarted. The transport limiter bounds each envelope per peer.
         if (inclusion_height >= policy.receipt_slot_dedup_height
             && records.front().type
             == static_cast<uint8_t>(record_type_v2::service_receipt))
-          next_accepted.push_back(encoded);
+          forward[index] = true;
         continue;
       }
       next_pool = std::move(tentative);
-      next_accepted.push_back(encoded);
+      forward[index] = true;
     }
+
+    // A newly accepted enrollment member carries its received prerequisites,
+    // including canonical or pending L. All-duplicate enrollment groups stay
+    // silent; receipt retries do not reopen unrelated enrollment groups.
+    const auto newly_forwardable = forward;
+    for (const auto &group : enrollment_template_groups_v2(received_records,
+        canonical_state.nettype(), canonical_state.genesis_hash(),
+        canonical_state.parameter_set_hash()))
+      if (std::any_of(group.begin(), group.end(), [&](size_t i) { return newly_forwardable[i]; }))
+        for (auto i : group)
+          forward[i] = true;
+    for (size_t i = 0; i < envelopes.size(); ++i)
+      if (forward[i])
+        next_accepted.push_back(envelopes[i]);
 
     pool = std::move(next_pool);
     accepted.swap(next_accepted);

@@ -256,6 +256,7 @@ namespace epose
     const qualification_set_v2 *qualification(uint64_t epoch) const;
     size_t receipt_count() const;
     bool has_admission(const crypto::hash &identity_id, uint64_t target_epoch) const;
+    bool contains_admission(const admission_lease_v2 &lease) const;
     bool has_receipt_slot(
         uint64_t epoch,
         uint64_t round,

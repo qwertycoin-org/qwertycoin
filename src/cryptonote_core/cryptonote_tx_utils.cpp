@@ -29,6 +29,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include "epose/record_codec_v2.h"
+#include "epose/resource_policy_v2.h"
 #include <unordered_set>
 #include <random>
 #include <limits>
@@ -327,9 +328,9 @@ namespace cryptonote
       // Measure actual serialization, including nonce, additional keys, envelope
       // framing and the fixed-size proof. Never remove an enrollment predecessor
       // while keeping its dependent successor.
-      const auto add_if_fits = [&](const envelope_record_v2 &record) {
+      const auto add_if_fits = [&](const std::vector<envelope_record_v2> &group) {
         auto trial = selected;
-        trial.push_back(record);
+        trial.insert(trial.end(), group.begin(), group.end());
         auto extra = tx.extra;
         envelope_budget_v2 budget{};
         if (append_transaction_envelope_v2(trial, hard_fork_version,
@@ -355,17 +356,43 @@ namespace cryptonote
       const auto is_receipt = [](const envelope_record_v2 &record) {
         return record.type == static_cast<uint8_t>(record_type_v2::service_receipt);
       };
-      // One receipt is the smallest useful evidence reservation at the 1060-byte
-      // carrier cap. Enrollment gets the remaining space before more evidence.
+      const auto groups = enrollment_template_groups_v2(candidates, service_payment_v2->nettype,
+          service_payment_v2->genesis_hash, service_payment_v2->parameter_set_hash);
+      std::vector<bool> included(candidates.size());
+      const auto add_group = [&](const std::vector<size_t> &indices) {
+        std::vector<envelope_record_v2> group;
+        for (auto i : indices)
+          if (!included[i])
+            group.push_back(candidates[i]);
+        if (!add_if_fits(group))
+          return false;
+        for (auto i : indices)
+          included[i] = true;
+        return true;
+      };
+      // A pair may exceed the space left by a receipt. Reserve evidence when
+      // possible, but never split a pair or indefinitely starve enrollment.
       auto reserved = std::find_if(candidates.begin(), candidates.end(), is_receipt);
       if (reserved != candidates.end())
-        add_if_fits(*reserved);
-      for (const auto &record : candidates)
-        if (!is_receipt(record) && !add_if_fits(record))
-          break;
-      for (auto it = candidates.begin(); it != candidates.end(); ++it)
-        if (it != reserved && is_receipt(*it) && !add_if_fits(*it))
-          break;
+        add_group({static_cast<size_t>(reserved - candidates.begin())});
+      for (const auto &group : groups)
+      {
+        if (is_receipt(candidates[group.back()]))
+          continue;
+        if (!add_group(group)
+            && candidates[group.back()].type == static_cast<uint8_t>(record_type_v2::admission_lease)
+            && reserved != candidates.end() && selected.size() == 1
+            && included[reserved - candidates.begin()])
+        {
+          selected.clear();
+          included[reserved - candidates.begin()] = false;
+          if (!add_group(group))
+            add_group({static_cast<size_t>(reserved - candidates.begin())});
+        }
+      }
+      for (size_t i = 0; i < candidates.size(); ++i)
+        if (is_receipt(candidates[i]))
+          add_group({i});
 
       qwertycoin::epose::envelope_budget_v2 carrier_budget{};
       CHECK_AND_ASSERT_MES(

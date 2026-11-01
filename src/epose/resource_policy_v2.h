@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "crypto/crypto.h"
+#include "epose/envelope_v2.h"
 #include "cryptonote_basic/blobdatatype.h"
 #include "cryptonote_config.h"
 
@@ -16,6 +17,14 @@ namespace qwertycoin
 {
 namespace epose
 {
+  // Local relay/mining policy only. Admission groups precede unrelated lifecycle
+  // work. Every group includes its pending lifecycle predecessors in sequence
+  // order; callers must retain or defer the whole group.
+  std::vector<std::vector<size_t>> enrollment_template_groups_v2(
+      const std::vector<envelope_record_v2> &records,
+      cryptonote::network_type nettype, const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash);
+
   enum class endpoint_transport_v2 : uint8_t
   {
     tcp_ipv4 = 1,

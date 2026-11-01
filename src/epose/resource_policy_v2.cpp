@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/resource_policy_v2.h"
+#include "epose/record_codec_v2.h"
 
 #include <algorithm>
 #include <cstring>
@@ -183,6 +184,91 @@ namespace epose
     crypto::generate_signature(hash_endpoint_descriptor_v2(nettype, genesis_hash, parameter_set_hash, descriptor),
         descriptor.service_public_key, service_secret_key, descriptor.signature);
     return true;
+  }
+
+  std::vector<std::vector<size_t>> enrollment_template_groups_v2(
+      const std::vector<envelope_record_v2> &records,
+      cryptonote::network_type nettype, const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash)
+  {
+    std::vector<lifecycle_record_v2> lifecycle(records.size());
+    std::vector<bool> is_lifecycle(records.size()), claimed(records.size());
+    for (size_t i = 0; i < records.size(); ++i)
+      is_lifecycle[i] = decode_lifecycle_record_structure_v2(records[i], lifecycle[i])
+          == record_codec_status_v2::accepted;
+    // Re-signing the same lifecycle does not add another dependency. Compare
+    // unsigned payload hashes in one fixed domain (only equality matters here).
+    std::vector<crypto::hash> payload_hashes(records.size());
+    for (size_t i = 0; i < records.size(); ++i)
+    {
+      if (!is_lifecycle[i])
+        continue;
+      payload_hashes[i] = hash_lifecycle_record_v2(cryptonote::MAINNET, {}, {}, lifecycle[i]);
+      for (size_t previous = 0; previous < i; ++previous)
+        if (is_lifecycle[previous] && payload_hashes[previous] == payload_hashes[i])
+        {
+          is_lifecycle[i] = false;
+          claimed[i] = true;
+          break;
+        }
+    }
+    std::vector<crypto::hash> descriptor_hashes(records.size());
+    for (size_t i = 0; i < records.size(); ++i)
+      if (is_lifecycle[i])
+        descriptor_hashes[i] = hash_identity_descriptor_v2(
+            nettype, genesis_hash, parameter_set_hash, lifecycle[i].next_descriptor);
+    const auto predecessors = [&](const crypto::hash &identity, uint64_t sequence,
+                                  crypto::hash binding) {
+      std::vector<size_t> group;
+      // Missing pending predecessors are canonical roots; the semantic preview
+      // checks that root. Never claim unrelated variants of the same sequence.
+      for (;;)
+      {
+        size_t match = records.size();
+        for (size_t i = 0; i < records.size(); ++i)
+          if (is_lifecycle[i] && lifecycle[i].next_descriptor.identity_id == identity
+              && lifecycle[i].next_descriptor.sequence == sequence
+              && descriptor_hashes[i] == binding)
+          { match = i; break; }
+        if (match == records.size())
+          break;
+        group.push_back(match);
+        if (sequence == 0)
+          break;
+        binding = lifecycle[match].previous_descriptor_hash;
+        --sequence;
+      }
+      std::reverse(group.begin(), group.end());
+      return group;
+    };
+    std::vector<std::vector<size_t>> groups;
+    for (size_t i = 0; i < records.size(); ++i)
+    {
+      admission_lease_v2 admission{};
+      if (decode_admission_lease_record_structure_v2(records[i], admission)
+          != record_codec_status_v2::accepted)
+        continue;
+      auto group = predecessors(admission.member.identity_id, admission.member.sequence,
+          admission.member.descriptor_hash);
+      group.push_back(i);
+      for (auto index : group)
+        claimed[index] = true;
+      groups.push_back(std::move(group));
+    }
+    for (size_t i = 0; i < records.size(); ++i)
+    {
+      if (claimed[i])
+        continue;
+      auto group = is_lifecycle[i]
+          ? predecessors(lifecycle[i].next_descriptor.identity_id,
+              lifecycle[i].next_descriptor.sequence, descriptor_hashes[i])
+          : std::vector<size_t>{i};
+      // A deferred admission must not leave its lifecycle in a later group.
+      if (std::any_of(group.begin(), group.end(), [&](size_t index) { return claimed[index]; }))
+        continue;
+      groups.push_back(std::move(group));
+    }
+    return groups;
   }
 
   resource_status_v2 validate_discovered_endpoint_v2(

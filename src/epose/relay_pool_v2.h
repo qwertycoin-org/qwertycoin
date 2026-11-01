@@ -40,8 +40,7 @@ namespace epose
   {
     accepted,
     // The exact authenticated wire envelope is already pending locally. It
-    // may be re-forwarded under the bounded transport policy without adding
-    // another queue entry.
+    // is never forwarded by an intermediary or added to the queue again.
     idempotent_duplicate,
     // A different authenticated envelope occupies the same logical receipt
     // slot in the same canonical context. Keep the existing queue entry and
@@ -61,7 +60,8 @@ namespace epose
     invalid_configuration,
     invalid_batch,
     expired,
-    capacity_exhausted
+    capacity_exhausted,
+    context_unavailable
   };
 
   struct relay_record_selection_v2
@@ -108,7 +108,8 @@ namespace epose
         const canonical_context_source_v2 &contexts);
     relay_record_status_v2 select_for_template(
         uint64_t current_height,
-        std::vector<relay_record_selection_v2> &selected);
+        std::vector<relay_record_selection_v2> &selected,
+        const semantic_state_v2 *canonical_state = nullptr);
     void erase_confirmed(const std::vector<crypto::hash> &ids);
     void erase_confirmed_records(
         const std::vector<envelope_record_v2> &records,
@@ -153,7 +154,9 @@ namespace epose
   // idempotent. At and after the boundary, service receipts are additionally
   // deduplicated by their consensus slot so randomized re-signatures cannot
   // exhaust the bounded queue. Malformed or unauthenticated records cannot
-  // enter the pool.
+  // enter the pool. `accepted` is the forwardable output: it also includes
+  // bounded receipt retries and received enrollment prerequisites when another
+  // member of their group is newly queued. All-duplicate enrollment is silent.
   relay_ingress_status_v2 admit_relay_envelopes_v2(
       const std::vector<std::string> &envelopes,
       uint64_t inclusion_height,
