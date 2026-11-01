@@ -29,6 +29,7 @@
 
 #include "version.h"
 #include "device_ledger.hpp"
+#include "ledger_reset_version.h"
 #include "ringct/rctOps.h"
 #include "cryptonote_basic/account.h"
 #include "cryptonote_basic/subaddress_index.h"
@@ -442,10 +443,7 @@ namespace hw {
     bool device_ledger::reset() {
       reset_buffer();
       int offset = set_command_header_noopt(INS_RESET);
-      const size_t verlen = strlen(QWERTYCOIN_COMPATIBLE_VERSION);
-      ASSERT_X(offset + verlen <= BUFFER_SEND_SIZE, "QWERTYCOIN_COMPATIBLE_VERSION is too long")
-      memmove(this->buffer_send+offset, QWERTYCOIN_COMPATIBLE_VERSION, verlen);
-      offset += strlen(QWERTYCOIN_COMPATIBLE_VERSION);
+      append_reset_version(this->buffer_send, offset, BUFFER_SEND_SIZE);
       this->buffer_send[4] = offset-5;
       this->length_send = offset;
       this->exchange();

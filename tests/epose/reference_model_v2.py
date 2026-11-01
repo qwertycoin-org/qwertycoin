@@ -29,6 +29,7 @@ UINT64_MAX = (1 << 64) - 1
 MAGIC = b"QEP2"
 TX_EXTRA_TAG_EPOSE = 0x05
 ENVELOPE_VERSION = 1
+ACTIVATION_MAJOR_VERSION = 17
 KNOWN_RECORD_TYPES = frozenset(range(1, 6))
 
 
@@ -173,7 +174,7 @@ class Timing:
         checked_u64(height, "height")
         if not isinstance(major_version, int) or isinstance(major_version, bool) or not 0 <= major_version <= 0xFF:
             raise ModelError("major_version is outside uint8")
-        return height >= self.activation_height and major_version >= 17
+        return height >= self.activation_height and major_version >= ACTIVATION_MAJOR_VERSION and (height != self.activation_height or major_version == ACTIVATION_MAJOR_VERSION)
 
 
 def encode_envelope(records: Iterable[Tuple[int, int, bytes]]) -> bytes:

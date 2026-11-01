@@ -8,6 +8,7 @@
 #define DEF_QWERTYCOIN_COMPATIBLE_VERSION_FULL DEF_QWERTYCOIN_COMPATIBLE_VERSION "-" DEF_QWERTYCOIN_VERSION_TAG
 
 #include "version.h"
+#include "cryptonote_config.h"
 
 const char* const QWERTYCOIN_VERSION = DEF_QWERTYCOIN_VERSION;
 const char* const QWERTYCOIN_RELEASE_NAME = DEF_QWERTYCOIN_RELEASE_NAME;
@@ -16,3 +17,8 @@ const char* const QWERTYCOIN_VERSION_FULL = DEF_QWERTYCOIN_VERSION_FULL;
 const bool QWERTYCOIN_VERSION_IS_RELEASE = DEF_QWERTYCOIN_VERSION_IS_RELEASE;
 const char* const QWERTYCOIN_COMPATIBLE_VERSION = DEF_QWERTYCOIN_COMPATIBLE_VERSION;
 const char* const QWERTYCOIN_COMPATIBLE_VERSION_FULL = DEF_QWERTYCOIN_COMPATIBLE_VERSION_FULL;
+
+std::string qwertycoin_wallet_banner(cryptonote::network_type nettype)
+{
+  return "Qwertycoin 'QWC v2 " + std::string(cryptonote::network_type_name(nettype)) + "' (v" + QWERTYCOIN_VERSION_FULL + ")";
+}

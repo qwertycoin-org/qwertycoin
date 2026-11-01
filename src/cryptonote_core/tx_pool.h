@@ -32,6 +32,7 @@
 #include "include_base_utils.h"
 
 #include <atomic>
+#include <map>
 #include <set>
 #include <tuple>
 #include <unordered_map>
@@ -47,6 +48,8 @@
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/verification_context.h"
 #include "cryptonote_protocol/enums.h"
+#include "cryptonote_core/contract_state.h"
+#include "cryptonote_core/expired_window_tx_cache.h"
 #include "blockchain_db/blockchain_db.h"
 #include "crypto/hash.h"
 #include "rpc/core_rpc_server_commands_defs.h"
@@ -60,7 +63,8 @@ namespace cryptonote
   /************************************************************************/
 
   //! pair of <transaction fee, transaction hash> for organization
-  typedef std::pair<std::pair<double, std::time_t>, crypto::hash> tx_by_fee_and_receive_time_entry;
+  typedef std::tuple<double, uint64_t, std::time_t> tx_pool_order_key;
+  typedef std::pair<tx_pool_order_key, crypto::hash> tx_by_fee_and_receive_time_entry;
 
   class txCompare
   {
@@ -68,11 +72,14 @@ namespace cryptonote
     bool operator()(const tx_by_fee_and_receive_time_entry& a, const tx_by_fee_and_receive_time_entry& b) const
     {
       // sort by greatest first, not least
-      if (a.first.first > b.first.first) return true;
-      if (a.first.first < b.first.first) return false;
+      if (std::get<0>(a.first) > std::get<0>(b.first)) return true;
+      if (std::get<0>(a.first) < std::get<0>(b.first)) return false;
 
-      if (a.first.second < b.first.second) return true;
-      if (a.first.second > b.first.second) return false;
+      if (std::get<1>(a.first) > std::get<1>(b.first)) return true;
+      if (std::get<1>(a.first) < std::get<1>(b.first)) return false;
+
+      if (std::get<2>(a.first) < std::get<2>(b.first)) return true;
+      if (std::get<2>(a.first) > std::get<2>(b.first)) return false;
 
       return memcmp(a.second.data, b.second.data, sizeof(crypto::hash)) < 0;
     }
@@ -174,6 +181,11 @@ namespace cryptonote
      */
     bool have_tx(const crypto::hash &id, relay_category tx_category) const;
 
+    bool have_expired_window_tx(const crypto::hash &id) const;
+
+    bool take_expired_window_tx(const crypto::hash &id, transaction &tx, cryptonote::blobdata &txblob);
+    bool get_expired_window_tx(const crypto::hash &id, transaction &tx) const;
+
     /**
      * @brief action to take when notified of a block added to the blockchain
      *
@@ -209,6 +221,8 @@ namespace cryptonote
      * @brief locks the transaction pool
      */
     void lock() const;
+
+    bool try_lock() const;
 
     /**
      * @brief unlocks the transaction pool
@@ -251,7 +265,7 @@ namespace cryptonote
      *
      * @return true
      */
-    bool fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version);
+    bool fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version, uint64_t height, contract_block_executor *contracts = nullptr);
 
     /**
      * @brief get a list of all transactions in the pool
@@ -522,6 +536,10 @@ namespace cryptonote
      */
     bool remove_stuck_transactions();
 
+    void queue_if_window_expired(const crypto::hash &txid, const txpool_tx_meta_t &meta, uint64_t next_height, std::list<std::pair<crypto::hash, uint64_t>> &remove);
+
+    void remove_pool_txs(const std::list<std::pair<crypto::hash, uint64_t>> &remove);
+
     /**
      * @brief check if a transaction in the pool has a given spent key image
      *
@@ -591,8 +609,8 @@ namespace cryptonote
      *
      * @return true if the transaction is good to go, otherwise false
      */
-    bool is_transaction_ready_to_go(txpool_tx_meta_t& txd, const crypto::hash &txid, const cryptonote::blobdata_ref &txblob, transaction&tx) const;
-    bool is_transaction_ready_to_go(txpool_tx_meta_t& txd, const crypto::hash &txid, const cryptonote::blobdata &txblob, transaction&tx) const;
+    bool is_transaction_ready_to_go(txpool_tx_meta_t& txd, const crypto::hash &txid, const cryptonote::blobdata_ref &txblob, transaction&tx, uint8_t version) const;
+    bool is_transaction_ready_to_go(txpool_tx_meta_t& txd, const crypto::hash &txid, const cryptonote::blobdata &txblob, transaction&tx, uint8_t version) const;
 
     /**
      * @brief mark all transactions double spending the one passed
@@ -606,8 +624,10 @@ namespace cryptonote
      */
     void prune(size_t bytes = 0);
 
-    void add_tx_to_transient_lists(const crypto::hash& txid, double fee, time_t receive_time);
-    void remove_tx_from_transient_lists(const cryptonote::sorted_tx_container::iterator& sorted_it, const crypto::hash& txid, bool sensitive);
+    void add_tx_to_transient_lists(const crypto::hash& txid, const txpool_tx_meta_t& meta, time_t receive_time);
+    void remove_tx_from_transient_lists(const cryptonote::sorted_tx_container::iterator& sorted_it, const crypto::hash& txid, const txpool_tx_meta_t& meta);
+    void index_window_until(const crypto::hash& txid, const txpool_tx_meta_t& meta);
+    void unindex_window_until(const crypto::hash& txid, const txpool_tx_meta_t& meta);
     void track_removed_tx(const crypto::hash& txid, bool sensitive);
 
     //TODO: confirm the below comments and investigate whether or not this
@@ -639,6 +659,10 @@ private:
     //TODO: look into doing this better
     //!< container for transactions organized by fee per size and receive time
     sorted_tx_container m_txs_by_fee_and_receive_time;
+
+    std::multimap<uint64_t, crypto::hash> m_txs_by_window_until; // QWC-3 (i)
+
+    expired_window_tx_cache m_expired_window_txs; // QWC-3
 
     std::atomic<uint64_t> m_cookie; //!< incremented at each change
 
@@ -672,7 +696,7 @@ private:
     sorted_tx_container::iterator find_tx_in_sorted_container(const crypto::hash& id) const;
 
     //! cache/call Blockchain::check_tx_inputs results
-    bool check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false) const;
+    bool check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, uint8_t version, bool kept_by_block = false) const;
 
     //! transactions which are unlikely to be included in blocks
     /*! These transactions are kept in RAM in case they *are* included
@@ -686,7 +710,7 @@ private:
     size_t m_txpool_weight;
     bool m_mine_stem_txes;
 
-    mutable std::unordered_map<crypto::hash, std::tuple<bool, tx_verification_context, uint64_t, crypto::hash>> m_input_cache;
+    mutable std::unordered_map<crypto::hash, std::tuple<uint8_t, bool, tx_verification_context, uint64_t, crypto::hash>> m_input_cache;
 
     std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
 
@@ -726,6 +750,3 @@ namespace boost
 }
 BOOST_CLASS_VERSION(cryptonote::tx_memory_pool, CURRENT_MEMPOOL_ARCHIVE_VER)
 BOOST_CLASS_VERSION(cryptonote::tx_memory_pool::tx_details, CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER)
-
-
-

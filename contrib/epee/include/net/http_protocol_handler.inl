@@ -698,9 +698,10 @@ namespace net_utils
 		//Wed, 01 Dec 2010 03:27:41 GMT"
 
 		string_tools::trim(m_query_info.m_header_info.m_connection);
-		if(m_query_info.m_header_info.m_connection.size())
+		if(m_query_info.m_header_info.m_connection.size() || response.m_header_info.m_connection.size())
 		{
-			if(!string_tools::compare_no_case("close", m_query_info.m_header_info.m_connection))
+			if(!string_tools::compare_no_case("close", m_query_info.m_header_info.m_connection) ||
+			   !string_tools::compare_no_case("close", response.m_header_info.m_connection))
 			{
         //closing connection after sending
 				buf += "Connection: close\r\n";

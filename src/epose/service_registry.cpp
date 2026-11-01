@@ -3,21 +3,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "service_registry.h"
+#include "epose/hash_transcript.h"
 
 #include <algorithm>
 #include <cstring>
 
 namespace
 {
-  bool public_key_equal(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) == 0;
-  }
-
-  bool public_key_less(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) < 0;
-  }
+  using qwertycoin::epose::transcript::bytes_equal;
+  using qwertycoin::epose::transcript::bytes_less;
 
   bool registration_epochs_overlap(
       const qwertycoin::epose::service_node_identity &left,
@@ -63,7 +57,7 @@ namespace epose
 
     for (const service_node_identity &registered : registrations_)
     {
-      if (public_key_equal(registered.service_public_key, identity.service_public_key)
+      if (bytes_equal(registered.service_public_key, identity.service_public_key)
           && registration_epochs_overlap(registered, identity))
       {
         set_status(status, registration_status::duplicate_identity);
@@ -83,7 +77,7 @@ namespace epose
         return left.registration_epoch < right.registration_epoch;
       if (left.expiry_epoch != right.expiry_epoch)
         return left.expiry_epoch < right.expiry_epoch;
-      return public_key_less(left.service_public_key, right.service_public_key);
+      return bytes_less(left.service_public_key, right.service_public_key);
     });
 
     set_status(status, registration_status::accepted);

@@ -34,6 +34,8 @@
 
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/merge_mining.h"
+#include "crypto/crypto.h"
+#include "ringct/rctOps.h"
 
 namespace
 {
@@ -84,6 +86,29 @@ TEST(Crypto, null_keys)
   memset(zero, 0, 32);
   ASSERT_EQ(memcmp(crypto::null_skey.data, zero, 32), 0);
   ASSERT_EQ(memcmp(crypto::null_pkey.data, zero, 32), 0);
+}
+
+TEST(Crypto, prime_order_signer_points)
+{
+  crypto::public_key identity{};
+  identity.data[0] = 1;
+  EXPECT_FALSE(crypto::check_prime_order_key(identity));
+  EXPECT_TRUE(rct::isInMainSubgroup(rct::pk2rct(identity)));
+
+  crypto::public_key small_order{};
+  EXPECT_FALSE(crypto::check_prime_order_key(small_order));
+
+  crypto::public_key noncanonical{};
+  memset(noncanonical.data, 0xff, sizeof(noncanonical.data));
+  noncanonical.data[0] = 0xee;
+  noncanonical.data[31] = 0x7f;
+  EXPECT_FALSE(crypto::check_prime_order_key(noncanonical));
+
+  crypto::public_key valid{};
+  crypto::secret_key secret{};
+  crypto::generate_keys(valid, secret);
+  EXPECT_TRUE(crypto::check_prime_order_key(valid));
+  EXPECT_TRUE(rct::isInMainSubgroup(rct::pk2rct(valid)));
 }
 
 TEST(Crypto, verify_32)

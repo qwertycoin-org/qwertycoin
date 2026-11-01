@@ -3,15 +3,21 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
 #include <cstring>
+#include <string>
 #include <fstream>
 #include <boost/filesystem.hpp>
 #include "epose/relay_pool_v2.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 
+#include "epose_journal_test_helpers.h"
 #include "epose/service_producer_v2.h"
 #include "epose/semantic_batch_v2.h"
+#include "epose/service_receipt_v2.h"
+#include "epose/transport_profile_v2.h"
 
 namespace
 {
@@ -20,6 +26,18 @@ namespace
   crypto::hash hash_text(const char *text)
   {
     return crypto::cn_fast_hash(text, std::strlen(text));
+  }
+
+  crypto::hash hash_epoch(uint64_t epoch)
+  {
+    const std::string value = "epoch-" + std::to_string(epoch);
+    return hash_text(value.c_str());
+  }
+
+  crypto::hash hash_anchor(uint64_t epoch)
+  {
+    const std::string value = "anchor-" + std::to_string(epoch);
+    return hash_text(value.c_str());
   }
 
   consensus_parameters_v2 parameters(uint8_t difficulty = 1)
@@ -69,24 +87,26 @@ namespace
   {
   public:
     explicit contexts(const crypto::hash &genesis)
-      : genesis_(genesis), epoch_one_(hash_text("epoch-one")) {}
+      : genesis_(genesis) {}
     bool block_hash(uint64_t height, crypto::hash &hash) const override
     {
       if (height == 0)
         hash = genesis_;
-      else if (height == 720)
-        hash = epoch_one_;
+      else if (height % 720 == 0)
+        hash = hash_epoch(height / 720);
       else
         hash = crypto::null_hash;
-      return height == 0 || height == 720;
+      return height % 720 == 0;
     }
-    bool round_anchor(uint64_t, uint64_t, crypto::hash &) const override
+    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
     {
-      return false;
+      if (round != 0)
+        return false;
+      hash = hash_anchor(epoch);
+      return true;
     }
   private:
     crypto::hash genesis_{};
-    crypto::hash epoch_one_{};
   };
 }
 
@@ -144,6 +164,59 @@ TEST(epose_service_producer_v2, rejects_prohibited_endpoint_and_wrong_context)
       build_initial_service_enrollment_v2(
           policy, config, crypto::null_hash, 1000, enrollment));
   EXPECT_TRUE(enrollment.records.empty());
+}
+
+TEST(epose_service_producer_v2, unavailable_dial_family_rejects_v2_endpoint)
+{
+  const auto policy = parameters();
+  auto config = configuration();
+  config.endpoint_version = 2;
+  config.dial_capabilities = reachable_dial_capabilities_v2(
+      1, [](bool) { return false; });
+  service_enrollment_v2 enrollment{};
+  EXPECT_EQ(service_producer_status_v2::invalid_endpoint,
+      build_initial_service_enrollment_v2(
+          policy, config, policy.genesis_hash, 1000, enrollment));
+  EXPECT_TRUE(enrollment.records.empty());
+}
+
+TEST(epose_service_producer_v2, recovers_admission_after_lifecycle_only_inclusion)
+{
+  const auto policy = parameters();
+  const auto config = configuration();
+  service_enrollment_v2 initial{};
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_initial_service_enrollment_v2(
+          policy, config, policy.genesis_hash, 1000, initial));
+  semantic_state_v2 state{
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+      policy.timing, policy.admission, policy.committee};
+  const contexts source{policy.genesis_hash};
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction({initial.records.front()},
+          {1, false, nullptr, nullptr}, source, summary));
+  ASSERT_FALSE(state.membership().has_admission(
+      initial.lifecycle.next_descriptor.identity_id, config.target_epoch));
+
+  const identity_descriptor_v2 *descriptor =
+      state.lifecycle().descriptor_for_epoch(
+          initial.lifecycle.next_descriptor.identity_id, config.target_epoch);
+  ASSERT_NE(nullptr, descriptor);
+  service_enrollment_v2 recovered{};
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_service_enrollment_v2(policy, config,
+          state.lifecycle().latest_record(
+              initial.lifecycle.next_descriptor.identity_id),
+          policy.genesis_hash, 1000, recovered));
+  ASSERT_EQ(1u, recovered.records.size());
+  EXPECT_FALSE(recovered.endpoint_update.present);
+  EXPECT_EQ(initial.admission.lease_hash, recovered.admission.lease_hash);
+  EXPECT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(recovered.records,
+          {2, false, nullptr, nullptr}, source, summary));
+  EXPECT_TRUE(state.membership().has_admission(
+      initial.lifecycle.next_descriptor.identity_id, config.target_epoch));
 }
 
 TEST(epose_service_producer_v2, admission_search_is_bounded_and_atomic)
@@ -232,8 +305,9 @@ TEST(epose_service_producer_v2, renewal_extends_lifecycle_and_admits_the_next_ep
           initial.records, {1, false, nullptr, nullptr}, source, summary));
 
   service_enrollment_v2 renewal{};
-  const crypto::hash epoch_one_hash = hash_text("epoch-one");
+  const crypto::hash epoch_one_hash = hash_epoch(1);
   auto renewal_config = config;
+  renewal_config.endpoint_host = "1.1.1.1";
   renewal_config.target_epoch = 2;
   renewal_config.expiry_epoch = 4;
   ASSERT_EQ(service_producer_status_v2::accepted,
@@ -248,6 +322,7 @@ TEST(epose_service_producer_v2, renewal_extends_lifecycle_and_admits_the_next_ep
   EXPECT_EQ(4u, renewal.lifecycle.next_descriptor.expiry_epoch);
   EXPECT_EQ(1u, renewal.endpoint_update.descriptor.sequence);
   EXPECT_EQ(4u, renewal.endpoint_update.descriptor.expiry_epoch);
+  EXPECT_EQ("1.1.1.1", renewal.endpoint_update.descriptor.host);
   EXPECT_NE(initial.lifecycle.next_descriptor.endpoint_descriptor_hash,
       renewal.lifecycle.next_descriptor.endpoint_descriptor_hash);
   EXPECT_EQ(hash_endpoint_descriptor_v2(
@@ -271,10 +346,228 @@ TEST(epose_service_producer_v2, renewal_extends_lifecycle_and_admits_the_next_ep
   ASSERT_EQ(service_producer_status_v2::accepted,
       build_service_renewal_enrollment_v2(
           policy, second_config, renewal.lifecycle.next_descriptor,
-          hash_text("epoch-two"), 1000, second_renewal));
+          hash_epoch(2), 1000, second_renewal));
   ASSERT_TRUE(second_renewal.endpoint_update.present);
   EXPECT_EQ(2u, second_renewal.endpoint_update.descriptor.sequence);
   EXPECT_EQ(5u, second_renewal.endpoint_update.descriptor.expiry_epoch);
+}
+
+TEST(epose_service_producer_v2, lapsed_identity_cannot_register_again_but_renews_from_its_latest_descriptor)
+{
+  const auto policy = parameters();
+  const auto config = configuration();
+  const contexts source{policy.genesis_hash};
+  service_enrollment_v2 initial{};
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_initial_service_enrollment_v2(
+          policy, config, policy.genesis_hash, 1000, initial));
+  semantic_state_v2 state{
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+      policy.timing, policy.admission, policy.committee};
+  semantic_apply_summary_v2 summary{};
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          initial.records, {1, false, nullptr, nullptr}, source, summary));
+
+  const uint64_t lapsed_epoch = config.expiry_epoch + 1;
+  const identity_descriptor_v2 &descriptor = initial.lifecycle.next_descriptor;
+  EXPECT_TRUE(state.lifecycle().descriptors_for_epoch(lapsed_epoch).empty());
+  const identity_descriptor_v2 *latest =
+      state.lifecycle().latest(descriptor.identity_id);
+  ASSERT_NE(nullptr, latest);
+  EXPECT_EQ(descriptor.expiry_epoch, latest->expiry_epoch);
+
+  service_enrollment_v2 duplicate{};
+  auto lapsed_config = config;
+  lapsed_config.target_epoch = lapsed_epoch;
+  lapsed_config.expiry_epoch = lapsed_epoch + 2;
+  const crypto::hash lapsed_context = hash_epoch(3);
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_initial_service_enrollment_v2(
+          policy, lapsed_config, lapsed_context, 1000, duplicate));
+  summary = {};
+  EXPECT_EQ(semantic_status_v2::invalid_lifecycle,
+      state.apply_transaction(
+          duplicate.records, {2161, false, nullptr, nullptr}, source, summary));
+  EXPECT_EQ(lifecycle_status_v2::identity_already_exists,
+      summary.rejected_lifecycle);
+
+  service_enrollment_v2 renewal{};
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_service_enrollment_v2(
+          policy, lapsed_config,
+          state.lifecycle().latest_record(descriptor.identity_id),
+          lapsed_context, 1000, renewal));
+  summary = {};
+  EXPECT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          renewal.records, {2161, false, nullptr, nullptr}, source, summary));
+  EXPECT_TRUE(state.membership().has_admission(descriptor.identity_id, lapsed_epoch));
+}
+
+TEST(epose_service_producer_v2, admission_while_active_and_renewal_after_lapse)
+{
+  auto policy = parameters();
+  policy.committee = {2, 2, 1, 1,
+      static_cast<uint8_t>(service_kind_v2::canonical_object), {0}, 1000};
+  ASSERT_TRUE(policy.valid());
+  semantic_state_v2 state{
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+      policy.timing, policy.admission, policy.committee};
+  const contexts source{policy.genesis_hash};
+  std::array<service_enrollment_config_v2, 3> configurations{
+      configuration(), configuration(), configuration()};
+  const auto enroll = [&](uint64_t epoch) {
+    for (auto &config : configurations)
+    {
+      config.target_epoch = epoch;
+      config.expiry_epoch = epoch + 2;
+      const crypto::hash identity_id = derive_identity_id_v2(
+          policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+          config.keystore.operator_public_key);
+      service_enrollment_v2 enrollment{};
+      const lifecycle_record_v2 *latest = state.lifecycle().latest_record(identity_id);
+      const crypto::hash context_hash = epoch == 1
+          ? policy.genesis_hash : hash_epoch(epoch - 1);
+      ASSERT_EQ(service_producer_status_v2::accepted,
+          build_service_enrollment_v2(
+              policy, config, latest, context_hash, 1000, enrollment));
+      if (epoch == 1 || epoch % 2 == 1)
+      {
+        ASSERT_EQ(2u, enrollment.records.size());
+        EXPECT_EQ(epoch == 1 ? lifecycle_action_v2::register_identity
+                             : lifecycle_action_v2::update_descriptor,
+            enrollment.lifecycle.action);
+      }
+      else
+      {
+        ASSERT_EQ(1u, enrollment.records.size());
+        EXPECT_FALSE(enrollment.endpoint_update.present);
+      }
+      semantic_apply_summary_v2 summary{};
+      ASSERT_EQ(semantic_status_v2::accepted,
+          state.apply_transaction(enrollment.records,
+              {(epoch - 1) * 720 + 1, false, nullptr, nullptr},
+              source, summary));
+      EXPECT_TRUE(state.membership().has_admission(identity_id, epoch));
+    }
+  };
+
+  enroll(1);
+  const receipt_context_v2 receipt_context{
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash};
+  for (uint64_t epoch = 1; epoch <= 6; ++epoch)
+  {
+    const crypto::hash anchor = hash_anchor(epoch);
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        epose_test_journal::freeze_membership(
+            state, epoch, epoch * 720 - 60, anchor));
+    const membership_snapshot_v2 *snapshot = state.membership().snapshot(epoch);
+    ASSERT_NE(nullptr, snapshot);
+    ASSERT_EQ(configurations.size(), snapshot->members.size());
+    for (const frozen_member_v2 &subject : snapshot->members)
+    {
+      const auto subject_config = std::find_if(
+          configurations.begin(), configurations.end(), [&](const auto &config) {
+            return config.keystore.service_public_key == subject.service_public_key;
+          });
+      ASSERT_NE(configurations.end(), subject_config);
+      const auto committee = state.membership().committee(
+          epoch, 0, subject.service_public_key, anchor);
+      ASSERT_EQ(2u, committee.size());
+      for (const verifier_assignment_v2 &assignment : committee)
+      {
+        const auto verifier_config = std::find_if(
+            configurations.begin(), configurations.end(), [&](const auto &config) {
+              return config.keystore.service_public_key
+                  == assignment.verifier_public_key;
+            });
+        ASSERT_NE(configurations.end(), verifier_config);
+        authenticated_service_receipt_v2 receipt{};
+        receipt.challenge.service_kind = policy.committee.service_kind;
+        receipt.challenge.epoch = epoch;
+        receipt.challenge.round = 0;
+        receipt.challenge.snapshot_hash = snapshot->snapshot_hash;
+        receipt.challenge.anchor_hash = anchor;
+        receipt.challenge.subject_public_key = subject.service_public_key;
+        receipt.challenge.verifier_public_key = assignment.verifier_public_key;
+        receipt.challenge.endpoint_descriptor_hash = subject.endpoint_descriptor_hash;
+        receipt.challenge.nonce = hash_epoch(epoch + subject.sequence);
+        receipt.challenge.requested_object_hash = anchor;
+        receipt.response_object_hash = anchor;
+        sign_subject_response_v2(
+            receipt, subject_config->keystore.service_secret_key, receipt_context);
+        sign_verifier_receipt_v2(
+            receipt, verifier_config->keystore.service_secret_key, receipt_context);
+        envelope_record_v2 record{};
+        ASSERT_EQ(record_codec_status_v2::accepted,
+            encode_service_receipt_record_v2(receipt, receipt_context, record));
+        semantic_apply_summary_v2 summary{};
+        ASSERT_EQ(semantic_status_v2::accepted,
+            state.apply_transaction({record},
+                {epoch * 720, false, nullptr, nullptr}, source, summary));
+      }
+    }
+    if (epoch < 6)
+      enroll(epoch + 1);
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        epose_test_journal::close_qualification(
+            state, epoch, (epoch + 1) * 720 - 61));
+    const qualification_set_v2 *qualification =
+        state.membership().qualification(epoch);
+    ASSERT_NE(nullptr, qualification);
+    EXPECT_EQ(configurations.size(), qualification->qualified_nodes.size());
+  }
+}
+
+TEST(epose_service_producer_v2, prepared_enrollment_reused_only_for_same_inputs)
+{
+  const auto descriptor = hash_text("descriptor");
+  const auto context = hash_text("context");
+  EXPECT_TRUE(service_enrollment_inputs_match_v2(
+      3, descriptor, context, 3, descriptor, context));
+  EXPECT_FALSE(service_enrollment_inputs_match_v2(
+      4, descriptor, context, 3, descriptor, context));
+  EXPECT_FALSE(service_enrollment_inputs_match_v2(
+      3, hash_text("updated"), context, 3, descriptor, context));
+  EXPECT_FALSE(service_enrollment_inputs_match_v2(
+      3, descriptor, hash_text("reorganized"), 3, descriptor, context));
+}
+
+TEST(epose_service_producer_v2, deregistered_identity_is_terminal)
+{
+  const auto policy = parameters();
+  const auto config = configuration();
+  service_enrollment_v2 initial{};
+  ASSERT_EQ(service_producer_status_v2::accepted,
+      build_service_enrollment_v2(
+          policy, config, nullptr, policy.genesis_hash, 1000, initial));
+  lifecycle_registry_v2 registry{
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash};
+  ASSERT_EQ(lifecycle_status_v2::accepted,
+      epose_test_journal::apply(registry, initial.lifecycle, 0, 1));
+  lifecycle_record_v2 deregistration{};
+  deregistration.action = lifecycle_action_v2::deregister_identity;
+  deregistration.previous_descriptor_hash = hash_identity_descriptor_v2(
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+      initial.lifecycle.next_descriptor);
+  deregistration.next_descriptor = initial.lifecycle.next_descriptor;
+  deregistration.next_descriptor.sequence = 1;
+  deregistration.next_descriptor.effective_epoch = 2;
+  deregistration.next_descriptor.expiry_epoch = 2;
+  ASSERT_TRUE(sign_lifecycle_record_v2(
+      policy.nettype, policy.genesis_hash, policy.parameter_set_hash,
+      deregistration, config.keystore.operator_secret_key,
+      config.keystore.service_secret_key));
+  ASSERT_EQ(lifecycle_status_v2::accepted,
+      epose_test_journal::apply(registry, deregistration, 1, 2));
+  service_enrollment_v2 enrollment{};
+  EXPECT_EQ(service_producer_status_v2::deregistered,
+      build_service_enrollment_v2(
+          policy, config,
+          registry.latest_record(initial.lifecycle.next_descriptor.identity_id),
+          policy.genesis_hash, 1000, enrollment));
+  EXPECT_TRUE(enrollment.records.empty());
 }
 
 TEST(epose_service_producer_v2, renewal_rejects_silent_reward_redirection)
@@ -295,7 +588,7 @@ TEST(epose_service_producer_v2, renewal_rejects_silent_reward_redirection)
   EXPECT_EQ(service_producer_status_v2::invalid_configuration,
       build_service_renewal_enrollment_v2(
           policy, changed, initial.lifecycle.next_descriptor,
-          hash_text("epoch-one"), 1000, renewal));
+          hash_epoch(1), 1000, renewal));
   EXPECT_FALSE(renewal.endpoint_update.present);
   EXPECT_TRUE(renewal.records.empty());
 }
@@ -486,7 +779,7 @@ TEST(epose_service_producer_v2, epoch47_two_lifecycles_and_admission_final_size)
     cryptonote::transaction tx{};
     ASSERT_TRUE(cryptonote::construct_miner_tx(1,
         CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 0, 1, 0,
-        config.reward_address, tx, {}, 1, HF_VERSION_QWC_EPOSE, nullptr, 0, &payment));
+        config.reward_address, tx, {}, 1, HF_VERSION_QWC_EPOSE, &payment));
     EXPECT_LE(tx.extra.size(), MAX_TX_EXTRA_SIZE);
     std::vector<envelope_record_v2> selected;
     envelope_budget_v2 budget{};
@@ -513,8 +806,7 @@ TEST(epose_service_producer_v2, epoch47_two_lifecycles_and_admission_final_size)
   cryptonote::transaction duplicate_tx{};
   ASSERT_TRUE(cryptonote::construct_miner_tx(1,
       CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 0, 1, 0,
-      config.reward_address, duplicate_tx, {}, 1, HF_VERSION_QWC_EPOSE,
-      nullptr, 0, &duplicate_payment));
+      config.reward_address, duplicate_tx, {}, 1, HF_VERSION_QWC_EPOSE, &duplicate_payment));
   std::vector<envelope_record_v2> deduplicated;
   envelope_budget_v2 duplicate_budget{};
   ASSERT_EQ(envelope_status_v2::accepted, parse_transaction_extra_v2(
@@ -543,7 +835,7 @@ TEST(epose_service_producer_v2, epoch47_two_lifecycles_and_admission_final_size)
   ASSERT_TRUE(cryptonote::construct_miner_tx(expected.height,
       CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, 0, 1, 0,
       configuration().reward_address, tx, std::string(255, 'x'), 1,
-      HF_VERSION_QWC_EPOSE, nullptr, 0, &payment));
+      HF_VERSION_QWC_EPOSE, &payment));
   std::vector<envelope_record_v2> selected;
   envelope_budget_v2 budget{};
   ASSERT_EQ(envelope_status_v2::accepted, parse_transaction_extra_v2(
@@ -614,12 +906,12 @@ TEST(epose_service_producer_v2, epoch47_restart_after_lifecycle_only_builds_boun
   next_config.expiry_epoch = 4;
   service_enrollment_v2 renewal{};
   ASSERT_EQ(service_producer_status_v2::accepted, build_service_renewal_enrollment_v2(
-      policy, next_config, original.lifecycle.next_descriptor, hash_text("epoch-one"), 1000, renewal));
+      policy, next_config, original.lifecycle.next_descriptor, hash_epoch(1), 1000, renewal));
   ASSERT_EQ(semantic_status_v2::accepted, state.apply_transaction(
       {renewal.records.front()}, {721, true, nullptr, nullptr}, source, summary));
   recovered = {};
   ASSERT_EQ(service_producer_status_v2::accepted, build_service_renewal_enrollment_v2(
-      policy, next_config, renewal.lifecycle.next_descriptor, hash_text("epoch-one"), 1000, recovered));
+      policy, next_config, renewal.lifecycle.next_descriptor, hash_epoch(1), 1000, recovered));
   ASSERT_EQ(1u, recovered.records.size());
   EXPECT_EQ(1u, recovered.admission.member.sequence);
   EXPECT_EQ(renewal.admission.member.descriptor_hash, recovered.admission.member.descriptor_hash);
@@ -677,7 +969,7 @@ TEST(epose_service_producer_v2, epoch47_completed_work_survives_restart_and_reje
       {changed.records.front()}, {1, true, nullptr, nullptr}, source, summary));
   EXPECT_NE(semantic_status_v2::accepted, reorg.apply_transaction(
       restored, {2, true, nullptr, nullptr}, source, summary));
-  EXPECT_FALSE(load_pending_enrollment_v2(path, policy, identity, 2, 721, hash_text("epoch-one"), restored));
+  EXPECT_FALSE(load_pending_enrollment_v2(path, policy, identity, 2, 721, hash_epoch(1), restored));
   EXPECT_FALSE(load_pending_enrollment_v2(path, policy, identity, 1, 660, policy.genesis_hash, restored));
   EXPECT_FALSE(load_pending_enrollment_v2(path, policy, identity, 1, 2, hash_text("reorg"), restored));
   EXPECT_FALSE(load_pending_enrollment_v2(path, policy, hash_text("other-identity"), 1, 2, policy.genesis_hash, restored));
@@ -1017,7 +1309,7 @@ TEST(review, binding_chain_chooses_one_predecessor_per_sequence)
   next_config.target_epoch = 2;
   next_config.expiry_epoch = 4;
   ASSERT_EQ(service_producer_status_v2::accepted, build_service_renewal_enrollment_v2(
-      policy, next_config, original.lifecycle.next_descriptor, hash_text("epoch-one"), 1000, renewal));
+      policy, next_config, original.lifecycle.next_descriptor, hash_epoch(1), 1000, renewal));
   const std::vector<envelope_record_v2> candidates{
       variant.records.front(), renewal.records.back(), renewal.records.front(), original.records.front()};
   const auto groups = enrollment_template_groups_v2(candidates,
@@ -1110,7 +1402,7 @@ TEST(review3, intermediary_preserves_enrollment_to_lagging_hop)
     // Return and repeated waves stop at every node, even after the limiter resets.
     for (auto *pool : {&origin, &xpool, &ypool})
     {
-      const auto &state = pool == &xpool ? x : a;
+      auto &state = pool == &xpool ? x : a;
       ASSERT_EQ(relay_ingress_status_v2::accepted, admit_relay_envelopes_v2(
           complete, 21, policy.limits.envelope, rp, state, source, *pool, accepted));
       EXPECT_TRUE(accepted.empty());
@@ -1122,11 +1414,12 @@ TEST(review3, intermediary_preserves_enrollment_to_lagging_hop)
         divergent, {complete.front()}, 9, 1000, false));
     EXPECT_TRUE(filter_envelope_delivery_v2(divergent, complete, 9, 1001, false).empty());
     EXPECT_EQ(complete, filter_envelope_delivery_v2(divergent, complete, 9, 61000, false));
-    // A blocked A does not hold back L: intermediary decisions are per envelope.
     relay_delivery_limiter_v2 admission_first;
     filter_envelope_delivery_v2(admission_first, {complete.back()}, 9, 1000, false);
-    EXPECT_EQ(std::vector<std::string>{complete.front()},
-        filter_envelope_delivery_v2(admission_first, complete, 9, 1001, false));
+    EXPECT_TRUE(filter_envelope_delivery_v2(
+        admission_first, complete, 9, 1001, false).empty());
+    EXPECT_EQ(complete, filter_envelope_delivery_v2(
+        admission_first, complete, 9, 61000, false));
     EXPECT_EQ(complete, filter_envelope_delivery_v2(admission_first, complete, 9, 1001, true));
   }
 }

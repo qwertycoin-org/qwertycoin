@@ -30,6 +30,7 @@ set(daemon_sources
   command_parser_executor.cpp
   command_server.cpp
   daemon.cpp
+  daemon_network_mode.cpp
   executor.cpp
   main.cpp
   rpc_command_executor.cpp

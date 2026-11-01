@@ -507,7 +507,7 @@ TEST(epose_reward_v2, coinbase_payment_proof_is_derived_from_actual_outputs)
   ASSERT_EQ(reward_status_v2::accepted,
       append_coinbase_service_payment_proof_v2(
           produced, transaction_secret, HF_VERSION_QWC_EPOSE, 2,
-          envelope_limits(), expected, produced_context));
+          envelope_limits(), expected, 0, produced_context));
   EXPECT_EQ(signing_context.coinbase_commitment, produced_context.coinbase_commitment);
   ASSERT_EQ(reward_status_v2::accepted,
       verify_coinbase_service_payment_v2(
@@ -522,7 +522,7 @@ TEST(epose_reward_v2, coinbase_payment_proof_is_derived_from_actual_outputs)
   EXPECT_EQ(reward_status_v2::invalid_transaction_key,
       append_coinbase_service_payment_proof_v2(
           produced, wrong_secret, HF_VERSION_QWC_EPOSE, 2,
-          envelope_limits(), expected, produced_context));
+          envelope_limits(), expected, 0, produced_context));
   EXPECT_EQ(cryptonote::tx_to_blob(unchanged), cryptonote::tx_to_blob(produced));
   EXPECT_TRUE(produced_context.outputs.empty());
 
@@ -596,8 +596,6 @@ TEST(epose_reward_v2, production_miner_constructor_emits_verifiable_v2_payment)
       {},
       1,
       HF_VERSION_QWC_EPOSE,
-      nullptr,
-      0,
       &payment));
 
   service_payment_context_v2 verified{};
@@ -612,6 +610,14 @@ TEST(epose_reward_v2, production_miner_constructor_emits_verifiable_v2_payment)
   for (const service_payment_output_v2 &output : verified.outputs)
     paid += output.amount;
   EXPECT_EQ(service_reward, paid);
+  cryptonote::transaction wrong_amount = coinbase;
+  wrong_amount.vout[verified.outputs.front().output_index].amount += 1;
+  wrong_amount.invalidate_hashes();
+  service_payment_context_v2 rejected{};
+  EXPECT_NE(reward_status_v2::accepted,
+      verify_coinbase_service_payment_v2(
+          wrong_amount, HF_VERSION_QWC_EPOSE, 2, limits,
+          expected, rejected));
   std::vector<envelope_record_v2> records;
   envelope_budget_v2 budget{};
   ASSERT_EQ(envelope_status_v2::accepted,
@@ -678,8 +684,6 @@ TEST(epose_reward_v2, epoch46_miner_equals_payee)
       {},
       1,
       HF_VERSION_QWC_EPOSE,
-      nullptr,
-      0,
       &payment));
 
   std::vector<size_t> owned_outputs;
@@ -773,8 +777,6 @@ TEST(epose_reward_v2, epoch46_receipt_survives_enrollment)
       {},
       1,
       HF_VERSION_QWC_EPOSE,
-      nullptr,
-      0,
       &payment); };
   // Replay the deployed template's suffix fallback. With the old constructor,
   // this succeeds only after discarding the receipt and the admission.

@@ -190,6 +190,8 @@ namespace cryptonote
       ADD_CHECKPOINT2(1450000, "87562ca6786f41556b8d5b48067303a57dc5ca77155b35199aedaeca1550f5a0", "0xa639e2930e");
       return true;
     }
+    if (nettype == DEVNET)
+      return true;
     if (nettype == STAGENET)
     {
       ADD_CHECKPOINT2(0,       "76ee3cc98646292206cd3e86f74d88b4dcc1d937088645e9b0cbca84b7ce74eb", "0x1");

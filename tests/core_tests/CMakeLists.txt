@@ -45,6 +45,23 @@ set(core_tests_sources
   rct.cpp
   bulletproofs.cpp
   bulletproof_plus.cpp
+  height_window.cpp
+  contracts.cpp
+  contracts_addsig.cpp
+  contracts_forged_input.cpp
+  contracts_template_cache.cpp
+  chainlock.cpp
+  chainlock_batch.cpp
+  chainlock_age.cpp
+  chainlock_reorg.cpp
+  chainlock_speculative.cpp
+  chainlock_rpc.cpp
+  chainlock_rpc_old_carrier.cpp
+  chainlock_production_inputs.cpp
+  vm_state_proof_rpc.cpp
+  vm_state_proof_restore.cpp
+  contracts_deep_reorg.cpp
+  contracts_hdr_info.cpp
   rct2.cpp
   wallet_tools.cpp)
 
@@ -67,6 +84,19 @@ set(core_tests_headers
   rct.h
   bulletproofs.h
   bulletproof_plus.h
+  height_window.h
+  contracts.h
+  contracts_template_cache.h
+  chainlock.h
+  chainlock_age.h
+  chainlock_reorg.h
+  chainlock_speculative.h
+  chainlock_rpc.h
+  chainlock_production_inputs.h
+  vm_state_proof_rpc.h
+  vm_state_proof_restore.h
+  contracts_deep_reorg.h
+  contracts_hdr_info.h
   rct2.h
   wallet_tools.h)
 

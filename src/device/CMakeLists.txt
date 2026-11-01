@@ -36,6 +36,7 @@ if(HIDAPI_FOUND)
   set(device_sources 
     ${device_sources} 
     device_ledger.cpp
+    ledger_reset_version.cpp
     device_io_hid.cpp
     )
 endif()
@@ -52,6 +53,7 @@ if(HIDAPI_FOUND)
   set(device_headers 
     ${device_headers} 
     device_ledger.hpp
+    ledger_reset_version.h
     device_io_hid.hpp
     )
 endif()

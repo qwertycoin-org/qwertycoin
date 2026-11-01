@@ -156,18 +156,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p evidence/linux
+          expected_epose_tests=$(jq -r '.epose_unit_tests' control/tools/release/epose_test_counts.json)
+          expected_python_tests=$(jq -r '.epose_python_tests' control/tools/release/epose_test_counts.json)
           build/linux/tests/unit_tests/epose_unit_tests --gtest_list_tests \
             | tee evidence/linux/EPoSE-UNIT-TEST-LIST.log
           actual_epose_tests=$(awk '/^  [^ ]/ {count++} END {print count+0}' evidence/linux/EPoSE-UNIT-TEST-LIST.log)
-          test "$actual_epose_tests" -eq 327 || {
-            echo "expected 327 EPoSE unit tests, got $actual_epose_tests" >&2
+          test "$actual_epose_tests" -eq "$expected_epose_tests" || {
+            echo "expected $expected_epose_tests EPoSE unit tests, got $actual_epose_tests" >&2
             exit 1
           }
           ctest --test-dir build/linux -R '^epose_unit_tests$' --output-on-failure 2>&1 | tee evidence/linux/EPoSE-UNIT-TESTS.log
           (cd source/tests/epose && python3 -m unittest \
-            test_release_gate_v2.py test_manifest_v2.py test_reference_model_v2.py test_security_parameter_model.py) \
+            test_release_gate_v2.py test_manifest_v2.py test_manifest_contracts.py test_reference_model_v2.py test_security_parameter_model.py test_chainlock_quorum.py) \
             2>&1 | tee evidence/linux/EPoSE-PYTHON-TESTS.log
-          grep -Eq '^Ran 43 tests in ' evidence/linux/EPoSE-PYTHON-TESTS.log
+          grep -Eq "^Ran $expected_python_tests tests in " evidence/linux/EPoSE-PYTHON-TESTS.log
           if [[ "$RELEASE_TAG" != *-rc* && "$STABLE_GATE_POLICY" == require-ready ]]; then
             control/tools/release/evaluate_release_gate.py --repository source \
               --expected-revision "$EXPECTED_REVISION" --output evidence/linux/epose-gate.json --require-ready
@@ -178,12 +180,13 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+          counts = json.loads(Path("control/tools/release/epose_test_counts.json").read_text(encoding="utf-8"))
           Path("evidence/linux/pre-package-evidence.json").write_text(json.dumps({
               "schema_version": 1,
               "build_targets": "pass",
               "source_integrity_before_and_after_build": "pass",
-              "epose_unit_tests": "327 tests pass",
-              "epose_python_tests": "43 tests pass",
+              "epose_unit_tests": f"{counts['epose_unit_tests']} tests pass",
+              "epose_python_tests": f"{counts['epose_python_tests']} tests pass",
           }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           PY
       - name: Verify source integrity after build

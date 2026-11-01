@@ -171,8 +171,15 @@ namespace cryptonote
     bool show_incoming_transfers(const std::vector<std::string> &args);
     bool show_payments(const std::vector<std::string> &args);
     bool show_blockchain_height(const std::vector<std::string> &args);
-    bool transfer_main(const std::vector<std::string> &args, bool called_by_mms);
+    bool transfer_main(const std::vector<std::string> &args, bool called_by_mms, const boost::optional<cryptonote::tx_extra_vm_call> &contract_call = boost::none, const std::vector<crypto::public_key>& external_contract_signers = {});
     bool transfer(const std::vector<std::string> &args);
+    bool prepare_contract_call(bool deploy, const std::vector<std::string> &args, cryptonote::tx_extra_vm_call &call, std::vector<std::string> &transfer_args, std::vector<crypto::public_key>* external_signers = nullptr);
+    bool submit_contract_call(bool deploy, const std::vector<std::string> &args);
+    bool contract_deploy(const std::vector<std::string> &args);
+    bool contract_call(const std::vector<std::string> &args);
+    bool contract_dry_run(const std::vector<std::string> &args);
+    bool contract_state(const std::vector<std::string> &args);
+    bool invoke_app_shader(const std::vector<std::string> &args);
     bool register_service_node(const std::vector<std::string> &args);
     bool sweep_main(uint32_t account, uint64_t below, const std::vector<std::string> &args);
     bool sweep_all(const std::vector<std::string> &args);
@@ -372,7 +379,7 @@ namespace cryptonote
       void update(uint64_t height, bool force = false)
       {
         auto current_time = std::chrono::system_clock::now();
-        const auto node_update_threshold = std::chrono::seconds(DIFFICULTY_TARGET_V1 / 2); // use min of V1/V2
+        const auto node_update_threshold = std::chrono::seconds(std::min<uint64_t>(DIFFICULTY_TARGET_V1, block_target(m_simple_wallet.m_wallet->nettype())) / 2);
         if (node_update_threshold < current_time - m_blockchain_height_update_time || m_blockchain_height <= height)
         {
           update_blockchain_height();

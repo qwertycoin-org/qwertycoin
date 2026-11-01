@@ -78,6 +78,39 @@
             assert import ./nix/check-module.nix { inherit self nixpkgs system; };
             pkgs.runCommand "qwertycoin-node-module-check" { } ''touch "$out"'';
         }
+        // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          epose-filter-i686 = pkgs.pkgsi686Linux.stdenv.mkDerivation {
+            name = "epose-filter-i686";
+            dontUnpack = true;
+            buildPhase = ''
+              cat > probe.cpp <<'EOF'
+              #include <cstddef>
+              #include "rpc/epose_challenge_rpc_filter.h"
+
+              static_assert(sizeof(size_t) == 4);
+
+              int main()
+              {
+                cryptonote::epose_challenge_rpc_filter filter;
+                const auto now = std::chrono::steady_clock::time_point{};
+                const std::string host = "198.51.100.1";
+                for (size_t request = 0; request < QWC_EPOSE_CHALLENGE_RPC_BUCKET_CAPACITY; ++request)
+                {
+                  if (filter.check(host, cryptonote::EPOSE_SERVICE_CHALLENGE_V2_URI, false, now)
+                      != cryptonote::epose_challenge_rpc_filter::decision::allowed)
+                    return 1;
+                  filter.settle_response_bytes(host, 0);
+                }
+                return filter.check(host, cryptonote::EPOSE_SERVICE_CHALLENGE_V2_URI, false, now)
+                    == cryptonote::epose_challenge_rpc_filter::decision::rate_limited ? 0 : 2;
+              }
+              EOF
+              c++ -std=c++14 -Wall -Wextra -Wconversion -Wsign-conversion -Werror -I${self}/src -isystem ${pkgs.lib.getDev pkgs.boost}/include -o epose-filter-i686 probe.cpp
+              ./epose-filter-i686
+            '';
+            installPhase = ''touch "$out"'';
+          };
+        }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           darwin-module =
             assert import ./nix/check-darwin-module.nix {
@@ -230,6 +263,7 @@
               monotonic
               pyzmq
               deepdiff
+              pycryptodome
             ]
           );
         in
@@ -240,6 +274,8 @@
               functionalTestPython
               pkgs.git
               pkgs.ccache
+              pkgs.protobuf_21
+              pkgs.gtest
             ];
             OPENSSL_ROOT_DIR = "${pkgs.lib.getDev pkgs.openssl}";
             Readline_ROOT_DIR = "${pkgs.lib.getDev pkgs.readline}";
@@ -249,6 +285,13 @@
           };
         }
       );
+
+      apps = forAllSystems (_system: {
+        release-gate = {
+          type = "app";
+          program = "${self}/tools/release/release_gate.sh";
+        };
+      });
 
       formatter = forAllSystems (system: (pkgsFor system).nixfmt-rfc-style);
     };

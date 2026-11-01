@@ -642,6 +642,7 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
       cryptonote::TESTNET, relay_genesis(), relay_parameters(),
       timing, admission, committee);
   ASSERT_TRUE(state.valid());
+  const auto canonical_hash = state.state_hash();
   auto relay = pool();
   const envelope_record_v2 record = lifecycle_record(1);
   envelope_budget_v2 ignored{};
@@ -660,6 +661,7 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
           state, contexts, relay, accepted));
   EXPECT_EQ(0u, relay.size());
   EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(canonical_hash, state.state_hash());
 
   ASSERT_EQ(relay_ingress_status_v2::accepted,
       admit_relay_envelopes_v2(
@@ -668,6 +670,7 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
   ASSERT_EQ(1u, relay.size());
   ASSERT_EQ(1u, accepted.size());
   EXPECT_EQ(encoded, accepted.front());
+  EXPECT_EQ(canonical_hash, state.state_hash());
 
   ASSERT_EQ(relay_ingress_status_v2::accepted,
       admit_relay_envelopes_v2(
@@ -675,6 +678,7 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
           state, contexts, relay, accepted));
   EXPECT_EQ(1u, relay.size());
   EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(canonical_hash, state.state_hash());
 
   EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
       admit_relay_envelopes_v2(
@@ -682,6 +686,65 @@ TEST(epose_relay_pool_v2, semantic_ingress_is_authenticated_idempotent_and_batch
           state, contexts, relay, accepted));
   EXPECT_EQ(1u, relay.size());
   EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(canonical_hash, state.state_hash());
+}
+
+TEST(epose_relay_pool_v2, ingress_trace_names_the_rejecting_envelope_and_lifecycle_status)
+{
+  const epoch_timing_v2 timing{0, 720, 60};
+  const admission_policy_v2 admission{
+      admission_work_algorithm_v2::randomx, 1, 1};
+  const committee_policy_v2 committee{1, 1, 1, 1, 1, {0}};
+  semantic_state_v2 state(
+      cryptonote::TESTNET, relay_genesis(), relay_parameters(),
+      timing, admission, committee);
+  ASSERT_TRUE(state.valid());
+  auto relay = pool();
+  const fixed_contexts contexts{};
+  std::vector<std::string> accepted;
+
+  const auto encode = [](const envelope_record_v2 &record) {
+    envelope_budget_v2 ignored{};
+    std::string encoded;
+    EXPECT_EQ(envelope_status_v2::accepted,
+        encode_envelope_v2({record}, envelope_limits(), encoded, ignored));
+    return encoded;
+  };
+  const std::string valid = encode(lifecycle_record(1));
+  const std::string retroactive = encode(lifecycle_record(0));
+  std::string unparsable = valid;
+  unparsable.resize(unparsable.size() / 2);
+
+  relay_ingress_trace_v2 trace{};
+  ASSERT_EQ(relay_ingress_status_v2::accepted,
+      admit_relay_envelopes_v2(
+          {valid}, 1, envelope_limits(), relay_policy(), state, contexts,
+          relay, accepted, &trace));
+  EXPECT_EQ(relay_ingress_rejection_v2::none, trace.rejection);
+
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {valid, unparsable}, 1, envelope_limits(), relay_policy(), state,
+          contexts, relay, accepted, &trace));
+  EXPECT_EQ(relay_ingress_rejection_v2::envelope_parse, trace.rejection);
+  EXPECT_EQ(1u, trace.envelope_index);
+
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {retroactive}, 1, envelope_limits(), relay_policy(), state,
+          contexts, relay, accepted, &trace));
+  EXPECT_EQ(relay_ingress_rejection_v2::semantic_rejected, trace.rejection);
+  EXPECT_EQ(semantic_status_v2::invalid_lifecycle, trace.semantic);
+  EXPECT_EQ(lifecycle_status_v2::retroactive_change, trace.lifecycle);
+  EXPECT_EQ(0u, trace.envelope_index);
+
+  auto oversized_limits = envelope_limits();
+  oversized_limits.max_envelope_bytes = valid.size() - 1;
+  EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
+      admit_relay_envelopes_v2(
+          {valid}, 1, oversized_limits, relay_policy(), state, contexts,
+          relay, accepted, &trace));
+  EXPECT_EQ(relay_ingress_rejection_v2::envelope_budget, trace.rejection);
 }
 
 TEST(epose_relay_pool_v2, epoch46_canonical_lifecycle_is_not_relayed_again)
@@ -707,6 +770,14 @@ TEST(epose_relay_pool_v2, epoch46_canonical_lifecycle_is_not_relayed_again)
       relay, accepted));
   EXPECT_EQ(0u, relay.size());
   EXPECT_TRUE(accepted.empty());
+  ASSERT_EQ(relay_record_status_v2::accepted, relay.enqueue(record, 2));
+  std::vector<relay_record_selection_v2> selected;
+  ASSERT_EQ(relay_record_status_v2::accepted, relay.select_for_template(2, selected, &state));
+  EXPECT_TRUE(selected.empty());
+  EXPECT_EQ(0u, relay.size());
+  ASSERT_EQ(relay_record_status_v2::accepted, relay.enqueue(record, 2));
+  relay.prune_unusable_receipts(2, state, contexts);
+  EXPECT_EQ(0u, relay.size());
   encoded.back() ^= 1;
   EXPECT_EQ(relay_ingress_status_v2::invalid_batch, admit_relay_envelopes_v2(
       {encoded}, 2, envelope_limits(), relay_policy(), state, contexts,
@@ -777,6 +848,8 @@ TEST(epose_relay_pool_v2, ordered_single_record_envelopes_share_one_atomic_seman
   }
   const fixed_contexts contexts{};
   std::vector<std::string> accepted;
+  const crypto::hash parent_hash = state.state_hash();
+  const std::string parent_image = state.serialize_state();
 
   ASSERT_EQ(relay_ingress_status_v2::accepted,
       admit_relay_envelopes_v2(
@@ -784,15 +857,22 @@ TEST(epose_relay_pool_v2, ordered_single_record_envelopes_share_one_atomic_seman
           relay, accepted));
   EXPECT_EQ(2u, relay.size());
   EXPECT_EQ(encoded, accepted);
+  EXPECT_EQ(parent_hash, state.state_hash());
+  EXPECT_EQ(parent_image, state.serialize_state());
 
   auto reversed_pool = pool();
   std::reverse(encoded.begin(), encoded.end());
+  relay_ingress_trace_v2 trace{};
   EXPECT_EQ(relay_ingress_status_v2::invalid_batch,
       admit_relay_envelopes_v2(
           encoded, 1, envelope_limits(), relay_policy(), state, contexts,
-          reversed_pool, accepted));
+          reversed_pool, accepted, &trace));
+  EXPECT_EQ(semantic_status_v2::invalid_lifecycle, trace.semantic);
+  EXPECT_EQ(lifecycle_status_v2::identity_not_found, trace.lifecycle);
   EXPECT_EQ(0u, reversed_pool.size());
   EXPECT_TRUE(accepted.empty());
+  EXPECT_EQ(parent_hash, state.state_hash());
+  EXPECT_EQ(parent_image, state.serialize_state());
 }
 
 TEST(epose_relay_pool_v2, pending_duplicate_preserves_following_semantic_dependency)

@@ -3,6 +3,8 @@
 
 #include <gtest/gtest.h>
 
+#include "epose_journal_test_helpers.h"
+
 #include <cstring>
 #include <stdexcept>
 
@@ -373,7 +375,7 @@ TEST(epose_semantic_batch_v2, journal_restores_replaced_lease_and_nested_lifecyc
   state.rollback(undo);
   EXPECT_EQ(before, state.state_hash());
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+      epose_test_journal::freeze_membership(state, 4, 2820, hash_text("epoch-4-anchor")));
   ASSERT_EQ(1u, state.membership().snapshot(4)->members.size());
   EXPECT_EQ(original.service.public_key,
       state.membership().snapshot(4)->members.front().service_public_key);
@@ -491,7 +493,7 @@ TEST(epose_semantic_batch_v2, recovery_replaces_pending_admission_by_stable_iden
   EXPECT_EQ(1u, summary.verifications.randomx);
 
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+      epose_test_journal::freeze_membership(state, 4, 2820, hash_text("epoch-4-anchor")));
   const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
   ASSERT_NE(nullptr, snapshot);
   ASSERT_EQ(1u, snapshot->members.size());
@@ -528,7 +530,7 @@ TEST(epose_semantic_batch_v2, final_descriptor_view_invalidates_superseded_bindi
           semantic_transaction_context_v2{2201, false, nullptr}, source, summary));
 
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+      epose_test_journal::freeze_membership(state, 4, 2820, hash_text("epoch-4-anchor")));
   const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
   ASSERT_NE(nullptr, snapshot);
   EXPECT_TRUE(snapshot->members.empty());
@@ -560,7 +562,7 @@ TEST(epose_semantic_batch_v2, deregistration_before_cutoff_invalidates_pending_a
           semantic_transaction_context_v2{2201, false, nullptr}, source, summary));
 
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+      epose_test_journal::freeze_membership(state, 4, 2820, hash_text("epoch-4-anchor")));
   const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
   ASSERT_NE(nullptr, snapshot);
   EXPECT_TRUE(snapshot->members.empty());
@@ -619,7 +621,7 @@ TEST(epose_semantic_batch_v2, authenticated_receipt_uses_canonical_round_anchor)
   semantic_apply_summary_v2 summary{};
   ASSERT_EQ(semantic_status_v2::accepted, enroll(state, subject, source, summary));
   ASSERT_EQ(semantic_status_v2::accepted, enroll(state, verifier, source, summary));
-  ASSERT_EQ(pipeline_status_v2::accepted, state.freeze_membership(3, 2100, source.round));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(state, 3, 2100, source.round));
   const membership_snapshot_v2 *snapshot = state.membership().snapshot(3);
   ASSERT_NE(nullptr, snapshot);
 
@@ -663,7 +665,7 @@ TEST(epose_semantic_batch_v2, receipt_duplicates_are_authenticated_before_succes
   semantic_apply_summary_v2 summary{};
   ASSERT_EQ(semantic_status_v2::accepted, enroll(state, subject, source, summary));
   ASSERT_EQ(semantic_status_v2::accepted, enroll(state, verifier, source, summary));
-  ASSERT_EQ(pipeline_status_v2::accepted, state.freeze_membership(3, 2100, source.round));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(state, 3, 2100, source.round));
 
   const membership_snapshot_v2 *snapshot = state.membership().snapshot(3);
   ASSERT_NE(nullptr, snapshot);
@@ -706,7 +708,7 @@ TEST(epose_semantic_batch_v2, receipt_duplicates_are_authenticated_before_succes
   semantic_state_v2 batch = make_state();
   ASSERT_EQ(semantic_status_v2::accepted, enroll(batch, subject, source, summary));
   ASSERT_EQ(semantic_status_v2::accepted, enroll(batch, verifier, source, summary));
-  ASSERT_EQ(pipeline_status_v2::accepted, batch.freeze_membership(3, 2100, source.round));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(batch, 3, 2100, source.round));
   const crypto::hash before_batch = batch.state_hash();
   EXPECT_EQ(semantic_status_v2::invalid_receipt,
       batch.apply_transaction(
@@ -741,7 +743,7 @@ TEST(epose_semantic_batch_v2, pending_exact_receipts_are_reforwarded_without_que
   ASSERT_EQ(semantic_status_v2::accepted,
       enroll(state, verifier, source, summary));
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(3, 2100, source.round));
+      epose_test_journal::freeze_membership(state, 3, 2100, source.round));
 
   auto relay = relay_pool();
   const std::string first = envelope(
@@ -789,7 +791,7 @@ TEST(epose_semantic_batch_v2, confirmed_slot_races_are_nonfatal_but_still_authen
   ASSERT_EQ(semantic_status_v2::accepted,
       enroll(state, verifier, source, summary));
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(3, 2100, source.round));
+      epose_test_journal::freeze_membership(state, 3, 2100, source.round));
 
   const envelope_record_v2 canonical =
       receipt_record(state, subject, verifier, source.round, "canonical");
@@ -831,7 +833,7 @@ TEST(epose_semantic_batch_v2, closed_qualification_discards_only_authenticated_l
   ASSERT_EQ(semantic_status_v2::accepted,
       enroll(state, verifier, source, summary));
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(3, 2100, source.round));
+      epose_test_journal::freeze_membership(state, 3, 2100, source.round));
 
   const envelope_record_v2 canonical =
       receipt_record(state, subject, verifier, source.round, "canonical");
@@ -840,7 +842,9 @@ TEST(epose_semantic_batch_v2, closed_qualification_discards_only_authenticated_l
           {canonical}, semantic_transaction_context_v2{2160, false, nullptr},
           source, summary));
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.close_qualification(3, 2819));
+      epose_test_journal::close_qualification(state, 3, 2819));
+  const crypto::hash parent_hash = state.state_hash();
+  const std::string parent_image = state.serialize_state();
 
   auto relay = relay_pool();
   std::vector<std::string> accepted;
@@ -850,10 +854,12 @@ TEST(epose_semantic_batch_v2, closed_qualification_discards_only_authenticated_l
   const std::string new_slot = envelope(
       receipt_record(state, verifier, subject, source.round, "new-slot"));
 
+  relay_ingress_trace_v2 late_trace{};
   EXPECT_EQ(relay_ingress_status_v2::expired,
       admit_relay_envelopes_v2(
           {exact}, 2820, relay_envelope_limits(), relay_policy(),
-          state, source, relay, accepted));
+          state, source, relay, accepted, &late_trace));
+  EXPECT_EQ(relay_ingress_rejection_v2::receipt_window_closed, late_trace.rejection);
   EXPECT_EQ(relay_ingress_status_v2::expired,
       admit_relay_envelopes_v2(
           {variant}, 2820, relay_envelope_limits(), relay_policy(),
@@ -882,6 +888,8 @@ TEST(epose_semantic_batch_v2, closed_qualification_discards_only_authenticated_l
           state, source, relay, accepted));
   EXPECT_TRUE(accepted.empty());
   EXPECT_EQ(0u, relay.size());
+  EXPECT_EQ(parent_hash, state.state_hash());
+  EXPECT_EQ(parent_image, state.serialize_state());
 }
 
 TEST(epose_semantic_batch_v2, canonical_reorg_replaces_a_pending_receipt_context)
@@ -899,7 +907,7 @@ TEST(epose_semantic_batch_v2, canonical_reorg_replaces_a_pending_receipt_context
   ASSERT_EQ(semantic_status_v2::accepted,
       enroll(state_a, verifier, anchor_a, summary));
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state_a.freeze_membership(3, 2100, anchor_a.round));
+      epose_test_journal::freeze_membership(state_a, 3, 2100, anchor_a.round));
 
   semantic_state_v2 state_b = make_state();
   ASSERT_EQ(semantic_status_v2::accepted,
@@ -907,7 +915,7 @@ TEST(epose_semantic_batch_v2, canonical_reorg_replaces_a_pending_receipt_context
   ASSERT_EQ(semantic_status_v2::accepted,
       enroll(state_b, verifier, anchor_b, summary));
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state_b.freeze_membership(3, 2100, anchor_b.round));
+      epose_test_journal::freeze_membership(state_b, 3, 2100, anchor_b.round));
   ASSERT_NE(state_a.membership().snapshot(3)->snapshot_hash,
       state_b.membership().snapshot(3)->snapshot_hash);
 
@@ -1012,7 +1020,7 @@ TEST(epose_semantic_batch_v2, recovery_cannot_claim_another_active_identity_serv
   EXPECT_EQ(before, state.state_hash());
 
   ASSERT_EQ(pipeline_status_v2::accepted,
-      state.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+      epose_test_journal::freeze_membership(state, 4, 2820, hash_text("epoch-4-anchor")));
   const membership_snapshot_v2 *snapshot = state.membership().snapshot(4);
   ASSERT_NE(nullptr, snapshot);
   ASSERT_EQ(2u, snapshot->members.size());
@@ -1107,6 +1115,43 @@ TEST(epose_semantic_batch_v2, coinbase_accepts_one_context_bound_payment_proof_o
   EXPECT_EQ(0u, summary.payment_proof_records);
 }
 
+TEST(epose_semantic_batch_v2, unchanged_archives_keep_storage_across_record_classes)
+{
+  contexts source;
+  semantic_state_v2 state = make_state();
+  semantic_apply_summary_v2 summary{};
+  identity first = make_identity("first-endpoint");
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {registration_record(first)},
+          semantic_transaction_context_v2{1500, false, nullptr}, source, summary));
+  const identity_descriptor_v2 *descriptor =
+      state.lifecycle().descriptor_for_epoch(first.descriptor.identity_id, 3);
+  ASSERT_NE(nullptr, descriptor);
+  ASSERT_EQ(semantic_status_v2::accepted,
+      state.apply_transaction(
+          {admission_record(first, source)},
+          semantic_transaction_context_v2{1501, false, nullptr}, source, summary));
+  EXPECT_EQ(descriptor,
+      state.lifecycle().descriptor_for_epoch(first.descriptor.identity_id, 3));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      epose_test_journal::freeze_membership(state, 3, 2100, source.round));
+  const membership_snapshot_v2 *snapshot = state.membership().snapshot(3);
+  ASSERT_NE(nullptr, snapshot);
+
+  for (uint64_t block = 0; block < 128; ++block)
+  {
+    identity next = make_identity("later-endpoint");
+    next.descriptor.effective_epoch = 4;
+    ASSERT_EQ(semantic_status_v2::accepted,
+        state.apply_transaction(
+            {registration_record(next)},
+            semantic_transaction_context_v2{2200 + block, false, nullptr},
+            source, summary));
+    EXPECT_EQ(snapshot, state.membership().snapshot(3));
+  }
+}
+
 TEST(epose_semantic_batch_v2, receipt_retry_reaches_restarted_miner_through_intermediary)
 {
   contexts source;
@@ -1116,7 +1161,7 @@ TEST(epose_semantic_batch_v2, receipt_retry_reaches_restarted_miner_through_inte
   semantic_apply_summary_v2 summary{};
   ASSERT_EQ(semantic_status_v2::accepted, enroll(state, subject, source, summary));
   ASSERT_EQ(semantic_status_v2::accepted, enroll(state, verifier, source, summary));
-  ASSERT_EQ(pipeline_status_v2::accepted, state.freeze_membership(3, 2100, source.round));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(state, 3, 2100, source.round));
   const auto record = receipt_record(state, subject, verifier, source.round, "retry");
   const std::vector<std::string> receipt{envelope(record)};
   auto origin = relay_pool(), x = relay_pool(), miner = relay_pool();

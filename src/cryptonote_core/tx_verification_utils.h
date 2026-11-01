@@ -47,6 +47,7 @@ uint64_t get_transaction_weight_limit(uint8_t hf_version);
 static constexpr const size_t RCT_VER_CACHE_SIZE = 8192;
 
 using rct_ver_cache_t = ::tools::data_cache<::crypto::hash, RCT_VER_CACHE_SIZE>;
+crypto::hash rct_verification_cache_key(const transaction& tx, const rct::ctkeyM& mix_ring);
 
 /**
  * @brief Cached version of rct::verRctNonSemanticsSimple
@@ -81,7 +82,8 @@ bool ver_rct_non_semantics_simple_cached
     transaction& tx,
     const rct::ctkeyM& mix_ring,
     rct_ver_cache_t& cache,
-    std::uint8_t rct_type_to_cache
+    std::uint8_t rct_type_to_cache,
+    std::uint8_t hf_version
 );
 
 /**

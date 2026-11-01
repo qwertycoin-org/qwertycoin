@@ -156,6 +156,29 @@ TEST(epose_envelope_v2, explicitly_disabled_record_versions_fail_closed)
       encode_envelope_v2({record(record_type_v2::service_payment_proof, "disabled")}, disabled, encoded, budget));
 }
 
+TEST(epose_envelope_v2, hf17_rejects_version_two_record_and_hf18_accepts_it)
+{
+  auto allowed = limits();
+  allowed.supported_record_versions[static_cast<size_t>(record_type_v2::identity_descriptor)] = 2;
+  auto version_two = record(record_type_v2::identity_descriptor, "transport");
+  version_two.version = 2;
+  std::vector<uint8_t> extra;
+  envelope_budget_v2 budget{};
+  ASSERT_EQ(envelope_status_v2::accepted,
+      append_transaction_envelope_v2({version_two}, HF_VERSION_QWC_CONTRACTS,
+          1, allowed, extra, budget));
+  std::vector<envelope_record_v2> parsed;
+  EXPECT_EQ(envelope_status_v2::unsupported_record_version,
+      parse_transaction_extra_v2(extra, HF_VERSION_QWC_EPOSE,
+          1, allowed, parsed, budget));
+  EXPECT_TRUE(parsed.empty());
+  EXPECT_EQ(envelope_status_v2::accepted,
+      parse_transaction_extra_v2(extra, HF_VERSION_QWC_CONTRACTS,
+          1, allowed, parsed, budget));
+  ASSERT_EQ(1u, parsed.size());
+  EXPECT_EQ(2u, parsed.front().version);
+}
+
 TEST(epose_envelope_v2, invalid_limits_fail_closed)
 {
   envelope_limits_v2 invalid{};

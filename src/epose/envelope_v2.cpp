@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/envelope_v2.h"
+#include "epose/hash_transcript.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_config.h"
@@ -14,6 +15,8 @@
 
 namespace
 {
+  using qwertycoin::epose::transcript::append_u16_le;
+  using qwertycoin::epose::transcript::append_u32_le;
   using qwertycoin::epose::envelope_budget_v2;
   using qwertycoin::epose::envelope_limits_v2;
   using qwertycoin::epose::envelope_status_v2;
@@ -21,18 +24,6 @@ namespace
 
   constexpr size_t ENVELOPE_HEADER_SIZE = 12;
   constexpr size_t RECORD_HEADER_SIZE = 8;
-
-  void append_u16_le(std::string &out, uint16_t value)
-  {
-    out.push_back(static_cast<char>(value & 0xff));
-    out.push_back(static_cast<char>((value >> 8) & 0xff));
-  }
-
-  void append_u32_le(std::string &out, uint32_t value)
-  {
-    for (unsigned shift = 0; shift < 32; shift += 8)
-      out.push_back(static_cast<char>((value >> shift) & 0xff));
-  }
 
   bool read_u16_le(const std::string &in, size_t &offset, uint16_t &value)
   {
@@ -148,6 +139,14 @@ namespace
     return true;
   }
 
+  bool parse_version_extra_fields(
+      const std::vector<uint8_t> &tx_extra,
+      uint8_t major_version,
+      std::vector<cryptonote::tx_extra_field> &fields)
+  {
+    return cryptonote::parse_tx_extra_strict(tx_extra, fields, true, is_qwc_contracts_hardfork(major_version));
+  }
+
   envelope_status_v2 validate_record(
       const qwertycoin::epose::envelope_record_v2 &record,
       const envelope_limits_v2 &limits,
@@ -156,7 +155,7 @@ namespace
     if (record.type == 0 || record.type >= limits.supported_record_versions.size())
       return envelope_status_v2::unknown_record_type;
     const uint8_t supported = limits.supported_record_versions[record.type];
-    if (supported == 0 || record.version != supported)
+    if (supported == 0 || record.version == 0 || record.version > supported)
       return envelope_status_v2::unsupported_record_version;
     if (record.payload.size() > limits.max_record_payload_bytes)
       return envelope_status_v2::oversized_record;
@@ -447,7 +446,8 @@ namespace epose
       size_t max_envelopes_per_transaction,
       const envelope_limits_v2 &limits,
       std::vector<envelope_record_v2> &records,
-      envelope_budget_v2 &budget)
+      envelope_budget_v2 &budget,
+      cryptonote::contract_extra_scope scope)
   {
     records.clear();
     budget = {};
@@ -456,8 +456,15 @@ namespace epose
     if (!limits.valid() || max_envelopes_per_transaction == 0)
       return envelope_status_v2::invalid_limits;
 
+    const bool contracts = is_qwc_contracts_hardfork(major_version);
+    envelope_limits_v2 version_limits = limits;
+    if (!contracts)
+      for (uint8_t &version : version_limits.supported_record_versions)
+        version = std::min<uint8_t>(version, 1);
     std::vector<cryptonote::tx_extra_field> fields;
-    if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true))
+    if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true, contracts))
+      return envelope_status_v2::malformed_transaction_extra;
+    if (contracts && !cryptonote::check_contract_extra_fields(fields, scope))
       return envelope_status_v2::malformed_transaction_extra;
     std::vector<uint8_t> canonical_extra;
     if (!serialize_extra_fields(fields, canonical_extra) || canonical_extra != tx_extra)
@@ -480,7 +487,7 @@ namespace epose
     if (envelope_fields.empty())
       return envelope_status_v2::accepted;
     return parse_transaction_envelope_fields_v2(
-        envelope_fields, max_envelopes_per_transaction, limits, records, budget);
+        envelope_fields, max_envelopes_per_transaction, version_limits, records, budget);
   }
 
   envelope_status_v2 append_transaction_envelope_v2(
@@ -501,12 +508,12 @@ namespace epose
     envelope_budget_v2 existing_budget{};
     const envelope_status_v2 existing_status = parse_transaction_extra_v2(
         tx_extra, major_version, max_envelopes_per_transaction, limits,
-        existing_records, existing_budget);
+        existing_records, existing_budget, cryptonote::contract_extra_scope::either);
     if (existing_status != envelope_status_v2::accepted)
       return existing_status;
 
     std::vector<cryptonote::tx_extra_field> fields;
-    if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true))
+    if (!parse_version_extra_fields(tx_extra, major_version, fields))
       return envelope_status_v2::malformed_transaction_extra;
     const size_t existing_envelopes = std::count_if(fields.begin(), fields.end(), [](const cryptonote::tx_extra_field &field) {
       return field.type() == typeid(cryptonote::tx_extra_epose_v2);
@@ -579,7 +586,7 @@ namespace epose
       return checked;
 
     std::vector<cryptonote::tx_extra_field> fields;
-    if (!cryptonote::parse_tx_extra_strict(tx_extra, fields, true))
+    if (!parse_version_extra_fields(tx_extra, major_version, fields))
       return envelope_status_v2::malformed_transaction_extra;
 
     size_t envelopes = 0;

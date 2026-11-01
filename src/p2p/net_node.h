@@ -282,7 +282,7 @@ namespace nodetool
     uint32_t get_max_out_public_peers() const;
     void change_max_in_public_peers(size_t count);
     uint32_t get_max_in_public_peers() const;
-    virtual bool block_host(epee::net_utils::network_address address, time_t seconds = P2P_IP_BLOCKTIME, bool add_only = false);
+    virtual bool block_host(epee::net_utils::network_address address, time_t seconds = P2P_IP_BLOCKTIME, bool add_only = false, const char *reason = "manual");
     virtual bool unblock_host(const epee::net_utils::network_address &address);
     virtual bool block_subnet(const epee::net_utils::ipv4_network_subnet &subnet, time_t seconds = P2P_IP_BLOCKTIME);
     virtual bool unblock_subnet(const epee::net_utils::ipv4_network_subnet &subnet);
@@ -344,7 +344,7 @@ namespace nodetool
     virtual void request_callback(const epee::net_utils::connection_context_base& context);
     virtual void for_each_connection(std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
-    virtual bool add_host_fail(const epee::net_utils::network_address &address, unsigned int score = 1);
+    virtual bool add_host_fail(const epee::net_utils::network_address &address, unsigned int score = 1, const char *reason = "unspecified");
     //----------------- i_connection_filter  --------------------------------------------------------
     virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address, time_t *t = NULL);
     //----------------- i_connection_limit  ---------------------------------------------------------
@@ -485,8 +485,14 @@ namespace nodetool
     added. `std::map::operator[]` WILL insert! */
     std::map<epee::net_utils::zone, network_zone> m_network_zones;
 
+    template<typename Value>
+    struct failure_cache_entry
+    {
+      Value value{};
+      std::chrono::steady_clock::time_point last_seen{};
+    };
 
-    std::map<std::string, time_t> m_conn_fails_cache;
+    std::map<std::string, failure_cache_entry<time_t>> m_conn_fails_cache;
     epee::critical_section m_conn_fails_cache_lock;
 
     epee::critical_section m_blocked_hosts_lock; // for both hosts and subnets
@@ -494,7 +500,7 @@ namespace nodetool
     std::map<epee::net_utils::ipv4_network_subnet, time_t> m_blocked_subnets;
 
     epee::critical_section m_host_fails_score_lock;
-    std::map<std::string, uint64_t> m_host_fails_score;
+    std::map<std::string, failure_cache_entry<uint64_t>> m_host_fails_score;
 
     boost::mutex m_used_stripe_peers_mutex;
     std::array<std::list<epee::net_utils::network_address>, 1 << CRYPTONOTE_PRUNING_LOG_STRIPES> m_used_stripe_peers;
@@ -514,8 +520,8 @@ namespace nodetool
     const int64_t default_limit_down = P2P_DEFAULT_LIMIT_RATE_DOWN;  // kB/s
     extern const command_line::arg_descriptor<std::string> arg_p2p_bind_ip;
     extern const command_line::arg_descriptor<std::string> arg_p2p_bind_ipv6_address;
-    extern const command_line::arg_descriptor<std::string, false, true, 2> arg_p2p_bind_port;
-    extern const command_line::arg_descriptor<std::string, false, true, 2> arg_p2p_bind_port_ipv6;
+    extern const command_line::arg_descriptor<std::string, false, true, 3> arg_p2p_bind_port;
+    extern const command_line::arg_descriptor<std::string, false, true, 3> arg_p2p_bind_port_ipv6;
     extern const command_line::arg_descriptor<bool>        arg_p2p_use_ipv6;
     extern const command_line::arg_descriptor<bool>        arg_p2p_ignore_ipv4;
     extern const command_line::arg_descriptor<uint32_t>    arg_p2p_external_port;

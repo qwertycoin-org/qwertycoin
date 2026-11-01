@@ -40,6 +40,10 @@
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
 #define TX_EXTRA_TAG_ADDITIONAL_PUBKEYS     0x04
 #define TX_EXTRA_TAG_EPOSE_V2               0x05
+#define TX_EXTRA_TAG_HEIGHT_WINDOW          0x06
+#define TX_EXTRA_TAG_VM_STATE_ROOT          0x07
+#define TX_EXTRA_TAG_VM_CALL                0x08
+#define TX_EXTRA_TAG_CHAINLOCK              0x09
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
@@ -178,6 +182,105 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
+  struct tx_extra_height_window
+  {
+    uint64_t from;
+    uint64_t until;
+
+    BEGIN_SERIALIZE()
+      VARINT_FIELD(from)
+      VARINT_FIELD(until)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_vm_state_root
+  {
+    crypto::hash root;
+
+    BEGIN_SERIALIZE()
+      FIELD(root)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_vm_mint_destination
+  {
+    crypto::public_key key;
+    crypto::view_tag view_tag;
+    crypto::public_key tx_key;
+
+    BEGIN_SERIALIZE()
+      FIELD(key)
+      FIELD(view_tag)
+      FIELD(tx_key)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_vm_signature
+  {
+    crypto::signature value;
+
+    BEGIN_SERIALIZE()
+      FIELD(value)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_vm_call
+  {
+    enum : uint32_t { kind_deploy = 0, kind_invoke = 1 };
+
+    uint32_t version = 1;
+    uint32_t kind;
+    crypto::hash contract_id;
+    uint32_t method;
+    std::string code;
+    std::string args;
+    uint64_t gas_limit;
+    uint64_t gas_price;
+    uint64_t deposit;
+    std::vector<tx_extra_vm_mint_destination> mint;
+    std::vector<crypto::public_key> signers;
+    std::vector<crypto::hash> signer_contracts;
+    std::vector<uint32_t> signer_methods;
+    std::vector<crypto::hash> signer_key_ids;
+    std::vector<uint8_t> signer_nested;
+    std::vector<tx_extra_vm_signature> signatures;
+
+    BEGIN_SERIALIZE()
+      VARINT_FIELD(version)
+      VARINT_FIELD(kind)
+      FIELD(contract_id)
+      VARINT_FIELD(method)
+      FIELD(code)
+      FIELD(args)
+      VARINT_FIELD(gas_limit)
+      VARINT_FIELD(gas_price)
+      VARINT_FIELD(deposit)
+      FIELD(mint)
+      FIELD(signers)
+      FIELD(signer_contracts)
+      FIELD(signer_methods)
+      FIELD(signer_key_ids)
+      FIELD(signer_nested)
+      FIELD(signatures)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_chainlock
+  {
+    std::string blob;
+
+    BEGIN_SERIALIZE()
+      FIELD(blob)
+    END_SERIALIZE()
+  };
+
+  enum class contract_extra_scope
+  {
+    coinbase,
+    transaction,
+    either
+  };
+
   struct tx_extra_mysterious_minergate
   {
     std::string data;
@@ -191,7 +294,7 @@ namespace cryptonote
   //   varint tag;
   //   varint size;
   //   varint data[];
-  typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag, tx_extra_additional_pub_keys, tx_extra_epose_v2, tx_extra_mysterious_minergate> tx_extra_field;
+  typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag, tx_extra_additional_pub_keys, tx_extra_epose_v2, tx_extra_height_window, tx_extra_vm_state_root, tx_extra_vm_call, tx_extra_chainlock, tx_extra_mysterious_minergate> tx_extra_field;
 }
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding, TX_EXTRA_TAG_PADDING);
@@ -200,4 +303,8 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_nonce, TX_EXTRA_NONCE);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_merge_mining_tag, TX_EXTRA_MERGE_MINING_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_additional_pub_keys, TX_EXTRA_TAG_ADDITIONAL_PUBKEYS);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_epose_v2, TX_EXTRA_TAG_EPOSE_V2);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_height_window, TX_EXTRA_TAG_HEIGHT_WINDOW);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_vm_state_root, TX_EXTRA_TAG_VM_STATE_ROOT);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_vm_call, TX_EXTRA_TAG_VM_CALL);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_chainlock, TX_EXTRA_TAG_CHAINLOCK);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);

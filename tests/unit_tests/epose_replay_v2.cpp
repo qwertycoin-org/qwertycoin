@@ -123,8 +123,11 @@ namespace
           producer.apply_block(block.major_version, height, block.block_hash,
               {transaction}, source, summary));
       source.states.emplace(height, producer.state().state_hash());
-      source.parameter_hashes.emplace(height, parameters);
-      source.schemas.emplace(height, cryptonote::EPOSE_STATE_COMMITMENT_SCHEMA_V2);
+      source.parameter_hashes.emplace(height,
+          producer.state().state_commitment_schema() == QWC_EPOSE_ROLLING_STATE_SCHEMA
+              ? producer.state().window_parameter_hash() : parameters);
+      source.schemas.emplace(height,
+          producer.state().state_commitment_schema());
     }
     return source;
   }

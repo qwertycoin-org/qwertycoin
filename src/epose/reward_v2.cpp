@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/reward_v2.h"
+#include "epose/hash_transcript.h"
+#include "epose/checked_math.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "epose/envelope_v2.h"
@@ -15,49 +17,19 @@
 
 namespace
 {
+  using qwertycoin::epose::transcript::append_bytes;
+  using qwertycoin::epose::transcript::append_u8;
+  using qwertycoin::epose::transcript::append_u32_le;
+  using qwertycoin::epose::transcript::append_u64_le;
+  using qwertycoin::epose::transcript::append_network;
+  using qwertycoin::epose::transcript::hash_blob;
   using qwertycoin::epose::service_payment_context_v2;
-
-  bool checked_add(uint64_t left, uint64_t right, uint64_t &out)
-  {
-    if (left > std::numeric_limits<uint64_t>::max() - right)
-      return false;
-    out = left + right;
-    return true;
-  }
+  using qwertycoin::epose::service_payment_output_v2;
+  using qwertycoin::epose::checked_add;
 
   uint64_t basis_points(uint64_t amount, uint64_t bps)
   {
     return amount / 10000 * bps + (amount % 10000) * bps / 10000;
-  }
-
-  template <typename T>
-  void append_bytes(std::string &out, const T &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(T));
-  }
-
-  void append_u8(std::string &out, uint8_t value)
-  {
-    out.push_back(static_cast<char>(value));
-  }
-
-  void append_u32_le(std::string &out, uint32_t value)
-  {
-    for (unsigned shift = 0; shift < 32; shift += 8)
-      out.push_back(static_cast<char>((value >> shift) & 0xff));
-  }
-
-  void append_u64_le(std::string &out, uint64_t value)
-  {
-    for (unsigned shift = 0; shift < 64; shift += 8)
-      out.push_back(static_cast<char>((value >> shift) & 0xff));
-  }
-
-  void append_network(std::string &out, cryptonote::network_type nettype)
-  {
-    const auto &network_id = cryptonote::get_config(nettype).NETWORK_ID;
-    for (const auto byte : network_id)
-      append_u8(out, byte);
   }
 
   bool valid_nonnull_key(const crypto::public_key &key)
@@ -81,6 +53,10 @@ namespace
         || !valid_nonnull_key(context.transaction_public_key))
       return false;
 
+    if (context.service_output_start
+        && context.outputs.front().output_index != *context.service_output_start)
+      return false;
+
     uint64_t sum = 0;
     uint32_t previous_index = 0;
     bool first = true;
@@ -90,7 +66,9 @@ namespace
     {
       if (!valid_nonnull_key(output.output_public_key)
           || output.amount == 0
-          || (!first && output.output_index <= previous_index))
+          || (!first && output.output_index <= previous_index)
+          || (!first && context.service_output_start
+              && output.output_index != previous_index + 1))
         return false;
       first = false;
       previous_index = output.output_index;
@@ -103,11 +81,6 @@ namespace
     return sum == context.service_reward;
   }
 
-  crypto::hash fast_hash(const std::string &blob)
-  {
-    return crypto::cn_fast_hash(blob.data(), blob.size());
-  }
-
   crypto::hash payment_record_hash(
       const qwertycoin::epose::envelope_record_v2 &record)
   {
@@ -116,7 +89,7 @@ namespace
     append_u8(blob, record.version);
     append_u64_le(blob, record.payload.size());
     blob.append(record.payload);
-    return fast_hash(blob);
+    return hash_blob(blob);
   }
 
   crypto::public_key derivation_as_public_key(const crypto::key_derivation &derivation)
@@ -144,6 +117,76 @@ namespace
     crypto::key_derivation out{};
     std::memcpy(&out, &key, sizeof(out));
     return out;
+  }
+
+  qwertycoin::epose::reward_status_v2 service_output_at(
+      const cryptonote::transaction &coinbase,
+      const crypto::key_derivation &derivation,
+      const crypto::public_key &reward_spend_public_key,
+      size_t output_index,
+      bool &derived_to_reward_address,
+      qwertycoin::epose::service_payment_output_v2 &output)
+  {
+    derived_to_reward_address = false;
+    if (output_index > std::numeric_limits<uint32_t>::max())
+      return qwertycoin::epose::reward_status_v2::invalid_output_allocation;
+    crypto::public_key output_public_key{};
+    if (!cryptonote::get_output_public_key(coinbase.vout[output_index], output_public_key))
+      return qwertycoin::epose::reward_status_v2::invalid_output_allocation;
+    crypto::public_key expected_output_key{};
+    if (!crypto::derive_public_key(
+            derivation, output_index, reward_spend_public_key, expected_output_key))
+      return qwertycoin::epose::reward_status_v2::invalid_derivation;
+    derived_to_reward_address = output_public_key == expected_output_key;
+    output = {
+        static_cast<uint32_t>(output_index),
+        coinbase.vout[output_index].amount,
+        output_public_key};
+    return qwertycoin::epose::reward_status_v2::accepted;
+  }
+
+  qwertycoin::epose::reward_status_v2 collect_matched_service_outputs(
+      const cryptonote::transaction &coinbase,
+      const crypto::key_derivation &derivation,
+      const crypto::public_key &reward_spend_public_key,
+      std::vector<qwertycoin::epose::service_payment_output_v2> &outputs)
+  {
+    for (size_t output_index = 0; output_index < coinbase.vout.size(); ++output_index)
+    {
+      bool matched = false;
+      qwertycoin::epose::service_payment_output_v2 output{};
+      const qwertycoin::epose::reward_status_v2 status = service_output_at(
+          coinbase, derivation, reward_spend_public_key, output_index, matched, output);
+      if (status != qwertycoin::epose::reward_status_v2::accepted)
+        return status;
+      if (!matched)
+        continue;
+      if (output.amount == 0)
+        return qwertycoin::epose::reward_status_v2::invalid_output_allocation;
+      outputs.push_back(output);
+    }
+    return qwertycoin::epose::reward_status_v2::accepted;
+  }
+
+  // QWC-28
+  qwertycoin::epose::reward_status_v2 collect_service_outputs(
+      const cryptonote::transaction &coinbase,
+      uint8_t major_version,
+      const crypto::key_derivation &derivation,
+      const crypto::public_key &reward_spend_public_key,
+      const boost::optional<uint32_t> &service_output_start,
+      uint64_t service_reward,
+      std::vector<service_payment_output_v2> &outputs)
+  {
+    outputs.clear();
+    if (is_qwc_contracts_hardfork(major_version) != static_cast<bool>(service_output_start))
+      return qwertycoin::epose::reward_status_v2::invalid_payment_proof;
+    if (service_output_start)
+      return qwertycoin::epose::collect_service_output_run_v2(
+          coinbase, derivation, reward_spend_public_key,
+          *service_output_start, service_reward, outputs);
+    return collect_matched_service_outputs(
+        coinbase, derivation, reward_spend_public_key, outputs);
   }
 }
 
@@ -259,13 +302,75 @@ namespace epose
       append_u64_le(blob, payout_epoch);
       append_bytes(blob, payout_seed);
       append_bytes(blob, key);
-      nodes.push_back({fast_hash(blob), key});
+      nodes.push_back({hash_blob(blob), key});
     }
     std::sort(nodes.begin(), nodes.end(), [](const ranked &left, const ranked &right) {
       const int score_order = std::memcmp(&left.score, &right.score, sizeof(left.score));
       return score_order != 0 ? score_order < 0 : std::memcmp(&left.key, &right.key, sizeof(left.key)) < 0;
     });
     selected = nodes[(height - payout_epoch_start) % nodes.size()].key;
+    return reward_status_v2::accepted;
+  }
+
+  bool service_payout_due_v2(
+      uint8_t major_version,
+      bool has_qualified_payee,
+      uint64_t service_reward)
+  {
+    return has_qualified_payee
+        && (service_reward != 0 || !is_qwc_contracts_hardfork(major_version));
+  }
+
+  size_t coinbase_reward_output_end_v2(const cryptonote::transaction &coinbase)
+  {
+    const std::vector<crypto::public_key> output_keys =
+        cryptonote::get_additional_tx_pub_keys_from_extra(coinbase);
+    if (output_keys.empty())
+      return coinbase.vout.size();
+    const crypto::public_key transaction_public_key =
+        cryptonote::get_tx_pub_key_from_extra(coinbase);
+    const size_t bound = std::min(coinbase.vout.size(), output_keys.size());
+    size_t end = 0;
+    while (end < bound && output_keys[end] == transaction_public_key)
+      ++end;
+    return end;
+  }
+
+  reward_status_v2 collect_service_output_run_v2(
+      const cryptonote::transaction &coinbase,
+      const crypto::key_derivation &derivation,
+      const crypto::public_key &reward_spend_public_key,
+      uint32_t service_output_start,
+      uint64_t service_reward,
+      std::vector<service_payment_output_v2> &outputs)
+  {
+    outputs.clear();
+    if (service_reward == 0)
+      return reward_status_v2::invalid_context;
+    const size_t end = coinbase_reward_output_end_v2(coinbase);
+    if (service_output_start >= end)
+      return reward_status_v2::invalid_output_allocation;
+
+    std::vector<service_payment_output_v2> run;
+    run.reserve(end - service_output_start);
+    uint64_t sum = 0;
+    for (size_t output_index = service_output_start; output_index < end; ++output_index)
+    {
+      bool matched = false;
+      service_payment_output_v2 output{};
+      const reward_status_v2 status = service_output_at(
+          coinbase, derivation, reward_spend_public_key, output_index, matched, output);
+      if (status != reward_status_v2::accepted)
+        return status;
+      if (!matched || output.amount == 0)
+        return reward_status_v2::invalid_output_allocation;
+      if (!checked_add(sum, output.amount, sum))
+        return reward_status_v2::arithmetic_overflow;
+      run.push_back(output);
+    }
+    if (sum != service_reward)
+      return reward_status_v2::invalid_output_allocation;
+    outputs = std::move(run);
     return reward_status_v2::accepted;
   }
 
@@ -294,8 +399,10 @@ namespace epose
       append_u64_le(blob, output.amount);
       append_bytes(blob, output.output_public_key);
     }
+    if (context.service_output_start)
+      append_u32_le(blob, *context.service_output_start);
     append_bytes(blob, derivation);
-    return fast_hash(blob);
+    return hash_blob(blob);
   }
 
   reward_status_v2 generate_scoped_payment_proof_v2(
@@ -315,6 +422,7 @@ namespace epose
     if (!crypto::generate_key_derivation(context.reward_address.m_view_public_key, transaction_secret_key, derivation))
       return reward_status_v2::invalid_derivation;
     proof.derivation = derivation_as_public_key(derivation);
+    proof.service_output_start = context.service_output_start;
     for (const auto &output : context.outputs)
     {
       crypto::public_key expected{};
@@ -346,6 +454,8 @@ namespace epose
       return reward_status_v2::invalid_context;
     if (!valid_nonnull_key(proof.derivation))
       return reward_status_v2::invalid_derivation;
+    if (proof.service_output_start != context.service_output_start)
+      return reward_status_v2::invalid_payment_proof;
     const crypto::hash transcript = hash_service_payment_context_v2(context, proof.derivation);
     crypto::public_key cleared_view_key{};
     if (!cofactor_cleared_view_key(context.reward_address.m_view_public_key, cleared_view_key))
@@ -472,30 +582,13 @@ namespace epose
         || removed != 1)
       return reward_status_v2::invalid_payment_proof;
 
-    const crypto::key_derivation derivation = public_key_as_derivation(proof.derivation);
-    for (size_t output_index = 0; output_index < coinbase.vout.size(); ++output_index)
-    {
-      if (output_index > std::numeric_limits<uint32_t>::max())
-        return reward_status_v2::invalid_output_allocation;
-      crypto::public_key output_public_key{};
-      if (!cryptonote::get_output_public_key(coinbase.vout[output_index], output_public_key))
-        return reward_status_v2::invalid_output_allocation;
-      crypto::public_key expected_output_key{};
-      if (!crypto::derive_public_key(
-              derivation, output_index,
-              expected.reward_address.m_spend_public_key,
-              expected_output_key))
-        return reward_status_v2::invalid_derivation;
-      if (output_public_key == expected_output_key)
-      {
-        if (coinbase.vout[output_index].amount == 0)
-          return reward_status_v2::invalid_output_allocation;
-        next.outputs.push_back({
-            static_cast<uint32_t>(output_index),
-            coinbase.vout[output_index].amount,
-            output_public_key});
-      }
-    }
+    next.service_output_start = proof.service_output_start;
+    const reward_status_v2 collected = collect_service_outputs(
+        coinbase, major_version, public_key_as_derivation(proof.derivation),
+        expected.reward_address.m_spend_public_key, next.service_output_start,
+        next.service_reward, next.outputs);
+    if (collected != reward_status_v2::accepted)
+      return collected;
 
     if (verify_scoped_payment_proof_v2(next, proof, counters)
         != reward_status_v2::accepted)
@@ -540,6 +633,25 @@ namespace epose
     return reward_status_v2::accepted;
   }
 
+  const char *reward_status_name_v2(reward_status_v2 status)
+  {
+    switch (status)
+    {
+      case reward_status_v2::accepted: return "accepted";
+      case reward_status_v2::invalid_basis_points: return "invalid_basis_points";
+      case reward_status_v2::unresolved_empty_policy: return "unresolved_empty_policy";
+      case reward_status_v2::arithmetic_overflow: return "arithmetic_overflow";
+      case reward_status_v2::invalid_height: return "invalid_height";
+      case reward_status_v2::empty_qualification: return "empty_qualification";
+      case reward_status_v2::invalid_context: return "invalid_context";
+      case reward_status_v2::invalid_transaction_key: return "invalid_transaction_key";
+      case reward_status_v2::invalid_derivation: return "invalid_derivation";
+      case reward_status_v2::invalid_output_allocation: return "invalid_output_allocation";
+      case reward_status_v2::invalid_payment_proof: return "invalid_payment_proof";
+    }
+    return "unknown";
+  }
+
   reward_status_v2 append_coinbase_service_payment_proof_v2(
       cryptonote::transaction &coinbase,
       const crypto::secret_key &transaction_secret_key,
@@ -547,6 +659,7 @@ namespace epose
       size_t max_envelopes_per_transaction,
       const envelope_limits_v2 &limits,
       const service_payment_expectation_v2 &expected,
+      uint32_t service_output_start,
       service_payment_context_v2 &context)
   {
     context = {};
@@ -583,25 +696,14 @@ namespace epose
             expected.reward_address.m_view_public_key,
             transaction_secret_key, derivation))
       return reward_status_v2::invalid_derivation;
-    for (size_t output_index = 0; output_index < candidate.vout.size(); ++output_index)
-    {
-      if (output_index > std::numeric_limits<uint32_t>::max())
-        return reward_status_v2::invalid_output_allocation;
-      crypto::public_key output_public_key{};
-      if (!cryptonote::get_output_public_key(candidate.vout[output_index], output_public_key))
-        return reward_status_v2::invalid_output_allocation;
-      crypto::public_key expected_output_key{};
-      if (!crypto::derive_public_key(
-              derivation, output_index,
-              expected.reward_address.m_spend_public_key,
-              expected_output_key))
-        return reward_status_v2::invalid_derivation;
-      if (output_public_key == expected_output_key)
-        signing.outputs.push_back({
-            static_cast<uint32_t>(output_index),
-            candidate.vout[output_index].amount,
-            output_public_key});
-    }
+    if (is_qwc_contracts_hardfork(major_version))
+      signing.service_output_start = service_output_start;
+    const reward_status_v2 collected = collect_service_outputs(
+        candidate, major_version, derivation,
+        expected.reward_address.m_spend_public_key, signing.service_output_start,
+        signing.service_reward, signing.outputs);
+    if (collected != reward_status_v2::accepted)
+      return collected;
 
     scoped_payment_proof_v2 proof{};
     const reward_status_v2 generated = generate_scoped_payment_proof_v2(

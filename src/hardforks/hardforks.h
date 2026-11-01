@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include "hf18_hardfork_schedule.h"
+
 #include <stdint.h>
 #include <time.h>
 

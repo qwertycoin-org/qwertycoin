@@ -31,10 +31,12 @@ set(multisig_sources
   multisig_account.cpp
   multisig_account_kex_impl.cpp
   multisig_clsag_context.cpp
+  multisig_contract_guard.cpp
   multisig_kex_msg.cpp
   multisig_tx_builder_ringct.cpp)
 
-set(multisig_headers)
+set(multisig_headers
+  multisig_contract_guard.h)
 
 monero_find_all_headers(multisig_private_headers "${CMAKE_CURRENT_SOURCE_DIR}")
 

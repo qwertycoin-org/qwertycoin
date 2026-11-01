@@ -60,6 +60,9 @@ namespace cryptonote
     bool m_too_few_outputs;
     bool m_tx_extra_too_big;
     bool m_nonzero_unlock_time;
+    bool m_window_early;
+    bool m_window_expired;
+    bool m_contract_call_rejected;
   };
 
   struct block_verification_context
@@ -70,6 +73,7 @@ namespace cryptonote
     bool m_already_exists;
     bool m_partial_block_reward;
     bool m_bad_pow; // if bad pow, ban peer outright for DoS protection
+    bool m_retryable_busy;
     bool m_missing_txs; // set if, during verif, we don't have all the necessary txs available
   };
 }

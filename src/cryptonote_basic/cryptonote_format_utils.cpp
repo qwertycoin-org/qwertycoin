@@ -37,6 +37,7 @@
 #include "serialization/string.h"
 #include "cryptonote_format_utils.h"
 #include "cryptonote_config.h"
+#include <array>
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include "ringct/rctSigs.h"
@@ -567,10 +568,19 @@ namespace cryptonote
   //---------------------------------------------------------------
   namespace
   {
+    bool is_contract_extra_field(const tx_extra_field& field)
+    {
+      return field.type() == typeid(tx_extra_height_window)
+          || field.type() == typeid(tx_extra_vm_state_root)
+          || field.type() == typeid(tx_extra_vm_call)
+          || field.type() == typeid(tx_extra_chainlock);
+    }
+
     bool parse_tx_extra_impl(
         const std::vector<uint8_t>& tx_extra,
         std::vector<tx_extra_field>& tx_extra_fields,
         bool allow_epose_v2,
+        bool allow_contract_fields,
         bool atomic)
     {
       tx_extra_fields.clear();
@@ -588,6 +598,8 @@ namespace cryptonote
         CHECK_AND_NO_ASSERT_MES_L1(r, false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
         if (!allow_epose_v2 && field.type() == typeid(tx_extra_epose_v2))
           return false;
+        if (!allow_contract_fields && is_contract_extra_field(field))
+          return false;
         destination.push_back(std::move(field));
       } while (!ar.eof());
       CHECK_AND_NO_ASSERT_MES_L1(::serialization::check_stream_state(ar), false, "failed to deserialize extra field. extra = " << string_tools::buff_to_hex_nodelimer(std::string(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size())));
@@ -598,14 +610,14 @@ namespace cryptonote
     }
   }
   //---------------------------------------------------------------
-  bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2)
+  bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2, bool allow_contract_fields)
   {
-    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, false);
+    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, allow_contract_fields, false);
   }
   //---------------------------------------------------------------
-  bool parse_tx_extra_strict(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2)
+  bool parse_tx_extra_strict(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2, bool allow_contract_fields)
   {
-    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, true);
+    return parse_tx_extra_impl(tx_extra, tx_extra_fields, allow_epose_v2, allow_contract_fields, true);
   }
   //---------------------------------------------------------------
   template<typename T>
@@ -623,7 +635,7 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  bool sort_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<uint8_t> &sorted_tx_extra, bool allow_partial, bool allow_epose_v2)
+  bool sort_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<uint8_t> &sorted_tx_extra, bool allow_partial, bool allow_epose_v2, bool allow_contract_fields)
   {
     std::vector<tx_extra_field> tx_extra_fields;
 
@@ -649,6 +661,8 @@ namespace cryptonote
       }
       if (!allow_epose_v2 && field.type() == typeid(tx_extra_epose_v2))
         return false;
+      if (!allow_contract_fields && is_contract_extra_field(field))
+        return false;
       tx_extra_fields.push_back(field);
       processed = ar.getpos();
     } while (!ar.eof());
@@ -666,7 +680,11 @@ namespace cryptonote
     // sort by:
     if (!pick<tx_extra_pub_key>(nar, tx_extra_fields, TX_EXTRA_TAG_PUBKEY)) return false;
     if (!pick<tx_extra_additional_pub_keys>(nar, tx_extra_fields, TX_EXTRA_TAG_ADDITIONAL_PUBKEYS)) return false;
+    if (!pick<tx_extra_vm_state_root>(nar, tx_extra_fields, TX_EXTRA_TAG_VM_STATE_ROOT)) return false;
+    if (!pick<tx_extra_chainlock>(nar, tx_extra_fields, TX_EXTRA_TAG_CHAINLOCK)) return false;
     if (!pick<tx_extra_epose_v2>(nar, tx_extra_fields, TX_EXTRA_TAG_EPOSE_V2)) return false;
+    if (!pick<tx_extra_height_window>(nar, tx_extra_fields, TX_EXTRA_TAG_HEIGHT_WINDOW)) return false;
+    if (!pick<tx_extra_vm_call>(nar, tx_extra_fields, TX_EXTRA_TAG_VM_CALL)) return false;
     if (!pick<tx_extra_nonce>(nar, tx_extra_fields, TX_EXTRA_NONCE)) return false;
     if (!pick<tx_extra_merge_mining_tag>(nar, tx_extra_fields, TX_EXTRA_MERGE_MINING_TAG)) return false;
     if (!pick<tx_extra_mysterious_minergate>(nar, tx_extra_fields, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG)) return false;
@@ -783,16 +801,224 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
+  namespace
+  {
+    bool append_extra_field(std::vector<uint8_t>& tx_extra, tx_extra_field field)
+    {
+      std::ostringstream oss;
+      binary_archive<true> ar(oss);
+      if (!::do_serialize(ar, field))
+        return false;
+      const std::string serialized = oss.str();
+      tx_extra.insert(tx_extra.end(), serialized.begin(), serialized.end());
+      return true;
+    }
+
+    template<typename T>
+    size_t count_extra_field(const std::vector<uint8_t>& tx_extra, T& first)
+    {
+      std::vector<tx_extra_field> fields;
+      parse_tx_extra(tx_extra, fields, true, true);
+      size_t count = 0;
+      for (const tx_extra_field& field : fields)
+      {
+        if (field.type() != typeid(T))
+          continue;
+        if (count++ == 0)
+          first = boost::get<T>(field);
+      }
+      return count;
+    }
+
+    template<typename T>
+    size_t count_fields(const std::vector<tx_extra_field>& fields)
+    {
+      return std::count_if(fields.begin(), fields.end(), [](const tx_extra_field& field) { return field.type() == typeid(T); });
+    }
+  }
+  //---------------------------------------------------------------
   bool add_epose_v2_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& envelope)
   {
-    tx_extra_field field = tx_extra_epose_v2{envelope};
-    std::ostringstream oss;
-    binary_archive<true> ar(oss);
-    if (!::do_serialize(ar, field))
+    return append_extra_field(tx_extra, tx_extra_epose_v2{envelope});
+  }
+  //---------------------------------------------------------------
+  bool add_height_window_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_height_window& window)
+  {
+    return append_extra_field(tx_extra, window);
+  }
+  //---------------------------------------------------------------
+  size_t get_tx_height_window(const std::vector<uint8_t>& tx_extra, tx_extra_height_window& window)
+  {
+    return count_extra_field(tx_extra, window);
+  }
+  //---------------------------------------------------------------
+  bool add_vm_state_root_to_tx_extra(std::vector<uint8_t>& tx_extra, const crypto::hash& root)
+  {
+    return append_extra_field(tx_extra, tx_extra_vm_state_root{root});
+  }
+  //---------------------------------------------------------------
+  size_t get_tx_vm_state_root(const std::vector<uint8_t>& tx_extra, crypto::hash& root)
+  {
+    tx_extra_vm_state_root field{};
+    const size_t count = count_extra_field(tx_extra, field);
+    if (count != 0)
+      root = field.root;
+    return count;
+  }
+  //---------------------------------------------------------------
+  bool add_vm_call_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_vm_call& call)
+  {
+    return append_extra_field(tx_extra, call);
+  }
+  //---------------------------------------------------------------
+  size_t get_tx_vm_call(const std::vector<uint8_t>& tx_extra, tx_extra_vm_call& call)
+  {
+    return count_extra_field(tx_extra, call);
+  }
+  //---------------------------------------------------------------
+  bool get_contract_signing_prefix_hash(const transaction_prefix& tx, crypto::hash& hash)
+  {
+    tx_extra_vm_call call{};
+    if (get_tx_vm_call(tx.extra, call) != 1 || call.version != 1)
       return false;
-    const std::string serialized = oss.str();
-    tx_extra.insert(tx_extra.end(), serialized.begin(), serialized.end());
+    transaction_prefix unsigned_tx = tx;
+    if (!remove_field_from_tx_extra(unsigned_tx.extra, typeid(tx_extra_vm_call)))
+      return false;
+    call.signatures.clear();
+    if (!add_vm_call_to_tx_extra(unsigned_tx.extra, call)
+        || !sort_tx_extra(unsigned_tx.extra, unsigned_tx.extra, false, true, true))
+      return false;
+    hash = get_transaction_prefix_hash(unsigned_tx);
     return true;
+  }
+  //---------------------------------------------------------------
+  bool get_contract_ring_hash(const transaction_prefix& tx, crypto::hash& hash, uint8_t major_version)
+  {
+    if (!is_qwc_contracts_hardfork(major_version))
+    {
+      hash = get_transaction_prefix_hash(tx);
+      return true;
+    }
+    tx_extra_vm_call call{};
+    if (get_tx_vm_call(tx.extra, call) == 0)
+    {
+      hash = get_transaction_prefix_hash(tx);
+      return true;
+    }
+    return get_contract_signing_prefix_hash(tx, hash);
+  }
+  //---------------------------------------------------------------
+  bool get_contract_signature_hash(const transaction& tx, network_type network, uint64_t fee, const crypto::hash& called_contract, crypto::hash& hash)
+  {
+    tx_extra_vm_call call{};
+    crypto::hash prefix_hash{};
+    if (get_tx_vm_call(tx.extra, call) != 1 || !get_contract_signing_prefix_hash(tx, prefix_hash))
+      return false;
+
+    crypto::hash base_hash = crypto::null_hash;
+    if (tx.version >= 2 && tx.rct_signatures.type != rct::RCTTypeNull)
+    {
+      rct::rctSigBase base = tx.rct_signatures;
+      std::stringstream stream;
+      binary_archive<true> archive(stream);
+      if (!base.serialize_rctsig_base(archive, tx.vin.size(), tx.vout.size()))
+        return false;
+      const std::string base_blob = stream.str();
+      base_hash = crypto::cn_fast_hash(base_blob.data(), base_blob.size());
+    }
+
+    constexpr char domain[] = "qwc-contract-sig";
+    std::string message(domain, sizeof(domain));
+    message.push_back(static_cast<char>(network));
+    message.push_back(static_cast<char>(QWC_CONTRACT_SIGNATURE_SCHEME_VERSION));
+    message.append(reinterpret_cast<const char*>(&called_contract), sizeof(called_contract));
+    for (size_t i = 0; i < sizeof(call.method); ++i)
+      message.push_back(static_cast<char>(call.method >> (8 * i)));
+    for (size_t i = 0; i < sizeof(fee); ++i)
+      message.push_back(static_cast<char>(fee >> (8 * i)));
+    message.append(reinterpret_cast<const char*>(&prefix_hash), sizeof(prefix_hash));
+    message.append(reinterpret_cast<const char*>(&base_hash), sizeof(base_hash));
+    hash = crypto::cn_fast_hash(message.data(), message.size());
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool contract_signers_unique(const std::vector<crypto::public_key>& signers)
+  {
+    for (size_t i = 0; i < signers.size(); ++i)
+      if (std::find(signers.begin(), signers.begin() + i, signers[i]) != signers.begin() + i)
+        return false;
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool add_chainlock_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& lock)
+  {
+    return append_extra_field(tx_extra, tx_extra_chainlock{lock});
+  }
+  //---------------------------------------------------------------
+  size_t get_tx_chainlock(const std::vector<uint8_t>& tx_extra, blobdata& lock)
+  {
+    tx_extra_chainlock field{};
+    const size_t count = count_extra_field(tx_extra, field);
+    if (count != 0)
+      lock = field.blob;
+    return count;
+  }
+  //---------------------------------------------------------------
+  bool check_contract_extra_fields(const std::vector<tx_extra_field>& fields, contract_extra_scope scope)
+  {
+    const size_t windows = count_fields<tx_extra_height_window>(fields);
+    const size_t roots = count_fields<tx_extra_vm_state_root>(fields);
+    const size_t calls = count_fields<tx_extra_vm_call>(fields);
+    const size_t locks = count_fields<tx_extra_chainlock>(fields);
+    if (windows > 1 || roots > 1 || calls > 1 || locks > 1)
+      return false;
+    switch (scope)
+    {
+      case contract_extra_scope::coinbase:
+        return windows == 0 && calls == 0;
+      case contract_extra_scope::transaction:
+        return roots == 0 && locks == 0;
+      case contract_extra_scope::either:
+        return true;
+    }
+    return false;
+  }
+  //---------------------------------------------------------------
+  bool contract_call_before_activation(size_t vm_calls, uint8_t major_version)
+  {
+    return vm_calls != 0 && !is_qwc_contracts_hardfork(major_version);
+  }
+  //---------------------------------------------------------------
+  bool check_tx_contract_extra(const transaction_prefix& tx, uint8_t major_version, contract_extra_scope scope)
+  {
+    std::vector<tx_extra_field> fields;
+    if (!is_qwc_contracts_hardfork(major_version))
+    {
+      parse_tx_extra(tx.extra, fields, true, true);
+      return count_fields<tx_extra_vm_state_root>(fields) == 0
+          && (scope == contract_extra_scope::transaction || !contract_call_before_activation(count_fields<tx_extra_vm_call>(fields), major_version))
+          && count_fields<tx_extra_chainlock>(fields) == 0;
+    }
+    tx_extra_vm_call call{};
+    if (get_tx_vm_call(tx.extra, call) != 0)
+    {
+      if (!parse_tx_extra_strict(tx.extra, fields, true, true))
+        return false;
+      std::vector<uint8_t> sorted_extra;
+      if (!sort_tx_extra(tx.extra, sorted_extra, false, true, true) || sorted_extra != tx.extra)
+        return false;
+    }
+    else
+      parse_tx_extra(tx.extra, fields, true, true);
+    return check_contract_extra_fields(fields, scope);
+  }
+  //---------------------------------------------------------------
+  size_t get_tx_extra_size_limit(const transaction_prefix& tx, uint8_t major_version)
+  {
+    tx_extra_vm_call call{};
+    if (is_qwc_contracts_hardfork(major_version) && get_tx_vm_call(tx.extra, call) != 0)
+      return QWC_CONTRACT_TX_EXTRA_MAX_SIZE;
+    return MAX_TX_EXTRA_SIZE;
   }
   //---------------------------------------------------------------
   bool add_mm_merkle_root_to_tx_extra(std::vector<uint8_t>& tx_extra, const crypto::hash& mm_merkle_root, size_t mm_merkle_tree_depth)
@@ -1109,7 +1335,7 @@ namespace cryptonote
       CHECK_AND_ASSERT_MES(hwdev.derive_subaddress_public_key(out_key, derivation, output_index, subaddress_spendkey), boost::none, "Failed to derive subaddress public key");
       auto found = subaddresses.find(subaddress_spendkey);
       if (found != subaddresses.end())
-        return subaddress_receive_info{ found->second, derivation };
+        return subaddress_receive_info{ found->second, derivation, output_index };
     }
 
     // try additional tx pubkeys if available
@@ -1121,10 +1347,24 @@ namespace cryptonote
         CHECK_AND_ASSERT_MES(hwdev.derive_subaddress_public_key(out_key, additional_derivations[output_index], output_index, subaddress_spendkey), boost::none, "Failed to derive subaddress public key");
         auto found = subaddresses.find(subaddress_spendkey);
         if (found != subaddresses.end())
-          return subaddress_receive_info{ found->second, additional_derivations[output_index] };
+          return subaddress_receive_info{ found->second, additional_derivations[output_index], output_index };
       }
     }
     return boost::none;
+  }
+  //---------------------------------------------------------------
+  output_key_source make_output_key_source(bool miner_tx, const crypto::public_key &tx_key, const std::vector<crypto::public_key> &additional_keys, size_t output_count, size_t output_index)
+  {
+    if (is_contract_mint_output(miner_tx, tx_key, additional_keys, output_count, output_index))
+      return output_key_source{ additional_keys[output_index], {}, QWC_MINT_DERIVATION_INDEX };
+    return output_key_source{ tx_key, additional_keys, output_index };
+  }
+  //---------------------------------------------------------------
+  boost::optional<subaddress_receive_info> is_out_to_acc_or_mint_precomp(const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, const crypto::public_key& out_key, const crypto::key_derivation& derivation, const std::vector<crypto::key_derivation>& additional_derivations, size_t output_index, size_t output_count, bool miner_tx, hw::device &hwdev, const boost::optional<crypto::view_tag>& view_tag_opt)
+  {
+    if (is_contract_mint_output(miner_tx, derivation, additional_derivations, output_count, output_index))
+      return is_out_to_acc_precomp(subaddresses, out_key, additional_derivations[output_index], {}, QWC_MINT_DERIVATION_INDEX, hwdev, view_tag_opt);
+    return is_out_to_acc_precomp(subaddresses, out_key, derivation, additional_derivations, output_index, hwdev, view_tag_opt);
   }
   //---------------------------------------------------------------
   bool lookup_acc_outs(const account_keys& acc, const transaction& tx, std::vector<size_t>& outs, uint64_t& money_transfered)
@@ -1670,6 +1910,27 @@ namespace cryptonote
     for(auto& th: b.tx_hashes)
       txs_ids.push_back(th);
     return get_tx_tree_hash(txs_ids);
+  }
+  //---------------------------------------------------------------
+  bool get_miner_tx_branch(const block& b, std::vector<crypto::hash>& result)
+  {
+    if (b.tx_hashes.size() >= UINT32_MAX)
+      return false;
+    std::vector<crypto::hash> hashes;
+    hashes.reserve(b.tx_hashes.size() + 1);
+    crypto::hash miner_hash{};
+    if (!get_transaction_hash(b.miner_tx, miner_hash))
+      return false;
+    hashes.push_back(miner_hash);
+    hashes.insert(hashes.end(), b.tx_hashes.begin(), b.tx_hashes.end());
+    std::array<crypto::hash, 32> branch{};
+    size_t depth = 0;
+    uint32_t path = 0;
+    if (!crypto::tree_branch(reinterpret_cast<const char (*)[32]>(hashes.data()), hashes.size(),
+        miner_hash.data, reinterpret_cast<char (*)[32]>(branch.data()), &depth, &path) || path != 0 || depth > branch.size())
+      return false;
+    result.assign(branch.begin(), branch.begin() + depth);
+    return true;
   }
   //---------------------------------------------------------------
   bool is_valid_decomposed_amount(uint64_t amount)

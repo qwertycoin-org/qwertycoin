@@ -32,6 +32,10 @@ namespace epose
     dns = 3
   };
 
+  constexpr uint8_t EPOSE_DIAL_IPV4_V2 = 1;
+  constexpr uint8_t EPOSE_DIAL_IPV6_V2 = 2;
+  constexpr uint8_t EPOSE_DIAL_BOTH_V2 = EPOSE_DIAL_IPV4_V2 | EPOSE_DIAL_IPV6_V2;
+
   struct endpoint_descriptor_v2
   {
     uint8_t version = 1;
@@ -43,8 +47,18 @@ namespace epose
     uint8_t service_version = 0;
     uint64_t sequence = 0;
     uint64_t expiry_epoch = 0;
+    uint8_t dial_capabilities = EPOSE_DIAL_IPV4_V2;
+    uint8_t dns_address_families = 0;
     crypto::signature signature{};
   };
+
+  inline uint8_t permitted_dial_families_v2(
+      const endpoint_descriptor_v2 &endpoint, uint8_t verifier_capabilities)
+  {
+    return endpoint.version == 2 && endpoint.transport == endpoint_transport_v2::dns
+        ? verifier_capabilities & endpoint.dns_address_families
+        : verifier_capabilities;
+  }
 
   enum class resource_status_v2
   {
@@ -114,6 +128,7 @@ namespace epose
 
   constexpr size_t EPOSE_ENDPOINT_DESCRIPTOR_MAX_BLOB_SIZE_V2 = 512;
   constexpr size_t EPOSE_ENDPOINT_RELAY_MAX_BATCH_V2 = 16;
+  static_assert(EPOSE_ENDPOINT_RELAY_MAX_BATCH_V2 * EPOSE_ENDPOINT_DESCRIPTOR_MAX_BLOB_SIZE_V2 * 2 <= QWC_EPOSE_ENDPOINTS_V2_P2P_MAX_PACKET_SIZE, "endpoint batch must fit the P2P cap");
   constexpr size_t EPOSE_ENDPOINT_CACHE_MAX_ENTRIES_V2 = 4096;
   constexpr uint64_t EPOSE_ENDPOINT_CACHE_MAX_FUTURE_EPOCHS_V2 = 4;
 

@@ -328,14 +328,34 @@ class RequestValidationTests(unittest.TestCase):
         repository = ROOT.parents[1]
         candidate = (repository / ".github/workflows/release.yml").read_text(encoding="utf-8")
         assembly = (repository / ".github/workflows/assemble-release.yml").read_text(encoding="utf-8")
-        # Count the compiled Linux suite, not both sides of platform-specific TESTs.
-        # Keep enumeration, execution, recorded evidence and assembly bound together.
-        count = int(re.search(r'test "\$actual_epose_tests" -eq ([0-9]+)', candidate).group(1))
-        self.assertEqual(count, 327)
+        counts_path = ROOT / "epose_test_counts.json"
+        counts = json.loads(counts_path.read_text(encoding="utf-8"))
+        self.assertEqual(set(counts), {"epose_unit_tests", "epose_python_tests"})
+        self.assertTrue(all(isinstance(count, int) and count > 0 for count in counts.values()))
         self.assertIn('epose_unit_tests --gtest_list_tests', candidate)
         self.assertIn("ctest --test-dir build/linux -R '^epose_unit_tests$' --output-on-failure", candidate)
-        self.assertIn(f'"epose_unit_tests": "{count} tests pass"', candidate)
-        self.assertIn(f'.verification.epose_unit_tests == "{count} tests pass"', assembly)
+        self.assertIn('test "$actual_epose_tests" -eq "$expected_epose_tests"', candidate)
+        self.assertIn('grep -Eq "^Ran $expected_python_tests tests in "', candidate)
+        self.assertIn('"epose_unit_tests": f"{counts[\'epose_unit_tests\']} tests pass"', candidate)
+        self.assertIn('"epose_python_tests": f"{counts[\'epose_python_tests\']} tests pass"', candidate)
+        self.assertEqual(candidate.count("control/tools/release/epose_test_counts.json"), 3)
+        expression = re.search(
+            r"jq -e --slurpfile counts control/tools/release/epose_test_counts.json \\\n\s+'([^']+)'",
+            assembly,
+        ).group(1)
+        expected = {key: f"{value} tests pass" for key, value in counts.items()}
+        for verification, accepted in (
+            (expected, True),
+            ({**expected, "epose_unit_tests": "0 tests pass"}, False),
+            ({**expected, "epose_python_tests": "0 tests pass"}, False),
+        ):
+            result = subprocess.run(
+                ["jq", "-e", "--slurpfile", "counts", str(counts_path), expression],
+                input=json.dumps({"verification": verification}),
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode == 0, accepted, result.stderr)
 
     def test_docker_publish_is_called_after_release_verification(self) -> None:
         workflow = (ROOT.parents[1] / ".github/workflows/assemble-release.yml").read_text(

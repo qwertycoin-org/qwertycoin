@@ -397,7 +397,7 @@ namespace rpc
 
     tx_verification_context tvc = AUTO_VAL_INIT(tvc);
 
-    if(!m_core.handle_incoming_tx(tx_blob, tvc, (relay ? relay_method::local : relay_method::none), false) || tvc.m_verifivation_failed)
+    if(!m_core.handle_incoming_tx(tx_blob, tvc, (relay ? relay_method::local : relay_method::none), false, true) || tvc.m_verifivation_failed)
     {
       if (tvc.m_verifivation_failed)
       {
@@ -458,6 +458,21 @@ namespace rpc
       {
         if (!res.error_details.empty()) res.error_details += " and ";
         res.error_details += "non-zero unlock time";
+      }
+      if (tvc.m_window_early)
+      {
+        if (!res.error_details.empty()) res.error_details += " and ";
+        res.error_details += "height window opens too far ahead";
+      }
+      if (tvc.m_window_expired)
+      {
+        if (!res.error_details.empty()) res.error_details += " and ";
+        res.error_details += "height window expired";
+      }
+      if (tvc.m_contract_call_rejected)
+      {
+        if (!res.error_details.empty()) res.error_details += " and ";
+        res.error_details += "contract call rejected";
       }
       if (res.error_details.empty())
       {

@@ -36,6 +36,7 @@
 #include <iostream>
 #include <stdint.h>
 
+#include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 #include <boost/optional.hpp>
 #include <boost/serialization/vector.hpp>
@@ -54,6 +55,8 @@
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_core.h"
+#include "cryptonote_core/contract_state.h"
+#include "vm/state_tree.h"
 #include "cryptonote_protocol/enums.h"
 #include "cryptonote_basic/cryptonote_boost_serialization.h"
 #include "misc_language.h"
@@ -117,7 +120,8 @@ struct event_visitor_settings
     set_txs_keeped_by_block = 1 << 0,
     set_txs_do_not_relay = 1 << 1,
     set_local_relay = 1 << 2,
-    set_txs_stem = 1 << 3
+    set_txs_stem = 1 << 3,
+    skip_transactions = 1 << 4
   };
 
   event_visitor_settings(int a_mask = 0)
@@ -141,6 +145,16 @@ struct event_replay_settings
   boost::optional<v_hardforks_t> hard_forks;
 
   event_replay_settings() = default;
+
+  static event_replay_settings with_contracts_fork_height(uint64_t fork_height, uint8_t base_version = HF_VERSION_QWC_EPOSE)
+  {
+    event_replay_settings settings;
+    settings.hard_forks = v_hardforks_t{
+      std::make_pair(base_version, (uint64_t)0),
+      std::make_pair((uint8_t)HF_VERSION_QWC_CONTRACTS, fork_height)
+    };
+    return settings;
+  }
 
 private:
   friend class boost::serialization::access;
@@ -230,8 +244,14 @@ public:
     bf_tx_fees   = 1 << 9
   };
 
+  struct contract_block_state
+  {
+    vm::state_tree state;
+    uint64_t timestamp = 0;
+  };
+
   test_generator(): m_events(nullptr) {}
-  test_generator(const test_generator &other): m_blocks_info(other.m_blocks_info), m_events(other.m_events), m_nettype(other.m_nettype) {}
+  test_generator(const test_generator &other): m_blocks_info(other.m_blocks_info), m_contract_states(other.m_contract_states), m_events(other.m_events), m_nettype(other.m_nettype) {}
   void get_block_chain(std::vector<block_info>& blockchain, const crypto::hash& head, size_t n) const;
   void get_last_n_block_weights(std::vector<size_t>& block_weights, const crypto::hash& head, size_t n) const;
   uint64_t get_already_generated_coins(const crypto::hash& blk_id) const;
@@ -253,15 +273,20 @@ public:
     uint8_t minor_ver = 0, uint64_t timestamp = 0, const crypto::hash& prev_id = crypto::hash(),
     const cryptonote::difficulty_type& diffic = 1, const cryptonote::transaction& miner_tx = cryptonote::transaction(),
     const std::vector<crypto::hash>& tx_hashes = std::vector<crypto::hash>(), size_t txs_sizes = 0, size_t max_outs = 999,
-    uint8_t hf_version = 1, uint64_t fees = 0);
+    uint8_t hf_version = 1, uint64_t fees = 0, const std::list<cryptonote::transaction>& contract_txs = std::list<cryptonote::transaction>(),
+    const cryptonote::blobdata& chainlock = cryptonote::blobdata());
   bool construct_block_manually_tx(cryptonote::block& blk, const cryptonote::block& prev_block,
     const cryptonote::account_base& miner_acc, const std::vector<crypto::hash>& tx_hashes, size_t txs_size);
   void fill_nonce(cryptonote::block& blk, const cryptonote::difficulty_type& diffic, uint64_t height);
   void set_events(const std::vector<test_event_entry> * events) { m_events = events; }
   void set_network_type(const cryptonote::network_type nettype) { m_nettype = nettype; }
+  bool execute_contracts(const crypto::hash& prev_id, uint64_t height, const std::list<cryptonote::transaction>& txs,
+    contract_block_state& next, cryptonote::miner_contract_outputs& outputs, cryptonote::contract_effects& effects) const;
+  const vm::state_tree& get_contract_state(const crypto::hash& blk_id) const;
 
 private:
   std::unordered_map<crypto::hash, block_info> m_blocks_info;
+  std::unordered_map<crypto::hash, contract_block_state> m_contract_states;
   const std::vector<test_event_entry> * m_events;
   cryptonote::network_type m_nettype;
 
@@ -467,6 +492,18 @@ bool construct_tx_rct(const cryptonote::account_keys& sender_account_keys,
     std::vector<uint8_t> extra, cryptonote::transaction& tx,
     bool rct=false, rct::RangeProofType range_proof_type=rct::RangeProofBorromean, int bp_version = 0);
 
+bool resign_constructed_tx_v1(cryptonote::transaction& tx,
+    const cryptonote::account_keys& sender, const cryptonote::tx_source_entry& source);
+void push_unsubmitted_tx(std::vector<test_event_entry>& events,
+    const cryptonote::transaction& tx);
+bool construct_zero_output_tx_v1(const cryptonote::account_keys& sender,
+    const cryptonote::tx_source_entry& source,
+    const cryptonote::tx_extra_vm_call& call, cryptonote::transaction& tx);
+bool construct_signed_zero_output_call_v1(const cryptonote::account_keys& sender,
+    const cryptonote::tx_source_entry& source, cryptonote::tx_extra_vm_call call,
+    const crypto::hash& contract_id,
+    cryptonote::transaction& tx);
+
 
 uint64_t num_blocks(const std::vector<test_event_entry>& events);
 cryptonote::block get_head_block(const std::vector<test_event_entry>& events);
@@ -526,6 +563,7 @@ private:
   size_t m_ev_index;
 
   cryptonote::relay_method m_tx_relay;
+  bool m_skip_transactions = false;
 
 public:
   push_core_event_visitor(cryptonote::core& c, const std::vector<test_event_entry>& events, t_test_class& validator)
@@ -551,6 +589,7 @@ public:
   bool operator()(const event_visitor_settings& settings)
   {
     log_event("event_visitor_settings");
+    m_skip_transactions = (settings.mask & event_visitor_settings::skip_transactions) != 0;
 
     if (settings.mask & event_visitor_settings::set_txs_keeped_by_block)
     {
@@ -579,6 +618,8 @@ public:
   bool operator()(const cryptonote::transaction& tx) const
   {
     log_event("cryptonote::transaction");
+    if (m_skip_transactions)
+      return true;
 
     cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
     size_t pool_size = m_c.get_pool_transactions_count();
@@ -592,6 +633,8 @@ public:
   bool operator()(const std::vector<cryptonote::transaction>& txs) const
   {
     log_event("cryptonote::transaction");
+    if (m_skip_transactions)
+      return true;
 
     std::vector<cryptonote::blobdata> tx_blobs;
     std::vector<cryptonote::tx_verification_context> tvcs;
@@ -744,15 +787,32 @@ struct get_test_options {
   get_test_options():hard_forks{std::make_pair((uint8_t)1, (uint64_t)0), std::make_pair((uint8_t)0, (uint64_t)0)}{}
 };
 //--------------------------------------------------------------------------
+inline const std::string& process_private_data_dir()
+{
+  struct scoped_data_dir
+  {
+    const boost::filesystem::path path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("qwc-core-tests-%%%%-%%%%-%%%%");
+    ~scoped_data_dir()
+    {
+      boost::system::error_code ignored;
+      boost::filesystem::remove_all(path, ignored);
+    }
+  };
+  static const scoped_data_dir data_dir;
+  static const std::string data_dir_string = data_dir.path.string();
+  return data_dir_string;
+}
+//--------------------------------------------------------------------------
 template<class t_test_class>
 inline bool do_replay_events_get_core(std::vector<test_event_entry>& events, cryptonote::core *core)
 {
   boost::program_options::options_description desc("Allowed options");
   cryptonote::core::init_options(desc);
   boost::program_options::variables_map vm;
+  const std::vector<std::string> core_args{"--data-dir", process_private_data_dir()};
   bool r = command_line::handle_error_helper(desc, [&]()
   {
-    boost::program_options::store(boost::program_options::basic_parsed_options<char>(&desc), vm);
+    boost::program_options::store(boost::program_options::command_line_parser(core_args).options(desc).run(), vm);
     boost::program_options::notify(vm);
     return true;
   });
@@ -889,6 +949,15 @@ inline bool do_replay_file(const std::string& filename)
   generator.construct_block(BLK_NAME, PREV_BLOCK, MINER_ACC, std::list<cryptonote::transaction>(), HF);                     \
   VEC_EVENTS.push_back(BLK_NAME);
 
+#define MAKE_NEXT_BLOCK_CONTRACTS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC) \
+  MAKE_NEXT_BLOCK_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, (uint8_t)HF_VERSION_QWC_CONTRACTS)
+
+#define MAKE_NEXT_BLOCK_TX1_CONTRACTS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, TX1) \
+  MAKE_NEXT_BLOCK_TX1_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, TX1, (uint8_t)HF_VERSION_QWC_CONTRACTS)
+
+#define MAKE_NEXT_BLOCK_TX_LIST_CONTRACTS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, TXLIST) \
+  MAKE_NEXT_BLOCK_TX_LIST_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, TXLIST, (uint8_t)HF_VERSION_QWC_CONTRACTS)
+
 #define MAKE_NEXT_BLOCK_TX1(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, TX1)         \
   cryptonote::block BLK_NAME;                                                           \
   {                                                                                   \
@@ -932,6 +1001,8 @@ inline bool do_replay_file(const std::string& filename)
 #define REWIND_BLOCKS_N(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT) REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT, boost::none)
 #define REWIND_BLOCKS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC) REWIND_BLOCKS_N(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW)
 #define REWIND_BLOCKS_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, HF) REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, HF)
+#define REWIND_BLOCKS_N_CONTRACTS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT) REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT, (uint8_t)HF_VERSION_QWC_CONTRACTS)
+#define REWIND_BLOCKS_CONTRACTS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC) REWIND_BLOCKS_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, (uint8_t)HF_VERSION_QWC_CONTRACTS)
 
 #define MAKE_TX_MIX(VEC_EVENTS, TX_NAME, FROM, TO, AMOUNT, NMIX, HEAD)                       \
   cryptonote::transaction TX_NAME;                                                             \

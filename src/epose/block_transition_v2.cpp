@@ -2,8 +2,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/block_transition_v2.h"
+#include "epose/chainlock_v1.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
+#include "misc_log_ex.h"
 
+#include <algorithm>
 #include <limits>
+
+
 #include <boost/scope_exit.hpp>
 
 namespace
@@ -50,10 +56,13 @@ namespace epose
       const epoch_timing_v2 &timing,
       const admission_policy_v2 &admission_policy,
       const committee_policy_v2 &committee_policy,
-      const block_transition_limits_v2 &limits)
+      const block_transition_limits_v2 &limits,
+      uint64_t retained_epochs,
+      const crypto::hash &window_parameter_hash)
     : timing_(timing),
       limits_(limits),
-      state_(nettype, genesis_hash, parameter_set_hash, timing, admission_policy, committee_policy),
+      state_(nettype, genesis_hash, parameter_set_hash, timing, admission_policy,
+          committee_policy, retained_epochs, window_parameter_hash),
       valid_(timing.valid() && limits.valid() && state_.valid())
   {
   }
@@ -105,7 +114,10 @@ namespace epose
           limits_.max_envelopes_per_transaction,
           limits_.envelope,
           parsed[index].records,
-          parsed[index].budget);
+          parsed[index].budget,
+          transactions[index].coinbase
+              ? cryptonote::contract_extra_scope::coinbase
+              : cryptonote::contract_extra_scope::transaction);
       if (parsed_status != envelope_status_v2::accepted)
         return block_transition_status_v2::invalid_envelope;
       if (charge_block_budget_v2(parsed[index].budget, limits_.block, block_budget)
@@ -126,6 +138,16 @@ namespace epose
       }
     };
 
+    if (is_qwc_contracts_hardfork(major_version)
+        && (state_.state_commitment_schema() == 1
+            || height % timing_.epoch_length == 0))
+    {
+      const uint64_t open_epoch =
+          (height - timing_.activation_height) / timing_.epoch_length;
+      if (!state_.advance_window(open_epoch, &undo))
+        return block_transition_status_v2::window_transition_failed;
+    }
+
     // Freeze before processing the anchor block: records through cutoff
     // height anchor-1 are eligible, records in the anchor block are not.
     if (height <= std::numeric_limits<uint64_t>::max() - timing_.anchor_depth)
@@ -139,9 +161,12 @@ namespace epose
           return block_transition_status_v2::arithmetic_overflow;
         if (epoch >= first_service_epoch)
         {
-          const pipeline_status_v2 status = state_.freeze_membership(epoch, height, block_hash, &undo);
+          const pipeline_status_v2 status =
+              state_.freeze_membership(epoch, height, block_hash, &undo);
           if (status != pipeline_status_v2::accepted)
-            return block_transition_status_v2::freeze_failed;
+            return status == pipeline_status_v2::outside_retained_window
+                ? block_transition_status_v2::outside_retained_window
+                : block_transition_status_v2::freeze_failed;
         }
       }
     }
@@ -185,13 +210,34 @@ namespace epose
             return block_transition_status_v2::arithmetic_overflow;
           if (epoch >= first_service_epoch)
           {
-            const pipeline_status_v2 status = state_.close_qualification(epoch, height, &undo);
+            const pipeline_status_v2 status =
+                state_.close_qualification(epoch, height, &undo);
             if (status != pipeline_status_v2::accepted)
-              return block_transition_status_v2::qualification_close_failed;
+              return status == pipeline_status_v2::outside_retained_window
+                  ? block_transition_status_v2::outside_retained_window
+                  : block_transition_status_v2::qualification_close_failed;
           }
         }
       }
     }
+
+    const bool contracts_active = is_qwc_contracts_hardfork(major_version);
+    cryptonote::blobdata lock_blob;
+    const size_t lock_count = contracts_active
+        ? cryptonote::get_tx_chainlock(transactions.front().transaction->extra, lock_blob)
+        : 0;
+    if (lock_count == 1)
+    {
+      chainlock_v1 lock;
+      if (parse_chainlock_v1(lock_blob, lock) && !state_.carrier_retained(lock.epoch)
+          && !state_.retain_chainlock_epoch(lock.epoch, &undo))
+        MERROR("Failed to retain ChainLock membership for epoch " << lock.epoch);
+    }
+    uint64_t current_epoch = 0;
+    if (contracts_active && height % timing_.epoch_length == 0
+        && timing_.epoch_of(height, current_epoch))
+      if (!state_.prune_membership_history(current_epoch, &undo))
+        MERROR("Failed to prune ChainLock membership history at epoch " << current_epoch);
 
     committed = true;
     while (undo_.size() > limits_.max_recent_undo_blocks)
@@ -203,6 +249,44 @@ namespace epose
   }
 
   const semantic_state_v2 &block_transition_v2::state() const { return state_; }
+  semantic_state_v2 &block_transition_v2::preview_state() { return state_; }
+
+  std::string block_transition_v2::serialize_state() const
+  {
+    return state_.serialize_state();
+  }
+
+  bool block_transition_v2::restore_state(uint64_t height, const std::string &image)
+  {
+    if (!valid_ || height < timing_.activation_height)
+      return false;
+    if (!state_.restore_state(image))
+      return false;
+    have_tip_ = true;
+    tip_height_ = height;
+    undo_.clear();
+    return true;
+  }
+
+  state_storage_diagnostics_v2 block_transition_v2::state_diagnostics() const
+  {
+    state_storage_diagnostics_v2 diagnostics{};
+    diagnostics.state_bytes = state_.state_bytes();
+    diagnostics.retained_epochs = state_.retained_epochs();
+    diagnostics.oldest_retained_epoch = state_.membership().oldest_retained_epoch();
+    diagnostics.history_root = state_.history_root();
+    diagnostics.undo_entries = undo_.size();
+    diagnostics.undo_bytes = undo_payload_bytes();
+    return diagnostics;
+  }
+
+  bool block_transition_v2::tip_height(uint64_t &height) const
+  {
+    if (!have_tip_)
+      return false;
+    height = tip_height_;
+    return true;
+  }
 
   size_t block_transition_v2::recent_undo_count() const { return undo_.size(); }
 
@@ -213,8 +297,38 @@ namespace epose
     {
       bytes += entry.changes.lifecycle.record_sizes.capacity()
           * sizeof(lifecycle_registry_v2::history_change);
+      bytes += entry.changes.lifecycle.registered_indices.capacity() * sizeof(size_t);
+      bytes += entry.changes.lifecycle.inserted_services.capacity()
+          * sizeof(lifecycle_registry_v2::undo_journal::service_index_change);
+      for (const auto &change : entry.changes.lifecycle.inserted_services)
+        bytes += change.key.capacity();
+      bytes += entry.changes.lifecycle.folds.capacity()
+          * sizeof(lifecycle_registry_v2::undo_journal::fold_change);
+      for (const auto &fold : entry.changes.lifecycle.folds)
+      {
+        bytes += fold.removed.capacity()
+            * sizeof(lifecycle_registry_v2::undo_journal::fold_change::removal);
+        bytes += fold.trimmed.capacity()
+            * sizeof(std::pair<size_t, std::shared_ptr<void>>);
+        bytes += fold.removed_services.capacity()
+            * sizeof(lifecycle_registry_v2::undo_journal::service_index_change);
+        for (const auto &change : fold.removed_services)
+          bytes += change.key.capacity();
+        bytes += fold.retired_keys.capacity() * sizeof(crypto::hash);
+      }
       bytes += entry.changes.membership.replaced_leases.capacity()
           * sizeof(membership_pipeline_v2::lease_change);
+      bytes += (entry.changes.membership.appended_leases.capacity()
+          + entry.changes.membership.appended_receipts.capacity())
+          * sizeof(membership_pipeline_v2::size_change);
+      bytes += entry.changes.membership.created_buckets.capacity() * sizeof(uint64_t);
+      bytes += entry.changes.membership.buckets.capacity()
+          * sizeof(membership_pipeline_v2::undo_journal::bucket_change);
+      bytes += (entry.changes.membership.archived_buckets.capacity()
+          + entry.changes.membership.pruned_buckets.capacity())
+          * sizeof(membership_pipeline_v2::undo_journal::bucket_change);
+      bytes += (entry.changes.membership.inserted_carriers.capacity()
+          + entry.changes.membership.evicted_carriers.capacity()) * sizeof(uint64_t);
       bytes += (entry.changes.membership.inserted_snapshots.capacity()
           + entry.changes.membership.inserted_qualifications.capacity()) * sizeof(uint64_t);
     }

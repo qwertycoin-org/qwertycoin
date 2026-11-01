@@ -18,9 +18,12 @@ namespace cryptonote
   class epose_http_client
   {
     std::unique_lock<std::mutex> lease_;
+    epee::net_utils::direct_connect connector_;
   public:
     epose_http_client();
     ~epose_http_client();
+    void set_connector(epee::net_utils::direct_connect connector) { connector_ = std::move(connector); }
+    const epee::net_utils::direct_connect &connector() const { return connector_; }
     bool available() const { return lease_.owns_lock(); }
     epee::net_utils::http::http_simple_client &client();
   };
@@ -61,5 +64,6 @@ namespace cryptonote
       const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,
       const qwertycoin::epose::consensus_parameters_v2 &parameters,
       qwertycoin::epose::canonical_service_response_v2 &service_response,
-      const epose_network_v2 &network = {});
+      const epose_network_v2 &network = {},
+      uint8_t verifier_dial_capabilities = 0);
 }

@@ -3,9 +3,17 @@
 
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
+
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <utility>
 #include <vector>
+
+#include <boost/optional.hpp>
 
 #include "crypto/crypto.h"
 #include "epose/memory_usage_v2.h"
@@ -17,6 +25,9 @@ namespace qwertycoin
 {
 namespace epose
 {
+  class state_image_writer_v2;
+  class state_image_reader_v2;
+
   constexpr uint8_t EPOSE_DESCRIPTOR_VERSION_V2 = 1;
 
   enum class lifecycle_action_v2 : uint8_t
@@ -36,6 +47,9 @@ namespace epose
     crypto::public_key operator_authorization_public_key{};
     cryptonote::account_public_address reward_address{};
     crypto::hash endpoint_descriptor_hash{};
+    uint8_t endpoint_transport = 1;
+    uint8_t dial_capabilities = 1;
+    uint8_t dns_address_families = 0;
     uint64_t sequence = 0;
     uint64_t effective_epoch = 0;
     uint64_t expiry_epoch = 0;
@@ -117,6 +131,8 @@ namespace epose
 
   class lifecycle_registry_v2
   {
+    struct identity_history;
+
   public:
     lifecycle_registry_v2(
         cryptonote::network_type nettype,
@@ -132,8 +148,30 @@ namespace epose
     };
     struct undo_journal
     {
-      size_t histories_size = 0;
       std::vector<history_change> record_sizes;
+      std::vector<size_t> registered_indices;
+      struct service_index_change
+      {
+        std::string key;
+        size_t index = 0;
+      };
+      std::vector<service_index_change> inserted_services;
+      struct fold_change
+      {
+        struct removal
+        {
+          size_t index = 0;
+          std::shared_ptr<identity_history> history;
+        };
+        std::vector<removal> removed;
+        std::vector<std::pair<size_t, std::shared_ptr<identity_history>>> trimmed;
+        std::vector<service_index_change> removed_services;
+        std::vector<crypto::hash> retired_keys;
+      };
+      std::vector<fold_change> folds;
+      crypto::hash prior_retired_key_accumulator{};
+      bool prior_window_active = false;
+      uint64_t prior_retained_epochs = 0;
     };
     state_memory_usage_v2 memory_usage() const;
     undo_journal checkpoint() const;
@@ -147,15 +185,21 @@ namespace epose
         const lifecycle_record_v2 &record,
         uint64_t inclusion_epoch,
         uint64_t minimum_effective_epoch,
-        verification_counters_v2 *counters = nullptr,
-        undo_journal *undo = nullptr);
+        verification_counters_v2 *counters,
+        undo_journal *undo);
 
     const identity_descriptor_v2 *latest(const crypto::hash &identity_id) const;
+    const lifecycle_record_v2 *latest_record(const crypto::hash &identity_id) const;
     const identity_descriptor_v2 *descriptor_for_epoch(
         const crypto::hash &identity_id,
         uint64_t epoch) const;
     std::vector<identity_descriptor_v2> descriptors_for_epoch(uint64_t epoch) const;
+    size_t state_bytes() const;
     crypto::hash state_hash() const;
+    std::vector<crypto::hash> fold_retired(uint64_t epoch, undo_journal *undo);
+    void activate_window(uint64_t retained_epochs, undo_journal *undo);
+    bool write_image(state_image_writer_v2 &writer) const;
+    bool read_image(state_image_reader_v2 &reader);
 
   private:
     struct identity_history
@@ -168,7 +212,21 @@ namespace epose
     crypto::hash genesis_hash_{};
     crypto::hash parameter_set_hash_{};
     bool valid_ = false;
-    std::vector<identity_history> histories_;
+    std::vector<std::shared_ptr<identity_history>> histories_;
+    std::map<std::string, size_t> identity_index_;
+    std::map<std::string, std::set<size_t>> service_key_histories_;
+    std::vector<crypto::hash> retired_key_hashes_;
+    crypto::hash retired_key_accumulator_{};
+    bool window_active_ = false;
+    uint64_t retained_epochs_ = 0;
+    mutable boost::optional<crypto::hash> state_hash_cache_;
+    void rebuild_indexes();
+    void remove_history_indexes(size_t index);
+    void add_history_indexes(size_t index);
+    void move_history_indexes(size_t from, size_t to);
+    bool should_retire(const identity_history &history, uint64_t epoch,
+        uint64_t oldest) const;
+    std::vector<const identity_history *> sorted_histories() const;
   };
 } // namespace epose
 } // namespace qwertycoin

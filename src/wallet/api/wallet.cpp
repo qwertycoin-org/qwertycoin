@@ -112,6 +112,8 @@ namespace {
         dir /= "testnet";
       else if (nettype == cryptonote::STAGENET)
         dir /= "stagenet";
+      else if (nettype == cryptonote::DEVNET)
+        dir /= "devnet";
       return dir.string();
     }
 

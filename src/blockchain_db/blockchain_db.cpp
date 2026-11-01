@@ -31,6 +31,8 @@
 #include "string_tools.h"
 #include "blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "cryptonote_basic/height_window.h"
+#include "common/varint.h"
 #include "profile_tools.h"
 #include "ringct/rctOps.h"
 
@@ -179,7 +181,7 @@ void BlockchainDB::pop_block()
   pop_block(blk, txs);
 }
 
-void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& txp, const crypto::hash* tx_hash_ptr, const crypto::hash* tx_prunable_hash_ptr)
+void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& txp, const crypto::hash* tx_hash_ptr, const crypto::hash* tx_prunable_hash_ptr, uint8_t block_major_version)
 {
   const transaction &tx = txp.first;
 
@@ -221,7 +223,11 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const std::pair
     }
   }
 
-  uint64_t tx_id = add_transaction_data(blk_hash, txp, tx_hash, tx_prunable_hash);
+  const uint64_t unlock_time = is_qwc_contracts_hardfork(block_major_version)
+      ? tx_effective_unlock_time(tx, height())
+      : tx.unlock_time;
+
+  uint64_t tx_id = add_transaction_data(blk_hash, txp, tx_hash, tx_prunable_hash, unlock_time);
 
   std::vector<uint64_t> amount_output_indices(tx.vout.size());
 
@@ -241,7 +247,7 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const std::pair
     }
     else
     {
-      amount_output_indices[i] = add_output(tx_hash, tx.vout[i], i, tx.unlock_time,
+      amount_output_indices[i] = add_output(tx_hash, tx.vout[i], i, unlock_time,
         tx.version > 1 ? &tx.rct_signatures.outPk[i].mask : NULL);
     }
   }
@@ -255,6 +261,9 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
                                 , const uint64_t& coins_generated
                                 , const std::vector<std::pair<transaction, blobdata>>& txs
                                 , const epose_state_commitment_v2 *epose_commitment
+                                , const vm_block_update *vm_update
+                                , const chainlock_record *chainlock_carrier
+                                , const std::string *epose_snapshot
                                 )
 {
   const block &blk = blck.first;
@@ -269,7 +278,10 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
   time_blk_hash += time1;
 
   if (epose_commitment != nullptr
-      && (epose_commitment->schema_version != EPOSE_STATE_COMMITMENT_SCHEMA_V2
+      && (epose_commitment->schema_version !=
+              (is_qwc_contracts_hardfork(blk.major_version)
+                  ? QWC_EPOSE_ROLLING_STATE_SCHEMA
+                  : EPOSE_STATE_COMMITMENT_SCHEMA_V2)
           || epose_commitment->block_hash != blk_hash
           || epose_commitment->state_hash == crypto::null_hash
           || epose_commitment->parameter_set_hash == crypto::null_hash))
@@ -291,7 +303,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
   for (const std::pair<transaction, blobdata>& tx : txs)
   {
     tx_hash = blk.tx_hashes[tx_i];
-    add_transaction(blk_hash, tx, &tx_hash);
+    add_transaction(blk_hash, tx, &tx_hash, nullptr, blk.major_version);
     for (const auto &vout: tx.first.vout)
     {
       if (vout.amount == 0)
@@ -307,6 +319,12 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
   add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, num_rct_outs, blk_hash);
   if (epose_commitment != nullptr)
     add_epose_state_commitment_v2(prev_height, *epose_commitment);
+  if (epose_snapshot != nullptr)
+    put_epose_snapshot(prev_height, *epose_snapshot);
+  if (vm_update != nullptr)
+    add_vm_block(prev_height, *vm_update);
+  if (chainlock_carrier != nullptr)
+    add_chainlock_carrier(prev_height, *chainlock_carrier);
   TIME_MEASURE_FINISH(time1);
   time_add_block1 += time1;
 
@@ -315,6 +333,71 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
   ++num_calls;
 
   return prev_height;
+}
+
+std::string encode_vm_write_set(const vm::write_set &writes)
+{
+  std::string blob;
+  auto append_varint = [&blob](uint64_t value) {
+    char buffer[(sizeof(uint64_t) * 8 + 6) / 7];
+    char *end = buffer;
+    tools::write_varint(end, value);
+    blob.append(buffer, end);
+  };
+  append_varint(writes.size());
+  for (const auto &entry : writes)
+  {
+    append_varint(entry.first.size());
+    blob += entry.first;
+    blob.push_back(entry.second ? 1 : 0);
+    if (entry.second)
+    {
+      append_varint(entry.second->size());
+      blob += *entry.second;
+    }
+  }
+  return blob;
+}
+
+bool decode_vm_write_set(const std::string &blob, vm::write_set &writes)
+{
+  writes.clear();
+  std::string::const_iterator it = blob.begin();
+  std::string::const_iterator end = blob.end();
+  auto read_varint = [&](uint64_t &value) {
+    return tools::read_varint(it, end, value) > 0;
+  };
+  auto read_bytes = [&](std::string &out) {
+    uint64_t size = 0;
+    if (!read_varint(size) || size > static_cast<uint64_t>(end - it))
+      return false;
+    out.assign(it, it + size);
+    it += size;
+    return true;
+  };
+  uint64_t count = 0;
+  if (!read_varint(count))
+    return false;
+  for (uint64_t i = 0; i < count; ++i)
+  {
+    std::string key;
+    if (!read_bytes(key) || it == end)
+      return false;
+    const char present = *it++;
+    if (present != 0 && present != 1)
+      return false;
+    boost::optional<std::string> value;
+    if (present)
+    {
+      std::string bytes;
+      if (!read_bytes(bytes))
+        return false;
+      value = std::move(bytes);
+    }
+    if (!writes.emplace(std::move(key), std::move(value)).second)
+      return false;
+  }
+  return it == end;
 }
 
 void BlockchainDB::set_hard_fork(HardFork* hf)
@@ -332,6 +415,9 @@ void BlockchainDB::pop_block(block& blk, std::vector<transaction>& txs)
 
   remove_block();
   remove_epose_state_commitment_v2(current_height - 1);
+  remove_epose_snapshot(current_height - 1);
+  remove_vm_block(current_height - 1);
+  remove_chainlock_carrier(current_height - 1);
 
   for (const auto& h : boost::adaptors::reverse(blk.tx_hashes))
   {

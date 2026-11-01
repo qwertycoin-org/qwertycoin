@@ -30,6 +30,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,6 +95,40 @@ static void hash2hex(const char* hash, char* hex) {
     hex[i * 2 + 1] = d[b & 15];
   }
   hex[HASH_SIZE * 2] = '\0';
+}
+
+enum large_page_kind {
+  LARGE_PAGES_DATASET,
+  LARGE_PAGES_CACHE,
+  LARGE_PAGES_FULL_VM,
+  LARGE_PAGES_LIGHT_VM,
+  LARGE_PAGE_KIND_COUNT
+};
+
+static atomic_int large_pages_refused[LARGE_PAGE_KIND_COUNT];
+
+static atomic_ulong large_page_attempts;
+
+static inline int large_pages_flag(enum large_page_kind kind) {
+  if (atomic_load(&large_pages_refused[kind]))
+    return 0;
+  atomic_fetch_add(&large_page_attempts, 1);
+  return RANDOMX_FLAG_LARGE_PAGES;
+}
+
+int rx_large_pages_unavailable(void) {
+  for (int kind = 0; kind < LARGE_PAGE_KIND_COUNT; ++kind)
+    if (atomic_load(&large_pages_refused[kind]))
+      return 1;
+  return 0;
+}
+
+unsigned long rx_large_page_attempts(void) {
+  return atomic_load(&large_page_attempts);
+}
+
+static inline void refuse_large_pages(enum large_page_kind kind) {
+  atomic_store(&large_pages_refused[kind], 1);
 }
 
 static inline int disabled_flags(void) {
@@ -213,8 +248,9 @@ static void rx_alloc_dataset(randomx_flags flags, randomx_dataset** dataset, int
     return;
   }
 
-  *dataset = randomx_alloc_dataset((flags | RANDOMX_FLAG_LARGE_PAGES) & ~disabled_flags());
+  *dataset = randomx_alloc_dataset((flags | large_pages_flag(LARGE_PAGES_DATASET)) & ~disabled_flags());
   if (!*dataset) {
+    refuse_large_pages(LARGE_PAGES_DATASET);
     alloc_err_msg("Couldn't allocate RandomX dataset using large pages");
     *dataset = randomx_alloc_dataset(flags & ~disabled_flags());
     if (!*dataset) {
@@ -229,8 +265,9 @@ static void rx_alloc_cache(randomx_flags flags, randomx_cache** cache)
     return;
   }
 
-  *cache = randomx_alloc_cache((flags | RANDOMX_FLAG_LARGE_PAGES) & ~disabled_flags());
+  *cache = randomx_alloc_cache((flags | large_pages_flag(LARGE_PAGES_CACHE)) & ~disabled_flags());
   if (!*cache) {
+    refuse_large_pages(LARGE_PAGES_CACHE);
     alloc_err_msg("Couldn't allocate RandomX cache using large pages");
     *cache = randomx_alloc_cache(flags & ~disabled_flags());
     if (!*cache) local_abort("Couldn't allocate RandomX cache");
@@ -247,9 +284,10 @@ static void rx_init_full_vm(randomx_flags flags, randomx_vm** vm)
     flags |= RANDOMX_FLAG_SECURE;
   }
 
-  *vm = randomx_create_vm((flags | RANDOMX_FLAG_LARGE_PAGES | RANDOMX_FLAG_FULL_MEM) & ~disabled_flags(), NULL, main_dataset);
+  *vm = randomx_create_vm((flags | large_pages_flag(LARGE_PAGES_FULL_VM) | RANDOMX_FLAG_FULL_MEM) & ~disabled_flags(), NULL, main_dataset);
   if (!*vm) {
     static int shown = 0;
+    refuse_large_pages(LARGE_PAGES_FULL_VM);
     if (!shown) {
         shown = 1;
         alloc_err_msg("Couldn't allocate RandomX full VM using large pages (will print only once)");
@@ -274,9 +312,10 @@ static void rx_init_light_vm(randomx_flags flags, randomx_vm** vm, randomx_cache
 
   flags &= ~RANDOMX_FLAG_FULL_MEM;
 
-  *vm = randomx_create_vm((flags | RANDOMX_FLAG_LARGE_PAGES) & ~disabled_flags(), cache, NULL);
+  *vm = randomx_create_vm((flags | large_pages_flag(LARGE_PAGES_LIGHT_VM)) & ~disabled_flags(), cache, NULL);
   if (!*vm) {
     static int shown = 0;
+    refuse_large_pages(LARGE_PAGES_LIGHT_VM);
     if (!shown) {
         shown = 1;
         alloc_err_msg("Couldn't allocate RandomX light VM using large pages (will print only once)");

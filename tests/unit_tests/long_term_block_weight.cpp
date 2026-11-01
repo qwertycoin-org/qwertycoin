@@ -33,6 +33,7 @@
 #include "cryptonote_core/tx_pool.h"
 #include "cryptonote_core/cryptonote_core.h"
 #include "blockchain_db/testdb.h"
+#include "../common/blockchain_and_pool.h"
 
 #define TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW 5000
 
@@ -106,15 +107,8 @@ static uint32_t lcg()
 
 }
 
-struct BlockchainAndPool
-{
-  cryptonote::tx_memory_pool txpool;
-  cryptonote::Blockchain bc;
-  BlockchainAndPool(): txpool(bc), bc(txpool) {}
-};
-
 #define PREFIX_WINDOW(hf_version,window) \
-  BlockchainAndPool bap; \
+  cryptonote_test::BlockchainAndPool bap; \
   cryptonote::Blockchain *bc = &bap.bc; \
   struct get_test_options { \
     const std::pair<uint8_t, uint64_t> hard_forks[3]; \

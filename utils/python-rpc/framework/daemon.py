@@ -199,6 +199,20 @@ class Daemon(object):
         return self.rpc.send_json_rpc_request(get_info)
     getinfo = get_info
 
+    def get_chainlock(self, height = 0, client = ""):
+        return self.rpc.send_request('/get_chainlock', {
+            'height': height,
+            'client': client,
+        })
+
+    def get_chainlock_quorum_inputs(self, epoch, offset = 0, limit = 128, client = ""):
+        return self.rpc.send_request('/get_chainlock_quorum_inputs', {
+            'epoch': epoch,
+            'offset': offset,
+            'limit': limit,
+            'client': client,
+        })
+
     def get_epose_info(self, client = ""):
         return self.rpc.send_request('/get_epose_info', {'client': client})
 
@@ -743,3 +757,38 @@ class Daemon(object):
             'id': '0'
         }
         return self.rpc.send_json_rpc_request(rpc_access_account)
+
+    def get_vm_state_root(self, height=None):
+        get_vm_state_root = {
+            'method': 'get_vm_state_root',
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        if height is not None:
+            get_vm_state_root['params'] = {'height': height}
+        return self.rpc.send_json_rpc_request(get_vm_state_root)
+
+    def vm_call_dry_run(self, extra, fee = 0):
+        vm_call_dry_run = {
+            'method': 'vm_call_dry_run',
+            'params': {
+                'extra': extra,
+                'fee': fee,
+            },
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        return self.rpc.send_json_rpc_request(vm_call_dry_run)
+
+    def get_vm_state_proof(self, key, height=None):
+        get_vm_state_proof = {
+            'method': 'get_vm_state_proof',
+            'params': {
+                'key': key,
+            },
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        if height is not None:
+            get_vm_state_proof['params']['height'] = height
+        return self.rpc.send_json_rpc_request(get_vm_state_proof)

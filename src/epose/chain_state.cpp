@@ -8,26 +8,20 @@
 #include <cstring>
 
 #include "epose/service_epoch.h"
+#include "epose/hash_transcript.h"
 
 namespace
 {
-  crypto::hash hash_blob(const std::string &blob)
-  {
-    return crypto::cn_fast_hash(blob.data(), blob.size());
-  }
-
-  bool public_key_equal(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) == 0;
-  }
+  using qwertycoin::epose::transcript::bytes_equal;
+  using qwertycoin::epose::transcript::hash_blob;
 
   bool same_attestation_vote(
       const qwertycoin::epose::service_attestation &left,
       const qwertycoin::epose::service_attestation &right)
   {
     return left.epoch == right.epoch
-        && public_key_equal(left.verifier_public_key, right.verifier_public_key)
-        && public_key_equal(left.subject_public_key, right.subject_public_key);
+        && bytes_equal(left.verifier_public_key, right.verifier_public_key)
+        && bytes_equal(left.subject_public_key, right.subject_public_key);
   }
 
   bool has_active_registration(
@@ -37,7 +31,7 @@ namespace
   {
     const std::vector<qwertycoin::epose::service_node_identity> active = registry.active_nodes(epoch);
     return std::find_if(active.begin(), active.end(), [&](const qwertycoin::epose::service_node_identity &identity) {
-      return public_key_equal(identity.service_public_key, service_public_key);
+      return bytes_equal(identity.service_public_key, service_public_key);
     }) != active.end();
   }
 
@@ -56,7 +50,7 @@ namespace
         qwertycoin::epose::EPOSE_VERIFIER_COMMITTEE_SIZE);
 
     return std::find_if(assignments.begin(), assignments.end(), [&](const qwertycoin::epose::verifier_assignment &assignment) {
-      return public_key_equal(assignment.verifier_public_key, attestation.verifier_public_key);
+      return bytes_equal(assignment.verifier_public_key, attestation.verifier_public_key);
     }) != assignments.end();
   }
 

@@ -27,6 +27,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "blockchain_utility_network.h"
 #include "bootstrap_file.h"
 #include "blocksdat_file.h"
 #include "common/command_line.h"
@@ -69,6 +70,7 @@ int main(int argc, char* argv[])
   command_line::add_arg(desc_cmd_sett, arg_output_file);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_testnet_on);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_stagenet_on);
+  blockchain_utilities::add_devnet_option(desc_cmd_sett);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_regtest_on);
   command_line::add_arg(desc_cmd_sett, arg_log_level);
   command_line::add_arg(desc_cmd_sett, arg_block_start);

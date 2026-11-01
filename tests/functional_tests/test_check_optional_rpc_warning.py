@@ -9,7 +9,7 @@ CHECKER = Path(__file__).with_name("check_optional_rpc_warning.py")
 WARNING = (
     "CMake Warning at tests/functional_tests/CMakeLists.txt:85 (message):\n"
     "  functional_tests_rpc and check_missing_rpc_methods skipped;\n"
-    "  needs optional modules\n\n"
+    "  chainlock_daemon_methods also skipped, needs optional modules\n\n"
 )
 
 
@@ -36,6 +36,12 @@ class OptionalRpcWarningTest(unittest.TestCase):
     def test_missing_rpc_names(self):
         self.check_warning(
             WARNING.replace("functional_tests_rpc and check_missing_rpc_methods skipped;", "optional tests skipped;"),
+            1,
+        )
+
+    def test_missing_chainlock_name(self):
+        self.check_warning(
+            WARNING.replace("chainlock_daemon_methods also skipped", "optional tests skipped"),
             1,
         )
 

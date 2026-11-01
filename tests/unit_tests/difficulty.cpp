@@ -29,6 +29,8 @@
 #include "gtest/gtest.h"
 #include "int-util.h"
 #include "cryptonote_basic/difficulty.h"
+#include "cryptonote_config.h"
+#include "cryptonote_core/block_rate_probability.h"
 
 static cryptonote::difficulty_type MKDIFF(uint64_t high, uint64_t low)
 {
@@ -71,4 +73,60 @@ TEST(difficulty, check_hash)
 
   ASSERT_TRUE(cryptonote::check_hash(MKHASH(0xffffffffffffffff, 1), MKDIFF(0xffffffffffffffff, 1)));
   ASSERT_FALSE(cryptonote::check_hash(MKHASH(0xffffffffffffffff, 1), MKDIFF(0xffffffffffffffff, 2)));
+}
+
+TEST(difficulty, network_block_targets)
+{
+  EXPECT_EQ(15u, cryptonote::block_target(cryptonote::DEVNET));
+  EXPECT_EQ(120u, cryptonote::block_target(cryptonote::MAINNET));
+  EXPECT_EQ(120u, cryptonote::block_target(cryptonote::TESTNET));
+  EXPECT_EQ(120u, cryptonote::block_target(cryptonote::STAGENET));
+  EXPECT_EQ(60u, cryptonote::block_target(cryptonote::DEVNET, 1));
+  EXPECT_EQ(15u, cryptonote::locked_tx_allowed_delta_seconds(cryptonote::DEVNET, 2));
+  EXPECT_EQ(120u, cryptonote::locked_tx_allowed_delta_seconds(cryptonote::MAINNET, 2));
+}
+
+TEST(difficulty, round_up_division_does_not_overflow)
+{
+  EXPECT_EQ(1317624576693539402u, cryptonote::divide_round_up(UINT64_MAX, 14));
+  EXPECT_EQ(1u, cryptonote::divide_round_up(1, 15));
+}
+
+TEST(difficulty, network_block_rate_sample_windows)
+{
+  EXPECT_EQ(360u, cryptonote::blocks_for_duration(cryptonote::DEVNET, 5400));
+  EXPECT_EQ(45u, cryptonote::blocks_for_duration(cryptonote::MAINNET, 5400));
+  EXPECT_EQ(1u, cryptonote::blocks_for_duration(cryptonote::DEVNET, 1));
+}
+
+TEST(difficulty, devnet_block_rate_probability_is_finite)
+{
+  const double normal_rate = cryptonote::block_rate_probability(360, 360);
+  EXPECT_TRUE(std::isfinite(normal_rate));
+  EXPECT_GT(normal_rate, 0.4);
+  EXPECT_LT(normal_rate, 0.6);
+  EXPECT_LT(cryptonote::block_rate_probability(150, 360), 1.0 / 57600);
+}
+
+TEST(difficulty, devnet_retarget_tracks_fifteen_second_spacing)
+{
+  std::vector<uint64_t> timestamps;
+  std::vector<cryptonote::difficulty_type> cumulative_difficulties;
+  for (uint64_t i = 0; i < DIFFICULTY_WINDOW; ++i)
+  {
+    timestamps.push_back(i * cryptonote::block_target(cryptonote::DEVNET));
+    cumulative_difficulties.push_back(i * 100);
+  }
+  EXPECT_EQ(100, cryptonote::next_difficulty(timestamps, cumulative_difficulties,
+      cryptonote::block_target(cryptonote::DEVNET)));
+  EXPECT_EQ(800, cryptonote::next_difficulty(timestamps, cumulative_difficulties,
+      cryptonote::block_target(cryptonote::MAINNET)));
+  for (auto &timestamp : timestamps)
+    timestamp = timestamp * 2 / 3;
+  EXPECT_EQ(150, cryptonote::next_difficulty(timestamps, cumulative_difficulties,
+      cryptonote::block_target(cryptonote::DEVNET)));
+  for (auto &timestamp : timestamps)
+    timestamp *= 3;
+  EXPECT_EQ(50, cryptonote::next_difficulty(timestamps, cumulative_difficulties,
+      cryptonote::block_target(cryptonote::DEVNET)));
 }

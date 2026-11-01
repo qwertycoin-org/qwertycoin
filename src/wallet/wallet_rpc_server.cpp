@@ -59,6 +59,10 @@ using namespace epee;
 #include "daemonizer/daemonizer.h"
 #include "epose/coordinator_v2.h"
 #include "epose/envelope_v2.h"
+#include "cryptonote_core/contract_state.h"
+#include "vm/vm.h"
+#include "contract_call_builder.h"
+#include "app_shader_approvals.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -109,6 +113,32 @@ using namespace epee;
 
 namespace
 {
+  bool append_signer_hashes(const std::vector<std::string>& values, std::vector<crypto::hash>& hashes,
+      epee::json_rpc::error& error, const char* message)
+  {
+    for (const std::string& value : values)
+    {
+      crypto::hash parsed{};
+      if (!epee::string_tools::hex_to_pod(value, parsed))
+      {
+        error.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+        error.message = message;
+        return false;
+      }
+      hashes.push_back(parsed);
+    }
+    return true;
+  }
+
+  template<typename Approval>
+  bool parse_signer_approval(const Approval& approved, crypto::hash& contract_id,
+      crypto::hash& key_id, crypto::public_key& public_key)
+  {
+    return epee::string_tools::hex_to_pod(approved.contract_id, contract_id)
+        && epee::string_tools::hex_to_pod(approved.key_id, key_id)
+        && epee::string_tools::hex_to_pod(approved.public_key, public_key);
+  }
+
   bool append_wallet_epose_envelope_v2(
       tools::wallet2 &wallet,
       const std::string &hex,
@@ -225,7 +255,7 @@ namespace
     return pwd_container;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  void set_confirmations(tools::wallet_rpc::transfer_entry &entry, uint64_t blockchain_height, uint64_t block_reward, uint64_t unlock_time)
+  void set_confirmations(tools::wallet_rpc::transfer_entry &entry, uint64_t blockchain_height, uint64_t block_reward, uint64_t unlock_time, cryptonote::network_type nettype)
   {
     if (entry.height >= blockchain_height || (entry.height == 0 && (!strcmp(entry.type.c_str(), "pending") || !strcmp(entry.type.c_str(), "pool"))))
       entry.confirmations = 0;
@@ -235,7 +265,7 @@ namespace
     if (block_reward == 0)
       entry.suggested_confirmations_threshold = 0;
     else
-      entry.suggested_confirmations_threshold = (entry.amount + block_reward - 1) / block_reward;
+      entry.suggested_confirmations_threshold = cryptonote::divide_round_up(entry.amount, block_reward);
 
     if (unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
     {
@@ -246,7 +276,10 @@ namespace
     {
       const uint64_t now = time(NULL);
       if (unlock_time > now)
-        entry.suggested_confirmations_threshold = std::max(entry.suggested_confirmations_threshold, (unlock_time - now + DIFFICULTY_TARGET_V2 - 1) / DIFFICULTY_TARGET_V2);
+      {
+        const uint64_t target_seconds = block_target(nettype);
+        entry.suggested_confirmations_threshold = std::max(entry.suggested_confirmations_threshold, cryptonote::divide_round_up(unlock_time - now, target_seconds));
+      }
     }
   }
 }
@@ -568,7 +601,7 @@ namespace tools
     entry.subaddr_index = pd.m_subaddr_index;
     entry.subaddr_indices.push_back(pd.m_subaddr_index);
     entry.address = m_wallet->get_subaddress_as_str(pd.m_subaddr_index);
-    set_confirmations(entry, m_wallet->get_blockchain_current_height(), m_wallet->get_last_block_reward(), pd.m_unlock_time);
+    set_confirmations(entry, m_wallet->get_blockchain_current_height(), m_wallet->get_last_block_reward(), pd.m_unlock_time, m_wallet->nettype());
   }
   //------------------------------------------------------------------------------------------------------------------------------
   void wallet_rpc_server::fill_transfer_entry(tools::wallet_rpc::transfer_entry &entry, const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd)
@@ -598,7 +631,7 @@ namespace tools
     for (uint32_t i: pd.m_subaddr_indices)
       entry.subaddr_indices.push_back({pd.m_subaddr_account, i});
     entry.address = m_wallet->get_subaddress_as_str({pd.m_subaddr_account, 0});
-    set_confirmations(entry, m_wallet->get_blockchain_current_height(), m_wallet->get_last_block_reward(), pd.m_unlock_time);
+    set_confirmations(entry, m_wallet->get_blockchain_current_height(), m_wallet->get_last_block_reward(), pd.m_unlock_time, m_wallet->nettype());
   }
   //------------------------------------------------------------------------------------------------------------------------------
   void wallet_rpc_server::fill_transfer_entry(tools::wallet_rpc::transfer_entry &entry, const crypto::hash &txid, const tools::wallet2::unconfirmed_transfer_details &pd)
@@ -613,7 +646,8 @@ namespace tools
     entry.timestamp = pd.m_timestamp;
     entry.fee = pd.m_amount_in - pd.m_amount_out;
     entry.amount = pd.m_amount_in - pd.m_change - entry.fee;
-    entry.unlock_time = pd.m_tx.unlock_time;
+    const uint64_t blockchain_height = m_wallet->get_blockchain_current_height();
+    entry.unlock_time = cryptonote::tx_effective_unlock_time(pd.m_tx, blockchain_height); // QWC-3 (g)
     entry.locked = true;
     entry.note = m_wallet->get_tx_note(txid);
 
@@ -629,7 +663,7 @@ namespace tools
     for (uint32_t i: pd.m_subaddr_indices)
       entry.subaddr_indices.push_back({pd.m_subaddr_account, i});
     entry.address = m_wallet->get_subaddress_as_str({pd.m_subaddr_account, 0});
-    set_confirmations(entry, m_wallet->get_blockchain_current_height(), m_wallet->get_last_block_reward(), pd.m_tx.unlock_time);
+    set_confirmations(entry, blockchain_height, m_wallet->get_last_block_reward(), entry.unlock_time, m_wallet->nettype());
   }
   //------------------------------------------------------------------------------------------------------------------------------
   void wallet_rpc_server::fill_transfer_entry(tools::wallet_rpc::transfer_entry &entry, const crypto::hash &payment_id, const tools::wallet2::pool_payment_details &ppd)
@@ -652,7 +686,7 @@ namespace tools
     entry.subaddr_index = pd.m_subaddr_index;
     entry.subaddr_indices.push_back(pd.m_subaddr_index);
     entry.address = m_wallet->get_subaddress_as_str(pd.m_subaddr_index);
-    set_confirmations(entry, m_wallet->get_blockchain_current_height(), m_wallet->get_last_block_reward(), pd.m_unlock_time);
+    set_confirmations(entry, m_wallet->get_blockchain_current_height(), m_wallet->get_last_block_reward(), pd.m_unlock_time, m_wallet->nettype());
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_getbalance(const wallet_rpc::COMMAND_RPC_GET_BALANCE::request& req, wallet_rpc::COMMAND_RPC_GET_BALANCE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
@@ -1176,22 +1210,6 @@ namespace tools
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  static std::string ptx_to_string(const tools::wallet2::pending_tx &ptx)
-  {
-    std::ostringstream oss;
-    binary_archive<true> ar(oss);
-    try
-    {
-      if (!::serialization::serialize(ar, const_cast<tools::wallet2::pending_tx&>(ptx)))
-        return "";
-    }
-    catch (...)
-    {
-      return "";
-    }
-    return epee::string_tools::buff_to_hex_nodelimer(oss.str());
-  }
-  //------------------------------------------------------------------------------------------------------------------------------
   template<typename T> static bool is_error_value(const T &val) { return false; }
   static bool is_error_value(const std::string &s) { return s.empty(); }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -1284,7 +1302,7 @@ namespace tools
       {
         bool r = fill(tx_hash, epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx.tx)));
         r = r && (!get_tx_hex || fill(tx_blob, epee::string_tools::buff_to_hex_nodelimer(tx_to_blob(ptx.tx))));
-        r = r && (!get_tx_metadata || fill(tx_metadata, ptx_to_string(ptx)));
+        r = r && (!get_tx_metadata || fill(tx_metadata, tools::wallet2::pending_tx_to_hex(ptx)));
         if (!r)
         {
           er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
@@ -1298,7 +1316,367 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::request& req, wallet_rpc::COMMAND_RPC_TRANSFER::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    return transfer_single(req, boost::none, res, er);
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_contract_call(const wallet_rpc::COMMAND_RPC_CONTRACT_CALL::request& req, wallet_rpc::COMMAND_RPC_CONTRACT_CALL::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (m_restricted)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Command unavailable in restricted mode.";
+      return false;
+    }
+    if (!m_wallet) return not_open(er);
 
+    const bool deploy = req.kind == "deploy";
+    tools::contract_call_options options;
+    options.args_hex = req.args;
+    options.deposit = req.deposit;
+    options.gas_price = req.gas_price;
+    options.gas_limit = req.gas_limit;
+    options.mint_address = req.mint_address;
+    if (!tools::parse_contract_public_keys(req.external_signers, options.external_signers))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "Invalid external signer";
+      return false;
+    }
+    if (!options.external_signers.empty() && !tools::wallet2::external_contract_signers_allowed(*m_wallet))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "External signers require a spendable local wallet";
+      return false;
+    }
+    if (!options.external_signers.empty() && (!req.do_not_relay || !req.get_tx_metadata))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "External signers need do_not_relay and get_tx_metadata";
+      return false;
+    }
+    cryptonote::tx_extra_vm_call call{};
+    const tools::contract_call_build_result built = (deploy || req.kind == "invoke")
+      ? tools::build_contract_call(m_wallet->nettype(), deploy, req.code, req.contract_id, req.method, options, call)
+      : tools::contract_call_build_result::bad_call;
+    if (built == tools::contract_call_build_result::bad_call)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "Contract call needs kind deploy with code, or kind invoke with contract_id, and hex args";
+      return false;
+    }
+    if (built == tools::contract_call_build_result::bad_mint_address)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
+      er.message = "Invalid mint address: " + req.mint_address;
+      return false;
+    }
+
+    try
+    {
+      if ((!req.signer_contracts.empty() && req.signer_contracts.size() != req.signers.size())
+          || (!req.signer_methods.empty() && req.signer_methods.size() != req.signers.size())
+          || (!req.signer_key_ids.empty() && req.signer_key_ids.size() != req.signers.size()))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+        er.message = "Signer metadata must match the signer list";
+        return false;
+      }
+      if (!append_signer_hashes(req.signer_contracts, call.signer_contracts, er, "Invalid signer contract id"))
+        return false;
+      call.signer_methods = req.signer_methods;
+      if (!append_signer_hashes(req.signer_key_ids, call.signer_key_ids, er, "Invalid signer key id"))
+        return false;
+      std::vector<bool> used_approvals(req.approved_signers.size(), false);
+      const auto authorize = [&](const crypto::hash& contract_id, uint32_t method, const crypto::hash& key_id, const crypto::public_key& key, bool nested) {
+        for (size_t i = 0; i < req.approved_signers.size(); ++i)
+        {
+          const auto& approved = req.approved_signers[i];
+          crypto::hash approved_contract{};
+          crypto::hash approved_key_id{};
+          crypto::public_key approved_key{};
+          if (!used_approvals[i] && parse_signer_approval(approved, approved_contract, approved_key_id, approved_key)
+              && approved_contract == contract_id && approved.method == method && approved_key_id == key_id
+              && approved_key == key && approved.nested == nested)
+          {
+            used_approvals[i] = true;
+            return true;
+          }
+        }
+        return false;
+      };
+      res.gas_used = m_wallet->prepare_contract_call(call, authorize, options.external_signers);
+      if (std::find(used_approvals.begin(), used_approvals.end(), false) != used_approvals.end())
+      {
+        er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+        er.message = "Approval list contains an unrequested signer";
+        return false;
+      }
+      if (!req.signers.empty())
+      {
+        if (req.signers.size() != call.signers.size())
+        {
+          er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+          er.message = "App signer requests do not match the contract";
+          return false;
+        }
+        for (size_t i = 0; i < call.signers.size(); ++i)
+        {
+          crypto::public_key requested;
+          if (!epee::string_tools::hex_to_pod(req.signers[i], requested) || requested != call.signers[i])
+          {
+            er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+            er.message = "App signer requests do not match the contract";
+            return false;
+          }
+        }
+      }
+    }
+    catch (const tools::error::invalid_external_contract_signer& e)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = e.what();
+      return false;
+    }
+    catch (const std::exception& e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR);
+      return false;
+    }
+    res.gas_limit = call.gas_limit;
+    res.contract_id = epee::string_tools::pod_to_hex(cryptonote::called_contract_id(call));
+    return transfer_single(req, call, res, er, options.external_signers, &res.signature_hash);
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_attach_contract_signatures(const wallet_rpc::COMMAND_RPC_ATTACH_CONTRACT_SIGNATURES::request& req,
+      wallet_rpc::COMMAND_RPC_ATTACH_CONTRACT_SIGNATURES::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (m_restricted)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Command unavailable in restricted mode.";
+      return false;
+    }
+    if (!m_wallet) return not_open(er);
+    tools::wallet2::pending_tx ptx;
+    if (!decode_pending_tx(req.tx_metadata, ptx, er))
+      return false;
+    std::vector<std::pair<std::string, std::string>> signatures;
+    signatures.reserve(req.signatures.size());
+    for (const auto& entry : req.signatures)
+      signatures.emplace_back(entry.public_key, entry.signature);
+    try
+    {
+      tools::wallet2::attach_contract_signatures_hex(ptx, m_wallet->nettype(), signatures, !req.do_not_relay);
+    }
+    catch (const tools::error::invalid_contract_signature_encoding& e)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_HEX;
+      er.message = e.what();
+      return false;
+    }
+    catch (const tools::error::wallet_internal_error& e)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = e.what();
+      return false;
+    }
+    res.signature_hash = tools::wallet2::contract_signature_hash_hex(ptx.tx, m_wallet->nettype());
+    res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx.tx));
+    res.tx_metadata = tools::wallet2::pending_tx_to_hex(ptx);
+    if (res.tx_metadata.empty())
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_TX_METADATA;
+      er.message = "Failed to serialize tx metadata.";
+      return false;
+    }
+    if (req.get_tx_hex)
+      res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx));
+    if (!req.do_not_relay)
+    {
+      try { m_wallet->commit_tx(ptx); }
+      catch (const std::exception&)
+      {
+        handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR);
+        return false;
+      }
+    }
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_derive_contract_key(const wallet_rpc::COMMAND_RPC_DERIVE_CONTRACT_KEY::request& req, wallet_rpc::COMMAND_RPC_DERIVE_CONTRACT_KEY::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Command unavailable in restricted mode.";
+      return false;
+    }
+    crypto::hash contract_id{};
+    crypto::hash key_id{};
+    crypto::public_key public_key{};
+    if (!epee::string_tools::hex_to_pod(req.contract_id, contract_id)
+        || !epee::string_tools::hex_to_pod(req.key_id, key_id))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "Contract id and key id must be 32-byte hex values";
+      return false;
+    }
+    if (!m_wallet->derive_contract_public_key(contract_id, key_id, public_key))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "Wallet cannot derive contract keys";
+      return false;
+    }
+    res.public_key = epee::string_tools::pod_to_hex(public_key);
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_get_vm_state_value(const wallet_rpc::COMMAND_RPC_GET_VM_STATE_VALUE::request& req, wallet_rpc::COMMAND_RPC_GET_VM_STATE_VALUE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    std::string key;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(req.key, key))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_HEX;
+      er.message = "Key is not hexadecimal";
+      return false;
+    }
+    try
+    {
+      crypto::hash root;
+      boost::optional<std::string> value;
+      if (!m_wallet->get_vm_state_value(key, root, value))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        er.message = "Daemon returned a contract state proof that does not verify";
+        return false;
+      }
+      res.root = epee::string_tools::pod_to_hex(root);
+      res.found = static_cast<bool>(value);
+      res.value = value ? epee::string_tools::buff_to_hex_nodelimer(*value) : std::string();
+    }
+    catch (const std::exception& e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR);
+      return false;
+    }
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_invoke_app_shader(const wallet_rpc::COMMAND_RPC_INVOKE_APP_SHADER::request& req, wallet_rpc::COMMAND_RPC_INVOKE_APP_SHADER::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Command unavailable in restricted mode.";
+      return false;
+    }
+
+    std::string wasm;
+    vm::app::arguments args;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(req.code, wasm) || wasm.empty() || !vm::app::parse_arguments(req.args, args))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "App shader needs hex code and args as key=value pairs separated by commas";
+      return false;
+    }
+    std::vector<crypto::hash> invoked_contracts;
+    for (const std::string& value : req.contract_ids)
+    {
+      crypto::hash contract_id{};
+      if (!epee::string_tools::hex_to_pod(value, contract_id))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+        er.message = "Invalid invoked contract id";
+        return false;
+      }
+      invoked_contracts.push_back(contract_id);
+    }
+
+    try
+    {
+      app_shader_approvals approvals;
+      std::string approval_error;
+      for (size_t i = 0; i < req.approved_keys.size(); ++i)
+      {
+        const auto& approved = req.approved_keys[i];
+        crypto::hash contract_id{};
+        crypto::hash key_id{};
+        crypto::public_key public_key{};
+        if (!parse_signer_approval(approved, contract_id, key_id, public_key))
+        {
+          er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+          er.message = "Invalid app shader approval at index " + std::to_string(i);
+          return false;
+        }
+        if (!approvals.add(contract_id, key_id, public_key, approval_error))
+        {
+          er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+          er.message = approval_error;
+          return false;
+        }
+      }
+      const auto authorize_key = [&](const crypto::hash& contract_id, const crypto::hash& key_id, boost::optional<crypto::public_key>& expected_key) {
+        return approvals.preauthorize(contract_id, key_id, expected_key);
+      };
+      const auto confirm_key = [&](const crypto::hash& contract_id, const crypto::hash& key_id, const crypto::public_key& public_key) {
+        return approvals.confirm(contract_id, key_id, public_key, approval_error);
+      };
+      const vm::app::run_result run = m_wallet->invoke_app_shader(wasm, req.method, args, invoked_contracts, authorize_key, confirm_key);
+      const std::string result_error = approvals.result_error(approval_error);
+      if (!approval_error.empty())
+      {
+        er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+        er.message = result_error;
+        return false;
+      }
+      if (run.code != vm::status::ok)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_APP_SHADER_FAILED;
+        er.message = "App shader failed: " + vm::app::status_name(run.code);
+        return false;
+      }
+      if (!result_error.empty())
+      {
+        er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+        er.message = result_error;
+        return false;
+      }
+      res.document = vm::app::document_to_json(run.document);
+      res.steps_used = run.steps_used;
+      for (const vm::app::pending_call& call : run.calls)
+      {
+        wallet_rpc::COMMAND_RPC_INVOKE_APP_SHADER::generated_call entry;
+        const bool deploy = call.kind == vm::call_kind::deploy;
+        entry.kind = deploy ? "deploy" : "invoke";
+        entry.contract_id = deploy ? std::string() : epee::string_tools::pod_to_hex(call.contract_id);
+        entry.method = call.method;
+        entry.code = epee::string_tools::buff_to_hex_nodelimer(call.code);
+        entry.args = epee::string_tools::buff_to_hex_nodelimer(call.args);
+        entry.deposit = call.deposit;
+        for (const crypto::public_key& key : call.signers)
+          entry.signers.push_back(epee::string_tools::pod_to_hex(key));
+        for (const crypto::hash& contract_id : call.signer_contracts)
+          entry.signer_contracts.push_back(epee::string_tools::pod_to_hex(contract_id));
+        entry.signer_methods = call.signer_methods;
+        for (const crypto::hash& key_id : call.signer_key_ids)
+          entry.signer_key_ids.push_back(epee::string_tools::pod_to_hex(key_id));
+        res.calls.push_back(entry);
+      }
+    }
+    catch (const std::exception& e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR);
+      return false;
+    }
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+
+  bool wallet_rpc_server::transfer_single(const wallet_rpc::COMMAND_RPC_TRANSFER::request_t& req, const boost::optional<cryptonote::tx_extra_vm_call>& call, wallet_rpc::single_transfer_response& res, epee::json_rpc::error& er, const std::vector<crypto::public_key>& external_contract_signers, std::string* signature_hash)
+  {
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
 
@@ -1326,12 +1704,18 @@ namespace tools
     }
     if (!append_wallet_epose_envelope_v2(*m_wallet, req.epose_v2_envelope, extra, er))
       return false;
+    if (call && !cryptonote::add_vm_call_to_tx_extra(extra, *call))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_BAD_CONTRACT_CALL;
+      er.message = "Failed to serialize contract call";
+      return false;
+    }
 
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
       uint32_t priority = m_wallet->adjust_priority(req.priority);
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, priority, extra, req.account_index, req.subaddr_indices, req.subtract_fee_from_outputs);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, priority, extra, req.account_index, req.subaddr_indices, req.subtract_fee_from_outputs, external_contract_signers);
 
       if (ptx_vector.empty())
       {
@@ -1347,6 +1731,9 @@ namespace tools
         er.message = "Transaction would be too large.  try /transfer_split.";
         return false;
       }
+
+      if (signature_hash && !external_contract_signers.empty())
+        *signature_hash = tools::wallet2::contract_signature_hash_hex(ptx_vector.front().tx, m_wallet->nettype());
 
       return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.amounts_by_dest, res.fee, res.weight, res.multisig_txset, res.unsigned_txset, req.do_not_relay,
           res.tx_hash, req.get_tx_hex, res.tx_blob, req.get_tx_metadata, res.tx_metadata, res.spent_key_images, er);
@@ -1968,6 +2355,18 @@ namespace tools
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::decode_pending_tx(const std::string& hex, tools::wallet2::pending_tx& ptx, epee::json_rpc::error& er)
+  {
+    tools::wallet2::pending_tx_decode_error error{};
+    if (tools::wallet2::pending_tx_from_hex(hex, ptx, !m_restricted, error))
+      return true;
+    er.code = error == tools::wallet2::pending_tx_decode_error::bad_hex
+        ? WALLET_RPC_ERROR_CODE_BAD_HEX : WALLET_RPC_ERROR_CODE_BAD_TX_METADATA;
+    er.message = error == tools::wallet2::pending_tx_decode_error::bad_hex
+        ? "Failed to parse hex." : "Failed to parse tx metadata.";
+    return false;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_relay_tx(const wallet_rpc::COMMAND_RPC_RELAY_TX::request& req, wallet_rpc::COMMAND_RPC_RELAY_TX::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (m_restricted)
@@ -1979,43 +2378,9 @@ namespace tools
 
     if (!m_wallet) return not_open(er);
 
-    cryptonote::blobdata blob;
-    if (!epee::string_tools::parse_hexstr_to_binbuff(req.hex, blob))
-    {
-      er.code = WALLET_RPC_ERROR_CODE_BAD_HEX;
-      er.message = "Failed to parse hex.";
-      return false;
-    }
-
-    bool loaded = false;
     tools::wallet2::pending_tx ptx;
-
-    try
-    {
-      binary_archive<false> ar{epee::strspan<std::uint8_t>(blob)};
-      if (::serialization::serialize(ar, ptx))
-        loaded = true;
-    }
-    catch(...) {}
-
-    if (!loaded && !m_restricted)
-    {
-      try
-      {
-        std::istringstream iss(blob);
-        boost::archive::portable_binary_iarchive ar(iss);
-        ar >> ptx;
-        loaded = true;
-      }
-      catch (...) {}
-    }
-
-    if (!loaded)
-    {
-      er.code = WALLET_RPC_ERROR_CODE_BAD_TX_METADATA;
-      er.message = "Failed to parse tx metadata.";
+    if (!decode_pending_tx(req.hex, ptx, er))
       return false;
-    }
 
     try
     {
@@ -2024,7 +2389,7 @@ namespace tools
     catch(const std::exception &e)
     {
       er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-      er.message = "Failed to commit tx.";
+      er.message = e.what();
       return false;
     }
 
@@ -4701,20 +5066,21 @@ namespace tools
   bool wallet_rpc_server::on_validate_address(const wallet_rpc::COMMAND_RPC_VALIDATE_ADDRESS::request& req, wallet_rpc::COMMAND_RPC_VALIDATE_ADDRESS::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     cryptonote::address_parse_info info;
-    static const struct { cryptonote::network_type type; const char *stype; } net_types[] = {
-      { cryptonote::MAINNET, "mainnet" },
-      { cryptonote::TESTNET, "testnet" },
-      { cryptonote::STAGENET, "stagenet" },
+    static const cryptonote::network_type net_types[] = {
+      cryptonote::MAINNET,
+      cryptonote::TESTNET,
+      cryptonote::STAGENET,
+      cryptonote::DEVNET,
     };
     if (!req.any_net_type && !m_wallet) return not_open(er);
     for (const auto &net_type: net_types)
     {
-      if (!req.any_net_type && (!m_wallet || net_type.type != m_wallet->nettype()))
+      if (!req.any_net_type && (!m_wallet || net_type != m_wallet->nettype()))
         continue;
       if (req.allow_openalias)
       {
         std::string address;
-        res.valid = get_account_address_from_str_or_url(info, net_type.type, req.address,
+        res.valid = get_account_address_from_str_or_url(info, net_type, req.address,
           [&er, &address](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
             if (!dnssec_valid)
             {
@@ -4734,13 +5100,13 @@ namespace tools
       }
       else
       {
-        res.valid = cryptonote::get_account_address_from_str(info, net_type.type, req.address);
+        res.valid = cryptonote::get_account_address_from_str(info, net_type, req.address);
       }
       if (res.valid)
       {
         res.integrated = info.has_payment_id;
         res.subaddress = info.is_subaddress;
-        res.nettype = net_type.stype;
+        res.nettype = cryptonote::network_type_name_lowercase(net_type);
         return true;
       }
     }
@@ -4935,11 +5301,9 @@ public:
     std::unique_ptr<tools::wallet2> wal;
     try
     {
-      const bool testnet = tools::wallet2::has_testnet_option(vm);
-      const bool stagenet = tools::wallet2::has_stagenet_option(vm);
-      if (testnet && stagenet)
+      if (!tools::wallet2::network_selection_valid(vm))
       {
-        MERROR(tools::wallet_rpc_server::tr("Can't specify more than one of --testnet and --stagenet"));
+        MERROR(tools::wallet_rpc_server::tr("Can't specify more than one of --testnet, --stagenet, --devnet and --regtest"));
         return false;
       }
 

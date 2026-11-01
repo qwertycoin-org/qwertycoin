@@ -28,6 +28,7 @@
 // 
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include <algorithm>
 #include "epose/record_codec_v2.h"
 #include "epose/resource_policy_v2.h"
 #include <unordered_set>
@@ -40,11 +41,13 @@ using namespace epee;
 
 #include "common/apply_permutation.h"
 #include "cryptonote_tx_utils.h"
+#include "contract_state.h"
 #include "cryptonote_config.h"
 #include "blockchain.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/tx_extra.h"
+#include "vm/limits.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include "epose/envelope_v2.h"
@@ -166,7 +169,7 @@ namespace cryptonote
     }
   }
 
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, const account_public_address *service_reward_address, uint64_t service_reward, const miner_service_payment_v2 *service_payment_v2) {
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, const miner_service_payment_v2 *service_payment_v2, const miner_contract_outputs *contract_outputs, const crypto::secret_key *template_tx_key) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
@@ -174,7 +177,15 @@ namespace cryptonote
         && service_payment_v2->generated_context != nullptr)
       *service_payment_v2->generated_context = {};
 
-    keypair txkey = keypair::generate(hw::get_device("default"));
+    keypair txkey{};
+    if (template_tx_key)
+    {
+      txkey.sec = *template_tx_key;
+      if (!crypto::secret_key_to_public_key(txkey.sec, txkey.pub))
+        return false;
+    }
+    else
+      txkey = keypair::generate(hw::get_device("default"));
     add_tx_pub_key_to_extra(tx, txkey.pub);
     if(!extra_nonce.empty())
       if(!add_extra_nonce_to_tx_extra(tx.extra, extra_nonce))
@@ -200,12 +211,12 @@ namespace cryptonote
         block_reward <= std::numeric_limits<uint64_t>::max() - fee,
         false, "Fee overflows the permitted block reward");
     block_reward += fee;
+    const account_public_address *service_reward_address = nullptr;
+    uint64_t service_reward = 0;
     if (service_payment_v2 != nullptr)
     {
       CHECK_AND_ASSERT_MES(
           is_qwc_epose_v2_hardfork(hard_fork_version)
-              && service_reward_address == nullptr
-              && service_reward == 0
               && service_payment_v2->limits != nullptr
               && service_payment_v2->permanently_unissued <= block_reward,
           false, "invalid EPoSE-v2 miner payment context");
@@ -262,7 +273,8 @@ namespace cryptonote
     // transaction key to the payee. Use the already supported per-output keys
     // for the miner allocation when both addresses coincide. This keeps the
     // unchanged verifier's service total exact and both allocations spendable.
-    const bool separate_miner_key = service_payment_v2 != nullptr
+    const bool separate_miner_key = !is_qwc_contracts_hardfork(hard_fork_version)
+        && service_payment_v2 != nullptr
         && service_payment_v2->expectation != nullptr
         && miner_address.m_view_public_key == service_reward_address->m_view_public_key
         && miner_address.m_spend_public_key == service_reward_address->m_spend_public_key;
@@ -284,6 +296,10 @@ namespace cryptonote
 
     CHECK_AND_ASSERT_MES(summary_amounts == block_reward, false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal block_reward = " << block_reward);
 
+    const size_t service_output_start = tx.vout.size();
+    CHECK_AND_ASSERT_MES(
+        service_output_start <= std::numeric_limits<uint32_t>::max(),
+        false, "Service output start exceeds the proof index range");
     if (service_reward_address && service_reward)
     {
       CHECK_AND_ASSERT_MES(add_service_reward_outputs(tx, service_reward, *service_reward_address, txkey.sec, hard_fork_version), false, "failed to add EPoSE service reward output");
@@ -316,6 +332,15 @@ namespace cryptonote
     tx.unlock_time = height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
     tx.vin.push_back(in);
 
+    if (contract_outputs != nullptr)
+    {
+      CHECK_AND_ASSERT_MES(is_qwc_contracts_hardfork(hard_fork_version), false, "contract state root before the contracts fork");
+      CHECK_AND_ASSERT_MES(add_vm_state_root_to_tx_extra(tx.extra, contract_outputs->state_root), false, "failed to add contract state root");
+      CHECK_AND_ASSERT_MES(add_contract_mints_to_miner_tx(tx, contract_outputs->mints), false, "failed to add contract mints");
+      if (!contract_outputs->chainlock.empty())
+        CHECK_AND_ASSERT_MES(add_chainlock_to_tx_extra(tx.extra, contract_outputs->chainlock), false, "failed to add chainlock");
+    }
+
     tx.invalidate_hashes();
 
     if (service_payment_v2 != nullptr
@@ -342,13 +367,15 @@ namespace cryptonote
           const envelope_record_v2 proof{
               static_cast<uint8_t>(record_type_v2::service_payment_proof),
               EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2,
-              std::string(EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2, 0)};
+              std::string(is_qwc_contracts_hardfork(hard_fork_version)
+                  ? EPOSE_PAYMENT_PROOF_INDEXED_PAYLOAD_BYTES_V2
+                  : EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2, 0)};
           if (append_transaction_envelope_v2({proof}, hard_fork_version,
                   service_payment_v2->max_envelopes_per_transaction,
                   *service_payment_v2->limits, extra, budget) != envelope_status_v2::accepted)
             return false;
         }
-        if (extra.size() > MAX_TX_EXTRA_SIZE)
+        if (extra.size() > get_coinbase_extra_size_limit(hard_fork_version))
           return false;
         selected.swap(trial);
         return true;
@@ -402,7 +429,7 @@ namespace cryptonote
               *service_payment_v2->limits, tx.extra, carrier_budget)
               == qwertycoin::epose::envelope_status_v2::accepted,
           false, "failed to append EPoSE-v2 relay records to Coinbase");
-      CHECK_AND_ASSERT_MES(tx.extra.size() <= MAX_TX_EXTRA_SIZE, false,
+      CHECK_AND_ASSERT_MES(tx.extra.size() <= get_coinbase_extra_size_limit(hard_fork_version), false,
           "EPoSE-v2 relay records exceed the local Coinbase extra limit");
       tx.invalidate_hashes();
     }
@@ -411,20 +438,24 @@ namespace cryptonote
         && service_payment_v2->expectation != nullptr)
     {
       qwertycoin::epose::service_payment_context_v2 generated{};
-      CHECK_AND_ASSERT_MES(
+      const qwertycoin::epose::reward_status_v2 proof_status =
           qwertycoin::epose::append_coinbase_service_payment_proof_v2(
               tx, txkey.sec, hard_fork_version,
               service_payment_v2->max_envelopes_per_transaction,
               *service_payment_v2->limits,
               *service_payment_v2->expectation,
-              generated) == qwertycoin::epose::reward_status_v2::accepted,
-          false, "failed to construct EPoSE-v2 service payment proof");
+              static_cast<uint32_t>(service_output_start),
+              generated);
+      CHECK_AND_ASSERT_MES(
+          proof_status == qwertycoin::epose::reward_status_v2::accepted,
+          false, "failed to construct EPoSE-v2 service payment proof: "
+              << qwertycoin::epose::reward_status_name_v2(proof_status));
       if (service_payment_v2->generated_context != nullptr)
         *service_payment_v2->generated_context = std::move(generated);
     }
 
     if (service_payment_v2 != nullptr)
-      CHECK_AND_ASSERT_MES(tx.extra.size() <= MAX_TX_EXTRA_SIZE, false,
+      CHECK_AND_ASSERT_MES(tx.extra.size() <= get_coinbase_extra_size_limit(hard_fork_version), false,
           "EPoSE-v2 Coinbase extra exceeds the local producer limit");
 
     //LOG_PRINT("MINER_TX generated ok, block_reward=" << print_money(block_reward) << "("  << print_money(block_reward - fee) << "+" << print_money(fee)
@@ -454,7 +485,171 @@ namespace cryptonote
     return addr.m_view_public_key;
   }
   //---------------------------------------------------------------
-  bool construct_tx_with_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, const std::vector<uint8_t> &extra, transaction& tx, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys, bool rct, const rct::RCTConfig &rct_config, bool shuffle_outs, bool use_view_tags)
+  bool can_derive_contract_key(const account_keys& account)
+  {
+    return account.get_device().get_type() == hw::device::SOFTWARE && account.m_spend_secret_key != crypto::null_skey;
+  }
+  //---------------------------------------------------------------
+  bool derive_contract_key(const account_keys& account, const crypto::hash& contract_id, const crypto::hash& key_id, crypto::public_key& public_key, crypto::secret_key& secret_key)
+  {
+    public_key = crypto::null_pkey;
+    secret_key = crypto::null_skey;
+    if (!can_derive_contract_key(account))
+      return false;
+    constexpr char domain[] = "qwc-contract-key";
+    std::string material(domain, sizeof(domain));
+    material.append(reinterpret_cast<const char*>(&account.m_spend_secret_key), sizeof(account.m_spend_secret_key));
+    material.append(reinterpret_cast<const char*>(&contract_id), sizeof(contract_id));
+    material.append(reinterpret_cast<const char*>(&key_id), sizeof(key_id));
+    crypto::ec_scalar scalar{};
+    crypto::hash_to_scalar(material.data(), material.size(), scalar);
+    memwipe(&material[0], material.size());
+    memcpy(&secret_key, &scalar, sizeof(secret_key));
+    memwipe(&scalar, sizeof(scalar));
+    return secret_key != crypto::null_skey && crypto::secret_key_to_public_key(secret_key, public_key);
+  }
+  //---------------------------------------------------------------
+  bool replace_contract_call(transaction& tx, const tx_extra_vm_call& call)
+  {
+    transaction replacement = tx;
+    if (!remove_field_from_tx_extra(replacement.extra, typeid(tx_extra_vm_call))
+        || !add_vm_call_to_tx_extra(replacement.extra, call)
+        || !sort_tx_extra(replacement.extra, replacement.extra, false, true, true))
+      return false;
+    tx.extra = std::move(replacement.extra);
+    tx.invalidate_hashes();
+    return true;
+  }
+  //---------------------------------------------------------------
+  static bool contract_call_digest(const transaction& tx, network_type network, uint64_t fee,
+      const tx_extra_vm_call& call, crypto::hash& hash)
+  {
+    return get_contract_signature_hash(tx, network, fee, called_contract_id(call), hash);
+  }
+  //---------------------------------------------------------------
+  bool contract_call_signature_hash(const transaction& tx, network_type network, crypto::hash& hash)
+  {
+    tx_extra_vm_call call{};
+    if (get_tx_vm_call(tx.extra, call) != 1 || call.version != 1)
+      return false;
+    uint64_t fee;
+    return get_tx_fee(tx, fee) && contract_call_digest(tx, network, fee, call, hash);
+  }
+  //---------------------------------------------------------------
+  static bool is_null_contract_signature(const crypto::signature& signature)
+  {
+    const crypto::signature empty{};
+    return memcmp(&signature, &empty, sizeof(empty)) == 0;
+  }
+  //---------------------------------------------------------------
+  static bool signable_contract_call(const tx_extra_vm_call& call)
+  {
+    return call.version == 1 && contract_signer_shape_valid(call, false) && contract_signers_unique(call.signers);
+  }
+  //---------------------------------------------------------------
+  static bool read_signable_contract_call_if_present(const transaction& tx, tx_extra_vm_call& call, bool& present)
+  {
+    const size_t count = get_tx_vm_call(tx.extra, call);
+    present = count != 0;
+    return count == 0 || (count == 1 && signable_contract_call(call));
+  }
+  //---------------------------------------------------------------
+  template <typename PlainPrefixHash>
+  static bool signing_prefix_hash(const transaction& tx, bool has_contract_call, crypto::hash& hash, PlainPrefixHash plain_prefix_hash)
+  {
+    if (has_contract_call)
+      return get_contract_ring_hash(tx, hash, HF_VERSION_QWC_CONTRACTS);
+    plain_prefix_hash();
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool sign_contract_call(transaction& tx, const account_keys& account, network_type network, uint64_t fee, const std::vector<crypto::public_key>& external_signers)
+  {
+    tx_extra_vm_call call{};
+    bool present = false;
+    if (!read_signable_contract_call_if_present(tx, call, present))
+      return false;
+    if (!present)
+      return external_signers.empty();
+    if (!contract_signers_unique(external_signers))
+      return false;
+    for (const crypto::public_key& key : external_signers)
+      if (std::find(call.signers.begin(), call.signers.end(), key) == call.signers.end())
+        return false;
+
+    crypto::hash hash;
+    if (!contract_call_digest(tx, network, fee, call, hash))
+      return false;
+    for (size_t i = 0; i < call.signers.size(); ++i)
+    {
+      const crypto::public_key& key = call.signers[i];
+      if (std::find(external_signers.begin(), external_signers.end(), key) != external_signers.end())
+      {
+        if (!is_null_contract_signature(call.signatures[i].value))
+          return false;
+        continue;
+      }
+      crypto::secret_key secret;
+      crypto::public_key derived;
+      if (!derive_contract_key(account, call.signer_contracts[i], call.signer_key_ids[i], derived, secret) || derived != key)
+        return false;
+      crypto::generate_signature(hash, key, secret, call.signatures[i].value);
+    }
+    return replace_contract_call(tx, call);
+  }
+  //---------------------------------------------------------------
+  contract_signature_attach_result attach_contract_signature(transaction& tx, network_type network, const crypto::public_key& signer, const crypto::signature& signature)
+  {
+    tx_extra_vm_call call{};
+    if (get_tx_vm_call(tx.extra, call) != 1 || !signable_contract_call(call))
+      return contract_signature_attach_result::malformed_call;
+    const auto found = std::find(call.signers.begin(), call.signers.end(), signer);
+    if (found == call.signers.end())
+      return contract_signature_attach_result::not_pending;
+    const size_t index = found - call.signers.begin();
+    if (!is_null_contract_signature(call.signatures[index].value))
+      return contract_signature_attach_result::not_pending;
+    crypto::hash hash{};
+    if (!contract_call_signature_hash(tx, network, hash) || !crypto::check_signature(hash, signer, signature))
+      return contract_signature_attach_result::bad_signature;
+    call.signatures[index].value = signature;
+    return replace_contract_call(tx, call) ? contract_signature_attach_result::attached : contract_signature_attach_result::malformed_call;
+  }
+  //---------------------------------------------------------------
+  bool contract_call_signed(const transaction& tx)
+  {
+    tx_extra_vm_call call{};
+    bool present = false;
+    if (!read_signable_contract_call_if_present(tx, call, present))
+      return false;
+    if (!present)
+      return true;
+    for (const auto& entry : call.signatures)
+      if (is_null_contract_signature(entry.value))
+        return false;
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool contract_call_signatures_valid(const transaction& tx, network_type network)
+  {
+    tx_extra_vm_call call{};
+    bool present = false;
+    if (!read_signable_contract_call_if_present(tx, call, present))
+      return false;
+    if (!present)
+      return true;
+    crypto::hash digest{};
+    uint64_t fee;
+    if (!get_tx_fee(tx, fee) || !contract_call_digest(tx, network, fee, call, digest))
+      return false;
+    for (size_t i = 0; i < call.signers.size(); ++i)
+      if (is_null_contract_signature(call.signatures[i].value)
+          || !crypto::check_signature(digest, call.signers[i], call.signatures[i].value))
+        return false;
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool construct_tx_with_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, const std::vector<uint8_t> &extra, transaction& tx, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys, network_type network, bool rct, const rct::RCTConfig &rct_config, bool shuffle_outs, bool use_view_tags, const std::vector<crypto::public_key>& external_contract_signers)
   {
     hw::device &hwdev = sender_account_keys.get_device();
 
@@ -476,6 +671,13 @@ namespace cryptonote
     tx.unlock_time = 0;
 
     tx.extra = extra;
+    tx_extra_vm_call contract_call{};
+    const bool has_contract_call = get_tx_vm_call(tx.extra, contract_call) != 0;
+    if (has_contract_call && hwdev.get_type() != hw::device::SOFTWARE)
+    {
+      LOG_ERROR("Contract calls are not supported by hardware wallets");
+      return false;
+    }
     crypto::public_key txkey_pub;
 
     // if we have a stealth payment id, find it and encrypt it with the tx key now
@@ -660,7 +862,14 @@ namespace cryptonote
     size_t output_index = 0;
     for(const tx_destination_entry& dst_entr: destinations)
     {
-      CHECK_AND_ASSERT_MES(dst_entr.amount > 0 || tx.version > 1, false, "Destination with wrong amount: " << dst_entr.amount);
+      if (dst_entr.amount == 0 && tx.version == 1)
+      {
+        CHECK_AND_ASSERT_MES(has_contract_call && destinations.size() == 1, false, "Destination with wrong amount: " << dst_entr.amount);
+        uint64_t fee = 0;
+        CHECK_AND_ASSERT_MES(contract_call_fee_floor(tx.extra, fee) && summary_inputs_money == fee,
+            false, "Destination with wrong amount: " << dst_entr.amount);
+        continue;
+      }
       const bool matches_change_addr = change_addr && dst_entr.addr == *change_addr;
       const bool is_bad_change_dst = matches_change_addr && dst_entr.amount > 0 && !recognized_change_index;
       CHECK_AND_ASSERT_MES(!is_bad_change_dst, false,
@@ -698,7 +907,7 @@ namespace cryptonote
     if (!sort_tx_extra(tx.extra, tx.extra))
       return false;
 
-    CHECK_AND_ASSERT_MES(tx.extra.size() <= MAX_TX_EXTRA_SIZE, false, "TX extra size (" << tx.extra.size() << ") is greater than max allowed (" << MAX_TX_EXTRA_SIZE << ")");
+    CHECK_AND_ASSERT_MES(tx.extra.size() <= get_tx_extra_size_limit(tx, HF_VERSION_QWC_CONTRACTS), false, "TX extra size exceeds the limit");
 
     //check money
     if(summary_outs_money > summary_inputs_money )
@@ -718,9 +927,12 @@ namespace cryptonote
 
     if (tx.version == 1)
     {
+      if (!sign_contract_call(tx, sender_account_keys, network, summary_inputs_money - summary_outs_money, external_contract_signers))
+        return false;
       //generate ring signatures
       crypto::hash tx_prefix_hash;
-      get_transaction_prefix_hash(tx, tx_prefix_hash);
+      if (!signing_prefix_hash(tx, has_contract_call, tx_prefix_hash, [&] { get_transaction_prefix_hash(tx, tx_prefix_hash); }))
+        return false;
 
       std::stringstream ss_ring_s;
       size_t i = 0;
@@ -849,12 +1061,15 @@ namespace cryptonote
         tx.vout[i].amount = 0;
 
       crypto::hash tx_prefix_hash;
-      get_transaction_prefix_hash(tx, tx_prefix_hash, hwdev);
+      if (!signing_prefix_hash(tx, has_contract_call, tx_prefix_hash, [&] { get_transaction_prefix_hash(tx, tx_prefix_hash, hwdev); }))
+        return false;
       rct::ctkeyV outSk;
       if (use_simple_rct)
         tx.rct_signatures = rct::genRctSimple(rct::hash2rct(tx_prefix_hash), inSk, destinations, inamounts, outamounts, amount_in - amount_out, mixRing, amount_keys, index, outSk, rct_config, hwdev);
       else
         tx.rct_signatures = rct::genRct(rct::hash2rct(tx_prefix_hash), inSk, destinations, outamounts, mixRing, amount_keys, sources[0].real_output, outSk, rct_config, hwdev); // same index assumption
+      if (!sign_contract_call(tx, sender_account_keys, network, tx.rct_signatures.txnFee, external_contract_signers))
+        return false;
       memwipe(inSk.data(), inSk.size() * sizeof(rct::ctkey));
 
       CHECK_AND_ASSERT_MES(tx.vout.size() == outSk.size(), false, "outSk size does not match vout");
@@ -867,7 +1082,7 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, const std::vector<uint8_t> &extra, transaction& tx, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys, bool rct, const rct::RCTConfig &rct_config, bool use_view_tags)
+  bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, const std::vector<uint8_t> &extra, transaction& tx, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys, network_type network, bool rct, const rct::RCTConfig &rct_config, bool use_view_tags, const std::vector<crypto::public_key>& external_contract_signers)
   {
     hw::device &hwdev = sender_account_keys.get_device();
     hwdev.open_tx(tx_key);
@@ -888,7 +1103,7 @@ namespace cryptonote
       }
 
       bool shuffle_outs = true;
-      bool r = construct_tx_with_tx_key(sender_account_keys, subaddresses, sources, destinations, change_addr, extra, tx, tx_key, additional_tx_keys, rct, rct_config, shuffle_outs, use_view_tags);
+      bool r = construct_tx_with_tx_key(sender_account_keys, subaddresses, sources, destinations, change_addr, extra, tx, tx_key, additional_tx_keys, network, rct, rct_config, shuffle_outs, use_view_tags, external_contract_signers);
       hwdev.close_tx();
       return r;
     } catch(...) {
@@ -897,14 +1112,14 @@ namespace cryptonote
     }
   }
   //---------------------------------------------------------------
-  bool construct_tx(const account_keys& sender_account_keys, std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, const std::vector<uint8_t> &extra, transaction& tx)
+  bool construct_tx(const account_keys& sender_account_keys, std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, const std::vector<uint8_t> &extra, transaction& tx, network_type network)
   {
      std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
      subaddresses[sender_account_keys.m_account_address.m_spend_public_key] = {0,0};
      crypto::secret_key tx_key;
      std::vector<crypto::secret_key> additional_tx_keys;
      std::vector<tx_destination_entry> destinations_copy = destinations;
-     return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, tx_key, additional_tx_keys, false, { rct::RangeProofBorromean, 0});
+     return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, tx_key, additional_tx_keys, network, false, { rct::RangeProofBorromean, 0});
   }
   //---------------------------------------------------------------
   bool generate_genesis_block(

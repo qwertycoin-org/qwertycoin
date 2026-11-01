@@ -19,10 +19,13 @@ namespace epose
   constexpr size_t EPOSE_SERVICE_RECEIPT_PAYLOAD_BYTES_V2 = 402;
   constexpr uint8_t EPOSE_ADMISSION_LEASE_RECORD_VERSION_V2 = 1;
   constexpr size_t EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2 = 322;
+  constexpr size_t EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_HF18_V2 = 325;
   constexpr uint8_t EPOSE_LIFECYCLE_RECORD_VERSION_V2 = 1;
   constexpr size_t EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2 = 378;
+  constexpr size_t EPOSE_LIFECYCLE_PAYLOAD_BYTES_HF18_V2 = 381;
   constexpr uint8_t EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2 = 1;
   constexpr size_t EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2 = 96;
+  constexpr size_t EPOSE_PAYMENT_PROOF_INDEXED_PAYLOAD_BYTES_V2 = 100;
 
   enum class record_codec_status_v2
   {
@@ -68,6 +71,10 @@ namespace epose
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
       const crypto::hash &parameter_set_hash,
+      envelope_record_v2 &record);
+
+  record_codec_status_v2 encode_applied_lifecycle_record_v2(
+      const lifecycle_record_v2 &lifecycle,
       envelope_record_v2 &record);
 
   record_codec_status_v2 decode_lifecycle_record_v2(

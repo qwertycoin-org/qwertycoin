@@ -38,6 +38,7 @@ set(wallet_sources
   message_store.cpp
   message_transporter.cpp
   wallet_rpc_payments.cpp
+  contract_call_builder.cpp
 )
 
 monero_find_all_headers(wallet_private_headers "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -47,6 +48,9 @@ monero_private_headers(wallet
 monero_add_library(wallet
   ${wallet_sources}
   ${wallet_private_headers})
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set_source_files_properties(wallet2.cpp PROPERTIES COMPILE_OPTIONS "-Werror=c++17-extensions;-Werror=unused-variable")
+endif()
 target_link_libraries(wallet
   PUBLIC
     rpc_base

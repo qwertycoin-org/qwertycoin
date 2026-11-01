@@ -759,6 +759,20 @@ class Wallet(object):
         }
         return self.rpc.send_json_rpc_request(relay_tx)
 
+    def attach_contract_signatures(self, tx_metadata, signatures, do_not_relay = False, get_tx_hex = False):
+        request = {
+            'method': 'attach_contract_signatures',
+            'params': {
+                'tx_metadata': tx_metadata,
+                'signatures': signatures,
+                'do_not_relay': do_not_relay,
+                'get_tx_hex': get_tx_hex,
+            },
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        return self.rpc.send_json_rpc_request(request)
+
     def get_languages(self):
         get_languages = {
             'method': 'get_languages',
@@ -1193,3 +1207,70 @@ class Wallet(object):
             'id': '0'
         }
         return self.rpc.send_json_rpc_request(stop_background_sync)
+
+    def contract_call(self, kind, destinations, contract_id = '', method = 0, code = '', args = '', deposit = 0, gas_price = 1, gas_limit = 0, mint_address = '', account_index = 0, subaddr_indices = [], priority = 0, ring_size = 0, unlock_time = 0, payment_id = '', get_tx_key = True, do_not_relay = False, get_tx_hex = False, get_tx_metadata = False, external_signers = []):
+        contract_call = {
+            'method': 'contract_call',
+            'params': {
+                'kind': kind,
+                'contract_id': contract_id,
+                'method': method,
+                'code': code,
+                'args': args,
+                'deposit': deposit,
+                'gas_price': gas_price,
+                'gas_limit': gas_limit,
+                'mint_address': mint_address,
+                'destinations': destinations,
+                'account_index': account_index,
+                'subaddr_indices': subaddr_indices,
+                'priority': priority,
+                'ring_size': ring_size,
+                'unlock_time': unlock_time,
+                'payment_id': payment_id,
+                'get_tx_key': get_tx_key,
+                'do_not_relay': do_not_relay,
+                'get_tx_hex': get_tx_hex,
+                'get_tx_metadata': get_tx_metadata,
+                'external_signers': external_signers,
+            },
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        return self.rpc.send_json_rpc_request(contract_call)
+
+    def derive_contract_key(self, contract_id, key_id):
+        derive_contract_key = {
+            'method': 'derive_contract_key',
+            'params': {
+                'contract_id': contract_id,
+                'key_id': key_id,
+            },
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        return self.rpc.send_json_rpc_request(derive_contract_key)
+
+    def get_vm_state_value(self, key):
+        get_vm_state_value = {
+            'method': 'get_vm_state_value',
+            'params': {
+                'key': key,
+            },
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        return self.rpc.send_json_rpc_request(get_vm_state_value)
+
+    def invoke_app_shader(self, code, method = 2, args = ''):
+        invoke_app_shader = {
+            'method': 'invoke_app_shader',
+            'params': {
+                'code': code,
+                'method': method,
+                'args': args,
+            },
+            'jsonrpc': '2.0',
+            'id': '0'
+        }
+        return self.rpc.send_json_rpc_request(invoke_app_shader)

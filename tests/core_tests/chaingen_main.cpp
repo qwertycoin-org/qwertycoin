@@ -34,6 +34,7 @@
 #include "common/command_line.h"
 #include "tx_pool.h"
 #include "transaction_tests.h"
+#include "contracts_template_cache.h"
 
 #include <boost/regex.hpp>
 
@@ -287,6 +288,84 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bpp_tx_invalid_1_1);
     GENERATE_AND_PLAY(gen_bpp_tx_valid_2);
     GENERATE_AND_PLAY(gen_bpp_tx_valid_3);
+    GENERATE_AND_PLAY(gen_height_window_absent_ok);
+    GENERATE_AND_PLAY(gen_height_window_in_range_ok);
+    GENERATE_AND_PLAY(gen_height_window_far_until_unlock_unchanged);
+    GENERATE_AND_PLAY(gen_height_window_until_boundary_ok);
+    GENERATE_AND_PLAY(gen_height_window_from_boundary_ok);
+    GENERATE_AND_PLAY(gen_height_window_until_plus_one_rejected_in_block);
+    GENERATE_AND_PLAY(gen_height_window_expired_rejected_by_pool);
+    GENERATE_AND_PLAY(gen_height_window_from_after_block_rejected_in_block);
+    GENERATE_AND_PLAY(gen_height_window_pool_lead_boundary);
+    GENERATE_AND_PLAY(gen_height_window_pool_too_early);
+    GENERATE_AND_PLAY(gen_height_window_before_fork_rejected);
+    GENERATE_AND_PLAY(gen_height_window_before_fork_block_rejected);
+    GENERATE_AND_PLAY(gen_height_window_duplicate_rejected);
+    GENERATE_AND_PLAY(gen_height_window_timestamp_unlock_rejected);
+    GENERATE_AND_PLAY(gen_height_window_pool_drops_on_expiry);
+    GENERATE_AND_PLAY(gen_height_window_reorg);
+    GENERATE_AND_PLAY(gen_height_window_reorg_after_expiry);
+    GENERATE_AND_PLAY(gen_height_window_coinbase_rejected);
+    GENERATE_AND_PLAY(gen_contracts_deploy_and_invoke);
+    GENERATE_AND_PLAY(gen_contracts_zero_output_call);
+    GENERATE_AND_PLAY(gen_contracts_zero_output_rejected);
+    GENERATE_AND_PLAY(gen_contracts_zero_output_before_fork_rejected);
+    GENERATE_AND_PLAY(gen_contracts_failing_call_rejected);
+    GENERATE_AND_PLAY(gen_contracts_underpaid_rejected);
+    GENERATE_AND_PLAY(gen_contracts_tx_gas_cap_rejected);
+    GENERATE_AND_PLAY(gen_contracts_root_mismatch_rejected);
+    GENERATE_AND_PLAY(gen_contracts_root_missing_rejected);
+    GENERATE_AND_PLAY(gen_contracts_root_before_fork_rejected);
+    GENERATE_AND_PLAY(gen_contracts_call_before_fork_rejected);
+    GENERATE_AND_PLAY(gen_contracts_reorg_undo);
+    GENERATE_AND_PLAY(gen_contracts_template_drops_failing_call);
+    GENERATE_AND_PLAY(gen_contracts_cached_template);
+    GENERATE_AND_PLAY(gen_contracts_failing_alt_chain_keeps_main);
+    GENERATE_AND_PLAY(gen_contracts_failing_reorg_shared_tx);
+    GENERATE_AND_PLAY(gen_contracts_pool_rules);
+    GENERATE_AND_PLAY(gen_contracts_mint_supply_invariant);
+    GENERATE_AND_PLAY(gen_contracts_addsig_validation);
+    GENERATE_AND_PLAY(gen_contracts_external_addsig);
+    GENERATE_AND_PLAY(gen_contracts_stored_signer_changes);
+    GENERATE_AND_PLAY(gen_contracts_forged_input_skips_vm);
+    GENERATE_AND_PLAY(gen_contracts_fork_boundary);
+    GENERATE_AND_PLAY(gen_contracts_block_rules);
+    GENERATE_AND_PLAY(gen_chainlock_carried_lock_accepted);
+    GENERATE_AND_PLAY(gen_chainlock_rpc);
+    GENERATE_AND_PLAY(gen_chainlock_production_inputs);
+    GENERATE_AND_PLAY(gen_chainlock_quorum_before_epoch_start);
+    GENERATE_AND_PLAY(gen_chainlock_alt_epoch_boundary);
+    GENERATE_AND_PLAY(gen_chainlock_rpc_late_carrier);
+    GENERATE_AND_PLAY(gen_chainlock_rpc_old_carrier);
+    GENERATE_AND_PLAY(gen_chainlock_rpc_pages);
+    GENERATE_AND_PLAY(gen_vm_state_proof_rpc);
+    GENERATE_AND_PLAY(gen_vm_state_proof_retention);
+    GENERATE_AND_PLAY(gen_vm_state_proof_restore);
+    GENERATE_AND_PLAY(gen_chainlock_below_threshold_rejected);
+    GENERATE_AND_PLAY(gen_chainlock_wrong_epoch_rejected);
+    GENERATE_AND_PLAY(gen_chainlock_non_ancestor_rejected);
+    GENERATE_AND_PLAY(gen_chainlock_bad_signature_rejected);
+    GENERATE_AND_PLAY(gen_chainlock_not_newer_rejected);
+    GENERATE_AND_PLAY(gen_chainlock_fork_blocked);
+    GENERATE_AND_PLAY(gen_chainlock_higher_lock_wins);
+    GENERATE_AND_PLAY(gen_chainlock_message_before_reorg);
+    GENERATE_AND_PLAY(gen_chainlock_message_after_reorg);
+    GENERATE_AND_PLAY(gen_chainlock_competing_main_first);
+    GENERATE_AND_PLAY(gen_chainlock_competing_rival_first);
+    GENERATE_AND_PLAY(gen_chainlock_divergent_main_first);
+    GENERATE_AND_PLAY(gen_chainlock_divergent_rival_first);
+    GENERATE_AND_PLAY(gen_chainlock_divergent_higher);
+    GENERATE_AND_PLAY(gen_chainlock_reorg_above_lock);
+    GENERATE_AND_PLAY(gen_chainlock_checkpoint_overrides_lock);
+    GENERATE_AND_PLAY(gen_chainlock_during_batch);
+    GENERATE_AND_PLAY(gen_chainlock_reorg_below_lock_then_above);
+    GENERATE_AND_PLAY(gen_chainlock_age_limit);
+    GENERATE_AND_PLAY(gen_chainlock_speculative_switch_verified);
+    GENERATE_AND_PLAY(gen_chainlock_speculative_switch_rolled_back);
+    GENERATE_AND_PLAY(gen_contracts_deep_reorg_replay);
+    GENERATE_AND_PLAY(gen_contracts_hdr_info_reorg);
+    GENERATE_AND_PLAY(gen_contracts_hdr_info_retry);
+    GENERATE_AND_PLAY(gen_contracts_hdr_info_before_fork_rejected);
     GENERATE_AND_PLAY(gen_bpp_tx_valid_16);
     GENERATE_AND_PLAY(gen_bpp_tx_invalid_4_2_1);
     GENERATE_AND_PLAY(gen_bpp_tx_invalid_16_16);

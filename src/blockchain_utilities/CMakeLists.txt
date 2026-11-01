@@ -43,6 +43,7 @@ monero_private_headers(blockchain_import
 	  ${blockchain_import_private_headers})
 
 set(blockchain_export_sources
+  blockchain_utility_network.cpp
   blockchain_export.cpp
   bootstrap_file.cpp
   blocksdat_file.cpp
@@ -72,6 +73,7 @@ monero_private_headers(blockchain_blackball
 	  ${blockchain_blackball_private_headers})
 
 set(blockchain_usage_sources
+  blockchain_utility_network.cpp
   blockchain_usage.cpp
   )
 
@@ -83,6 +85,7 @@ monero_private_headers(blockchain_usage
 
 
 set(blockchain_prune_known_spent_data_sources
+  blockchain_utility_network.cpp
   blockchain_prune_known_spent_data.cpp
   )
 
@@ -94,6 +97,7 @@ monero_private_headers(blockchain_prune_known_spent_data
 
 
 set(blockchain_prune_sources
+  blockchain_utility_network.cpp
   blockchain_prune.cpp
   )
 
@@ -105,6 +109,7 @@ monero_private_headers(blockchain_prune
 
 
 set(blockchain_ancestry_sources
+  blockchain_utility_network.cpp
   blockchain_ancestry.cpp
   )
 
@@ -116,6 +121,7 @@ monero_private_headers(blockchain_ancestry
 
 
 set(blockchain_depth_sources
+  blockchain_utility_network.cpp
   blockchain_depth.cpp
   )
 
@@ -125,6 +131,7 @@ monero_private_headers(blockchain_depth
 	  ${blockchain_depth_private_headers})
 
 set(blockchain_stats_sources
+  blockchain_utility_network.cpp
   blockchain_stats.cpp
   )
 

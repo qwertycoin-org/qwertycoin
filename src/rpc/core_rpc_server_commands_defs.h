@@ -31,6 +31,7 @@
 #pragma once
 
 #include <limits>
+#include <boost/optional.hpp>
 
 #include "string_tools.h"
 
@@ -90,7 +91,7 @@ namespace cryptonote
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 3
-#define CORE_RPC_VERSION_MINOR 21
+#define CORE_RPC_VERSION_MINOR 24
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -646,6 +647,9 @@ namespace cryptonote
       bool sanity_check_failed;
       bool tx_extra_too_big;
       bool nonzero_unlock_time;
+      bool window_early;
+      bool window_expired;
+      bool contract_call_rejected;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_access_response_base)
@@ -662,6 +666,9 @@ namespace cryptonote
         KV_SERIALIZE(sanity_check_failed)
         KV_SERIALIZE(tx_extra_too_big)
         KV_SERIALIZE(nonzero_unlock_time)
+        KV_SERIALIZE(window_early)
+        KV_SERIALIZE(window_expired)
+        KV_SERIALIZE_OPT(contract_call_rejected, false)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -746,6 +753,8 @@ namespace cryptonote
       std::string version;
       bool synchronized;
       bool restricted;
+      bool chainlock_present;
+      uint64_t chainlock_height;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_access_response_base)
@@ -788,6 +797,8 @@ namespace cryptonote
         KV_SERIALIZE(version)
         KV_SERIALIZE(synchronized)
         KV_SERIALIZE(restricted)
+        KV_SERIALIZE_OPT(chainlock_present, false)
+        KV_SERIALIZE_OPT(chainlock_height, (uint64_t)0)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -807,6 +818,11 @@ namespace cryptonote
     uint64_t registration_epoch;
     uint64_t expiry_epoch;
     bool active;
+    uint64_t endpoint_transport;
+    uint64_t dial_capabilities;
+    uint64_t dns_address_families;
+    uint64_t rounds_judged;
+    uint64_t rounds_unjudged;
     bool qualified;
 
     BEGIN_KV_SERIALIZE_MAP()
@@ -822,6 +838,11 @@ namespace cryptonote
       KV_SERIALIZE(registration_epoch)
       KV_SERIALIZE(expiry_epoch)
       KV_SERIALIZE(active)
+      KV_SERIALIZE(endpoint_transport)
+      KV_SERIALIZE(dial_capabilities)
+      KV_SERIALIZE(dns_address_families)
+      KV_SERIALIZE(rounds_judged)
+      KV_SERIALIZE(rounds_unjudged)
       KV_SERIALIZE(qualified)
     END_KV_SERIALIZE_MAP()
   };
@@ -845,11 +866,14 @@ namespace cryptonote
       uint64_t epoch_end_height;
       uint64_t service_node_count;
       uint64_t qualified_count;
+      uint64_t qualification_epoch;
+      bool qualification_available;
       uint64_t attestation_count;
       std::string state_hash;
       uint64_t service_reward_bps;
       bool local_service_node;
       bool local_service_node_key_loaded;
+      uint64_t local_service_node_step_failed_count;
       bool local_service_node_registered;
       bool local_service_node_active;
       bool local_service_node_qualified;
@@ -868,11 +892,14 @@ namespace cryptonote
         KV_SERIALIZE(epoch_end_height)
         KV_SERIALIZE(service_node_count)
         KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(qualification_epoch)
+        KV_SERIALIZE(qualification_available)
         KV_SERIALIZE(attestation_count)
         KV_SERIALIZE(state_hash)
         KV_SERIALIZE(service_reward_bps)
         KV_SERIALIZE(local_service_node)
         KV_SERIALIZE(local_service_node_key_loaded)
+        KV_SERIALIZE(local_service_node_step_failed_count)
         KV_SERIALIZE(local_service_node_registered)
         KV_SERIALIZE(local_service_node_active)
         KV_SERIALIZE(local_service_node_qualified)
@@ -1010,6 +1037,17 @@ namespace cryptonote
     struct response_t: public rpc_response_base
     {
       uint64_t diagnostics_version;
+      uint64_t state_bytes;
+      uint64_t retained_epochs;
+      uint64_t oldest_retained_epoch;
+      std::string history_root;
+      uint64_t undo_entries;
+      uint64_t undo_bytes;
+      uint64_t last_snapshot_height;
+      bool rebuilding;
+      bool fatal;
+      bool retry_exhausted;
+      std::string retry_exhausted_tip;
       uint64_t reset_utc_ms;
       uint64_t attempts_in_flight;
       uint64_t relay_queue_items;
@@ -1036,6 +1074,10 @@ namespace cryptonote
       uint64_t rounds_required;
       uint64_t rounds_passed;
       uint64_t rounds_remaining;
+      uint64_t rounds_judged;
+      uint64_t rounds_unjudged;
+      uint64_t dial_capabilities;
+      uint64_t dns_address_families;
       std::vector<uint64_t> canonical_unique_receipts;
       std::vector<uint64_t> committee_sizes;
       std::vector<uint64_t> required_receipts;
@@ -1043,6 +1085,17 @@ namespace cryptonote
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
         KV_SERIALIZE(diagnostics_version)
+        KV_SERIALIZE(state_bytes)
+        KV_SERIALIZE(retained_epochs)
+        KV_SERIALIZE(oldest_retained_epoch)
+        KV_SERIALIZE(history_root)
+        KV_SERIALIZE(undo_entries)
+        KV_SERIALIZE(undo_bytes)
+        KV_SERIALIZE(last_snapshot_height)
+        KV_SERIALIZE(rebuilding)
+        KV_SERIALIZE(fatal)
+        KV_SERIALIZE(retry_exhausted)
+        KV_SERIALIZE(retry_exhausted_tip)
         KV_SERIALIZE(reset_utc_ms)
         KV_SERIALIZE(attempts_in_flight)
         KV_SERIALIZE(relay_queue_items)
@@ -1069,6 +1122,10 @@ namespace cryptonote
         KV_SERIALIZE(rounds_required)
         KV_SERIALIZE(rounds_passed)
         KV_SERIALIZE(rounds_remaining)
+        KV_SERIALIZE(rounds_judged)
+        KV_SERIALIZE(rounds_unjudged)
+        KV_SERIALIZE(dial_capabilities)
+        KV_SERIALIZE(dns_address_families)
         KV_SERIALIZE(canonical_unique_receipts)
         KV_SERIALIZE(committee_sizes)
         KV_SERIALIZE(required_receipts)
@@ -1137,12 +1194,16 @@ namespace cryptonote
       std::vector<epose_service_node_entry> service_nodes;
       uint64_t total_count;
       uint64_t returned_count;
+      uint64_t qualification_epoch;
+      bool qualification_available;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
         KV_SERIALIZE(service_nodes)
         KV_SERIALIZE(total_count)
         KV_SERIALIZE(returned_count)
+        KV_SERIALIZE(qualification_epoch)
+        KV_SERIALIZE(qualification_available)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -1165,11 +1226,15 @@ namespace cryptonote
     {
       bool found;
       epose_service_node_entry service_node;
+      uint64_t qualification_epoch;
+      bool qualification_available;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
         KV_SERIALIZE(found)
         KV_SERIALIZE(service_node)
+        KV_SERIALIZE(qualification_epoch)
+        KV_SERIALIZE(qualification_available)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -1195,6 +1260,8 @@ namespace cryptonote
       uint64_t end_height;
       uint64_t active_count;
       uint64_t qualified_count;
+      uint64_t qualification_epoch;
+      bool qualification_available;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
@@ -1203,6 +1270,8 @@ namespace cryptonote
         KV_SERIALIZE(end_height)
         KV_SERIALIZE(active_count)
         KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(qualification_epoch)
+        KV_SERIALIZE(qualification_available)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -1254,6 +1323,8 @@ namespace cryptonote
       uint64_t version;
       std::string service_public_key;
       uint64_t transport;
+      uint64_t dial_capabilities;
+      uint64_t dns_address_families;
       std::string host;
       uint64_t port;
       uint64_t service_kind;
@@ -1275,6 +1346,8 @@ namespace cryptonote
         KV_SERIALIZE(version)
         KV_SERIALIZE(service_public_key)
         KV_SERIALIZE(transport)
+        KV_SERIALIZE_OPT(dial_capabilities, (uint64_t)1)
+        KV_SERIALIZE_OPT(dns_address_families, (uint64_t)0)
         KV_SERIALIZE(host)
         KV_SERIALIZE(port)
         KV_SERIALIZE(service_kind)
@@ -1363,6 +1436,7 @@ namespace cryptonote
       uint64_t epoch;
       uint64_t service_reward_bps;
       uint64_t qualified_count;
+      uint64_t qualification_epoch;
       std::vector<std::string> qualified_service_public_keys;
       std::string expected_payee_service_public_key;
       std::string expected_reward_view_public_key;
@@ -1377,6 +1451,7 @@ namespace cryptonote
         KV_SERIALIZE(epoch)
         KV_SERIALIZE(service_reward_bps)
         KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(qualification_epoch)
         KV_SERIALIZE(qualified_service_public_keys)
         KV_SERIALIZE(expected_payee_service_public_key)
         KV_SERIALIZE(expected_reward_view_public_key)
@@ -1422,6 +1497,7 @@ namespace cryptonote
       uint64_t payout_epoch;
       uint64_t source_epoch;
       uint64_t qualified_count;
+      uint64_t qualification_epoch;
       uint64_t scheduled_subsidy;
       uint64_t transaction_fees;
       uint64_t miner_subsidy;
@@ -1450,6 +1526,7 @@ namespace cryptonote
         KV_SERIALIZE(payout_epoch)
         KV_SERIALIZE(source_epoch)
         KV_SERIALIZE(qualified_count)
+        KV_SERIALIZE(qualification_epoch)
         KV_SERIALIZE(scheduled_subsidy)
         KV_SERIALIZE(transaction_fees)
         KV_SERIALIZE(miner_subsidy)
@@ -1472,8 +1549,268 @@ namespace cryptonote
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
-    
+  template<bool is_store, class Storage>
+  void serialize_optional_vm_height(boost::optional<uint64_t> &height, Storage &stg, typename Storage::hsection parent)
+  {
+    if (!is_store || height)
+    {
+      uint64_t requested_height = height ? *height : 0;
+      const bool present = epee::serialization::selector<is_store>::serialize(requested_height, stg, parent, "height");
+      if (!is_store)
+        height = present ? boost::optional<uint64_t>(requested_height) : boost::none;
+    }
+  }
+
+  struct COMMAND_RPC_GET_VM_STATE_ROOT
+  {
+    struct request_t: public rpc_request_base
+    {
+      boost::optional<uint64_t> height;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        serialize_optional_vm_height<is_store>(this_ref.height, stg, hparent_section);
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      bool active;
+      uint64_t height;
+      std::string root;
+      uint64_t gas_used;
+      uint64_t deposited;
+      uint64_t withdrawn;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(active)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(root)
+        KV_SERIALIZE(gas_used)
+        KV_SERIALIZE(deposited)
+        KV_SERIALIZE(withdrawn)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_VM_CALL_DRY_RUN
+  {
+    struct request_t: public rpc_request_base
+    {
+      std::string extra;
+      uint64_t fee;
+      std::string client;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE(extra)
+        KV_SERIALIZE_OPT(fee, (uint64_t)0)
+        KV_SERIALIZE_OPT(client, std::string())
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_response_base
+    {
+      uint64_t height;
+      std::string verdict;
+      bool accepted;
+      uint64_t fee;
+      uint64_t gas_used;
+      uint64_t deposited;
+      uint64_t withdrawn;
+      std::vector<std::string> required_signers;
+      uint64_t credits;
+      std::string top_hash;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(verdict)
+        KV_SERIALIZE(accepted)
+        KV_SERIALIZE(fee)
+        KV_SERIALIZE(gas_used)
+        KV_SERIALIZE(deposited)
+        KV_SERIALIZE(withdrawn)
+        KV_SERIALIZE(required_signers)
+        KV_SERIALIZE_OPT(credits, (uint64_t)0)
+        KV_SERIALIZE_OPT(top_hash, std::string())
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct vm_state_proof_step
+  {
+    uint8_t bit;
+    std::string sibling;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(bit)
+      KV_SERIALIZE(sibling)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct COMMAND_RPC_GET_CHAINLOCK
+  {
+    struct request_t: public rpc_access_request_base
+    {
+      uint64_t height;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_access_request_base)
+        KV_SERIALIZE_OPT(height, (uint64_t)0)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_access_response_base
+    {
+      uint64_t height;
+      std::string block_id;
+      std::string block_hashing_blob;
+      std::string miner_tx_blob;
+      std::vector<std::string> miner_tx_branch;
+      std::string vm_state_root;
+      std::string lock_blob;
+      uint64_t lock_carrier_height;
+      uint64_t quorum_epoch;
+      std::vector<std::string> quorum;
+      uint64_t threshold;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_access_response_base)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(block_id)
+        KV_SERIALIZE(block_hashing_blob)
+        KV_SERIALIZE(miner_tx_blob)
+        KV_SERIALIZE(miner_tx_branch)
+        KV_SERIALIZE(vm_state_root)
+        KV_SERIALIZE(lock_blob)
+        KV_SERIALIZE(lock_carrier_height)
+        KV_SERIALIZE(quorum_epoch)
+        KV_SERIALIZE(quorum)
+        KV_SERIALIZE(threshold)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS
+  {
+    struct request_t: public rpc_access_request_base
+    {
+      uint64_t epoch;
+      uint64_t offset;
+      uint64_t limit;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_access_request_base)
+        KV_SERIALIZE(epoch)
+        KV_SERIALIZE_OPT(offset, (uint64_t)0)
+        KV_SERIALIZE_OPT(limit, (uint64_t)128)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_access_response_base
+    {
+      uint64_t epoch;
+      uint64_t offset;
+      uint64_t snapshot_total;
+      uint64_t qualification_total;
+      uint64_t activation_height;
+      uint64_t epoch_length;
+      uint64_t anchor_depth;
+      uint64_t previous_epoch_start_height;
+      std::string previous_epoch_start_block_id;
+      uint64_t epoch_start_height;
+      std::string epoch_start_block_id;
+      uint64_t snapshot_height;
+      std::string snapshot_block_id;
+      std::string snapshot_hash;
+      uint64_t qualification_height;
+      std::string qualification_block_id;
+      std::string qualification_hash;
+      std::string network_id;
+      std::string genesis_hash;
+      std::string parameter_set_hash;
+      std::vector<std::string> snapshot_members;
+      std::vector<std::string> qualified_members;
+      bool test_override;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_access_response_base)
+        KV_SERIALIZE(epoch)
+        KV_SERIALIZE(offset)
+        KV_SERIALIZE(snapshot_total)
+        KV_SERIALIZE(qualification_total)
+        KV_SERIALIZE(activation_height)
+        KV_SERIALIZE(epoch_length)
+        KV_SERIALIZE(anchor_depth)
+        KV_SERIALIZE(previous_epoch_start_height)
+        KV_SERIALIZE(previous_epoch_start_block_id)
+        KV_SERIALIZE(epoch_start_height)
+        KV_SERIALIZE(epoch_start_block_id)
+        KV_SERIALIZE(snapshot_height)
+        KV_SERIALIZE(snapshot_block_id)
+        KV_SERIALIZE(snapshot_hash)
+        KV_SERIALIZE(qualification_height)
+        KV_SERIALIZE(qualification_block_id)
+        KV_SERIALIZE(qualification_hash)
+        KV_SERIALIZE(network_id)
+        KV_SERIALIZE(genesis_hash)
+        KV_SERIALIZE(parameter_set_hash)
+        KV_SERIALIZE(snapshot_members)
+        KV_SERIALIZE(qualified_members)
+        KV_SERIALIZE(test_override)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_VM_STATE_PROOF
+  {
+    struct request_t: public rpc_access_request_base
+    {
+      std::string key;
+      boost::optional<uint64_t> height;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_access_request_base)
+        KV_SERIALIZE(key)
+        serialize_optional_vm_height<is_store>(this_ref.height, stg, hparent_section);
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public rpc_access_response_base
+    {
+      uint64_t height;
+      std::string root;
+      bool found;
+      std::string value;
+      std::vector<vm_state_proof_step> steps;
+      std::string leaf_path;
+      std::string leaf_value;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_access_response_base)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(root)
+        KV_SERIALIZE(found)
+        KV_SERIALIZE(value)
+        KV_SERIALIZE(steps)
+        KV_SERIALIZE(leaf_path)
+        KV_SERIALIZE(leaf_value)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
   //-----------------------------------------------
+
   struct COMMAND_RPC_GET_NET_STATS
   {
     struct request_t: public rpc_request_base

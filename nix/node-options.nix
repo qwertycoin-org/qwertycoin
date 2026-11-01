@@ -31,11 +31,12 @@ in
     group = opt types.str "qwertycoin" "Dedicated service group name.";
     dataDir =
       opt types.str "/var/lib/qwertycoin"
-        "Base directory passed to the daemon. The daemon appends testnet, stagenet, or fake for non-mainnet networks, including for custom paths.";
+        "Base directory passed to the daemon. The daemon appends testnet, stagenet, devnet, or fake for non-mainnet networks, including for custom paths.";
     network = opt (types.enum [
       "mainnet"
       "testnet"
       "stagenet"
+      "devnet"
       "regtest"
     ]) "mainnet" "Network to join.";
     keepFakechain =
@@ -216,6 +217,7 @@ in
           mainnet = "";
           testnet = "/testnet";
           stagenet = "/stagenet";
+          devnet = "/devnet";
           regtest = "/fake";
         }
         .${cfg.network};
@@ -258,8 +260,13 @@ in
       {
         assertion =
           !cfg.epose.enable
-          || (!cfg.prune && !cfg.sync.offline && cfg.sync.enable && cfg.network == "mainnet");
-        message = "EPoSe v2 requires an online, synchronized, unpruned mainnet node.";
+          || (
+            !cfg.prune
+            && !cfg.sync.offline
+            && cfg.sync.enable
+            && (cfg.network == "mainnet" || cfg.network == "devnet")
+          );
+        message = "EPoSe v2 requires an online, synchronized, unpruned mainnet or devnet node.";
       }
       {
         assertion =

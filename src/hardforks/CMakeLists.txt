@@ -27,7 +27,8 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 set(hardforks_sources
-  hardforks.cpp)
+  hardforks.cpp
+  hf18_hardfork_schedule.cpp)
 
 monero_find_all_headers(hardforks_headers "${CMAKE_CURRENT_SOURCE_DIR}")
 

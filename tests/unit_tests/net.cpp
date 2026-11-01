@@ -35,6 +35,7 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/v6_only.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/write.hpp>
@@ -55,11 +56,13 @@
 #include <map>
 #include <memory>
 #include <type_traits>
+#include <vector>
 
 #include "crypto/crypto.h"
 #include "net/dandelionpp.h"
 #include "net/error.h"
 #include "net/host.h"
+#include "net/net_helper.h"
 #include "net/i2p_address.h"
 #include "net/net_utils_base.h"
 #include "net/socks.h"
@@ -70,6 +73,145 @@
 #include "p2p/net_peerlist_boost_serialization.h"
 #include "serialization/keyvalue_serialization.h"
 #include "storages/portable_storage.h"
+
+TEST(direct_connect, ipv6_literal_reaches_local_listener)
+{
+    using boost::asio::ip::tcp;
+    boost::asio::io_context io;
+    boost::system::error_code error;
+    tcp::acceptor listener(io);
+    listener.open(tcp::v6(), error);
+    if (error)
+        GTEST_SKIP();
+    listener.set_option(boost::asio::ip::v6_only(true), error);
+    if (error)
+        GTEST_SKIP();
+    listener.bind(tcp::endpoint(boost::asio::ip::address_v6::loopback(), 0), error);
+    if (error)
+        GTEST_SKIP();
+    listener.listen(boost::asio::socket_base::max_listen_connections, error);
+    ASSERT_FALSE(error);
+    const std::string port = std::to_string(listener.local_endpoint().port());
+    const auto reaches_listener = [&](const std::string &host, uint8_t families) {
+        io.restart();
+        boost::asio::steady_timer timeout(io);
+        timeout.expires_after(std::chrono::seconds(3));
+        auto connection = epee::net_utils::direct_connect{families}(host, port, timeout);
+        boost::thread worker([&] { io.run(); });
+        const auto status = connection.wait_for(boost::chrono::seconds(2));
+        bool connected = false;
+        if (status == boost::future_status::ready)
+        {
+            try { connected = connection.get().is_open(); }
+            catch (const boost::system::system_error &) {}
+        }
+        io.stop();
+        worker.join();
+        return status == boost::future_status::ready && connected;
+    };
+    EXPECT_TRUE(reaches_listener("::1", 0));
+    tcp::resolver resolver(io);
+    const auto ipv4 = resolver.resolve(tcp::v4(), "localhost", port, error);
+    if (error || ipv4.empty())
+        GTEST_SKIP();
+    const auto ipv6 = resolver.resolve(tcp::v6(), "localhost", port, error);
+    if (error || ipv6.empty())
+        GTEST_SKIP();
+    EXPECT_TRUE(reaches_listener("localhost", 2));
+    EXPECT_TRUE(reaches_listener("localhost", 3));
+}
+
+TEST(direct_connect, resolver_timeout_settles_without_dns_response)
+{
+    boost::asio::io_context io;
+    boost::asio::steady_timer timeout(io);
+    timeout.expires_after(std::chrono::milliseconds(20));
+    epee::net_utils::direct_connect connector{};
+    connector.start_resolve = [](auto &, const auto &, const auto &, auto) {};
+    auto connection = connector("unresolved.invalid", "80", timeout);
+    boost::thread worker([&] { io.run(); });
+    const auto status = connection.wait_for(boost::chrono::seconds(1));
+    io.stop();
+    worker.join();
+    EXPECT_EQ(boost::future_status::ready, status);
+    if (status == boost::future_status::ready)
+    {
+        try
+        {
+            auto socket = connection.get();
+            FAIL() << socket.is_open();
+        }
+        catch (const boost::system::system_error &error)
+        {
+            EXPECT_EQ(boost::asio::error::timed_out, error.code());
+        }
+    }
+}
+
+TEST(direct_connect, rejected_dns_answer_never_reaches_listener)
+{
+    using boost::asio::ip::tcp;
+    boost::asio::io_context io;
+    tcp::acceptor listener(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+    boost::asio::steady_timer timeout(io);
+    timeout.expires_after(std::chrono::seconds(1));
+    epee::net_utils::direct_connect connector{};
+    connector.endpoint_allowed = [](const tcp::endpoint &endpoint) {
+        return !endpoint.address().is_loopback();
+    };
+    connector.max_resolved_endpoints = 16;
+    connector.start_resolve = [&listener](auto &, const auto &, const auto &, auto on_resolved) {
+        on_resolved({}, tcp::resolver::results_type::create(
+            listener.local_endpoint(), "probe.example", "80"));
+    };
+    auto connection = connector("probe.example", "80", timeout);
+    timeout.cancel();
+    io.run();
+    EXPECT_TRUE(connection.is_ready());
+    EXPECT_THROW(connection.get(), boost::system::system_error);
+
+    io.restart();
+    timeout.expires_after(std::chrono::seconds(1));
+    connector.endpoint_allowed = {};
+    connector.max_resolved_endpoints = 1;
+    connector.start_resolve = [&listener](auto &, const auto &, const auto &, auto on_resolved) {
+        const std::vector<tcp::endpoint> endpoints(2, listener.local_endpoint());
+        on_resolved({}, tcp::resolver::results_type::create(
+            endpoints.begin(), endpoints.end(), "probe.example", "80"));
+    };
+    auto over_limit = connector("probe.example", "80", timeout);
+    timeout.cancel();
+    io.run();
+    EXPECT_TRUE(over_limit.is_ready());
+    EXPECT_THROW(over_limit.get(), boost::system::system_error);
+}
+
+TEST(direct_connect, mixed_dns_answer_rejects_entire_set)
+{
+    using boost::asio::ip::tcp;
+    boost::asio::io_context io;
+    tcp::acceptor listener(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+    boost::asio::steady_timer timeout(io);
+    timeout.expires_after(std::chrono::seconds(1));
+    epee::net_utils::direct_connect connector{};
+    connector.allowed_families = 1;
+    const tcp::endpoint reachable = listener.local_endpoint();
+    connector.endpoint_allowed = [port = reachable.port()](const tcp::endpoint &target) {
+        return target.port() == port;
+    };
+    connector.start_resolve = [reachable](auto &, const auto &, const auto &, auto on_resolved) {
+        tcp::endpoint prohibited = reachable;
+        prohibited.port(1);
+        const std::vector<tcp::endpoint> endpoints{prohibited, reachable};
+        on_resolved({}, tcp::resolver::results_type::create(
+            endpoints.begin(), endpoints.end(), "probe.example", "80"));
+    };
+    auto connection = connector("probe.example", "80", timeout);
+    timeout.cancel();
+    io.run();
+    EXPECT_TRUE(connection.is_ready());
+    EXPECT_THROW(connection.get(), boost::system::system_error);
+}
 
 TEST(host, canonicalize_host)
 {

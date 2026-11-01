@@ -52,6 +52,12 @@ To run the same tests on a release build, replace `debug` with `release`.
 [TODO]
 Functional tests are located under the `tests/functional_tests` directory.
 
+To enable the archive replay checks, set `QWC_CHAINLOCK_REPLAY_ARCHIVE` to an existing LMDB archive when configuring CMake. This registers `chainlock_archive_replay` and `chainlock_archive_perf` and includes the replay in `check_missing_rpc_methods`. The Python runners use `QWC_CHAINLOCK_REPLAY_TEST_BINARY` for the `epose_unit_tests` binary; CTest sets both variables automatically.
+
+The names SDK helper accepts `QWC_CONTRACTS_SDK_FLAKE` and `QWC_NODE_FLAKE` overrides. By default it uses the pinned GitHub SDK flake and this checkout as the node flake.
+
+Run the slow full-term names withdrawal test explicitly with `nix develop -c python3 tests/functional_tests/functional_tests_rpc.py python3 tests/functional_tests build/release contracts_names_release`.
+
 Building all the tests requires installing the following dependencies:
 ```bash
 pip install requests psutil monotonic zmq deepdiff

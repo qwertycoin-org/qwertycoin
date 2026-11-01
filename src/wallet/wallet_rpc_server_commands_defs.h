@@ -34,6 +34,7 @@
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/subaddress_index.h"
 #include "crypto/hash.h"
+#include "vm/vm.h"
 #include "wallet_rpc_server_error_codes.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -47,7 +48,7 @@
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define WALLET_RPC_VERSION_MAJOR 1
-#define WALLET_RPC_VERSION_MINOR 31
+#define WALLET_RPC_VERSION_MINOR 32
 #define MAKE_WALLET_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define WALLET_RPC_VERSION MAKE_WALLET_RPC_VERSION(WALLET_RPC_VERSION_MAJOR, WALLET_RPC_VERSION_MINOR)
 namespace tools
@@ -630,6 +631,266 @@ namespace wallet_rpc
     typedef epee::misc_utils::struct_init<request_t> request;
 
     typedef single_transfer_response response_t;
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_CONTRACT_CALL
+  {
+    struct signer_approval
+    {
+      std::string contract_id;
+      uint32_t method;
+      std::string key_id;
+      std::string public_key;
+      bool nested;
+
+      bool operator==(const signer_approval& other) const
+      {
+        return contract_id == other.contract_id && method == other.method && key_id == other.key_id
+            && public_key == other.public_key && nested == other.nested;
+      }
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(contract_id)
+        KV_SERIALIZE(method)
+        KV_SERIALIZE(key_id)
+        KV_SERIALIZE(public_key)
+        KV_SERIALIZE_OPT(nested, false)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request_t: public COMMAND_RPC_TRANSFER::request_t
+    {
+      std::string kind;
+      std::string contract_id;
+      uint32_t method;
+      std::string code;
+      std::string args;
+      uint64_t deposit;
+      uint64_t gas_price;
+      uint64_t gas_limit;
+      std::string mint_address;
+      std::vector<std::string> signers;
+      std::vector<std::string> signer_contracts;
+      std::vector<uint32_t> signer_methods;
+      std::vector<std::string> signer_key_ids;
+      std::vector<std::string> external_signers;
+      std::vector<signer_approval> approved_signers;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(COMMAND_RPC_TRANSFER::request_t)
+        KV_SERIALIZE(kind)
+        KV_SERIALIZE_OPT(contract_id, std::string())
+        KV_SERIALIZE_OPT(method, (uint32_t)0)
+        KV_SERIALIZE_OPT(code, std::string())
+        KV_SERIALIZE_OPT(args, std::string())
+        KV_SERIALIZE_OPT(deposit, (uint64_t)0)
+        KV_SERIALIZE(gas_price)
+        KV_SERIALIZE_OPT(gas_limit, (uint64_t)0)
+        KV_SERIALIZE_OPT(mint_address, std::string())
+        KV_SERIALIZE_OPT(signers, (std::vector<std::string>{}))
+        KV_SERIALIZE_OPT(signer_contracts, (std::vector<std::string>{}))
+        KV_SERIALIZE_OPT(signer_methods, (std::vector<uint32_t>{}))
+        KV_SERIALIZE_OPT(signer_key_ids, (std::vector<std::string>{}))
+        KV_SERIALIZE_OPT(external_signers, (std::vector<std::string>{}))
+        KV_SERIALIZE_OPT(approved_signers, (std::vector<signer_approval>{}))
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t: public single_transfer_response
+    {
+      std::string contract_id;
+      uint64_t gas_limit;
+      uint64_t gas_used;
+      std::string signature_hash;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(single_transfer_response)
+        KV_SERIALIZE(contract_id)
+        KV_SERIALIZE(gas_limit)
+        KV_SERIALIZE(gas_used)
+        KV_SERIALIZE(signature_hash)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_ATTACH_CONTRACT_SIGNATURES
+  {
+    struct signature_entry
+    {
+      std::string public_key;
+      std::string signature;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(public_key)
+        KV_SERIALIZE(signature)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request_t
+    {
+      std::string tx_metadata;
+      std::vector<signature_entry> signatures;
+      bool do_not_relay;
+      bool get_tx_hex;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tx_metadata)
+        KV_SERIALIZE(signatures)
+        KV_SERIALIZE_OPT(do_not_relay, false)
+        KV_SERIALIZE_OPT(get_tx_hex, false)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string tx_hash;
+      std::string tx_metadata;
+      std::string tx_blob;
+      std::string signature_hash;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tx_hash)
+        KV_SERIALIZE(tx_metadata)
+        KV_SERIALIZE(tx_blob)
+        KV_SERIALIZE(signature_hash)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_DERIVE_CONTRACT_KEY
+  {
+    struct request_t
+    {
+      std::string contract_id;
+      std::string key_id;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(contract_id)
+        KV_SERIALIZE(key_id)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string public_key;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(public_key)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_VM_STATE_VALUE
+  {
+    struct request_t
+    {
+      std::string key;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(key)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string root;
+      bool found;
+      std::string value;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(root)
+        KV_SERIALIZE(found)
+        KV_SERIALIZE(value)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_INVOKE_APP_SHADER
+  {
+    struct key_approval
+    {
+      std::string contract_id;
+      std::string key_id;
+      std::string public_key;
+
+      bool operator==(const key_approval& other) const
+      {
+        return contract_id == other.contract_id && key_id == other.key_id && public_key == other.public_key;
+      }
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(contract_id)
+        KV_SERIALIZE(key_id)
+        KV_SERIALIZE(public_key)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request_t
+    {
+      std::string code;
+      uint32_t method;
+      std::string args;
+      std::vector<std::string> contract_ids;
+      std::vector<key_approval> approved_keys;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(code)
+        KV_SERIALIZE_OPT(method, (uint32_t)vm::method_first_public)
+        KV_SERIALIZE_OPT(args, std::string())
+        KV_SERIALIZE_OPT(contract_ids, (std::vector<std::string>{}))
+        KV_SERIALIZE_OPT(approved_keys, (std::vector<key_approval>{}))
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct generated_call
+    {
+      std::string kind;
+      std::string contract_id;
+      uint32_t method;
+      std::string code;
+      std::string args;
+      uint64_t deposit;
+      std::vector<std::string> signers;
+      std::vector<std::string> signer_contracts;
+      std::vector<uint32_t> signer_methods;
+      std::vector<std::string> signer_key_ids;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(kind)
+        KV_SERIALIZE(contract_id)
+        KV_SERIALIZE(method)
+        KV_SERIALIZE(code)
+        KV_SERIALIZE(args)
+        KV_SERIALIZE(deposit)
+        KV_SERIALIZE(signers)
+        KV_SERIALIZE(signer_contracts)
+        KV_SERIALIZE(signer_methods)
+        KV_SERIALIZE(signer_key_ids)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_t
+    {
+      std::string document;
+      uint64_t steps_used;
+      std::vector<generated_call> calls;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(document)
+        KV_SERIALIZE(steps_used)
+        KV_SERIALIZE(calls)
+      END_KV_SERIALIZE_MAP()
+    };
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 

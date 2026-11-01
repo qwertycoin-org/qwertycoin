@@ -274,8 +274,39 @@ TEST(verRctNonSemanticsSimple, tx1_preconditions)
     EXPECT_TRUE(rct::verRctSemanticsSimple(rs));
     EXPECT_TRUE(rct::verRctNonSemanticsSimple(rs));
     EXPECT_TRUE(rct::verRctSimple(rs));
-    EXPECT_TRUE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, rct_ver_cache, rct::RCTTypeBulletproofPlus));
-    EXPECT_TRUE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, rct_ver_cache, rct::RCTTypeBulletproofPlus));
+    EXPECT_TRUE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, rct_ver_cache, rct::RCTTypeBulletproofPlus, HF_VERSION_QWC_CONTRACTS));
+    EXPECT_TRUE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, rct_ver_cache, rct::RCTTypeBulletproofPlus, HF_VERSION_QWC_CONTRACTS));
+}
+
+TEST(verRctNonSemanticsSimple, cache_hit_before_contract_activation)
+{
+    cryptonote::rct_ver_cache_t cache;
+    cryptonote::transaction tx = expand_transaction_from_bin_file_and_pubkeys(tx1_file_name, tx1_input_pubkeys);
+    const crypto::hash key = cryptonote::rct_verification_cache_key(tx, tx1_input_pubkeys);
+    EXPECT_FALSE(cache.has(key));
+    ASSERT_TRUE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, cache,
+        rct::RCTTypeBulletproofPlus, HF_VERSION_QWC_EPOSE));
+    EXPECT_TRUE(cache.has(key));
+    EXPECT_TRUE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, cache,
+        rct::RCTTypeBulletproofPlus, HF_VERSION_QWC_EPOSE));
+}
+
+TEST(verRctNonSemanticsSimple, contract_call_skips_cache_before_activation)
+{
+    cryptonote::rct_ver_cache_t cache;
+    cryptonote::transaction tx = expand_transaction_from_bin_file_and_pubkeys(tx1_file_name, tx1_input_pubkeys);
+    cryptonote::tx_extra_vm_call call{};
+    call.kind = cryptonote::tx_extra_vm_call::kind_invoke;
+    call.gas_limit = 1;
+    call.gas_price = 1;
+    ASSERT_TRUE(cryptonote::add_vm_call_to_tx_extra(tx.extra, call));
+    tx.invalidate_hashes();
+    const crypto::hash key = cryptonote::rct_verification_cache_key(tx, tx1_input_pubkeys);
+    cache.add(key);
+    EXPECT_FALSE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, cache,
+        rct::RCTTypeBulletproofPlus, HF_VERSION_QWC_EPOSE));
+    EXPECT_TRUE(cryptonote::ver_rct_non_semantics_simple_cached(tx, tx1_input_pubkeys, cache,
+        rct::RCTTypeBulletproofPlus, HF_VERSION_QWC_CONTRACTS));
 }
 
 #define SERIALIZABLE_SIG_CHANGES_SUBTEST(fieldmodifyclause)                                    \

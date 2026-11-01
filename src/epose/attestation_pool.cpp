@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/attestation_pool.h"
+#include "epose/hash_transcript.h"
 
 #include <algorithm>
 #include <cstring>
@@ -11,26 +12,9 @@
 
 namespace
 {
-  void append_u64_le(std::string &out, uint64_t value)
-  {
-    for (unsigned int shift = 0; shift < 64; shift += 8)
-      out.push_back(static_cast<char>((value >> shift) & 0xff));
-  }
-
-  void append_hash(std::string &out, const crypto::hash &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(value));
-  }
-
-  void append_public_key(std::string &out, const crypto::public_key &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(value));
-  }
-
-  bool public_key_equal(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) == 0;
-  }
+  using qwertycoin::epose::transcript::append_u64_le;
+  using qwertycoin::epose::transcript::bytes_equal;
+  using qwertycoin::epose::transcript::append_bytes;
 
   bool attestation_less(
       const qwertycoin::epose::service_attestation &left,
@@ -53,7 +37,7 @@ namespace
       uint64_t epoch)
   {
     return std::find_if(registered_nodes.begin(), registered_nodes.end(), [&](const qwertycoin::epose::service_node_identity &identity) {
-      return public_key_equal(identity.service_public_key, service_public_key)
+      return bytes_equal(identity.service_public_key, service_public_key)
           && qwertycoin::epose::identity_active_in_epoch(identity, epoch);
     }) != registered_nodes.end();
   }
@@ -90,7 +74,7 @@ namespace
         epoch_seed);
 
     return std::find_if(assignments.begin(), assignments.end(), [&](const qwertycoin::epose::verifier_assignment &assignment) {
-      return public_key_equal(assignment.verifier_public_key, attestation.verifier_public_key);
+      return bytes_equal(assignment.verifier_public_key, attestation.verifier_public_key);
     }) != assignments.end();
   }
 }
@@ -110,9 +94,9 @@ namespace epose
     std::string key;
     key.reserve(sizeof(uint64_t) + sizeof(crypto::public_key) * 2 + sizeof(crypto::hash));
     append_u64_le(key, attestation.epoch);
-    append_public_key(key, attestation.subject_public_key);
-    append_public_key(key, attestation.verifier_public_key);
-    append_hash(key, attestation.challenge_hash);
+    append_bytes(key, attestation.subject_public_key);
+    append_bytes(key, attestation.verifier_public_key);
+    append_bytes(key, attestation.challenge_hash);
     return key;
   }
 
@@ -121,7 +105,7 @@ namespace epose
     std::string key;
     key.reserve(sizeof(uint64_t) + sizeof(crypto::public_key));
     append_u64_le(key, identity.registration_epoch);
-    append_public_key(key, identity.service_public_key);
+    append_bytes(key, identity.service_public_key);
     return key;
   }
 
@@ -129,7 +113,7 @@ namespace epose
   {
     return std::find_if(registration_entries_.begin(), registration_entries_.end(), [&](const auto &entry) {
       const service_node_identity &registered = entry.second.identity;
-      return (public_key_equal(registered.service_public_key, identity.service_public_key)
+      return (bytes_equal(registered.service_public_key, identity.service_public_key)
           || registered.endpoint_commitment == identity.endpoint_commitment)
           && registration_epochs_overlap(registered, identity);
     }) != registration_entries_.end();
@@ -140,7 +124,7 @@ namespace epose
       const service_node_identity &identity) const
   {
     return std::find_if(registered_nodes.begin(), registered_nodes.end(), [&](const service_node_identity &registered) {
-      return (public_key_equal(registered.service_public_key, identity.service_public_key)
+      return (bytes_equal(registered.service_public_key, identity.service_public_key)
           || registered.endpoint_commitment == identity.endpoint_commitment)
           && registration_epochs_overlap(registered, identity);
     }) != registered_nodes.end();
@@ -152,8 +136,8 @@ namespace epose
   {
     return std::find_if(chain_attestations.begin(), chain_attestations.end(), [&](const service_attestation &existing) {
       return existing.epoch == attestation.epoch
-          && public_key_equal(existing.subject_public_key, attestation.subject_public_key)
-          && public_key_equal(existing.verifier_public_key, attestation.verifier_public_key);
+          && bytes_equal(existing.subject_public_key, attestation.subject_public_key)
+          && bytes_equal(existing.verifier_public_key, attestation.verifier_public_key);
     }) != chain_attestations.end();
   }
 

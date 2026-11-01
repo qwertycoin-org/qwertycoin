@@ -82,6 +82,19 @@ static inline boost::asio::ip::address_v4 make_address_v4_from_v6(const boost::a
 
 namespace nodetool
 {
+  template<typename Map>
+  void trim_failure_cache(Map &cache)
+  {
+    constexpr size_t maximum_entries = 2048;
+    if (cache.size() <= maximum_entries)
+      return;
+    const auto oldest = std::min_element(cache.begin(), cache.end(),
+        [](const auto &left, const auto &right) {
+          return left.second.last_seen < right.second.last_seen;
+        });
+    cache.erase(oldest);
+  }
+  //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   node_server<t_payload_net_handler>::~node_server()
   {
@@ -246,7 +259,7 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::block_host(epee::net_utils::network_address addr, time_t seconds, bool add_only)
+  bool node_server<t_payload_net_handler>::block_host(epee::net_utils::network_address addr, time_t seconds, bool add_only, const char *reason)
   {
     if(!addr.is_blockable())
       return false;
@@ -322,9 +335,9 @@ namespace nodetool
     }
 
     if (added)
-      MCLOG_CYAN(el::Level::Info, "global", "Host " << host_str << " blocked.");
+      MGINFO("Host " << host_str << " blocked reason=" << reason);
     else
-      MINFO("Host " << host_str << " block time updated.");
+      MGINFO("Host " << host_str << " block time updated reason=" << reason);
     return true;
   }
   //-----------------------------------------------------------------------------------
@@ -404,21 +417,24 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::add_host_fail(const epee::net_utils::network_address &address, unsigned int score)
+  bool node_server<t_payload_net_handler>::add_host_fail(const epee::net_utils::network_address &address, unsigned int score, const char *reason)
   {
     if(!address.is_blockable())
       return false;
 
     CRITICAL_REGION_LOCAL(m_host_fails_score_lock);
-    uint64_t fails = m_host_fails_score[address.host_str()] += score;
+    auto &entry = m_host_fails_score[address.host_str()];
+    uint64_t fails = entry.value += score;
+    entry.last_seen = std::chrono::steady_clock::now();
     MDEBUG("Host " << address.host_str() << " fail score=" << fails);
     if(fails > P2P_IP_FAILS_BEFORE_BLOCK)
     {
       auto it = m_host_fails_score.find(address.host_str());
       CHECK_AND_ASSERT_MES(it != m_host_fails_score.end(), false, "internal error");
-      it->second = P2P_IP_FAILS_BEFORE_BLOCK/2;
-      block_host(address);
+      it->second.value = P2P_IP_FAILS_BEFORE_BLOCK/2;
+      block_host(address, P2P_IP_BLOCKTIME, false, reason);
     }
+    trim_failure_cache(m_host_fails_score);
     return true;
   }
   //-----------------------------------------------------------------------------------
@@ -429,9 +445,10 @@ namespace nodetool
   {
     bool testnet = command_line::get_arg(vm, cryptonote::arg_testnet_on);
     bool stagenet = command_line::get_arg(vm, cryptonote::arg_stagenet_on);
+    bool devnet = command_line::get_arg(vm, cryptonote::arg_devnet_on);
     bool regtest = command_line::get_arg(vm, cryptonote::arg_regtest_on);
     const bool pad_txs = command_line::get_arg(vm, arg_pad_transactions);
-    m_nettype = testnet ? cryptonote::TESTNET : stagenet ? cryptonote::STAGENET : regtest ? cryptonote::FAKECHAIN : cryptonote::MAINNET;
+    m_nettype = testnet ? cryptonote::TESTNET : stagenet ? cryptonote::STAGENET : devnet ? cryptonote::DEVNET : regtest ? cryptonote::FAKECHAIN : cryptonote::MAINNET;
 
     network_zone& public_zone = m_network_zones[epee::net_utils::zone::public_];
     public_zone.m_connect = &public_connect;
@@ -543,7 +560,7 @@ namespace nodetool
         const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(line, 0);
         if (parsed_addr)
         {
-          block_host(*parsed_addr, std::numeric_limits<time_t>::max());
+          block_host(*parsed_addr, std::numeric_limits<time_t>::max(), false, "configured_block");
           continue;
         }
         MERROR("Invalid IP address or IPv4 subnet: " << line);
@@ -729,6 +746,10 @@ namespace nodetool
     {
       return get_ip_seed_nodes();
     }
+    if (m_nettype == cryptonote::DEVNET)
+    {
+      return {};
+    }
     if (m_nettype == cryptonote::FAKECHAIN)
     {
       return {};
@@ -891,6 +912,10 @@ namespace nodetool
     {
       memcpy(&m_network_id, &::config::stagenet::NETWORK_ID, 16);
     }
+    else if (m_nettype == cryptonote::DEVNET)
+    {
+      memcpy(&m_network_id, &::config::devnet::NETWORK_ID, 16);
+    }
     else
     {
       memcpy(&m_network_id, &::config::NETWORK_ID, 16);
@@ -901,7 +926,8 @@ namespace nodetool
 
     if ((m_nettype == cryptonote::MAINNET && public_zone.m_port != std::to_string(::config::P2P_DEFAULT_PORT))
         || (m_nettype == cryptonote::TESTNET && public_zone.m_port != std::to_string(::config::testnet::P2P_DEFAULT_PORT))
-        || (m_nettype == cryptonote::STAGENET && public_zone.m_port != std::to_string(::config::stagenet::P2P_DEFAULT_PORT))) {
+        || (m_nettype == cryptonote::STAGENET && public_zone.m_port != std::to_string(::config::stagenet::P2P_DEFAULT_PORT))
+        || (m_nettype == cryptonote::DEVNET && public_zone.m_port != std::to_string(::config::devnet::P2P_DEFAULT_PORT))) {
       m_config_folder = m_config_folder + "/" + public_zone.m_port;
     }
 
@@ -1155,7 +1181,7 @@ namespace nodetool
       if(!handle_remote_peerlist(rsp.local_peerlist_new, context))
       {
         LOG_WARNING_CC(context, "COMMAND_HANDSHAKE: failed to handle_remote_peerlist(...), closing connection.");
-        add_host_fail(context.m_remote_address);
+        add_host_fail(context.m_remote_address, 1, "invalid_handshake_peerlist");
         return;
       }
       hsh_result = true;
@@ -1240,7 +1266,7 @@ namespace nodetool
       {
         LOG_WARNING_CC(context, "COMMAND_TIMED_SYNC: failed to handle_remote_peerlist(...), closing connection.");
         m_network_zones.at(context.m_remote_address.get_zone()).m_net_server.get_config_object().close(context.m_connection_id, false);
-        add_host_fail(context.m_remote_address);
+        add_host_fail(context.m_remote_address, 1, "invalid_timedsync_peerlist");
       }
       if(!context.m_is_income)
         m_network_zones.at(context.m_remote_address.get_zone()).m_peerlist.set_peer_just_seen(context.peer_id, context.m_remote_address, context.m_pruning_seed, context.m_rpc_port, context.m_rpc_credits_per_hash);
@@ -1479,7 +1505,10 @@ namespace nodetool
   void node_server<t_payload_net_handler>::record_addr_failed(const epee::net_utils::network_address& addr)
   {
     CRITICAL_REGION_LOCAL(m_conn_fails_cache_lock);
-    m_conn_fails_cache[addr.host_str()] = time(NULL);
+    auto &entry = m_conn_fails_cache[addr.host_str()];
+    entry.value = time(NULL);
+    entry.last_seen = std::chrono::steady_clock::now();
+    trim_failure_cache(m_conn_fails_cache);
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -1490,8 +1519,11 @@ namespace nodetool
     if(it == m_conn_fails_cache.end())
       return false;
 
-    if(time(NULL) - it->second > P2P_FAILED_ADDR_FORGET_SECONDS)
+    if(time(NULL) - it->second.value > P2P_FAILED_ADDR_FORGET_SECONDS)
+    {
+      m_conn_fails_cache.erase(it);
       return false;
+    }
     else
       return true;
   }
@@ -2536,7 +2568,7 @@ namespace nodetool
 
       LOG_INFO_CC(context, "WRONG NETWORK AGENT CONNECTED! id=" << arg.node_data.network_id);
       drop_connection(context);
-      add_host_fail(context.m_remote_address);
+      add_host_fail(context.m_remote_address, 1, "wrong_network");
       return 1;
     }
 
@@ -2544,7 +2576,7 @@ namespace nodetool
     {
       LOG_WARNING_CC(context, "COMMAND_HANDSHAKE came not from incoming connection");
       drop_connection(context);
-      add_host_fail(context.m_remote_address);
+      add_host_fail(context.m_remote_address, 1, "unexpected_handshake");
       return 1;
     }
 

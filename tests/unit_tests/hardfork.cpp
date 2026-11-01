@@ -266,8 +266,9 @@ TEST(steps_asap, Success)
 TEST(qwc_relaunch, starts_from_current_monero_consensus)
 {
   ASSERT_EQ(1u, num_mainnet_hard_forks);
-  ASSERT_EQ(1u, num_testnet_hard_forks);
+  ASSERT_EQ(2u, num_testnet_hard_forks);
   ASSERT_EQ(1u, num_stagenet_hard_forks);
+  ASSERT_EQ(2u, num_devnet_hard_forks);
 
   ASSERT_EQ(16, HF_VERSION_MONERO_CURRENT_CONSENSUS);
   ASSERT_EQ(17, HF_VERSION_QWC_EPOSE);
@@ -281,8 +282,13 @@ TEST(qwc_relaunch, starts_from_current_monero_consensus)
 
   for (size_t n = 0; n < num_mainnet_hard_forks; ++n)
     ASSERT_EQ(mainnet_hard_forks[n].version, HF_VERSION_QWC_EPOSE);
-  for (size_t n = 0; n < num_testnet_hard_forks; ++n)
-    ASSERT_EQ(testnet_hard_forks[n].version, HF_VERSION_QWC_EPOSE);
+  ASSERT_EQ(HF_VERSION_QWC_CONTRACTS, testnet_hard_forks[1].version);
+  ASSERT_EQ(QWC_DEVNET_CONTRACTS_ACTIVATION_HEIGHT, testnet_hard_forks[1].height);
+  ASSERT_EQ(HF_VERSION_QWC_CONTRACTS, devnet_hard_forks[1].version);
+  ASSERT_EQ(HF_VERSION_QWC_EPOSE, devnet_hard_forks[0].version);
+  ASSERT_EQ(0u, devnet_hard_forks[0].height);
+  ASSERT_EQ(testnet_hard_forks[1].height, devnet_hard_forks[1].height);
+  ASSERT_EQ(testnet_hard_forks[1].time, devnet_hard_forks[1].time);
   for (size_t n = 0; n < num_stagenet_hard_forks; ++n)
     ASSERT_EQ(stagenet_hard_forks[n].version, HF_VERSION_QWC_EPOSE);
 
@@ -316,6 +322,22 @@ TEST(qwc_relaunch, starts_from_current_monero_consensus)
   EXPECT_FALSE(hf.check_for_height(
       mkblock(HF_VERSION_QWC_EPOSE + 1, HF_VERSION_QWC_EPOSE + 1),
       QWC_EPOSE_RELAY_HARDENING_HEIGHT));
+}
+
+TEST(qwc_relaunch, contracts_activate_only_on_testnet_and_devnet)
+{
+  for (const hardfork_t* schedule : {testnet_hard_forks, devnet_hard_forks})
+  {
+    TestDB db;
+    HardFork fork(db, HF_VERSION_QWC_EPOSE, 0);
+    ASSERT_TRUE(fork.add_fork(schedule[0].version, schedule[0].height, schedule[0].threshold, schedule[0].time));
+    ASSERT_TRUE(fork.add_fork(schedule[1].version, schedule[1].height, schedule[1].threshold, schedule[1].time));
+    fork.init();
+    EXPECT_EQ(HF_VERSION_QWC_EPOSE, fork.get_ideal_version(QWC_DEVNET_CONTRACTS_ACTIVATION_HEIGHT - 1));
+    EXPECT_EQ(HF_VERSION_QWC_CONTRACTS, fork.get_ideal_version(QWC_DEVNET_CONTRACTS_ACTIVATION_HEIGHT));
+  }
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE, mainnet_hard_forks[num_mainnet_hard_forks - 1].version);
+  EXPECT_EQ(HF_VERSION_QWC_EPOSE, stagenet_hard_forks[num_stagenet_hard_forks - 1].version);
 }
 
 TEST(qwc_relaunch, genesis_block_uses_qwc_epose_protocol)

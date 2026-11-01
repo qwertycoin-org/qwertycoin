@@ -38,6 +38,7 @@
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "device/device.hpp"
 #include "multisig_clsag_context.h"
+#include "multisig_contract_guard.h"
 #include "ringct/bulletproofs.h"
 #include "ringct/bulletproofs_plus.h"
 #include "ringct/rctSigs.h"
@@ -147,6 +148,8 @@ static bool set_tx_extra(
 {
   hw::device &hwdev = account_keys.get_device();
   tx.extra = extra;
+  if (!accepts_contract_extra(tx))
+    return false;
   // if we have a stealth payment id, find it and encrypt it with the tx key now
   std::vector<cryptonote::tx_extra_field> tx_extra_fields;
   if (cryptonote::parse_tx_extra(tx.extra, tx_extra_fields))

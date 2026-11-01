@@ -23,6 +23,7 @@ let
     config-file = cfg.configFile;
     testnet = cfg.network == "testnet";
     stagenet = cfg.network == "stagenet";
+    devnet = cfg.network == "devnet";
     regtest = cfg.network == "regtest";
     keep-fakechain = cfg.network == "regtest" && cfg.keepFakechain;
     p2p-bind-ip = cfg.p2p.address;

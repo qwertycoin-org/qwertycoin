@@ -32,6 +32,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "blockchain.hardforks"
 
+
 const hardfork_t mainnet_hard_forks[] = {
   { HF_VERSION_QWC_EPOSE, 0, 0, 1787788800 },
 };
@@ -39,6 +40,7 @@ const size_t num_mainnet_hard_forks = sizeof(mainnet_hard_forks) / sizeof(mainne
 
 const hardfork_t testnet_hard_forks[] = {
   { HF_VERSION_QWC_EPOSE, 0, 0, 1787788800 },
+  contracts_hardfork(),
 };
 const size_t num_testnet_hard_forks = sizeof(testnet_hard_forks) / sizeof(testnet_hard_forks[0]);
 
