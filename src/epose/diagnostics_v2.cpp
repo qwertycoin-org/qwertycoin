@@ -74,6 +74,7 @@ namespace epose
       case receipt_failure_reason_v2::local_submission_rejected: return "local_submission_rejected";
       case receipt_failure_reason_v2::cancelled: return "cancelled";
       case receipt_failure_reason_v2::deadline_expired: return "deadline_expired";
+      case receipt_failure_reason_v2::address_prohibited: return "address_prohibited";
       case receipt_failure_reason_v2::internal_execution_failure: return "internal_execution_failure";
     }
     return "unknown";
