@@ -583,6 +583,14 @@ namespace epose
           != semantic_status_v2::accepted)
         return relay_ingress_status_v2::invalid_batch;
 
+      // Authenticate before suppressing a canonical replay. A duplicate remains
+      // consensus-valid, but must not reoccupy scarce carrier space.
+      lifecycle_record_v2 lifecycle{};
+      if (decode_lifecycle_record_structure_v2(records.front(), lifecycle)
+              == record_codec_status_v2::accepted
+          && canonical_state.lifecycle().contains(lifecycle))
+        continue;
+
       relay_record_pool_v2 tentative = next_pool;
       const relay_record_status_v2 queue_status =
           tentative.enqueue(records.front(), inclusion_height);

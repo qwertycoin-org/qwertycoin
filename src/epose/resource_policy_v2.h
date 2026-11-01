@@ -75,6 +75,14 @@ namespace epose
       endpoint_descriptor_v2 &descriptor,
       const crypto::secret_key &service_secret_key);
 
+  // Validate a directory response against the frozen endpoint commitment.
+  resource_status_v2 validate_discovered_endpoint_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const endpoint_descriptor_v2 &descriptor,
+      const crypto::hash &required_hash);
+
   resource_status_v2 validate_endpoint_descriptor_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,

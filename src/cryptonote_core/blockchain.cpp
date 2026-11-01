@@ -28,6 +28,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include "epose/record_codec_v2.h"
 #include <algorithm>
 #include <cstdio>
 #include <iterator>
@@ -1541,6 +1542,11 @@ bool Blockchain::select_epose_template_records_v2(
             {selection.record}, transaction, contexts, summary)
         != qwertycoin::epose::semantic_status_v2::accepted)
       continue;
+    qwertycoin::epose::lifecycle_record_v2 lifecycle{};
+    if (qwertycoin::epose::decode_lifecycle_record_structure_v2(selection.record, lifecycle)
+            == qwertycoin::epose::record_codec_status_v2::accepted
+        && m_epose_v2->state().lifecycle().contains(lifecycle))
+      continue;
     records.push_back(selection.record);
   }
   return true;
@@ -2770,22 +2776,12 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
         false, "HF17 block template requires the EPoSE-v2 coordinator");
 
   const auto construct_template_miner_tx = [&](size_t current_weight) {
-    for (;;)
-    {
-      if (service_payment_ptr != nullptr)
-        service_payment.carrier_records = relay_records.empty()
-            ? nullptr : &relay_records;
-      if (construct_miner_tx(
-              height, median_weight, already_generated_coins,
-              current_weight, fee, miner_address, b.miner_tx, ex_nonce,
-              max_outs, hf_version, nullptr, 0, service_payment_ptr))
-        return true;
-      if (relay_records.empty())
-        return false;
-      MDEBUG("Deferring one EPoSE-v2 relay record that does not fit the "
-             "current Coinbase template");
-      relay_records.pop_back();
-    }
+    // The constructor budgets the fully serialized extra, including the proof,
+    // while preserving receipt priority and the enrollment dependency prefix.
+    return construct_miner_tx(
+        height, median_weight, already_generated_coins,
+        current_weight, fee, miner_address, b.miner_tx, ex_nonce,
+        max_outs, hf_version, nullptr, 0, service_payment_ptr);
   };
 
   bool r = construct_template_miner_tx(txs_weight);

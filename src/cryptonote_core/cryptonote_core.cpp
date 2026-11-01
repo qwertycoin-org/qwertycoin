@@ -243,12 +243,7 @@ namespace
     descriptor.expiry_epoch = response.expiry_epoch;
     if (!epee::string_tools::hex_to_pod(
             response.service_public_key, descriptor.service_public_key)
-        || !epee::string_tools::hex_to_pod(response.signature, descriptor.signature)
-        || qwertycoin::epose::validate_endpoint_descriptor_v2(
-               parameters.nettype, parameters.genesis_hash,
-               parameters.parameter_set_hash, descriptor)
-            != qwertycoin::epose::resource_status_v2::accepted
-        || descriptor.host != host || descriptor.port != port)
+        || !epee::string_tools::hex_to_pod(response.signature, descriptor.signature))
     {
       descriptor = {};
       return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
@@ -266,6 +261,17 @@ namespace
       descriptor = {};
       return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
           qwertycoin::epose::receipt_failure_reason_v2::descriptor_commitment_mismatch};
+    }
+    // Discovery is an authenticated directory: the signed endpoint may belong
+    // to a third party. The next request dials descriptor.host/descriptor.port.
+    if (qwertycoin::epose::validate_discovered_endpoint_v2(
+            parameters.nettype, parameters.genesis_hash,
+            parameters.parameter_set_hash, descriptor, required_hash)
+        != qwertycoin::epose::resource_status_v2::accepted)
+    {
+      descriptor = {};
+      return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
+          qwertycoin::epose::receipt_failure_reason_v2::descriptor_invalid};
     }
     return {};
   }

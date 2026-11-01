@@ -185,6 +185,23 @@ namespace epose
     return true;
   }
 
+  resource_status_v2 validate_discovered_endpoint_v2(
+      cryptonote::network_type nettype,
+      const crypto::hash &genesis_hash,
+      const crypto::hash &parameter_set_hash,
+      const endpoint_descriptor_v2 &descriptor,
+      const crypto::hash &required_hash)
+  {
+    const auto status = validate_endpoint_descriptor_v2(
+        nettype, genesis_hash, parameter_set_hash, descriptor);
+    if (status != resource_status_v2::accepted)
+      return status;
+    if (hash_endpoint_descriptor_v2(nettype, genesis_hash, parameter_set_hash, descriptor)
+        != required_hash)
+      return resource_status_v2::invalid_descriptor;
+    return resource_status_v2::accepted;
+  }
+
   resource_status_v2 validate_endpoint_descriptor_v2(
       cryptonote::network_type nettype,
       const crypto::hash &genesis_hash,
