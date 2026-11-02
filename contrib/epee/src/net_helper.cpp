@@ -18,7 +18,7 @@ namespace net_utils
 			std::atomic<bool> settled_{false};
 
 			template<typename T>
-			explicit new_connection(T executor)
+			explicit new_connection(T&& executor)
 			  : result_(), socket_(executor), resolver_(executor)
 			{}
 
