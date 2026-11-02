@@ -156,6 +156,15 @@
 
             cmakeFlags = [
               "-DCMAKE_BUILD_TYPE=Release"
+              # Flake sources carry no .git; embed the revision a Git build would report.
+              "-DSOURCE_REVISION=${
+                if self ? rev then
+                  builtins.substring 0 9 self.rev
+                else if self ? dirtyRev then
+                  "${builtins.substring 0 9 self.dirtyRev}-dirty"
+                else
+                  "unknown"
+              }"
               # CMake 4 removed compatibility with the older bundled projects.
               "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
               "-DARCH=default"
