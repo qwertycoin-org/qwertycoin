@@ -32,7 +32,12 @@ function (write_version tag)
 endfunction ()
 
 find_package(Git QUIET)
-if ("$Format:$" STREQUAL "")
+# Source snapshots without Git metadata (e.g. Nix flake builds) pass the revision in.
+set(SOURCE_REVISION "" CACHE STRING "Revision to embed when the source tree has no Git metadata")
+if (NOT SOURCE_REVISION STREQUAL "")
+  set(VERSION_IS_RELEASE "false")
+  write_version("${SOURCE_REVISION}")
+elseif ("$Format:$" STREQUAL "")
   # We're in a tarball; use hard-coded variables.
   set(VERSION_IS_RELEASE "true")
   write_version("release")
@@ -51,6 +56,7 @@ add_custom_target(genversion ALL
     -DSOURCE_DIR="${PROJECT_SOURCE_DIR}"
     -DBINARY_DIR="${PROJECT_BINARY_DIR}"
     -DGIT_EXECUTABLE="${GIT_EXECUTABLE}"
+    -DSOURCE_REVISION="${SOURCE_REVISION}"
     -P "${CMAKE_CURRENT_LIST_DIR}/GenerateVersion.cmake"
   BYPRODUCTS "${PROJECT_BINARY_DIR}/version.cpp"
   COMMENT "Refreshing the embedded source revision")
