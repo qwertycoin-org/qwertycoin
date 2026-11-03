@@ -382,6 +382,29 @@ class RequestValidationTests(unittest.TestCase):
         self.assertIn('USER 10001:10001', dockerfile)
         self.assertIn('STOPSIGNAL SIGINT', dockerfile)
 
+    def test_docker_apt_sources_are_pinned_snapshots(self) -> None:
+        dockerfile = (ROOT.parents[1] / "docker/Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("ARG DEBIAN_SNAPSHOT=20260901T000000Z", dockerfile)
+        self.assertIn("ARG CA_CERTIFICATES_VERSION=20250419~deb12u1", dockerfile)
+        self.assertIn('"ca-certificates=${CA_CERTIFICATES_VERSION}"', dockerfile)
+        self.assertIn("rm -f /etc/apt/sources.list.d/debian.sources", dockerfile)
+        self.assertIn("> /etc/apt/sources.list;", dockerfile)
+        sources = [line.strip() for line in dockerfile.splitlines() if '"deb [' in line]
+        self.assertEqual(len(sources), 2)
+        for source, archive, suite in zip(
+            sources, ("debian", "debian-security"), ("bookworm", "bookworm-security")
+        ):
+            with self.subTest(archive=archive):
+                self.assertIn("check-valid-until=no", source)
+                self.assertIn("signed-by=/usr/share/keyrings/debian-archive-keyring.gpg", source)
+                self.assertIn(
+                    f"http://snapshot.debian.org/archive/{archive}/${{DEBIAN_SNAPSHOT}}/ {suite} main",
+                    source,
+                )
+        self.assertNotIn("Acquire::Check-Valid-Until", dockerfile)
+        self.assertNotIn("trusted=yes", dockerfile)
+        self.assertNotIn("--allow-unauthenticated", dockerfile)
+
     def test_assemble_public_test_override_is_explicit_and_preserves_gate(self) -> None:
         workflow = (
             ROOT.parents[1] / ".github/workflows/assemble-release.yml"
