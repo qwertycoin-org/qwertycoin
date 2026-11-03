@@ -72,6 +72,7 @@
 #include "net/zmq.h"
 #include "p2p/net_peerlist_boost_serialization.h"
 #include "serialization/keyvalue_serialization.h"
+#include "skip_test.h"
 #include "storages/portable_storage.h"
 
 TEST(direct_connect, ipv6_literal_reaches_local_listener)
@@ -82,13 +83,13 @@ TEST(direct_connect, ipv6_literal_reaches_local_listener)
     tcp::acceptor listener(io);
     listener.open(tcp::v6(), error);
     if (error)
-        GTEST_SKIP();
+        return unit_test::record_skip("Cannot open IPv6 listener: " + error.message());
     listener.set_option(boost::asio::ip::v6_only(true), error);
     if (error)
-        GTEST_SKIP();
+        return unit_test::record_skip("Cannot restrict listener to IPv6: " + error.message());
     listener.bind(tcp::endpoint(boost::asio::ip::address_v6::loopback(), 0), error);
     if (error)
-        GTEST_SKIP();
+        return unit_test::record_skip("Cannot bind IPv6 loopback listener: " + error.message());
     listener.listen(boost::asio::socket_base::max_listen_connections, error);
     ASSERT_FALSE(error);
     const std::string port = std::to_string(listener.local_endpoint().port());
@@ -113,10 +114,10 @@ TEST(direct_connect, ipv6_literal_reaches_local_listener)
     tcp::resolver resolver(io);
     const auto ipv4 = resolver.resolve(tcp::v4(), "localhost", port, error);
     if (error || ipv4.empty())
-        GTEST_SKIP();
+        return unit_test::record_skip("No IPv4 localhost endpoints: " + error.message());
     const auto ipv6 = resolver.resolve(tcp::v6(), "localhost", port, error);
     if (error || ipv6.empty())
-        GTEST_SKIP();
+        return unit_test::record_skip("No IPv6 localhost endpoints: " + error.message());
     EXPECT_TRUE(reaches_listener("localhost", 2));
     EXPECT_TRUE(reaches_listener("localhost", 3));
 }

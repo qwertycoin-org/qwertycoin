@@ -29,6 +29,7 @@
 #include "epose_coordinator_fixture.h"
 #include "epose_journal_test_helpers.h"
 #include "blockchain_test_db.h"
+#include "skip_test.h"
 #include "../common/blockchain_and_pool.h"
 
 namespace cryptonote
@@ -1728,7 +1729,7 @@ TEST(epose_blockchain_recovery, archive_replay_blocks_only)
 {
   const char *negative_dir = std::getenv("QWC_CHAINLOCK_REPLAY_NEGATIVE_DIR");
   if (!negative_dir)
-    GTEST_SKIP() << "Archive replay inputs are supplied by chainlock_archive_replay.py";
+    return unit_test::record_skip("Archive replay inputs are supplied by chainlock_archive_replay.py");
 
   crypto::hash stale_hash{};
   uint64_t original_alternatives = 0;
@@ -1778,7 +1779,7 @@ TEST(epose_blockchain_recovery, archive_replay_chainlock_timing)
 {
   const char *directory = std::getenv("QWC_CHAINLOCK_REPLAY_PERF_DIR");
   if (!directory)
-    GTEST_SKIP() << "Archive copy is supplied by chainlock_archive_perf.py";
+    return unit_test::record_skip("Archive copy is supplied by chainlock_archive_perf.py");
   cryptonote::core node(nullptr);
   ASSERT_TRUE(open_archive_core(node, directory));
   auto &chain = node.get_blockchain_storage();
