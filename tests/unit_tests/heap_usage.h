@@ -17,7 +17,11 @@ namespace test_heap_usage
     malloc_zone_statistics(malloc_default_zone(), &statistics);
     return statistics.size_in_use;
 #elif defined(__GLIBC__)
+#if __GLIBC_PREREQ(2, 33)
     return mallinfo2().uordblks;
+#else
+    return static_cast<size_t>(mallinfo().uordblks);
+#endif
 #else
     return 0;
 #endif
