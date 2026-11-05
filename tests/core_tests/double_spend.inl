@@ -127,12 +127,14 @@ bool gen_double_spend_in_tx<txs_keeped_by_block>::generate(std::vector<test_even
 
   std::vector<cryptonote::tx_source_entry> sources;
   cryptonote::tx_source_entry se;
-  se.amount = tx_0.vout[0].amount;
-  se.push_output(0, boost::get<cryptonote::txout_to_key>(tx_0.vout[0].target).key, se.amount);
+  size_t out_idx = find_output_index_by_amount(tx_0, send_amount);
+  CHECK_AND_ASSERT_MES(out_idx < tx_0.vout.size(), false, "Expected destination output not found");
+  se.amount = tx_0.vout[out_idx].amount;
+  se.push_output(0, boost::get<cryptonote::txout_to_key>(tx_0.vout[out_idx].target).key, se.amount);
   se.real_output = 0;
   se.rct = false;
   se.real_out_tx_key = get_tx_pub_key_from_extra(tx_0);
-  se.real_output_in_tx_index = 0;
+  se.real_output_in_tx_index = out_idx;
   sources.push_back(se);
   // Double spend!
   sources.push_back(se);

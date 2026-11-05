@@ -32,8 +32,13 @@
 #include <boost/chrono/chrono.hpp>
 #include <boost/thread/condition_variable.hpp>
 #include <boost/thread/mutex.hpp>
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
+#include <future>
+#include <memory>
 #include <mutex>
+#include <thread>
 
 #include "gtest/gtest.h"
 
@@ -46,8 +51,68 @@
 
 namespace
 {
-  const uint32_t test_server_port = 5626;
   const std::string test_server_host("127.0.0.1");
+
+  template<typename Server>
+  bool init_loopback_server(Server& server, boost::asio::ip::tcp::endpoint& endpoint,
+    epee::net_utils::ssl_support_t ssl_support)
+  {
+    if (!server.init_server(0, endpoint.address().to_string(), {}, {}, {}, true, ssl_support))
+      return false;
+    endpoint.port(server.get_binded_port());
+    return endpoint.port() != 0;
+  }
+
+  template<typename Count>
+  bool wait_for_connection_count(Count count, size_t target, std::chrono::milliseconds timeout)
+  {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (count() != target)
+    {
+      if (std::chrono::steady_clock::now() >= deadline)
+        return false;
+      std::this_thread::yield();
+    }
+    return true;
+  }
+
+  template<typename Connect>
+  bool connect_with_retry(Connect connect, size_t attempts, std::chrono::milliseconds pause)
+  {
+    for (size_t attempt = 0; attempt < attempts; ++attempt)
+    {
+      if (connect())
+        return true;
+      if (attempt + 1 < attempts)
+        std::this_thread::sleep_for(pause);
+    }
+    return false;
+  }
+
+  struct bounded_event
+  {
+    void raise()
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      raised = true;
+      condition.notify_one();
+    }
+
+    bool wait_for(std::chrono::milliseconds timeout)
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      return condition.wait_for(guard, timeout, [&] { return raised; });
+    }
+
+    std::mutex lock;
+    std::condition_variable condition;
+    bool raised = false;
+  };
+
+  auto make_cancellation_callback(std::shared_ptr<std::promise<int>> result)
+  {
+    return [result](int code, const auto&, auto&) { result->set_value(code); };
+  }
 
   struct test_connection_context : public epee::net_utils::connection_context_base
   {
@@ -88,10 +153,48 @@ namespace
   typedef epee::net_utils::boosted_tcp_server<test_protocol_handler> test_tcp_server;
 }
 
+TEST(boosted_tcp_server, connection_count_wait_times_out)
+{
+  const auto start = std::chrono::steady_clock::now();
+  EXPECT_FALSE(wait_for_connection_count([] { return size_t{0}; }, 1, std::chrono::milliseconds(20)));
+  EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds(1));
+}
+
+TEST(boosted_tcp_server, bounded_event_times_out)
+{
+  bounded_event event;
+  EXPECT_FALSE(event.wait_for(std::chrono::milliseconds(20)));
+}
+
+TEST(boosted_tcp_server, cancellation_callback_keeps_result_alive)
+{
+  auto result = std::make_shared<std::promise<int>>();
+  auto code = result->get_future();
+  auto callback = make_cancellation_callback(result);
+  std::weak_ptr<std::promise<int>> weak_result = result;
+  result.reset();
+  ASSERT_FALSE(weak_result.expired());
+  int response = 0;
+  int context = 0;
+  callback(LEVIN_ERROR_CONNECTION_DESTROYED, response, context);
+  EXPECT_EQ(code.get(), LEVIN_ERROR_CONNECTION_DESTROYED);
+}
+
+TEST(boosted_tcp_server, connect_retries_after_transient_failure)
+{
+  size_t attempts = 0;
+  EXPECT_TRUE(connect_with_retry([&] { return ++attempts == 2; }, 5, std::chrono::milliseconds(0)));
+  EXPECT_EQ(attempts, 2);
+  attempts = 0;
+  EXPECT_FALSE(connect_with_retry([&] { ++attempts; return false; }, 5, std::chrono::milliseconds(0)));
+  EXPECT_EQ(attempts, 5);
+}
+
 TEST(boosted_tcp_server, worker_threads_are_exception_resistant)
 {
   test_tcp_server srv(epee::net_utils::e_connection_type_RPC); // RPC disables network limit for unit tests
-  ASSERT_TRUE(srv.init_server(test_server_port, test_server_host));
+  ASSERT_TRUE(srv.init_server(0, test_server_host));
+  ASSERT_GT(srv.get_binded_port(), 0);
 
   boost::mutex mtx;
   boost::condition_variable cond;
@@ -191,6 +294,12 @@ TEST(test_epee_connection, test_lifetime)
   };
   using shared_conn_ptr = std::shared_ptr<shared_conn_t>;
 
+  endpoint_t endpoint(boost::asio::ip::make_address("127.0.0.1"), 0);
+  server_t server(epee::net_utils::e_connection_type_P2P);
+  ASSERT_TRUE(init_loopback_server(server, endpoint, epee::net_utils::ssl_support_t::e_ssl_support_disabled));
+  ASSERT_TRUE(server.run_server(2, false));
+  server.get_config_shared()->set_handler(new command_handler_t, &command_handler_t::destroy);
+
   io_context_t io_context;
   work_ptr work(std::make_shared<work_t>(io_context.get_executor()));
 
@@ -200,19 +309,6 @@ TEST(test_epee_connection, test_lifetime)
       io_context.run();
     });
   }
-
-  endpoint_t endpoint(boost::asio::ip::make_address("127.0.0.1"), 5262);
-  server_t server(epee::net_utils::e_connection_type_P2P);
-  server.init_server(endpoint.port(),
-    endpoint.address().to_string(),
-    0,
-    "",
-    false,
-    true,
-    epee::net_utils::ssl_support_t::e_ssl_support_disabled
-  );
-  server.run_server(2, false);
-  server.get_config_shared()->set_handler(new command_handler_t, &command_handler_t::destroy);
 
   boost::asio::post(io_context, [&io_context, &work, &endpoint, &server]{
     auto scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&work]{
@@ -501,18 +597,11 @@ TEST(test_epee_connection, ssl_shutdown)
   using ssl_context_t = boost::asio::ssl::context;
   using ec_t = boost::system::error_code;
 
-  endpoint_t endpoint(boost::asio::ip::make_address("127.0.0.1"), 5263);
+  endpoint_t endpoint(boost::asio::ip::make_address("127.0.0.1"), 0);
   server_t server(epee::net_utils::e_connection_type_P2P);
-  server.init_server(endpoint.port(),
-    endpoint.address().to_string(),
-    0,
-    "",
-    false,
-    true,
-    epee::net_utils::ssl_support_t::e_ssl_support_enabled
-  );
+  ASSERT_TRUE(init_loopback_server(server, endpoint, epee::net_utils::ssl_support_t::e_ssl_support_enabled));
   server.get_config_shared()->set_handler(new command_handler_t, &command_handler_t::destroy);
-  server.run_server(2, false);
+  ASSERT_TRUE(server.run_server(2, false));
 
   ssl_context_t ssl_context{boost::asio::ssl::context::sslv23};
   io_context_t io_context;
@@ -523,9 +612,9 @@ TEST(test_epee_connection, ssl_shutdown)
   socket.handshake(boost::asio::ssl::stream_base::client, ec);
   EXPECT_EQ(ec.value(), 0);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  while (server.get_config_shared()->get_connections_count() < 1);
+  EXPECT_TRUE(wait_for_connection_count([&]{ return server.get_config_shared()->get_connections_count(); }, 1, std::chrono::seconds(5)));
   server.get_config_shared()->del_in_connections(1);
-  while (server.get_config_shared()->get_connections_count() > 0);
+  EXPECT_TRUE(wait_for_connection_count([&]{ return server.get_config_shared()->get_connections_count(); }, 0, std::chrono::seconds(5)));
   server.send_stop_signal();
   EXPECT_TRUE(server.timed_wait_server_stop(5 * 1000));
   server.deinit_server();
@@ -601,7 +690,7 @@ TEST(boosted_tcp_server, strand_deadlock)
     }
     lock_t lock;
     condition_t condition;
-    bool success;
+    bool success = false;
   };
 
   struct handler_t {
@@ -671,31 +760,27 @@ TEST(boosted_tcp_server, strand_deadlock)
   using server_t = epee::net_utils::boosted_tcp_server<handler_t>;
   using endpoint_t = boost::asio::ip::tcp::endpoint;
 
-  endpoint_t endpoint(boost::asio::ip::make_address("127.0.0.1"), 5262);
+  endpoint_t endpoint(boost::asio::ip::make_address("127.0.0.1"), 0);
   server_t server(epee::net_utils::e_connection_type_P2P);
-  server.init_server(
-    endpoint.port(),
-    endpoint.address().to_string(),
-    {},
-    {},
-    {},
-    true,
-    epee::net_utils::ssl_support_t::e_ssl_support_disabled
-  );
-  server.run_server(2, {});
+  ASSERT_TRUE(init_loopback_server(server, endpoint, epee::net_utils::ssl_support_t::e_ssl_support_disabled));
+  ASSERT_TRUE(server.run_server(2, {}));
   server.async_call(
     [&]{
       context_t context;
-      ASSERT_TRUE(
-        server.connect(
+      size_t connect_attempts = 0;
+      ASSERT_TRUE(connect_with_retry([&] {
+        if (++connect_attempts == 1)
+          return false;
+        return server.connect(
           endpoint.address().to_string(),
-          std::to_string(endpoint.port()),
+          std::to_string(server.get_binded_port()),
           5,
           context,
           "0.0.0.0",
           epee::net_utils::ssl_support_t::e_ssl_support_disabled
-        )
-      );
+        );
+      }, 6, std::chrono::milliseconds(20)));
+      EXPECT_GE(connect_attempts, 2);
     }
   );
   {
@@ -724,7 +809,7 @@ TEST(boosted_tcp_server, shutdown)
 
   struct config_t : epee::levin::async_protocol_handler_config<context_t> {
     void received_handshake() { handshake_received.raise(); }
-    epee::simple_event handshake_received;
+    bounded_event handshake_received;
   };
 
   struct handler_t : epee::levin::async_protocol_handler<context_t> {
@@ -744,61 +829,59 @@ TEST(boosted_tcp_server, shutdown)
     }
   };
 
-  boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::make_address("127.0.0.1"), 5262);
+  boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::make_address("127.0.0.1"), 0);
   epee::net_utils::boosted_tcp_server<handler_t> server(epee::net_utils::e_connection_type_P2P);
-  server.init_server(
-    endpoint.port(),
-    endpoint.address().to_string(),
-    {},
-    {},
-    {},
-    true,
-    epee::net_utils::ssl_support_t::e_ssl_support_disabled
-  );
+  ASSERT_TRUE(init_loopback_server(server, endpoint, epee::net_utils::ssl_support_t::e_ssl_support_disabled));
+
+  context_t context;
+  bounded_event connected;
+  std::atomic<bool> connect_success{false};
 
   // Run the server in a thread and wait for it to start
   MINFO("Starting the server");
   std::thread running_server([&]{server.run_server(2, true/*wait*/);} );
+  auto server_thread_guard = epee::misc_utils::create_scope_leave_handler([&] {
+    if (running_server.joinable())
+    {
+      server.mark_stop_signal_sent();
+      server.stop_io_context();
+      running_server.join();
+    }
+  });
 
   // Have the server connect to itself
   MINFO("Connecting the server to itself");
-  context_t context;
   {
-    epee::simple_event connected;
-    server.async_call(
+    ASSERT_TRUE(server.async_call(
       [&]{
-        ASSERT_TRUE(
-          server.connect(
-            endpoint.address().to_string(),
-            std::to_string(endpoint.port()),
-            5,
-            context,
-            "0.0.0.0",
-            epee::net_utils::ssl_support_t::e_ssl_support_disabled
-          )
+        connect_success = server.connect(
+          endpoint.address().to_string(),
+          std::to_string(server.get_binded_port()),
+          5,
+          context,
+          "0.0.0.0",
+          epee::net_utils::ssl_support_t::e_ssl_support_disabled
         );
         connected.raise();
       }
-    );
-    connected.wait();
+    ));
+    ASSERT_TRUE(connected.wait_for(std::chrono::seconds(10)));
+    ASSERT_TRUE(connect_success) << "Self-connection to port " << endpoint.port() << " failed";
   }
 
   // Invoke handshake to the connection, and wait for cb cancel in a separate thread
   MINFO("Invoking handshake");
-  epee::simple_event ev;
+  auto cancellation_result = std::make_shared<std::promise<int>>();
+  auto cancellation_code = cancellation_result->get_future();
   {
     using COMMAND_HANDSHAKE = nodetool::COMMAND_HANDSHAKE_T<cryptonote::CORE_SYNC_DATA>;
     COMMAND_HANDSHAKE::request arg;
     bool r = epee::net_utils::async_invoke_remote_command2<COMMAND_HANDSHAKE::response>(context, COMMAND_HANDSHAKE::ID, arg, server.get_config_object(),
-      [&ev](int code, const COMMAND_HANDSHAKE::response&, context_t&)
-    {
-      ASSERT_EQ(code, LEVIN_ERROR_CONNECTION_DESTROYED);
-      ev.raise();
-    }, P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT);
+      make_cancellation_callback(cancellation_result), P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT);
     ASSERT_TRUE(r);
 
     MINFO("Waiting for handshake invocation to be received");
-    server.get_config_object().handshake_received.wait();
+    ASSERT_TRUE(server.get_config_object().handshake_received.wait_for(std::chrono::seconds(10)));
   }
 
   MINFO("Stopping the server");
@@ -809,5 +892,6 @@ TEST(boosted_tcp_server, shutdown)
   running_server.join();
 
   MINFO("Waiting for handshake to cancel");
-  ev.wait();
+  ASSERT_EQ(cancellation_code.wait_for(std::chrono::seconds(15)), std::future_status::ready);
+  ASSERT_EQ(cancellation_code.get(), LEVIN_ERROR_CONNECTION_DESTROYED);
 }

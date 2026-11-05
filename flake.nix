@@ -37,7 +37,18 @@
         "aarch64-darwin"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
-      pkgsFor = system: import nixpkgs { inherit system; };
+      pkgsFor =
+        system:
+        import nixpkgs {
+          inherit system;
+          overlays = [
+            (final: prev: {
+              boost = prev.boost.overrideAttrs (old: {
+                patches = (old.patches or [ ]) ++ [ ./nix/boost-asio-errno.patch ];
+              });
+            })
+          ];
+        };
       # Clang 20+ rejects enum conversions used by Boost's type traits.
       stdenvFor = pkgs: if pkgs.stdenv.cc.isClang then pkgs.llvmPackages_19.stdenv else pkgs.stdenv;
     in
@@ -89,9 +100,10 @@
             # published release (which may legitimately be older).
             version =
               let
-                versionLine = lib.findFirst (lib.hasPrefix "#define DEF_QWERTYCOIN_VERSION ")
-                  (throw "canonical Core version is missing")
-                  (lib.splitString "\n" (builtins.readFile ./src/version.cpp.in));
+                versionLine =
+                  lib.findFirst (lib.hasPrefix "#define DEF_QWERTYCOIN_VERSION ")
+                    (throw "canonical Core version is missing")
+                    (lib.splitString "\n" (builtins.readFile ./src/version.cpp.in));
               in
               builtins.elemAt (lib.splitString "\"" versionLine) 1;
 
@@ -176,6 +188,7 @@
               "-DMANUAL_SUBMODULES=ON"
               "-DUSE_CCACHE=OFF"
               "-DUSE_DEVICE_TREZOR=OFF"
+              "-DBoost_INCLUDE_DIR=${lib.getDev pkgs.boost}/include"
               "-DOPENSSL_ROOT_DIR=${lib.getDev pkgs.openssl}"
               "-DReadline_ROOT_DIR=${lib.getDev pkgs.readline}"
               "-DReadline_INCLUDE_DIR=${lib.getDev pkgs.readline}/include"
@@ -210,17 +223,28 @@
         system:
         let
           pkgs = pkgsFor system;
+          functionalTestPython = pkgs.python3.withPackages (
+            ps: with ps; [
+              requests
+              psutil
+              monotonic
+              pyzmq
+              deepdiff
+            ]
+          );
         in
         {
           default = (pkgs.mkShell.override { stdenv = stdenvFor pkgs; }) {
             inputsFrom = [ self.packages.${system}.qwertycoin ];
-            packages = with pkgs; [
-              git
-              ccache
+            packages = [
+              functionalTestPython
+              pkgs.git
+              pkgs.ccache
             ];
             OPENSSL_ROOT_DIR = "${pkgs.lib.getDev pkgs.openssl}";
             Readline_ROOT_DIR = "${pkgs.lib.getDev pkgs.readline}";
             Readline_LIBRARY = "${pkgs.lib.getLib pkgs.readline}/lib/libreadline${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}";
+            QWC_NIX_BOOST_INCLUDE_DIR = "${pkgs.lib.getDev pkgs.boost}/include";
             NIX_CFLAGS_COMPILE = pkgs.lib.optionalString pkgs.stdenv.cc.isClang "-Wno-enum-constexpr-conversion";
           };
         }

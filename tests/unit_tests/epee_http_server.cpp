@@ -40,14 +40,16 @@
 
 namespace
 {
-  constexpr const std::size_t payload_size = 26 * 1024 * 1024;
+  constexpr const std::size_t payload_size = 7 * 1024 * 1024;
   constexpr const std::size_t max_private_ips = 25;
   struct dummy
   {
     struct request
     {
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(size)
       END_KV_SERIALIZE_MAP()
+      std::size_t size = 0;
     };
 
     struct response
@@ -60,9 +62,10 @@ namespace
     };
   };
 
-  std::string make_payload()
+  std::string make_payload(std::size_t size = 0)
   {
     dummy::request body{};
+    body.size = size;
     const auto body_serialized = epee::serialization::store_t_to_binary(body);
     return std::string{
       reinterpret_cast<const char*>(body_serialized.data()),
@@ -85,14 +88,48 @@ namespace
       MAP_URI_AUTO_BIN2("/dummy", on_dummy, dummy)
     END_URI_MAP2()
 
-    bool on_dummy(const dummy::request&, dummy::response& res, const connection_context *ctx = NULL)
+    bool on_dummy(const dummy::request& req, dummy::response& res, const connection_context *ctx = NULL)
     {
-      res.payload.resize(dummy_size.load(), 'f');
+      res.payload.resize(req.size == 0 ? dummy_size.load() : req.size, 'f');
       return true;
     }
 
+    void set_soft_limit(std::size_t limit) { m_net_server.set_response_soft_limit(limit); }
+
     std::atomic<std::size_t> dummy_size;
   };
+
+  boost::beast::http::request<boost::beast::http::string_body> make_dummy_request(
+      std::size_t size)
+  {
+    namespace http = boost::beast::http;
+    http::request<http::string_body> request{http::verb::get, "/dummy", 11};
+    request.set(http::field::host, "127.0.0.1");
+    request.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+    request.body() = make_payload(size);
+    request.prepare_payload();
+    return request;
+  }
+
+  void expect_dummy_response(boost::asio::ip::tcp::socket &stream,
+      const boost::beast::http::request<boost::beast::http::string_body> &request,
+      boost::system::error_code &error, std::size_t size)
+  {
+    namespace http = boost::beast::http;
+    http::write(stream, request, error);
+    ASSERT_FALSE(bool(error));
+    dummy::response payload{};
+    boost::beast::flat_buffer buffer;
+    http::response_parser<http::string_body> parser;
+    parser.body_limit(boost::none);
+    http::read(stream, buffer, parser, error);
+    ASSERT_FALSE(bool(error));
+    const auto response = parser.release();
+    EXPECT_EQ(200u, response.result_int());
+    EXPECT_TRUE(epee::serialization::load_t_from_binary(payload, response.body()));
+    EXPECT_EQ(size, payload.payload.size());
+    EXPECT_EQ(size, std::count(payload.payload.begin(), payload.payload.end(), 'f'));
+  }
 } // anonymous
 
 TEST(http_server, response_soft_limit)
@@ -101,6 +138,7 @@ TEST(http_server, response_soft_limit)
 
   http_server server{};
   server.init(nullptr, "8080");
+  server.set_soft_limit(payload_size - 1024);
   server.run(1, false);
 
   boost::system::error_code error{};
@@ -114,27 +152,33 @@ TEST(http_server, response_soft_limit)
   );
   EXPECT_FALSE(bool(error));
 
-  http::request<http::string_body> req{http::verb::get, "/dummy", 11};
-  req.set(http::field::host, "127.0.0.1");
-  req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-  req.body() = make_payload();
-  req.prepare_payload();
-  http::write(stream, req, error);
-  EXPECT_FALSE(bool(error));
-
-  {
-    dummy::response payload{};
-    boost::beast::flat_buffer buffer;
-    http::response<http::basic_string_body<char>> res;
-    http::read(stream, buffer, res, error);
-    EXPECT_FALSE(bool(error));
-    EXPECT_EQ(200u, res.result_int());
-    EXPECT_TRUE(epee::serialization::load_t_from_binary(payload, res.body()));
-    EXPECT_EQ(payload_size, std::count(payload.payload.begin(), payload.payload.end(), 'f'));
-  }
+  const auto req = make_dummy_request(payload_size);
+  expect_dummy_response(stream, req, error, payload_size);
 
   while (!error)
     http::write(stream, req, error);
+  server.send_stop_signal();
+}
+
+TEST(http_server, default_response_soft_limit)
+{
+  namespace http = boost::beast::http;
+  EXPECT_EQ(25u * 1024 * 1024, DEFAULT_RPC_SOFT_LIMIT_SIZE);
+  http_server server{};
+  server.init(nullptr, "8080");
+  server.run(1, false);
+
+  boost::system::error_code error{};
+  boost::asio::io_context context{};
+  boost::asio::ip::tcp::socket stream{context};
+  stream.connect(boost::asio::ip::tcp::endpoint{
+      boost::asio::ip::make_address("127.0.0.1"), 8080}, error);
+  ASSERT_FALSE(bool(error));
+  constexpr std::size_t large_payload_size = 26 * 1024 * 1024;
+  const auto request = make_dummy_request(large_payload_size);
+  expect_dummy_response(stream, request, error, large_payload_size);
+  while (!error)
+    http::write(stream, request, error);
   server.send_stop_signal();
 }
 

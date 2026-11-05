@@ -202,6 +202,13 @@ class Daemon(object):
     def get_epose_info(self, client = ""):
         return self.rpc.send_request('/get_epose_info', {'client': client})
 
+    def get_epose_diagnostics(self, recent_limit = 50, epoch = (1 << 64) - 1, client = ""):
+        return self.rpc.send_request('/get_epose_diagnostics', {
+            'recent_limit': recent_limit,
+            'epoch': epoch,
+            'client': client,
+        })
+
     def get_service_nodes(self, limit = 100, client = ""):
         return self.rpc.send_request('/get_service_nodes', {
             'limit': limit,

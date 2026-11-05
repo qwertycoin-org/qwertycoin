@@ -32,14 +32,14 @@
 #include "chaingen.h"
 
 const size_t invalid_index_value = std::numeric_limits<size_t>::max();
-const uint64_t FIRST_BLOCK_REWARD = 17592186044415;
+const uint64_t DOUBLE_SPEND_AMOUNT = MK_COINS(3);
 
 
 template<class concrete_test>
 class gen_double_spend_base : public test_chain_unit_base
 {
 public:
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
+  static const uint64_t send_amount = DOUBLE_SPEND_AMOUNT;
 
   gen_double_spend_base();
 
@@ -61,7 +61,7 @@ private:
 template<bool txs_keeped_by_block>
 struct gen_double_spend_in_tx : public gen_double_spend_base< gen_double_spend_in_tx<txs_keeped_by_block> >
 {
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
+  static const uint64_t send_amount = DOUBLE_SPEND_AMOUNT;
   static const bool has_invalid_tx = true;
   static const size_t expected_pool_txs_count = 0;
   static const uint64_t expected_bob_balance = send_amount;
@@ -74,7 +74,7 @@ struct gen_double_spend_in_tx : public gen_double_spend_base< gen_double_spend_i
 template<bool txs_keeped_by_block>
 struct gen_double_spend_in_the_same_block : public gen_double_spend_base< gen_double_spend_in_the_same_block<txs_keeped_by_block> >
 {
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
+  static const uint64_t send_amount = DOUBLE_SPEND_AMOUNT;
   static const bool has_invalid_tx = !txs_keeped_by_block;
   static const size_t expected_pool_txs_count = has_invalid_tx ? 1 : 2;
   static const uint64_t expected_bob_balance = send_amount;
@@ -87,7 +87,7 @@ struct gen_double_spend_in_the_same_block : public gen_double_spend_base< gen_do
 template<bool txs_keeped_by_block>
 struct gen_double_spend_in_different_blocks : public gen_double_spend_base< gen_double_spend_in_different_blocks<txs_keeped_by_block> >
 {
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
+  static const uint64_t send_amount = DOUBLE_SPEND_AMOUNT;
   static const bool has_invalid_tx = !txs_keeped_by_block;
   static const size_t expected_pool_txs_count = has_invalid_tx ? 0 : 1;
   static const uint64_t expected_bob_balance = 0;
@@ -100,7 +100,7 @@ struct gen_double_spend_in_different_blocks : public gen_double_spend_base< gen_
 template<bool txs_keeped_by_block>
 struct gen_double_spend_in_alt_chain_in_the_same_block : public gen_double_spend_base< gen_double_spend_in_alt_chain_in_the_same_block<txs_keeped_by_block> >
 {
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
+  static const uint64_t send_amount = DOUBLE_SPEND_AMOUNT;
   static const bool has_invalid_tx = !txs_keeped_by_block;
   static const size_t expected_pool_txs_count = has_invalid_tx ? 1 : 2;
   static const uint64_t expected_bob_balance = send_amount;
@@ -113,7 +113,7 @@ struct gen_double_spend_in_alt_chain_in_the_same_block : public gen_double_spend
 template<bool txs_keeped_by_block>
 struct gen_double_spend_in_alt_chain_in_different_blocks : public gen_double_spend_base< gen_double_spend_in_alt_chain_in_different_blocks<txs_keeped_by_block> >
 {
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
+  static const uint64_t send_amount = DOUBLE_SPEND_AMOUNT;
   static const bool has_invalid_tx = !txs_keeped_by_block;
   static const size_t expected_pool_txs_count = has_invalid_tx ? 1 : 2;
   static const uint64_t expected_bob_balance = send_amount;
@@ -126,7 +126,7 @@ struct gen_double_spend_in_alt_chain_in_different_blocks : public gen_double_spe
 class gen_double_spend_in_different_chains : public test_chain_unit_base
 {
 public:
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
+  static const uint64_t send_amount = DOUBLE_SPEND_AMOUNT;
   static const size_t expected_blockchain_height = 4 + 2 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
 
   gen_double_spend_in_different_chains();
