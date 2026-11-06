@@ -2,6 +2,7 @@
 #include "rpc/chainlock_rpc.h"
 #include "rpc/epose_rpc_status.h"
 #include "rpc/rpc_payment_costs.h"
+#include "vm/gas.h"
 #include "epose/chainlock_v1.h"
 #include "storages/portable_storage_template_helper.h"
 
@@ -125,7 +126,22 @@ TEST(chainlock_rpc, restricted_vm_dry_run_gas)
   EXPECT_EQ(vm_dry_run_cost(0), 1u);
   EXPECT_EQ(vm_dry_run_cost(10000), 1u);
   EXPECT_EQ(vm_dry_run_cost(10001), 2u);
-  EXPECT_EQ(vm_dry_run_cost(QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP), 10u);
+  EXPECT_EQ(vm_dry_run_cost(QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP), 100u);
+}
+
+TEST(chainlock_rpc, restricted_vm_dry_run_cap_fits_signed_calls)
+{
+  EXPECT_GE(QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP, 4 * vm::gas::check_signature);
+  EXPECT_LT(QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP, QWC_VM_TX_GAS_CAP);
+}
+
+TEST(chainlock_rpc, wallet_retries_estimate_at_restricted_cap)
+{
+  EXPECT_TRUE(vm_dry_run_retry_at_restricted_cap(true, QWC_VM_TX_GAS_CAP, RESTRICTED_VM_DRY_RUN_GAS_STATUS));
+  EXPECT_FALSE(vm_dry_run_retry_at_restricted_cap(false, QWC_VM_TX_GAS_CAP, RESTRICTED_VM_DRY_RUN_GAS_STATUS));
+  EXPECT_FALSE(vm_dry_run_retry_at_restricted_cap(true, QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP, RESTRICTED_VM_DRY_RUN_GAS_STATUS));
+  EXPECT_FALSE(vm_dry_run_retry_at_restricted_cap(true, QWC_VM_TX_GAS_CAP, CORE_RPC_STATUS_OK));
+  EXPECT_FALSE(vm_dry_run_retry_at_restricted_cap(true, QWC_VM_TX_GAS_CAP, "Restricted"));
 }
 
 TEST(chainlock_rpc, vm_dry_run_wire_defaults)

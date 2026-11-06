@@ -7369,8 +7369,6 @@ bool simple_wallet::contract_dry_run(const std::vector<std::string> &args)
 
   try
   {
-    if (call.gas_limit == 0)
-      call.gas_limit = QWC_VM_TX_GAS_CAP;
     const cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response result = m_wallet->dry_run_contract_call(call);
     success_msg_writer() << tr("Verdict: ") << result.verdict << (result.accepted ? tr(" (accepted)") : tr(" (rejected)"));
     success_msg_writer() << tr("Height: ") << result.height;

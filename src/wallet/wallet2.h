@@ -1228,7 +1228,8 @@ private:
     bool parse_unsigned_tx_from_str(const std::string &unsigned_tx_st, unsigned_tx_set &exported_txs) const;
     bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     bool parse_tx_from_str(const std::string &signed_tx_st, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set &)> accept_func);
-    cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response dry_run_contract_call(const cryptonote::tx_extra_vm_call &call);
+    cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response dry_run_contract_call(cryptonote::tx_extra_vm_call &call);
+    bool invoke_vm_call_dry_run(const cryptonote::tx_extra_vm_call &call, cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response &res);
     using contract_signer_authorizer = std::function<bool(const crypto::hash&, uint32_t, const crypto::hash&, const crypto::public_key&, bool)>;
     uint64_t prepare_contract_call(cryptonote::tx_extra_vm_call &call, const contract_signer_authorizer& authorize = {}, const std::vector<crypto::public_key>& external_signers = {});
     enum class pending_tx_decode_error { none, bad_hex, bad_metadata };

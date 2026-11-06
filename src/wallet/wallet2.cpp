@@ -66,6 +66,7 @@ using namespace epee;
 #include "rpc/core_rpc_server_error_codes.h"
 #include "rpc/rpc_payment_signature.h"
 #include "rpc/rpc_payment_costs.h"
+#include "rpc/vm_dry_run_rpc.h"
 #include "misc_language.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "multisig/multisig.h"
@@ -11193,15 +11194,29 @@ bool wallet2::light_wallet_key_image_is_ours(const crypto::key_image& key_image,
 // This system allows for sending (almost) the entire balance, since it does
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
-cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response wallet2::dry_run_contract_call(const cryptonote::tx_extra_vm_call &call)
+bool wallet2::invoke_vm_call_dry_run(const cryptonote::tx_extra_vm_call &call, cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response &res)
 {
   std::vector<uint8_t> extra;
   THROW_WALLET_EXCEPTION_IF(!cryptonote::add_vm_call_to_tx_extra(extra, call), error::wallet_internal_error, "Failed to serialize contract call");
   cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::request req = AUTO_VAL_INIT(req);
-  cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response res = AUTO_VAL_INIT(res);
   req.extra = epee::string_tools::buff_to_hex_nodelimer(std::string(extra.begin(), extra.end()));
   req.fee = required_contract_call_fee(extra);
-  const bool r = invoke_http_json("/vm_call_dry_run", req, res, rpc_timeout);
+  res = {};
+  return invoke_http_json("/vm_call_dry_run", req, res, rpc_timeout);
+}
+//----------------------------------------------------------------------------------------------------
+cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response wallet2::dry_run_contract_call(cryptonote::tx_extra_vm_call &call)
+{
+  const bool estimate_gas = call.gas_limit == 0;
+  if (estimate_gas)
+    call.gas_limit = QWC_VM_TX_GAS_CAP;
+  cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response res = AUTO_VAL_INIT(res);
+  bool r = invoke_vm_call_dry_run(call, res);
+  if (r && cryptonote::vm_dry_run_retry_at_restricted_cap(estimate_gas, call.gas_limit, res.status))
+  {
+    call.gas_limit = QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP;
+    r = invoke_vm_call_dry_run(call, res);
+  }
   THROW_ON_RPC_RESPONSE_ERROR_GENERIC(r, {}, res, "vm_call_dry_run");
   return res;
 }
@@ -11209,8 +11224,6 @@ cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response wallet2::dry_run_contract_call
 uint64_t wallet2::prepare_contract_call(cryptonote::tx_extra_vm_call &call, const contract_signer_authorizer& authorize, const std::vector<crypto::public_key>& external_signers)
 {
   const bool estimate_gas = call.gas_limit == 0;
-  if (estimate_gas)
-    call.gas_limit = QWC_VM_TX_GAS_CAP;
   const cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response res = dry_run_contract_call(call);
   THROW_WALLET_EXCEPTION_IF(!res.accepted, error::wallet_internal_error, "Contract call dry-run is " + res.verdict);
 

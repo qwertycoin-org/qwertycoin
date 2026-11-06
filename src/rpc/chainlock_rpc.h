@@ -6,12 +6,12 @@
 #include "cryptonote_core/blockchain.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/rpc_payment_costs.h"
+#include "rpc/vm_dry_run_rpc.h"
 #include "string_tools.h"
 
 namespace cryptonote
 {
   constexpr uint64_t RESTRICTED_VM_PROOF_MAX_DEPTH = 64;
-  constexpr const char* RESTRICTED_VM_DRY_RUN_GAS_STATUS = "Gas exceeds restricted VM dry run cap";
   constexpr const char* HISTORICAL_VM_PROOF_BUSY_STATUS = "Historical VM proof busy";
   constexpr const char* RESTRICTED_VM_PROOF_DEPTH_STATUS = "Height exceeds restricted VM proof depth";
   constexpr const char* VM_STATE_REBUILDING_STATUS = "Contract state is rebuilding";
@@ -49,16 +49,6 @@ namespace cryptonote
   {
     return !restricted_without_payment
         || vm_proof_depth(requested_height, chain_height) <= RESTRICTED_VM_PROOF_MAX_DEPTH;
-  }
-
-  inline uint64_t vm_dry_run_cost(uint64_t gas_limit)
-  {
-    return std::max<uint64_t>(1, gas_limit / 10000 + (gas_limit % 10000 != 0));
-  }
-
-  inline bool vm_dry_run_gas_allowed(uint64_t gas_limit, bool restricted)
-  {
-    return !restricted || gas_limit <= QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP;
   }
 
   inline const char* chainlock_rpc_status(chainlock_proof_result result)
