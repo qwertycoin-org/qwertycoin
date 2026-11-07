@@ -162,13 +162,13 @@ int main(int argc, char* argv[])
   const network_type net_type = core::get_network_type_from_args(vm);
   r = core_storage->init(db, net_type);
 
+  CHECK_AND_ASSERT_MES(r, 1, "Failed to initialize source blockchain storage");
+
   if (core_storage->get_blockchain_pruning_seed() && !opt_blocks_dat)
   {
     LOG_PRINT_L0("Blockchain is pruned, cannot export");
     return 1;
   }
-
-  CHECK_AND_ASSERT_MES(r, 1, "Failed to initialize source blockchain storage");
   LOG_PRINT_L0("Source blockchain storage initialized OK");
   LOG_PRINT_L0("Exporting blockchain raw data...");
 
