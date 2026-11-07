@@ -59,6 +59,12 @@ latest checkpoint.
 | 32399 | Epoch 44 end | `c3c5c74783ff3101733acb48670bc8f791b628117d4850f7a8f1914866a2f640` | `0x31f52a20667` |
 | 33119 | Epoch 45 end | `91799333a921cffdaa065d2ea1119d670de814e09129cc34b52397edab492b37` | `0x327f836c11a` |
 | 33839 | Epoch 46 end | `192f57c5d37981872b2440bbfdebe7093773bd3153b42337210e095e76bca021` | `0x331869fb76a` |
+| 34559 | Epoch 47 end | `0b862c59a888914d01b7c7f8757b800d8a2078dae8565385cd4a597d7c35c489` | `0x339d075d815` |
+| 35279 | Epoch 48 end | `5f6838f2b768fb10d309b15327420eb3c13de5406cbbb7d260fb677481a1117e` | `0x342797ea892` |
+| 35999 | Epoch 49 end | `413eae32abbae5fb39c9a4c04df3e7db0d90f2123608b7c41262fca149b97a4c` | `0x34dfa71e3b2` |
+| 36719 | Epoch 50 end | `02432721ee6e051196f114d6769b228bd0540e5da55749295685bd517511ce40` | `0x3571b70c25b` |
+| 37439 | Epoch 51 end | `5cde38fc9aee89ff089be774c8b2f985378bd0af51339f590ab84c47a62e36f6` | `0x36441279521` |
+| 38159 | Epoch 52 end | `ed5542d9245a29fdc7893208cafbea22d66971333cc6f151486fe7296a149b9e` | `0x371d37e8414` |
 
 Each post-genesis `Epoch N end` entry is the end of a completed 720-block
 EPoSE epoch. The table is intentionally append-only: existing height, hash, and
