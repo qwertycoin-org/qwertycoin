@@ -121,7 +121,7 @@ namespace
     dummy::response payload{};
     boost::beast::flat_buffer buffer;
     http::response_parser<http::string_body> parser;
-    parser.body_limit(boost::none);
+    parser.body_limit(size + 1024);
     http::read(stream, buffer, parser, error);
     ASSERT_FALSE(bool(error));
     const auto response = parser.release();
