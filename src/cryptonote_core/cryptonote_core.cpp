@@ -240,8 +240,14 @@ namespace
 
   uint8_t epose_reachable_dial_capabilities_v2(uint8_t configured)
   {
-    return qwertycoin::epose::reachable_dial_capabilities_v2(
+    static std::atomic<bool> fallback_warned{false};
+    const uint8_t reached = qwertycoin::epose::reachable_dial_capabilities_v2(
         configured, epose_outbound_family_reachable_v2);
+    if (reached != 0 || configured == 0)
+      fallback_warned.store(false, std::memory_order_relaxed);
+    else if (!fallback_warned.exchange(true, std::memory_order_relaxed))
+      MWARNING("EPoSE-v2 outbound reachability probe failed for every configured family; advertising the configured dial families");
+    return qwertycoin::epose::dial_capabilities_or_configured_v2(configured, reached);
   }
 
   bool epose_endpoint_matches_member_v2(

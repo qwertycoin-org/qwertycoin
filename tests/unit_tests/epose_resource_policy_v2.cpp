@@ -391,6 +391,16 @@ TEST(epose_resource_policy_v2, configured_families_require_outbound_reachability
   EXPECT_EQ(4, probes);
 }
 
+TEST(epose_resource_policy_v2, unreachable_probe_falls_back_to_configured_families)
+{
+  const auto unreachable = [](bool) { return false; };
+  EXPECT_EQ(2u, dial_capabilities_or_configured_v2(2, reachable_dial_capabilities_v2(2, unreachable)));
+  EXPECT_EQ(3u, dial_capabilities_or_configured_v2(3, reachable_dial_capabilities_v2(3, unreachable)));
+  EXPECT_EQ(1u, dial_capabilities_or_configured_v2(3, 1));
+  EXPECT_EQ(0u, dial_capabilities_or_configured_v2(0, 0));
+  EXPECT_TRUE(valid_transport_profile_v2(2, dial_capabilities_or_configured_v2(2, 0), 0));
+}
+
 TEST(epose_resource_policy_v2, probe_budget_bounds_bytes_timeout_concurrency_and_peers)
 {
   probe_limits_v2 limits{2, 2, 1, 32, 64, 1000};

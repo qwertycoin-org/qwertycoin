@@ -26,5 +26,10 @@ namespace epose
       reached |= 2;
     return reached;
   }
+
+  inline uint8_t dial_capabilities_or_configured_v2(uint8_t configured, uint8_t reached)
+  {
+    return reached != 0 ? reached : static_cast<uint8_t>(configured & 3);
+  }
 }
 }
