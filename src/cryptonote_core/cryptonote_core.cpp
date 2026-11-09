@@ -785,6 +785,12 @@ namespace cryptonote
     const uint64_t chain_height = m_blockchain_storage.get_current_blockchain_height();
     if (chain_height == 0)
       return true;
+    // No published tip view: the EPoSE-v2 state is inconsistent with the
+    // database, so enrollment and admission are unknown. Wait for the heal
+    // instead of reading "unknown" as "not enrolled".
+    const auto view = m_blockchain_storage.get_epose_tip_view();
+    if (!view || !view->state)
+      return true;
     qwertycoin::epose::consensus_parameters_v2 parameters{};
     if (!m_blockchain_storage.get_epose_consensus_parameters_v2(parameters))
       return false;
@@ -808,13 +814,12 @@ namespace cryptonote
       boost::system::error_code error;
       boost::filesystem::remove(pending_path, error);
     };
-    const auto descriptors =
-        m_blockchain_storage.get_epose_identity_descriptors_v2(target_epoch);
-    const auto existing = std::find_if(
-        descriptors.begin(), descriptors.end(), [this](const auto &descriptor) {
-          return descriptor.identity_id == m_epose_v2_identity_id;
-        });
-    if (existing != descriptors.end())
+    const auto local = qwertycoin::epose::read_local_enrollment_v2(
+        view.get(), m_epose_v2_identity_id, target_epoch);
+    if (!local.known)
+      return true;
+    const auto *existing = &local.descriptor;
+    if (local.enrolled)
     {
       if (existing->service_public_key
           != m_epose_v2_keystore.service_public_key)
@@ -846,8 +851,7 @@ namespace cryptonote
       remember_epose_v2_endpoint(parameters, endpoint);
       if (!relay_local_epose_v2_endpoint(parameters, endpoint))
         return false;
-      if (m_blockchain_storage.has_epose_admission_v2(
-              m_epose_v2_identity_id, target_epoch))
+      if (local.admitted)
       {
         m_epose_v2_producer_cancel.store(true, std::memory_order_relaxed);
         m_epose_v2_pending_envelopes.clear();
@@ -979,7 +983,7 @@ namespace cryptonote
           return false;
         configuration.expiry_epoch = target_epoch + 2;
         m_epose_v2_producer_cancel.store(false, std::memory_order_relaxed);
-        const bool renewal = existing != descriptors.end();
+        const bool renewal = local.enrolled;
         const qwertycoin::epose::identity_descriptor_v2 current_descriptor =
             renewal ? *existing : qwertycoin::epose::identity_descriptor_v2{};
         m_epose_v2_producer_future = std::async(
@@ -1021,7 +1025,7 @@ namespace cryptonote
     bool save_failed = false;
     const auto status = qwertycoin::epose::redeliver_pending_enrollment_v2(
         pending_path, parameters, m_epose_v2_pending_envelopes, chain_height,
-        m_blockchain_storage.has_epose_admission_v2(m_epose_v2_identity_id, target_epoch),
+        local.admitted,
         [&](const std::vector<blobdata> &envelopes, std::vector<blobdata> &accepted) {
           return m_blockchain_storage.submit_epose_relay_envelopes_v2(envelopes, accepted);
         },
@@ -1056,7 +1060,8 @@ namespace cryptonote
   {
     if (!m_epose_v2_service_ready || m_offline || !get_protocol()
         || !get_protocol()->is_synchronized()
-        || m_epose_v2_discovery_endpoints.empty())
+        || m_epose_v2_discovery_endpoints.empty()
+        || !m_blockchain_storage.get_epose_tip_view())
       return true;
 
     if (m_epose_v2_receipt_future.valid())
@@ -1778,10 +1783,17 @@ namespace cryptonote
   bool core::epose_v2_endpoint_hash_is_canonical(
       const crypto::hash &descriptor_hash) const
   {
+    const auto view = m_blockchain_storage.get_epose_tip_view();
+    return view && epose_v2_endpoint_hash_is_canonical(descriptor_hash, *view);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::epose_v2_endpoint_hash_is_canonical(
+      const crypto::hash &descriptor_hash,
+      const qwertycoin::epose::epose_tip_view &view) const
+  {
     if (descriptor_hash == crypto::null_hash)
       return false;
-    const uint64_t current_epoch =
-        m_blockchain_storage.get_epose_current_epoch();
+    const uint64_t current_epoch = view.epoch;
     for (uint64_t offset = 0;
          offset <= qwertycoin::epose::EPOSE_ENDPOINT_CACHE_MAX_FUTURE_EPOCHS_V2;
          ++offset)
@@ -1789,17 +1801,17 @@ namespace cryptonote
       if (current_epoch > std::numeric_limits<uint64_t>::max() - offset)
         break;
       const uint64_t epoch = current_epoch + offset;
-      const auto descriptors =
-          m_blockchain_storage.get_epose_identity_descriptors_v2(epoch);
+      const auto descriptors = view.descriptors_for_epoch(epoch);
       if (std::any_of(descriptors.begin(), descriptors.end(),
               [&descriptor_hash](const auto &descriptor) {
                 return descriptor.endpoint_descriptor_hash == descriptor_hash;
               }))
         return true;
 
-      qwertycoin::epose::membership_snapshot_v2 snapshot{};
-      if (m_blockchain_storage.get_epose_membership_snapshot_v2(epoch, snapshot)
-          && std::any_of(snapshot.members.begin(), snapshot.members.end(),
+      const qwertycoin::epose::membership_snapshot_v2 *snapshot =
+          view.snapshot(epoch);
+      if (snapshot != nullptr
+          && std::any_of(snapshot->members.begin(), snapshot->members.end(),
               [&descriptor_hash](const auto &member) {
                 return member.endpoint_descriptor_hash == descriptor_hash;
               }))
@@ -1948,6 +1960,19 @@ namespace cryptonote
       qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
       const crypto::hash *required_hash) const
   {
+    // Without a view no hash is canonical; the local descriptor
+    // (required_hash null) does not depend on the chain.
+    static const qwertycoin::epose::epose_tip_view no_view{};
+    const auto view = m_blockchain_storage.get_epose_tip_view();
+    return get_epose_v2_endpoint_descriptor(
+        descriptor, required_hash, view ? *view : no_view);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::get_epose_v2_endpoint_descriptor(
+      qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
+      const crypto::hash *required_hash,
+      const qwertycoin::epose::epose_tip_view &view) const
+  {
     descriptor = {};
     if (required_hash == nullptr)
     {
@@ -1958,10 +1983,9 @@ namespace cryptonote
     }
     else
     {
-      if (!epose_v2_endpoint_hash_is_canonical(*required_hash))
+      if (!epose_v2_endpoint_hash_is_canonical(*required_hash, view))
         return false;
-      const uint64_t current_epoch =
-          m_blockchain_storage.get_epose_current_epoch();
+      const uint64_t current_epoch = view.epoch;
       const std::lock_guard<std::mutex> lock(m_epose_v2_endpoint_mutex);
       if (!m_epose_v2_endpoint_cache.find(
               *required_hash, current_epoch, descriptor))
@@ -1981,19 +2005,23 @@ namespace cryptonote
         || challenge.subject_public_key
             != m_epose_v2_keystore.service_public_key)
       return false;
-    qwertycoin::epose::consensus_parameters_v2 parameters{};
-    if (!m_blockchain_storage.get_epose_consensus_parameters_v2(parameters))
+    // Every chain fact comes from one tip view; an anchor outside it fails
+    // closed.
+    const auto view = m_blockchain_storage.get_epose_tip_view();
+    if (!view || !view->v2)
       return false;
+    const qwertycoin::epose::consensus_parameters_v2 &parameters =
+        view->parameters;
     qwertycoin::epose::endpoint_descriptor_v2 endpoint{};
     if (!get_epose_v2_endpoint_descriptor(
-            endpoint, &challenge.endpoint_descriptor_hash))
+            endpoint, &challenge.endpoint_descriptor_hash, *view))
       return false;
     if (endpoint.service_public_key == crypto::null_pkey)
       return false;
     const qwertycoin::epose::receipt_context_v2 context{
         parameters.nettype, parameters.genesis_hash,
         parameters.parameter_set_hash};
-    const auto authorize = [this, &parameters, &endpoint](
+    const auto authorize = [this, &view, &parameters, &endpoint](
         const qwertycoin::epose::service_challenge_v2 &candidate,
         const qwertycoin::epose::receipt_context_v2 &candidate_context) {
       if (candidate_context.nettype != parameters.nettype
@@ -2009,51 +2037,37 @@ namespace cryptonote
           || candidate.round >= parameters.committee.round_offsets.size())
         return false;
 
-      qwertycoin::epose::membership_snapshot_v2 snapshot{};
-      if (!m_blockchain_storage.get_epose_membership_snapshot_v2(
-              candidate.epoch, snapshot)
-          || candidate.snapshot_hash != snapshot.snapshot_hash)
+      const qwertycoin::epose::membership_snapshot_v2 *snapshot =
+          view->snapshot(candidate.epoch);
+      if (snapshot == nullptr
+          || candidate.snapshot_hash != snapshot->snapshot_hash)
         return false;
       const auto subject = std::find_if(
-          snapshot.members.begin(), snapshot.members.end(),
+          snapshot->members.begin(), snapshot->members.end(),
           [&candidate](const auto &member) {
             return member.service_public_key == candidate.subject_public_key
                 && member.endpoint_descriptor_hash
                     == candidate.endpoint_descriptor_hash;
           });
-      if (subject == snapshot.members.end())
+      if (subject == snapshot->members.end())
         return false;
 
       uint64_t anchor_height = 0;
-      if (candidate.round == 0)
-      {
-        if (!parameters.timing.committee_anchor(
-                candidate.epoch, anchor_height))
-          return false;
-      }
-      else
-      {
-        uint64_t start = 0;
-        if (!parameters.timing.epoch_start(candidate.epoch, start)
-            || start > std::numeric_limits<uint64_t>::max()
-                - parameters.committee.round_offsets[candidate.round])
-          return false;
-        anchor_height =
-            start + parameters.committee.round_offsets[candidate.round];
-      }
-      const crypto::hash anchor_hash =
-          m_blockchain_storage.get_block_id_by_height(anchor_height);
+      crypto::hash anchor_hash{};
+      if (!view->round_anchor_height(
+              candidate.epoch, candidate.round, anchor_height)
+          || !view->anchor_hash(anchor_height, anchor_hash))
+        return false;
       if (anchor_hash == crypto::null_hash
           || candidate.anchor_hash != anchor_hash
           || candidate.requested_object_hash != anchor_hash)
         return false;
       uint64_t deadline = 0;
-      const uint64_t inclusion_height =
-          m_blockchain_storage.get_current_blockchain_height();
+      const uint64_t inclusion_height = view->height;
       if (!parameters.timing.evidence_deadline(candidate.epoch, deadline)
           || inclusion_height > deadline)
         return false;
-      const auto committee = m_blockchain_storage.get_epose_committee_v2(
+      const auto committee = view->committee(
           candidate.epoch, candidate.round,
           candidate.subject_public_key, candidate.anchor_hash);
       return std::any_of(
@@ -2064,10 +2078,13 @@ namespace cryptonote
     };
     const auto source = [this](
         const crypto::hash &hash, cryptonote::blobdata &blob) {
+      // Main chain only: a block reorganized away since the view was
+      // published is not found.
+      cryptonote::blobdata stored;
       cryptonote::block block{};
-      bool orphan = false;
-      if (!m_blockchain_storage.get_block_by_hash(hash, block, &orphan)
-          || orphan || cryptonote::get_block_hash(block) != hash)
+      if (!m_blockchain_storage.get_block_blob_by_hash_unlocked(hash, stored)
+          || !cryptonote::parse_and_validate_block_from_blob(stored, block)
+          || cryptonote::get_block_hash(block) != hash)
         return false;
       blob = cryptonote::block_to_blob(block);
       return true;
@@ -2109,10 +2126,12 @@ namespace cryptonote
     if (!m_epose_v2_service_ready)
       return true;
 
-    qwertycoin::epose::consensus_parameters_v2 parameters{};
-    if (!m_blockchain_storage.get_epose_consensus_parameters_v2(parameters))
+    const auto view = m_blockchain_storage.get_epose_tip_view();
+    if (!view || !view->v2)
       return true;
-    const uint64_t height = m_blockchain_storage.get_current_blockchain_height();
+    const qwertycoin::epose::consensus_parameters_v2 &parameters =
+        view->parameters;
+    const uint64_t height = view->height;
     if (height < parameters.timing.activation_height)
       return true;
     const uint64_t current_epoch =
@@ -2128,9 +2147,11 @@ namespace cryptonote
             epoch, qualification.evidence_deadline_height))
       return true;
 
-    qwertycoin::epose::membership_snapshot_v2 snapshot{};
-    if (!m_blockchain_storage.get_epose_membership_snapshot_v2(epoch, snapshot))
+    const qwertycoin::epose::membership_snapshot_v2 *stored_snapshot =
+        view->snapshot(epoch);
+    if (stored_snapshot == nullptr)
       return true;
+    const qwertycoin::epose::membership_snapshot_v2 &snapshot = *stored_snapshot;
     const auto historical_member = std::find_if(
         snapshot.members.begin(), snapshot.members.end(), [this](const auto &member) {
           return member.identity_id == m_epose_v2_identity_id;
@@ -2142,7 +2163,7 @@ namespace cryptonote
     std::vector<size_t> coverage;
     if (qualification.subject_in_snapshot)
     {
-      if (!m_blockchain_storage.get_epose_receipt_coverage_v2(
+      if (!view->receipt_coverage(
               epoch, qualification.subject_identity, coverage))
         return true;
     }
@@ -2174,14 +2195,14 @@ namespace cryptonote
             >= qualification.rounds_required
         ? 0 : qualification.rounds_required - qualification.rounds_passed;
 
-    qwertycoin::epose::qualification_set_v2 finalized{};
-    qualification.finalized = m_blockchain_storage.get_epose_qualification_v2(
-        epoch, finalized);
+    const qwertycoin::epose::qualification_set_v2 *finalized =
+        view->qualification(epoch);
+    qualification.finalized = finalized != nullptr;
     if (qualification.finalized)
       qualification.qualified = std::find(
-          finalized.qualified_nodes.begin(), finalized.qualified_nodes.end(),
+          finalized->qualified_nodes.begin(), finalized->qualified_nodes.end(),
           qualification.subject_identity)
-          != finalized.qualified_nodes.end();
+          != finalized->qualified_nodes.end();
     return true;
   }
   //-----------------------------------------------------------------------------------------------

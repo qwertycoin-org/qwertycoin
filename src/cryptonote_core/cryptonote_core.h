@@ -289,6 +289,11 @@ namespace cryptonote
      bool get_epose_v2_endpoint_descriptor(
          qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
          const crypto::hash *required_hash = nullptr) const;
+     // As above, against one tip view; takes no chain lock.
+     bool get_epose_v2_endpoint_descriptor(
+         qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
+         const crypto::hash *required_hash,
+         const qwertycoin::epose::epose_tip_view &view) const;
      bool is_epose_v2_service_enabled() const { return m_epose_v2_service_enabled; }
      bool is_epose_v2_service_ready() const { return m_epose_v2_service_ready; }
      crypto::hash get_epose_v2_local_identity_id() const { return m_epose_v2_identity_id; }
@@ -1104,6 +1109,9 @@ namespace cryptonote
          const qwertycoin::epose::consensus_parameters_v2 &parameters);
      bool epose_v2_endpoint_hash_is_canonical(
          const crypto::hash &descriptor_hash) const;
+     bool epose_v2_endpoint_hash_is_canonical(
+         const crypto::hash &descriptor_hash,
+         const qwertycoin::epose::epose_tip_view &view) const;
      bool relay_local_epose_v2_endpoint(
          const qwertycoin::epose::consensus_parameters_v2 &parameters,
          const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,

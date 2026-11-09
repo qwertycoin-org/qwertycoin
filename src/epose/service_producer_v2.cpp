@@ -731,5 +731,28 @@ namespace epose
     enrollment.records = {std::move(lifecycle_record), std::move(admission_record)};
     return service_producer_status_v2::accepted;
   }
+
+  local_enrollment_v2 read_local_enrollment_v2(
+      const epose_tip_view *view, const crypto::hash &identity_id,
+      const uint64_t target_epoch)
+  {
+    local_enrollment_v2 out{};
+    if (view == nullptr || !view->state)
+      return out;
+    out.known = true;
+    for (const identity_descriptor_v2 &descriptor
+        : view->state->lifecycle().descriptors_for_epoch(target_epoch))
+    {
+      if (descriptor.identity_id == identity_id)
+      {
+        out.enrolled = true;
+        out.descriptor = descriptor;
+        break;
+      }
+    }
+    out.admitted =
+        view->state->membership().has_admission(identity_id, target_epoch);
+    return out;
+  }
 } // namespace epose
 } // namespace qwertycoin

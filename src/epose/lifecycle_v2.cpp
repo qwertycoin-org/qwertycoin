@@ -254,8 +254,8 @@ namespace epose
     usage.vector_payload_bytes = histories_.capacity() * sizeof(identity_history);
     for (const auto &history : histories_)
     {
-      usage.lifecycle_records += history.records.size();
-      usage.vector_payload_bytes += history.records.capacity() * sizeof(lifecycle_record_v2);
+      usage.lifecycle_records += history->records.size();
+      usage.vector_payload_bytes += history->records.capacity() * sizeof(lifecycle_record_v2);
     }
     return usage;
   }
@@ -268,7 +268,7 @@ namespace epose
   void lifecycle_registry_v2::rollback(const undo_journal &undo) noexcept
   {
     for (auto it = undo.record_sizes.rbegin(); it != undo.record_sizes.rend(); ++it)
-      histories_[it->index].records.resize(it->records_size);
+      histories_[it->index] = it->previous;
     histories_.resize(undo.histories_size);
   }
 
@@ -282,8 +282,8 @@ namespace epose
     const auto message = hash_lifecycle_record_v2(
         nettype_, genesis_hash_, parameter_set_hash_, record);
     for (const auto &history : histories_)
-      if (history.identity_id == record.next_descriptor.identity_id)
-        for (const auto &stored : history.records)
+      if (history->identity_id == record.next_descriptor.identity_id)
+        for (const auto &stored : history->records)
           if (message == hash_lifecycle_record_v2(
                   nettype_, genesis_hash_, parameter_set_hash_, stored))
             return true;
@@ -309,16 +309,16 @@ namespace epose
 
     const crypto::hash message = hash_lifecycle_record_v2(nettype_, genesis_hash_, parameter_set_hash_, record);
 
-    auto history_it = std::find_if(histories_.begin(), histories_.end(), [&](const identity_history &history) {
-      return hash_equal(history.identity_id, next.identity_id);
+    auto history_it = std::find_if(histories_.begin(), histories_.end(), [&](const auto &history) {
+      return hash_equal(history->identity_id, next.identity_id);
     });
     bool idempotent_duplicate = false;
     if (history_it != histories_.end())
     {
-      const auto duplicate = std::find_if(history_it->records.begin(), history_it->records.end(), [&](const lifecycle_record_v2 &stored) {
+      const auto duplicate = std::find_if((*history_it)->records.begin(), (*history_it)->records.end(), [&](const lifecycle_record_v2 &stored) {
         return message == hash_lifecycle_record_v2(nettype_, genesis_hash_, parameter_set_hash_, stored);
       });
-      idempotent_duplicate = duplicate != history_it->records.end();
+      idempotent_duplicate = duplicate != (*history_it)->records.end();
     }
     const bool registering = record.action == lifecycle_action_v2::register_identity;
     if (!idempotent_duplicate && registering)
@@ -332,7 +332,7 @@ namespace epose
     {
       if (history_it == histories_.end())
         return lifecycle_status_v2::identity_not_found;
-      const identity_descriptor_v2 &current = history_it->records.back().next_descriptor;
+      const identity_descriptor_v2 &current = (*history_it)->records.back().next_descriptor;
       const crypto::hash current_hash = hash_identity_descriptor_v2(nettype_, genesis_hash_, parameter_set_hash_, current);
       if (record.previous_descriptor_hash != current_hash)
         return lifecycle_status_v2::wrong_previous_descriptor;
@@ -342,7 +342,7 @@ namespace epose
         return lifecycle_status_v2::overlapping_change;
       if (next.operator_authorization_public_key != current.operator_authorization_public_key)
         return lifecycle_status_v2::invalid_transition;
-      if (history_it->records.back().action == lifecycle_action_v2::deregister_identity)
+      if ((*history_it)->records.back().action == lifecycle_action_v2::deregister_identity)
         return lifecycle_status_v2::invalid_transition;
 
       switch (record.action)
@@ -372,8 +372,9 @@ namespace epose
     {
       const uint64_t proposed_start = next.effective_epoch;
       const uint64_t proposed_end = next.expiry_epoch;
-      for (const identity_history &history : histories_)
+      for (const auto &shared_history : histories_)
       {
+        const identity_history &history = *shared_history;
         if (hash_equal(history.identity_id, next.identity_id))
           continue;
         for (size_t index = 0; index < history.records.size(); ++index)
@@ -406,41 +407,44 @@ namespace epose
 
     if (registering)
     {
-      identity_history history{};
-      history.identity_id = next.identity_id;
-      history.records.push_back(record);
+      auto history = std::make_shared<identity_history>();
+      history->identity_id = next.identity_id;
+      history->records.push_back(record);
       histories_.push_back(std::move(history));
     }
     else
     {
-      // Log before mutation, including before a possibly throwing allocation.
+      // Allocate and log before the non-throwing swap of the history.
+      auto history = std::make_shared<identity_history>(**history_it);
+      history->records.push_back(record);
       if (undo != nullptr)
         undo->record_sizes.push_back({
-            static_cast<size_t>(history_it - histories_.begin()), history_it->records.size()});
-      history_it->records.push_back(record);
+            static_cast<size_t>(history_it - histories_.begin()),
+            (*history_it)->records.size(), *history_it});
+      *history_it = std::move(history);
     }
     return lifecycle_status_v2::accepted;
   }
 
   const identity_descriptor_v2 *lifecycle_registry_v2::latest(const crypto::hash &identity_id) const
   {
-    const auto found = std::find_if(histories_.begin(), histories_.end(), [&](const identity_history &history) {
-      return hash_equal(history.identity_id, identity_id);
+    const auto found = std::find_if(histories_.begin(), histories_.end(), [&](const auto &history) {
+      return hash_equal(history->identity_id, identity_id);
     });
-    return found == histories_.end() || found->records.empty() ? nullptr : &found->records.back().next_descriptor;
+    return found == histories_.end() || (*found)->records.empty() ? nullptr : &(*found)->records.back().next_descriptor;
   }
 
   const identity_descriptor_v2 *lifecycle_registry_v2::descriptor_for_epoch(
       const crypto::hash &identity_id,
       uint64_t epoch) const
   {
-    const auto found = std::find_if(histories_.begin(), histories_.end(), [&](const identity_history &history) {
-      return hash_equal(history.identity_id, identity_id);
+    const auto found = std::find_if(histories_.begin(), histories_.end(), [&](const auto &history) {
+      return hash_equal(history->identity_id, identity_id);
     });
     if (found == histories_.end())
       return nullptr;
     const lifecycle_record_v2 *selected = nullptr;
-    for (const auto &record : found->records)
+    for (const auto &record : (*found)->records)
     {
       const identity_descriptor_v2 &descriptor = record.next_descriptor;
       if (descriptor.effective_epoch <= epoch)
@@ -458,9 +462,9 @@ namespace epose
   {
     std::vector<identity_descriptor_v2> descriptors;
     descriptors.reserve(histories_.size());
-    for (const identity_history &history : histories_)
+    for (const auto &history : histories_)
     {
-      const identity_descriptor_v2 *descriptor = descriptor_for_epoch(history.identity_id, epoch);
+      const identity_descriptor_v2 *descriptor = descriptor_for_epoch(history->identity_id, epoch);
       if (descriptor != nullptr)
         descriptors.push_back(*descriptor);
     }
@@ -475,7 +479,7 @@ namespace epose
     std::vector<const identity_history *> sorted;
     sorted.reserve(histories_.size());
     for (const auto &history : histories_)
-      sorted.push_back(&history);
+      sorted.push_back(history.get());
     std::sort(sorted.begin(), sorted.end(), [](const identity_history *left, const identity_history *right) {
       return hash_less(left->identity_id, right->identity_id);
     });

@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <memory>
 #include <vector>
 
 #include "crypto/crypto.h"
@@ -123,12 +124,22 @@ namespace epose
         const crypto::hash &genesis_hash,
         const crypto::hash &parameter_set_hash);
 
-    // A journal owns only lengths of histories changed since its checkpoint.
-    // It is process-local, strictly LIFO undo data, never consensus state.
+  private:
+    struct identity_history
+    {
+      crypto::hash identity_id{};
+      std::vector<lifecycle_record_v2> records;
+    };
+
+  public:
+    // A journal holds the previous, shared version of each history changed
+    // since its checkpoint. It is process-local, strictly LIFO undo data,
+    // never consensus state.
     struct history_change
     {
       size_t index = 0;
       size_t records_size = 0;
+      std::shared_ptr<const identity_history> previous;
     };
     struct undo_journal
     {
@@ -158,17 +169,12 @@ namespace epose
     crypto::hash state_hash() const;
 
   private:
-    struct identity_history
-    {
-      crypto::hash identity_id{};
-      std::vector<lifecycle_record_v2> records;
-    };
-
     cryptonote::network_type nettype_;
     crypto::hash genesis_hash_{};
     crypto::hash parameter_set_hash_{};
     bool valid_ = false;
-    std::vector<identity_history> histories_;
+    // Immutable and shared between copies; an append replaces the history.
+    std::vector<std::shared_ptr<const identity_history>> histories_;
   };
 } // namespace epose
 } // namespace qwertycoin

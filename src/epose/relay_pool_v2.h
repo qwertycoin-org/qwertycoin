@@ -10,6 +10,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -208,6 +209,9 @@ namespace epose
         const std::vector<envelope_record_v2> &records,
         uint64_t current_height);
     relay_pool_diagnostics_v2 diagnostics() const;
+    // The diagnostics as of the last release of the pool mutex. Takes no
+    // lock: read-only RPCs read this instead of diagnostics().
+    relay_pool_diagnostics_v2 published_diagnostics() const;
     void record_ingress_rejection(relay_record_status_v2 status);
     size_t size() const;
     size_t bytes() const;
@@ -242,6 +246,19 @@ namespace epose
       bool operator()(const crypto::hash &left, const crypto::hash &right) const
       {
         return std::memcmp(&left, &right, sizeof(crypto::hash)) < 0;
+      }
+    };
+
+    // (retain_until, id), earliest retention first, then id order: the
+    // eviction and pruning order of authenticated_receipts_.
+    struct retain_order_v2
+    {
+      bool operator()(const std::pair<uint64_t, crypto::hash> &left,
+          const std::pair<uint64_t, crypto::hash> &right) const
+      {
+        if (left.first != right.first)
+          return left.first < right.first;
+        return id_order_v2()(left.second, right.second);
       }
     };
 
@@ -328,7 +345,14 @@ namespace epose
     std::vector<stored_record_v2> records_;
     std::map<crypto::hash, authenticated_receipt_v2, id_order_v2>
         authenticated_receipts_;
+    // One entry per authenticated_receipts_ entry, in eviction order.
+    std::set<std::pair<uint64_t, crypto::hash>, retain_order_v2>
+        authenticated_by_retain_;
     mutable relay_pool_diagnostics_v2 diagnostics_{};
+    // Replaced with std::atomic_store under the pool mutex each time it is
+    // released; read with std::atomic_load.
+    mutable std::shared_ptr<const relay_pool_diagnostics_v2>
+        published_diagnostics_;
     bool synced_ = false;
     bool dirty_ = true;
     bool synced_state_valid_ = false;

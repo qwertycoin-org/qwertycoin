@@ -43,6 +43,7 @@
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <utility>
@@ -69,6 +70,7 @@
 #include "epose/chain_state.h"
 #include "epose/coordinator_v2.h"
 #include "epose/relay_pool_v2.h"
+#include "epose/tip_view_v2.h"
 
 namespace tools { class Notify; }
 
@@ -990,6 +992,17 @@ namespace cryptonote
         std::vector<blobdata> &accepted);
     qwertycoin::epose::relay_pool_diagnostics_v2
         get_epose_relay_pool_diagnostics_v2() const;
+    // Takes neither the chain lock nor the relay pool lock; null before
+    // init() completes.
+    std::shared_ptr<const qwertycoin::epose::epose_tip_view>
+        get_epose_tip_view() const;
+    // Minimum time between a failed EPoSE-v2 replay and the replay
+    // create_block_template() starts while the coordinator is inconsistent.
+    // Tests set it to zero.
+    void set_epose_template_heal_interval(std::chrono::steady_clock::duration interval);
+    // Canonical block blob by hash, read without the chain lock.
+    bool get_block_blob_by_hash_unlocked(
+        const crypto::hash &hash, cryptonote::blobdata &blob) const;
 
     /**
      * @brief returns the earliest block a given version may activate
@@ -1228,7 +1241,8 @@ namespace cryptonote
 
     tx_memory_pool& m_tx_pool;
 
-    mutable epee::critical_section m_blockchain_lock; // TODO: add here reader/writer lock
+    // Taken before the relay pool mutex; see epose/tip_view_v2.h.
+    mutable qwertycoin::epose::checked_chain_lock_v2 m_blockchain_lock; // TODO: add here reader/writer lock
 
     // main chain
     size_t m_current_block_cumul_weight_limit;
@@ -1331,8 +1345,19 @@ namespace cryptonote
     std::shared_ptr<const qwertycoin::epose::semantic_state_v2> m_epose_v2_relay_state;
     crypto::hash m_epose_v2_relay_state_tip{};
     uint64_t m_epose_v2_relay_state_height = 0;
+    qwertycoin::epose::epose_tip_view_publisher m_epose_tip_view;
+    // Set after a failed disconnect or replay. Until a replay succeeds no view
+    // is published and nothing reads the coordinator's state.
+    bool m_epose_v2_inconsistent = false;
+    // When restore_epose_state() last failed, and how long create_block_template()
+    // waits after that before it replays without a tip change.
+    std::chrono::steady_clock::time_point m_epose_v2_replay_failed_at{};
+    std::chrono::steady_clock::duration m_epose_v2_template_heal_interval =
+        std::chrono::seconds(60);
 
     bool is_epose_enabled_for_height(uint64_t height) const;
+    // Null without EPoSE-v2 or while the coordinator is inconsistent.
+    const qwertycoin::epose::semantic_state_v2 *epose_v2_state() const;
     bool get_epose_service_reward_for_block(uint64_t height, uint64_t total_reward, account_public_address &reward_address, crypto::secret_key &reward_view_secret_key, uint64_t &service_reward) const;
     bool validate_epose_service_reward(const block &b, uint64_t height, uint64_t total_reward) const;
     bool plan_epose_reward_v2(uint64_t height, const crypto::hash &parent_hash, uint64_t scheduled_subsidy, uint64_t fees, qwertycoin::epose::coordinator_reward_plan_v2 &plan) const;
@@ -1342,7 +1367,12 @@ namespace cryptonote
     bool apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height, uint64_t scheduled_subsidy, uint64_t fees, epose_state_commitment_v2 &commitment, std::vector<qwertycoin::epose::envelope_record_v2> &confirmed_records);
     void rollback_epose_block(uint64_t popped_height);
     bool rebuild_epose_state();
+    // Replays the coordinator if it is marked inconsistent; true once it is
+    // consistent with the database.
+    bool restore_epose_state();
     void note_epose_relay_tip_changed();
+    // Caller holds m_blockchain_lock and the tip is final.
+    void publish_epose_tip_view();
 
     /**
      * @brief collects the keys for all outputs being "spent" as an input

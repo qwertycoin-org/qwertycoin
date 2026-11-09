@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <future>
@@ -1746,4 +1747,71 @@ TEST(epose_relay_pool_incremental_v2, concurrent_admit_block_and_template_match_
             << " cache_hits=" << diagnostics.cache_hits
             << " verifications=" << diagnostics.verifications
             << " prune_runs=" << diagnostics.prune_runs << std::endl;
+}
+
+// The state copy and state hash made per published tip. QWC_EPOSE_COST_MEMBERS
+// sets the population (default 24) and the committee is population - 1, so
+// an epoch holds members * (members - 1) receipts. 200 members gives 39800,
+// about the 37800 that 10000 mainnet blocks hold (100 members, committee 9,
+// 3 rounds, ~13.9 epochs).
+TEST(epose_tip_view_cost_v2, state_copy_and_hash_per_tip)
+{
+  size_t count = 24;
+  if (const char *env = std::getenv("QWC_EPOSE_COST_MEMBERS"))
+    count = std::max<size_t>(3, std::strtoull(env, nullptr, 10));
+  const committee_policy_v2 policy{count - 1,
+      required_receipts_for_committee_size_v2(count - 1), 1, 1, 1, {0}};
+  network n(count, policy, "cost-anchor");
+
+  const auto median = [](std::vector<double> samples)
+  {
+    std::sort(samples.begin(), samples.end());
+    return samples[samples.size() / 2];
+  };
+  const auto measure = [&](size_t receipts)
+  {
+    std::vector<double> copy_us;
+    std::vector<double> hash_us;
+    std::shared_ptr<const semantic_state_v2> keep;
+    for (int i = 0; i < 9; ++i)
+    {
+      const auto t0 = std::chrono::steady_clock::now();
+      keep = std::make_shared<const semantic_state_v2>(n.state);
+      const auto t1 = std::chrono::steady_clock::now();
+      const crypto::hash hash = n.state.state_hash();
+      const auto t2 = std::chrono::steady_clock::now();
+      ASSERT_EQ(hash, keep->state_hash());
+      copy_us.push_back(std::chrono::duration<double, std::micro>(t1 - t0).count());
+      hash_us.push_back(std::chrono::duration<double, std::micro>(t2 - t1).count());
+    }
+    const state_memory_usage_v2 usage = n.state.membership().memory_usage();
+    const state_memory_usage_v2 life = n.state.lifecycle().memory_usage();
+    std::cout << "COST members=" << count << " receipts=" << receipts
+        << " leases=" << usage.leases << " lifecycle_records=" << life.lifecycle_records
+        << " bytes=" << usage.vector_payload_bytes + usage.map_value_bytes
+            + life.vector_payload_bytes + life.map_value_bytes
+        << " copy_us=" << median(copy_us) << " hash_us=" << median(hash_us)
+        << std::endl;
+  };
+
+  const size_t total = count * (count - 1);
+  size_t applied = 0;
+  size_t next_report = 0;
+  for (size_t subject = 0; subject < count; ++subject)
+    for (size_t k = 0; k + 1 < count; ++k)
+    {
+      if (applied == next_report)
+      {
+        measure(applied);
+        next_report += std::max<size_t>(1, total / 10);
+      }
+      semantic_apply_summary_v2 summary{};
+      ASSERT_EQ(semantic_status_v2::accepted, n.state.apply_transaction(
+          {n.receipt(subject, k, "cost-" + std::to_string(subject) + "-" + std::to_string(k))},
+          semantic_transaction_context_v2{2200, true, nullptr, nullptr},
+          n.source, summary));
+      ++applied;
+    }
+  measure(applied);
+  EXPECT_EQ(total, n.state.membership().memory_usage().receipts);
 }

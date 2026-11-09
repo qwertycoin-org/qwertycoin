@@ -57,6 +57,7 @@ set(unit_tests_sources
   epose_http_client.cpp
   epose_block_transition_v2.cpp
   epose_replay_v2.cpp
+  epose_rpc_tip_view_v2.cpp
   epee_utils.cpp
   expect.cpp
   fee.cpp
@@ -221,6 +222,8 @@ monero_add_minimal_executable(epose_unit_tests
   epose_service_producer_v2.cpp
   epose_relay_pool_v2.cpp
   epose_relay_pool_incremental_v2.cpp
+  epose_tip_view_v2.cpp
+  epose_blockchain_tip_view_v2.cpp
   epose_relay_pool_reference_v2.cpp
   epose_semantic_batch_v2.cpp
   epose_state_index_v2.cpp

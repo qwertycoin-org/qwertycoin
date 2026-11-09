@@ -559,6 +559,20 @@ namespace epose
     {
       increment_saturated(
           pool_.diagnostics_.pool_lock_microseconds, elapsed_microseconds(start_));
+      // Still under the mutex: lock_ is released after this body. On
+      // allocation failure readers keep the previous snapshot.
+      try
+      {
+        auto published =
+            std::make_shared<relay_pool_diagnostics_v2>(pool_.diagnostics_);
+        published->queue_items = pool_.records_.size();
+        published->queue_bytes = pool_.queue_.bytes();
+        std::atomic_store(&pool_.published_diagnostics_,
+            std::shared_ptr<const relay_pool_diagnostics_v2>(std::move(published)));
+      }
+      catch (...)
+      {
+      }
     }
     scoped_lock(const scoped_lock &) = delete;
     scoped_lock &operator=(const scoped_lock &) = delete;
@@ -647,7 +661,10 @@ namespace epose
     queue_ = other.queue_;
     records_ = other.records_;
     authenticated_receipts_ = other.authenticated_receipts_;
+    authenticated_by_retain_ = other.authenticated_by_retain_;
     diagnostics_ = other.diagnostics_;
+    std::atomic_store(&published_diagnostics_,
+        std::atomic_load(&other.published_diagnostics_));
     synced_ = other.synced_;
     dirty_ = other.dirty_;
     synced_state_valid_ = other.synced_state_valid_;
@@ -870,6 +887,7 @@ namespace epose
     queue_ = deadline_relay_queue_v2(queue_limits_);
     records_.clear();
     authenticated_receipts_.clear();
+    authenticated_by_retain_.clear();
     diagnostics_ = {};
     synced_ = false;
     dirty_ = true;
@@ -1189,6 +1207,13 @@ namespace epose
     return result;
   }
 
+  relay_pool_diagnostics_v2 relay_record_pool_v2::published_diagnostics() const
+  {
+    const std::shared_ptr<const relay_pool_diagnostics_v2> published =
+        std::atomic_load(&published_diagnostics_);
+    return published ? *published : relay_pool_diagnostics_v2{};
+  }
+
   void relay_record_pool_v2::record_ingress_rejection(
       const relay_record_status_v2 status)
   {
@@ -1242,29 +1267,44 @@ namespace epose
         || epoch == std::numeric_limits<uint64_t>::max()
         || !timing_.evidence_deadline(epoch + 1, retain_until))
       return;
-    authenticated_receipt_v2 &entry = authenticated_receipts_[id];
-    entry.record = record;
-    entry.epoch = epoch;
-    entry.retain_until = retain_until;
-    entry.context = context;
+    // Index first: if anything below throws, the two containers still
+    // describe the same entries.
+    const auto indexed = authenticated_by_retain_.emplace(retain_until, id);
+    const auto found = authenticated_receipts_.find(id);
+    try
+    {
+      authenticated_receipt_v2 &entry = found != authenticated_receipts_.end()
+          ? found->second : authenticated_receipts_[id];
+      if (found != authenticated_receipts_.end()
+          && found->second.retain_until != retain_until)
+        authenticated_by_retain_.erase({found->second.retain_until, id});
+      entry.retain_until = retain_until;
+      entry.record = record;
+      entry.epoch = epoch;
+      entry.context = context;
+    }
+    catch (...)
+    {
+      if (indexed.second && authenticated_receipts_.count(id) == 0)
+        authenticated_by_retain_.erase(indexed.first);
+      throw;
+    }
     while (authenticated_receipts_.size() > queue_limits_.max_items)
     {
-      auto oldest = authenticated_receipts_.begin();
-      for (auto it = authenticated_receipts_.begin();
-          it != authenticated_receipts_.end(); ++it)
-        if (it->second.retain_until < oldest->second.retain_until)
-          oldest = it;
-      authenticated_receipts_.erase(oldest);
+      const auto oldest = authenticated_by_retain_.begin();
+      authenticated_receipts_.erase(oldest->second);
+      authenticated_by_retain_.erase(oldest);
     }
   }
 
   void relay_record_pool_v2::prune_authenticated_locked(const uint64_t current_height)
   {
-    for (auto it = authenticated_receipts_.begin(); it != authenticated_receipts_.end();)
-      if (it->second.retain_until < current_height)
-        it = authenticated_receipts_.erase(it);
-      else
-        ++it;
+    while (!authenticated_by_retain_.empty()
+        && authenticated_by_retain_.begin()->first < current_height)
+    {
+      authenticated_receipts_.erase(authenticated_by_retain_.begin()->second);
+      authenticated_by_retain_.erase(authenticated_by_retain_.begin());
+    }
   }
 
   void relay_record_pool_v2::add_verification_time(

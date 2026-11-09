@@ -15,6 +15,7 @@
 #include "epose/record_codec_v2.h"
 #include "epose/resource_policy_v2.h"
 #include "epose/service_keystore_v2.h"
+#include "epose/tip_view_v2.h"
 
 namespace qwertycoin
 {
@@ -201,5 +202,21 @@ namespace epose
       uint64_t max_nonce_attempts,
       service_enrollment_v2 &enrollment,
       const std::atomic<bool> *cancel = nullptr);
+
+  // The local identity at `target_epoch`, as one published tip view states
+  // it. Without a view the EPoSE-v2 state is inconsistent with the database:
+  // known is false, and the producer must wait instead of reading "unknown"
+  // as "not enrolled" and starting an initial enrollment.
+  struct local_enrollment_v2
+  {
+    bool known = false;
+    bool enrolled = false;
+    identity_descriptor_v2 descriptor{};
+    bool admitted = false;
+  };
+
+  local_enrollment_v2 read_local_enrollment_v2(
+      const epose_tip_view *view, const crypto::hash &identity_id,
+      uint64_t target_epoch);
 } // namespace epose
 } // namespace qwertycoin
