@@ -2,64 +2,239 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
-#include <mutex>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
 
-#include "net/http_client.h"
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/address.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/system/error_code.hpp>
+
+#include "crypto/crypto.h"
 #include "epose/diagnostics_v2.h"
 #include "epose/coordinator_v2.h"
 #include "epose/resource_policy_v2.h"
+#include "epose/service_epoch.h"
 
 namespace cryptonote
 {
-  // One nonblocking lease on a process-lifetime HTTP executor. Keeping the
-  // executor alive lets a cancelled system getaddrinfo finish after the caller
-  // returns without blocking io_context destruction. Concurrent leases fail
-  // locally; the receipt producer already permits only one outstanding job.
-  class epose_http_client
+  // Receipt jobs in flight at once: committee_size (9 on mainnet), the
+  // subjects a verifier expects per round, so a round runs in one wave.
+  constexpr size_t EPOSE_V2_RECEIPT_PARALLEL_JOBS =
+      qwertycoin::epose::EPOSE_VERIFIER_COMMITTEE_SIZE;
+
+  // Each stage deadline is min(stage start + cap, round deadline). DNS and
+  // the address fallback share the connect deadline. recv has three bounds,
+  // all clipped to the round deadline:
+  // - inactivity: recv_idle without a byte is recv_timeout. It also bounds the
+  //   time to the first byte.
+  // - progress floor: from the first byte on, every span of recv_idle + window
+  //   must deliver min_rate x window bytes, else recv_too_slow. The span holds
+  //   recv_idle so a stall the inactivity bound tolerates never fails it.
+  // - total: recv start + recv_idle + ceil(B / min_rate), B = header + body
+  //   maximum, or header + Content-Length once known, else recv_too_slow.
+  // Worst-case lease hold per attempt: a trickler below the floor 2 s connect
+  // + 1 s send + 4 s to the first byte + 6 s span = 13 s; a peer at exactly
+  // the floor 2 + 1 + total bound = 521.5 s (service), 9.5 s (descriptor).
+  constexpr uint64_t EPOSE_V2_CONNECT_TIMEOUT_MS = 2000;
+  constexpr uint64_t EPOSE_V2_SEND_TIMEOUT_MS = 1000;
+  constexpr uint64_t EPOSE_V2_RECV_IDLE_TIMEOUT_MS = 4000;
+  // The largest exchange is EPOSE_V2_MAX_SERVICE_RECV_BYTES = 4,214,784
+  // bytes: 514.5 s at 8 KiB/s, 518.5 s with the idle slack. With a descriptor
+  // lookup and both connects and sends that is under 2.5% of the shortest
+  // mainnet round (199 x 120 s). Four concurrent fetches from one subject
+  // need 262.2 kbit/s of its uplink.
+  constexpr uint64_t EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S = 8 * 1024;
+  constexpr uint64_t EPOSE_V2_RECV_RATE_WINDOW_MS = 2000;
+  // Largest response the client reads for one exchange, headers included.
+  constexpr uint64_t EPOSE_V2_MAX_SERVICE_RECV_BYTES =
+      2 * (2 * 1024 * 1024) + 4096 + 16 * 1024;
+  constexpr uint64_t EPOSE_V2_MAX_DESCRIPTOR_RECV_BYTES = 4096 + 16 * 1024;
+
+  // slack_ms + ceil(max_bytes * 1000 / min_rate), saturating; min_rate 0
+  // gives uint64 max.
+  uint64_t epose_receipt_recv_total_ms_v2(
+      uint64_t max_bytes, uint64_t slack_ms, uint64_t min_rate);
+
+  // Remembered hostname resolutions, used while the resolver slot is busy.
+  // An entry serves only requests of the service epoch that resolved it. The
+  // first resolution of a newer epoch evicts all earlier ones; an answer for
+  // an older epoch is dropped. Memory only.
+  constexpr size_t EPOSE_V2_RESOLVED_HOST_ENTRIES = 4096;
+
+  // (d - h + 1) * T ms at height h for a window ending at d, T =
+  // DIFFICULTY_TARGET_V2 * 1000; 0 once h > d.
+  uint64_t epose_receipt_round_budget_ms_v2(
+      uint64_t height, uint64_t deadline_height);
+
+  // Start jitter for a round over blocks [first, last], B = last - first + 1:
+  //   window_ms = min(T, B * T / 100)
+  //   offset_ms = LE64(cn_fast_hash("QWC_EPOSE_RECEIPT_JITTER_V2" || local
+  //               || peer || LE64(epoch) || LE64(round))[0..8]) mod window_ms
+  // or 0 when window_ms is 0, counted from when this node first saw the round.
+  uint64_t epose_receipt_jitter_window_ms_v2(
+      uint64_t first_height, uint64_t last_height);
+  uint64_t epose_receipt_start_offset_ms_v2(
+      const crypto::public_key &local, const crypto::public_key &peer,
+      uint64_t epoch, uint64_t round, uint64_t window_ms);
+
+  struct epose_stage_deadlines_v2
   {
-    std::unique_lock<std::mutex> lease_;
-  public:
-    epose_http_client();
-    ~epose_http_client();
-    bool available() const { return lease_.owns_lock(); }
-    epee::net_utils::http::http_simple_client &client();
+    std::chrono::steady_clock::time_point round_deadline =
+        std::chrono::steady_clock::time_point::max();
+    std::chrono::milliseconds connect{EPOSE_V2_CONNECT_TIMEOUT_MS};
+    std::chrono::milliseconds send{EPOSE_V2_SEND_TIMEOUT_MS};
+    std::chrono::milliseconds recv_idle{EPOSE_V2_RECV_IDLE_TIMEOUT_MS};
+    // Floor in bytes per second. A rate of 0 disables the floor and the
+    // total bound; a window of 0 only the floor (tests only).
+    uint64_t recv_min_rate = EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S;
+    std::chrono::milliseconds recv_rate_window{EPOSE_V2_RECV_RATE_WINDOW_MS};
+
+    // min(now + cap, round_deadline).
+    std::chrono::steady_clock::time_point stage(std::chrono::milliseconds cap) const;
   };
 
-  // Network dependencies for deterministic transport tests. Production uses the
-  // system resolver and a direct socket connection to the checked endpoint.
+  // Network hooks, replaced in tests. Every hook runs on the client's
+  // worker thread and completes on its io_context.
   struct epose_network_v2
   {
     using resolve_handler = std::function<void(boost::system::error_code,
         std::vector<boost::asio::ip::address>)>;
-    using cancel_resolve = std::function<void()>;
-    // Must return promptly and invoke completion at most once on io (possibly
-    // after cancellation). Cancellation must also return promptly. Late
-    // completions must own their state; io outlives the caller. A pending lookup
-    // occupies the sole resolver slot until completion, even after cancellation.
-    // Throwing must leave no outstanding operation or future completion: the
-    // caller releases admission on exception. Synchronous completion is allowed.
+    using connect_handler = std::function<void(boost::system::error_code,
+        boost::asio::ip::tcp::socket)>;
+    using cancel_operation = std::function<void()>;
+    using cancel_resolve = cancel_operation;
+    using connect_function = std::function<cancel_operation(
+        const boost::asio::ip::tcp::endpoint &, boost::asio::io_context &,
+        std::chrono::steady_clock::time_point, connect_handler)>;
+    // Dials the filtered addresses (IPv4 first, resolver order within a
+    // family) until one connects or the deadline passes; cancellation
+    // suppresses the completion. A racing dialer can replace it without
+    // touching resolution, send or recv.
+    using dialer = std::function<cancel_operation(
+        const std::vector<boost::asio::ip::address> &, uint16_t,
+        boost::asio::io_context &, std::chrono::steady_clock::time_point,
+        const connect_function &, connect_handler)>;
+
+    // Returns promptly, as does its cancel; completes at most once on io, even
+    // after cancel, possibly synchronously. A pending lookup holds the resolver
+    // slot until it completes and a late success still refreshes the
+    // remembered resolution. Throwing leaves nothing outstanding.
     std::function<cancel_resolve(const std::string &, boost::asio::io_context &,
         resolve_handler)> resolve;
-    std::function<boost::unique_future<boost::asio::ip::tcp::socket>(
-        const boost::asio::ip::tcp::endpoint &, boost::asio::steady_timer &)> connect;
+    // One TCP connect, completed at most once on io (synchronously allowed);
+    // throwing boost::system::system_error is a failed connect with that code.
+    connect_function connect;
+    dialer dial;
   };
 
   bool public_epose_dial_address(const boost::asio::ip::address &address);
-  boost::unique_future<boost::asio::ip::tcp::socket> connect_epose_address(
-      const boost::asio::ip::tcp::endpoint &endpoint, boost::asio::steady_timer &timeout);
-  qwertycoin::epose::receipt_step_result_v2 prepare_epose_http_client(
-      epose_http_client &client,
-      const std::string &host, uint16_t port, const epose_network_v2 &network = {});
-  qwertycoin::epose::receipt_step_result_v2 fetch_epose_endpoint_descriptor(
-      const std::string &url,
-      const qwertycoin::epose::consensus_parameters_v2 &parameters,
-      const crypto::hash &required_hash,
-      qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
-      const epose_network_v2 &network = {});
-  qwertycoin::epose::receipt_step_result_v2 request_epose_service_response(
-      const qwertycoin::epose::service_challenge_v2 &challenge,
-      const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,
-      const qwertycoin::epose::consensus_parameters_v2 &parameters,
-      qwertycoin::epose::canonical_service_response_v2 &service_response,
-      const epose_network_v2 &network = {});
+  // Default connect hook: closes the socket at deadline, reports timed_out.
+  epose_network_v2::cancel_operation connect_epose_address(
+      const boost::asio::ip::tcp::endpoint &endpoint, boost::asio::io_context &io,
+      std::chrono::steady_clock::time_point deadline,
+      epose_network_v2::connect_handler complete);
+  // Default dialer: one address at a time; reports the last error.
+  epose_network_v2::cancel_operation sequential_epose_dial_v2(
+      const std::vector<boost::asio::ip::address> &addresses, uint16_t port,
+      boost::asio::io_context &io, std::chrono::steady_clock::time_point deadline,
+      const epose_network_v2::connect_function &connect,
+      epose_network_v2::connect_handler complete);
+  bool parse_epose_discovery_url(
+      const std::string &url, std::string &host, uint16_t &port);
+
+  struct epose_receipt_request_v2
+  {
+    qwertycoin::epose::consensus_parameters_v2 parameters{};
+    qwertycoin::epose::service_challenge_v2 challenge{};
+    // A known endpoint skips discovery. Otherwise each discovery URL is asked
+    // for challenge.endpoint_descriptor_hash in order until one validates.
+    bool endpoint_known = false;
+    qwertycoin::epose::endpoint_descriptor_v2 endpoint{};
+    std::vector<std::string> discovery;
+    // Production: the endpoint must belong to the challenge's subject and a
+    // known endpoint must match its descriptor hash.
+    bool bind_to_challenge = true;
+    // Stop after discovery and return the validated descriptor.
+    bool descriptor_only = false;
+    epose_stage_deadlines_v2 deadlines{};
+  };
+
+  struct epose_receipt_exchange_v2
+  {
+    qwertycoin::epose::receipt_step_result_v2 result{};
+    qwertycoin::epose::endpoint_descriptor_v2 endpoint{};
+    qwertycoin::epose::canonical_service_response_v2 response{};
+  };
+
+  namespace detail
+  {
+    struct epose_receipt_job_state;
+    struct epose_receipt_client_state;
+  }
+
+  // Thread-safe handle on one submitted receipt job.
+  class epose_receipt_job_v2
+  {
+  public:
+    explicit epose_receipt_job_v2(std::shared_ptr<detail::epose_receipt_job_state> state);
+    bool ready() const;
+    // Blocks until the job finishes. Never call it from a network hook.
+    epose_receipt_exchange_v2 wait() const;
+    // Asynchronous; the job ends as cancelled unless it already finished.
+    void cancel() const;
+
+  private:
+    std::shared_ptr<detail::epose_receipt_job_state> state_;
+  };
+
+  // One worker thread runs up to capacity jobs, each a chain of HTTP/1.1
+  // JSON POSTs (discovery, then the challenge) with per-stage deadlines.
+  // Hostnames share one resolver slot, held until its lookup completes even
+  // if cancelled; nothing queues for it. A busy slot means: dial the
+  // remembered resolution of the same epoch, else attach to a live lookup of
+  // the same host, else fail at once with dns_slot_busy. A lookup is
+  // cancelled once no job waits on it, so a stuck lookup fails only its own
+  // host's jobs. A stage clipped to the round deadline is deadline_expired.
+  // Responses need Content-Length or EOF; Transfer-Encoding is malformed.
+  class epose_receipt_client_v2
+  {
+  public:
+    explicit epose_receipt_client_v2(epose_network_v2 network = {},
+        size_t capacity = EPOSE_V2_RECEIPT_PARALLEL_JOBS);
+    // Cancels every job and joins the worker. The daemon uses shared(), whose
+    // in-flight jobs only the receipt scheduler's stop() cancels and joins.
+    ~epose_receipt_client_v2();
+    epose_receipt_client_v2(const epose_receipt_client_v2 &) = delete;
+    epose_receipt_client_v2 &operator=(const epose_receipt_client_v2 &) = delete;
+
+    // Deliberately process-lifetime: Asio's resolver joins its worker during
+    // io_context destruction and libc getaddrinfo is not interruptible.
+    static epose_receipt_client_v2 &shared();
+
+    size_t capacity() const;
+    size_t in_flight() const;
+    // Never blocks; beyond capacity the job is already finished as
+    // local_lease / lease_exhausted.
+    epose_receipt_job_v2 submit(epose_receipt_request_v2 request);
+    epose_receipt_job_v2 fetch_descriptor(const std::string &url,
+        const qwertycoin::epose::consensus_parameters_v2 &parameters,
+        const crypto::hash &required_hash,
+        const epose_stage_deadlines_v2 &deadlines = {});
+    epose_receipt_job_v2 request_service(
+        const qwertycoin::epose::service_challenge_v2 &challenge,
+        const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,
+        const qwertycoin::epose::consensus_parameters_v2 &parameters,
+        const epose_stage_deadlines_v2 &deadlines = {});
+
+  private:
+    std::shared_ptr<detail::epose_receipt_client_state> state_;
+    std::thread worker_;
+  };
 }

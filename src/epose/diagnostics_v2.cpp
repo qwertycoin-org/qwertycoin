@@ -43,6 +43,9 @@ namespace epose
       case receipt_attempt_stage_v2::envelope_encoding: return "envelope_encoding";
       case receipt_attempt_stage_v2::local_submission: return "local_submission";
       case receipt_attempt_stage_v2::canonical_inclusion: return "canonical_inclusion";
+      case receipt_attempt_stage_v2::network_send: return "network_send";
+      case receipt_attempt_stage_v2::network_recv: return "network_recv";
+      case receipt_attempt_stage_v2::local_lease: return "local_lease";
     }
     return "unknown";
   }
@@ -76,6 +79,13 @@ namespace epose
       case receipt_failure_reason_v2::deadline_expired: return "deadline_expired";
       case receipt_failure_reason_v2::address_prohibited: return "address_prohibited";
       case receipt_failure_reason_v2::internal_execution_failure: return "internal_execution_failure";
+      case receipt_failure_reason_v2::connect_timeout: return "connect_timeout";
+      case receipt_failure_reason_v2::send_timeout: return "send_timeout";
+      case receipt_failure_reason_v2::recv_timeout: return "recv_timeout";
+      case receipt_failure_reason_v2::dns_timeout: return "dns_timeout";
+      case receipt_failure_reason_v2::lease_exhausted: return "lease_exhausted";
+      case receipt_failure_reason_v2::dns_slot_busy: return "dns_slot_busy";
+      case receipt_failure_reason_v2::recv_too_slow: return "recv_too_slow";
     }
     return "unknown";
   }
@@ -101,6 +111,8 @@ namespace epose
       case receipt_scheduler_skip_v2::already_canonical: return "already_canonical";
       case receipt_scheduler_skip_v2::retry_backoff: return "retry_backoff";
       case receipt_scheduler_skip_v2::no_active_round: return "no_active_round";
+      case receipt_scheduler_skip_v2::start_jitter: return "start_jitter";
+      case receipt_scheduler_skip_v2::peer_gate: return "peer_gate";
     }
     return "unknown";
   }
@@ -356,6 +368,14 @@ namespace epose
           terminal.context.epoch, terminal.context.round,
           terminal.stage, terminal.reason);
       ++failure.count;
+      const auto total = std::find_if(failure_totals_.begin(), failure_totals_.end(),
+          [&terminal](const receipt_failure_total_v2 &entry) {
+            return entry.stage == terminal.stage && entry.reason == terminal.reason;
+          });
+      if (total == failure_totals_.end())
+        failure_totals_.push_back({terminal.stage, terminal.reason, 1});
+      else if (total->count != std::numeric_limits<uint64_t>::max())
+        ++total->count;
       if (terminal.outcome == receipt_attempt_outcome_v2::failure)
       {
         if (slot.last_failure_stage != terminal.stage
@@ -447,6 +467,7 @@ namespace epose
     result.attempts_in_flight = in_flight_;
     result.rounds = rounds_;
     result.failures = failures_;
+    result.failure_totals = failure_totals_;
     result.skips = skips_;
     result.recent_attempts.assign(
         recent_attempts_.begin(), recent_attempts_.end());

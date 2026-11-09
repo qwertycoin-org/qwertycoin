@@ -335,6 +335,174 @@ TEST(epose_service_producer_v2, receipt_retries_are_fair_and_bounded)
   EXPECT_EQ(2u, tracker.size());
 }
 
+TEST(epose_service_producer_v2, released_receipt_attempt_adds_no_backoff)
+{
+  receipt_retry_tracker_v2 tracker(4, 10, 40, 20);
+  const crypto::hash slot = hash_text("dns-slot-busy-subject");
+  ASSERT_TRUE(tracker.begin_context(1, 0, hash_text("round-anchor")));
+  ASSERT_TRUE(tracker.start(slot, 100));
+  EXPECT_FALSE(tracker.can_attempt(slot, 100));
+  tracker.released(slot);
+  const auto released = tracker.status(slot);
+  EXPECT_TRUE(released.found);
+  EXPECT_FALSE(released.in_flight);
+  EXPECT_EQ(0u, released.failures);
+  EXPECT_TRUE(tracker.can_attempt(slot, 100));
+  ASSERT_TRUE(tracker.start(slot, 100));
+  tracker.failed(slot, 100);
+  EXPECT_EQ(1u, tracker.status(slot).failures);
+  EXPECT_EQ(110u, tracker.status(slot).next_attempt_ms);
+  tracker.released(hash_text("unknown-slot"));
+  EXPECT_EQ(1u, tracker.size());
+}
+
+// A busy resolver slot counts no failure, but its delay escalates per
+// slot from base to min(max, limit), and any other outcome resets it.
+TEST(epose_service_producer_v2, busy_receipt_attempt_backs_off_escalating_and_bounded)
+{
+  receipt_retry_tracker_v2 tracker(4, 10, 40, 20);
+  const crypto::hash slot = hash_text("dns-slot-busy-subject");
+  const crypto::hash other = hash_text("other-subject");
+  ASSERT_TRUE(tracker.begin_context(1, 0, hash_text("round-anchor")));
+  uint64_t now = 100;
+  for (const uint64_t expected : {10u, 20u, 40u, 40u})
+  {
+    ASSERT_TRUE(tracker.start(slot, now));
+    tracker.busy(slot, now, 1000);
+    const auto status = tracker.status(slot);
+    EXPECT_FALSE(status.in_flight);
+    EXPECT_EQ(0u, status.failures);
+    EXPECT_EQ(now + expected, status.next_attempt_ms);
+    EXPECT_FALSE(tracker.can_attempt(slot, now + expected - 1));
+    now += expected;
+  }
+  EXPECT_EQ(4u, tracker.status(slot).busy);
+  // The per-peer delay never outlives the bound the caller gives (half the
+  // remaining round), even when that is below the base.
+  ASSERT_TRUE(tracker.start(slot, now));
+  tracker.busy(slot, now, 25);
+  EXPECT_EQ(now + 25, tracker.status(slot).next_attempt_ms);
+  now += 25;
+  ASSERT_TRUE(tracker.start(slot, now));
+  tracker.busy(slot, now, 3);
+  EXPECT_EQ(now + 3, tracker.status(slot).next_attempt_ms);
+  now += 3;
+  // Another slot is untouched; a real outcome resets the busy count.
+  EXPECT_TRUE(tracker.can_attempt(other, 100));
+  ASSERT_TRUE(tracker.start(slot, now));
+  tracker.released(slot);
+  EXPECT_EQ(0u, tracker.status(slot).busy);
+  ASSERT_TRUE(tracker.start(slot, now));
+  tracker.busy(slot, now, 1000);
+  EXPECT_EQ(now + 10, tracker.status(slot).next_attempt_ms);
+  tracker.busy(hash_text("unknown-slot"), now, 1000);
+  EXPECT_EQ(1u, tracker.size());
+}
+
+TEST(epose_service_producer_v2, every_receipt_outcome_maps_to_its_retry_transition)
+{
+  // Every reason the client, the verifier or local submission can report.
+  // Adding a reason after recv_too_slow must extend this table.
+  using reason = receipt_failure_reason_v2;
+  using action = receipt_retry_action_v2;
+  const auto last = static_cast<uint8_t>(reason::recv_too_slow);
+  for (uint8_t value = 0; value <= last; ++value)
+  {
+    const auto r = static_cast<reason>(value);
+    SCOPED_TRACE(static_cast<unsigned>(value));
+    action expected = action::failed;
+    if (r == reason::none)
+      expected = action::submitted;
+    else if (r == reason::lease_exhausted)
+      expected = action::released;
+    else if (r == reason::dns_slot_busy)
+      expected = action::busy;
+    EXPECT_EQ(expected, receipt_retry_action_for_v2(r, true));
+    // Outcomes recorded from core::stop() never touch the tracker.
+    EXPECT_EQ(action::none, receipt_retry_action_for_v2(r, false));
+
+    // Applying it changes the tracker exactly that way.
+    receipt_retry_tracker_v2 tracker(4, 10, 40, 20);
+    const crypto::hash slot = hash_text("outcome-subject");
+    ASSERT_TRUE(tracker.begin_context(1, 0, hash_text("round-anchor")));
+    ASSERT_TRUE(tracker.start(slot, 100));
+    EXPECT_EQ(action::none, apply_receipt_outcome_v2(tracker, false, slot, r, 100, 25, "env"));
+    auto status = tracker.status(slot);
+    EXPECT_TRUE(status.in_flight);
+    EXPECT_EQ(0u, status.failures);
+    EXPECT_EQ(0u, status.busy);
+    EXPECT_FALSE(status.has_envelope);
+    EXPECT_EQ(expected, apply_receipt_outcome_v2(tracker, true, slot, r, 100, 25, "env"));
+    status = tracker.status(slot);
+    EXPECT_FALSE(status.in_flight);
+    EXPECT_EQ(expected == action::failed ? 1u : 0u, status.failures);
+    EXPECT_EQ(expected == action::busy ? 1u : 0u, status.busy);
+    EXPECT_EQ(expected == action::submitted, status.has_envelope);
+    if (expected == action::released)
+      EXPECT_TRUE(tracker.can_attempt(slot, 100));
+    if (expected == action::busy)
+      EXPECT_EQ(110u, status.next_attempt_ms); // base 10, bounded by 25
+    if (expected == action::failed)
+      EXPECT_FALSE(tracker.can_attempt(slot, 100));
+  }
+  // The busy bound is the caller's (half the remaining round).
+  receipt_retry_tracker_v2 tracker(4, 10, 40, 20);
+  const crypto::hash slot = hash_text("busy-bound-subject");
+  ASSERT_TRUE(tracker.begin_context(1, 0, hash_text("round-anchor")));
+  ASSERT_TRUE(tracker.start(slot, 100));
+  apply_receipt_outcome_v2(tracker, true, slot, reason::dns_slot_busy, 100, 3);
+  EXPECT_EQ(103u, tracker.status(slot).next_attempt_ms);
+}
+
+TEST(epose_service_producer_v2, every_receipt_job_end_maps_to_its_terminal)
+{
+  using reason = receipt_failure_reason_v2;
+  using stage = receipt_attempt_stage_v2;
+  using outcome = receipt_attempt_outcome_v2;
+  using end = receipt_job_end_v2;
+  const auto expect_terminal = [](const receipt_job_terminal_v2 &terminal,
+      const outcome o, const stage st, const reason r) {
+    EXPECT_EQ(o, terminal.outcome);
+    EXPECT_EQ(st, terminal.stage);
+    EXPECT_EQ(r, terminal.reason);
+  };
+  const auto last_reason = static_cast<uint8_t>(reason::recv_too_slow);
+  const auto stages = static_cast<uint8_t>(stage::local_lease) + 1;
+  for (uint8_t value = 1; value <= last_reason; ++value)
+    for (const bool past_deadline : {false, true})
+    {
+      const receipt_step_result_v2 attempt{
+          static_cast<stage>(value % stages), static_cast<reason>(value)};
+      SCOPED_TRACE(static_cast<unsigned>(value));
+      SCOPED_TRACE(past_deadline);
+      expect_terminal(receipt_job_terminal_for_v2(
+                          end::attempt_failed, attempt, past_deadline),
+          attempt.reason == reason::cancelled ? outcome::cancelled
+                                              : outcome::failure,
+          attempt.stage, attempt.reason);
+      expect_terminal(receipt_job_terminal_for_v2(
+                          end::submission_rejected, attempt, past_deadline),
+          past_deadline ? outcome::expired : outcome::failure,
+          stage::local_submission,
+          past_deadline ? reason::deadline_expired
+                        : reason::local_submission_rejected);
+      expect_terminal(receipt_job_terminal_for_v2(
+                          end::submitted, attempt, past_deadline),
+          outcome::success, stage::local_submission, reason::none);
+      expect_terminal(receipt_job_terminal_for_v2(
+                          end::harvested_expired, attempt, past_deadline),
+          outcome::expired, stage::none, reason::deadline_expired);
+    }
+  // Only a submitted job releases its slot as submitted; every other end
+  // counts as a failure.
+  EXPECT_EQ(receipt_retry_action_v2::submitted, receipt_retry_action_for_v2(
+      receipt_job_terminal_for_v2(end::submitted, {}, false).reason, true));
+  for (const end e : {end::submission_rejected, end::harvested_expired})
+    for (const bool past_deadline : {false, true})
+      EXPECT_EQ(receipt_retry_action_v2::failed, receipt_retry_action_for_v2(
+          receipt_job_terminal_for_v2(e, {}, past_deadline).reason, true));
+}
+
 TEST(epose_service_producer_v2, receipt_retry_context_reconciles_reorgs)
 {
   receipt_retry_tracker_v2 tracker(4, 10, 40, 20);
