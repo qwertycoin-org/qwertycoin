@@ -384,8 +384,8 @@ class RequestValidationTests(unittest.TestCase):
 
     def test_docker_apt_sources_are_pinned_snapshots(self) -> None:
         dockerfile = (ROOT.parents[1] / "docker/Dockerfile").read_text(encoding="utf-8")
-        self.assertIn("ARG DEBIAN_SNAPSHOT=20260901T000000Z", dockerfile)
-        self.assertIn("ARG CA_CERTIFICATES_VERSION=20250419~deb12u1", dockerfile)
+        self.assertIn("ARG DEBIAN_SNAPSHOT=20261101T000000Z", dockerfile)
+        self.assertIn("ARG CA_CERTIFICATES_VERSION=20250419~deb12u2", dockerfile)
         self.assertIn('"ca-certificates=${CA_CERTIFICATES_VERSION}"', dockerfile)
         self.assertIn("rm -f /etc/apt/sources.list.d/debian.sources", dockerfile)
         self.assertIn("> /etc/apt/sources.list;", dockerfile)
