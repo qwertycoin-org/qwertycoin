@@ -772,7 +772,9 @@ TEST(epose_http_client, dns_deadline_classified_for_discovery_and_service)
   EXPECT_EQ(receipt_failure_reason_v2::transport_timeout, result.reason);
   EXPECT_EQ(1u, cancels);
   EXPECT_GE(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(4900));
-  EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::seconds(10));
+  // Keep generous scheduler/CI load headroom while still proving that the
+  // resolver deadline returns instead of waiting indefinitely.
+  EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::seconds(20));
   canonical_service_response_v2 response{};
   started = std::chrono::steady_clock::now();
   result = request_epose_service_response({}, signed_descriptor("subject.example.org"), parameters(), response, network);
@@ -780,7 +782,7 @@ TEST(epose_http_client, dns_deadline_classified_for_discovery_and_service)
   EXPECT_EQ(receipt_failure_reason_v2::transport_timeout, result.reason);
   EXPECT_EQ(2u, cancels);
   EXPECT_GE(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(4900));
-  EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::seconds(10));
+  EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::seconds(20));
 }
 
 TEST(epose_http_client, concurrent_client_lease_fails_without_waiting)

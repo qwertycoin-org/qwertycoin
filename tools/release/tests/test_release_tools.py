@@ -331,7 +331,7 @@ class RequestValidationTests(unittest.TestCase):
         # Count the compiled Linux suite, not both sides of platform-specific TESTs.
         # Keep enumeration, execution, recorded evidence and assembly bound together.
         count = int(re.search(r'test "\$actual_epose_tests" -eq ([0-9]+)', candidate).group(1))
-        self.assertEqual(count, 282)
+        self.assertEqual(count, 327)
         self.assertIn('epose_unit_tests --gtest_list_tests', candidate)
         self.assertIn("ctest --test-dir build/linux -R '^epose_unit_tests$' --output-on-failure", candidate)
         self.assertIn(f'"epose_unit_tests": "{count} tests pass"', candidate)
