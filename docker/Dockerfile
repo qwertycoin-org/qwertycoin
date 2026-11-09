@@ -4,7 +4,7 @@ ARG BASE_IMAGE=docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5c
 ARG CA_CERTIFICATES_VERSION=20250419~deb12u2
 FROM ${BASE_IMAGE} AS certificates
 
-ARG DEBIAN_SNAPSHOT=20260901T000000Z
+ARG DEBIAN_SNAPSHOT=20261101T000000Z
 ARG CA_CERTIFICATES_VERSION
 RUN set -eu; \
     rm -f /etc/apt/sources.list.d/debian.sources; \
