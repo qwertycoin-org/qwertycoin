@@ -507,6 +507,9 @@ namespace tx {
     // extract payment ID from construction data
     auto & tsx_data = m_ct.tsx_data;
     auto & tx = cur_tx();
+    cryptonote::tx_extra_vm_call contract_call{};
+    CHECK_AND_ASSERT_THROW_MES(cryptonote::get_tx_vm_call(tx.extra, contract_call) == 0,
+        "Contract calls are not supported by Trezor signing");
     const size_t input_size = tx.sources.size();
 
     m_ct.tx.version = 2;

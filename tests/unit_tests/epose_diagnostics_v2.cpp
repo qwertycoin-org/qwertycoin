@@ -236,6 +236,19 @@ TEST(epose_diagnostics_v2, qualification_pending_is_not_final_failure)
   EXPECT_STREQ("none", qualification_unmet_rule_v2(state));
 }
 
+TEST(epose_diagnostics_v2, unjudged_rounds_report_compatible_committee_requirement)
+{
+  qualification_diagnostics_v2 state{};
+  state.available = true;
+  state.finalized = true;
+  state.subject_in_snapshot = true;
+  state.rounds_required = 2;
+  state.rounds_unjudged = 3;
+  EXPECT_STREQ("compatible_committee", qualification_unmet_rule_v2(state));
+  state.rounds_judged = 2;
+  EXPECT_STREQ("receipt_rounds", qualification_unmet_rule_v2(state));
+}
+
 TEST(epose_diagnostics_v2, restart_resets_only_local_operational_counters)
 {
   receipt_diagnostics_v2 before_restart(4, 4, 100, 41);
@@ -508,4 +521,27 @@ TEST(epose_diagnostics_v2, canonical_inclusion_is_distinct_and_idempotent)
   EXPECT_EQ(1u, snapshot.rounds[0].canonical_inclusions_observed);
   ASSERT_EQ(1u, snapshot.recent_attempts.size());
   EXPECT_TRUE(snapshot.recent_attempts[0].canonical_inclusion_observed);
+}
+
+TEST(epose_diagnostics_v2, canonical_inclusion_uses_first_matching_attempt)
+{
+  receipt_diagnostics_v2 diagnostics(4, 4, 100, 42);
+  const auto slot = hash_text("shared-slot");
+  for (uint64_t id : {1u, 2u})
+  {
+    auto attempt = context(id);
+    attempt.slot = slot;
+    ASSERT_TRUE(diagnostics.started(attempt));
+    receipt_attempt_terminal_v2 terminal{};
+    terminal.context = attempt;
+    terminal.outcome = receipt_attempt_outcome_v2::success;
+    terminal.stage = receipt_attempt_stage_v2::local_submission;
+    diagnostics.terminal(terminal, 100);
+  }
+  uint64_t attempt_id = 99;
+  ASSERT_TRUE(diagnostics.canonical_inclusion(11, 1, slot, &attempt_id));
+  EXPECT_EQ(1u, attempt_id);
+  attempt_id = 99;
+  ASSERT_TRUE(diagnostics.canonical_inclusion(11, 1, hash_text("unmatched"), &attempt_id));
+  EXPECT_EQ(0u, attempt_id);
 }

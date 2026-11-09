@@ -31,7 +31,11 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <algorithm>
+#include <cctype>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <boost/uuid/uuid.hpp>
@@ -160,7 +164,8 @@
 
 #define P2P_SUPPORT_FLAG_FLUFFY_BLOCKS                  0x01
 #define P2P_SUPPORT_FLAG_EPOSE_V2                       0x02
-#define P2P_SUPPORT_FLAGS                               (P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_EPOSE_V2)
+#define P2P_SUPPORT_FLAG_CHAINLOCK                      0x04
+#define P2P_SUPPORT_FLAGS                               (P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_EPOSE_V2 | P2P_SUPPORT_FLAG_CHAINLOCK)
 
 #define RPC_IP_FAILS_BEFORE_BLOCK                       3
 
@@ -202,10 +207,12 @@
 // block major version 17 to the hardened EPoSE-v2 launch rules. Block-version
 // and EPoSE wire-format versions are separate domains.
 #define HF_VERSION_QWC_EPOSE                    17
+#define HF_VERSION_QWC_CONTRACTS                18
 // Height-gated local relay/template policy. This is intentionally not a hard
 // fork: block versions and every consensus rule remain HF17 on both sides of
 // the boundary, so mixed old/new deployments continue following one chain.
 constexpr uint64_t QWC_EPOSE_RELAY_HARDENING_HEIGHT = 21600;
+constexpr uint64_t QWC_DEVNET_CONTRACTS_ACTIVATION_HEIGHT = 60;
 
 // EPoSE-v2 is the launch state machine, not a one-version feature flag.  A
 // later QWC hardfork continues processing the same parameter-bound state until
@@ -216,6 +223,105 @@ inline constexpr bool is_qwc_epose_v2_hardfork(const uint8_t version) noexcept
 {
   return version >= HF_VERSION_QWC_EPOSE;
 }
+
+inline constexpr bool is_qwc_contracts_hardfork(const uint8_t version) noexcept
+{
+  return version >= HF_VERSION_QWC_CONTRACTS;
+}
+
+constexpr uint64_t QWC_WINDOW_POOL_LEAD_BLOCKS = 10;
+constexpr uint64_t QWC_WINDOW_UNLOCK_DELAY_BLOCKS = 10;
+constexpr uint64_t QWC_WALLET_DEFAULT_WINDOW_BLOCKS = 720;
+constexpr uint64_t QWC_WALLET_DEFAULT_WINDOW_ROUNDING = 100;
+constexpr uint64_t QWC_WINDOW_EXPIRED_TX_RETENTION_BLOCKS = 720;
+constexpr size_t QWC_WINDOW_EXPIRED_TX_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+
+constexpr uint64_t QWC_CHAINLOCK_QUORUM_MAX = 50;
+constexpr uint64_t QWC_CHAINLOCK_MIN_NODES = 10;
+constexpr uint64_t QWC_CHAINLOCK_THRESHOLD_PERCENT = 68;
+inline constexpr uint64_t qwc_chainlock_threshold(const uint64_t quorum_size) noexcept
+{
+  return (quorum_size * QWC_CHAINLOCK_THRESHOLD_PERCENT + 99) / 100;
+}
+constexpr uint64_t QWC_LOCK_MAX_AGE_BLOCKS = 720;
+inline constexpr bool qwc_chainlock_age_expired(uint64_t locked_height, uint64_t current_height) noexcept
+{
+  return locked_height < current_height && current_height - locked_height > QWC_LOCK_MAX_AGE_BLOCKS;
+}
+constexpr size_t QWC_CHAINLOCK_SIGNER_BITMAP_SIZE = 7;
+constexpr size_t QWC_CHAINLOCK_HEADER_SIZE = 8 + 32 + 8 + QWC_CHAINLOCK_SIGNER_BITMAP_SIZE;
+constexpr size_t QWC_CHAINLOCK_SIGNATURE_SIZE = 64;
+constexpr size_t QWC_CHAINLOCK_MAX_SIZE = QWC_CHAINLOCK_HEADER_SIZE + QWC_CHAINLOCK_QUORUM_MAX * QWC_CHAINLOCK_SIGNATURE_SIZE;
+constexpr uint64_t QWC_CHAINLOCK_STORE_RETENTION_BLOCKS = 2160;
+constexpr size_t QWC_CHAINLOCK_PENDING_MAX = 64;
+constexpr size_t QWC_CHAINLOCK_P2P_MAX_PACKET_SIZE = 4096;
+static_assert(QWC_CHAINLOCK_MAX_SIZE < QWC_CHAINLOCK_P2P_MAX_PACKET_SIZE, "chainlock must fit one P2P packet");
+constexpr size_t QWC_EPOSE_ENDPOINTS_V2_P2P_MAX_PACKET_SIZE = 16 * 1024;
+constexpr uint64_t QWC_EPOSE_RETAINED_EPOCHS = 8;
+constexpr size_t QWC_EPOSE_MIN_COMPATIBLE_COMMITTEE = 5;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_BUCKET_CAPACITY = 8;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_BUCKETS_MAX = 4096;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_IPV6_48_CAPACITY = 32;
+constexpr uint64_t QWC_EPOSE_CHALLENGE_RPC_IPV6_48_REQUESTS_PER_SECOND = 4;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_GLOBAL_HOSTS = 64;
+static_assert(QWC_EPOSE_CHALLENGE_RPC_BUCKET_CAPACITY > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_GLOBAL_HOSTS > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_GLOBAL_HOSTS <=
+    std::numeric_limits<size_t>::max() / QWC_EPOSE_CHALLENGE_RPC_BUCKET_CAPACITY);
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_GLOBAL_CAPACITY = QWC_EPOSE_CHALLENGE_RPC_GLOBAL_HOSTS * QWC_EPOSE_CHALLENGE_RPC_BUCKET_CAPACITY;
+constexpr uint64_t QWC_EPOSE_CHALLENGE_RPC_REFILL_MS = 1000;
+static_assert(QWC_EPOSE_CHALLENGE_RPC_REFILL_MS % QWC_EPOSE_CHALLENGE_RPC_IPV6_48_REQUESTS_PER_SECOND == 0);
+constexpr uint64_t QWC_EPOSE_CHALLENGE_RPC_IPV6_48_REFILL_MS =
+    QWC_EPOSE_CHALLENGE_RPC_REFILL_MS / QWC_EPOSE_CHALLENGE_RPC_IPV6_48_REQUESTS_PER_SECOND;
+constexpr uint64_t QWC_EPOSE_CHALLENGE_RPC_GLOBAL_REFILL_MS = QWC_EPOSE_CHALLENGE_RPC_REFILL_MS / QWC_EPOSE_CHALLENGE_RPC_GLOBAL_HOSTS;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_CAPACITY = 32 * 1024 * 1024;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_REFILL = 1024 * 1024;
+constexpr uint64_t QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_REFILL_MS = 250;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_HOST_BYTE_CAPACITY = 5 * 1024 * 1024;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_HOST_BYTE_REFILL = 512 * 1024;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_IPV6_48_BYTE_CAPACITY = 20 * 1024 * 1024;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_IPV6_48_BYTE_REFILL = 2 * 1024 * 1024;
+constexpr uint64_t QWC_EPOSE_CHALLENGE_RPC_BYTE_REFILL_MS = 1000;
+constexpr size_t QWC_EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES = 2 * 1024 * 1024;
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_JSON_OVERHEAD = 256;
+static_assert(QWC_EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES <=
+    (std::numeric_limits<size_t>::max() - QWC_EPOSE_CHALLENGE_RPC_JSON_OVERHEAD) / 2);
+constexpr size_t QWC_EPOSE_CHALLENGE_RPC_MAX_RESPONSE_BYTES =
+    QWC_EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES * 2 + QWC_EPOSE_CHALLENGE_RPC_JSON_OVERHEAD;
+static_assert(QWC_EPOSE_CHALLENGE_RPC_MAX_RESPONSE_BYTES <= QWC_EPOSE_CHALLENGE_RPC_HOST_BYTE_CAPACITY);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_MAX_RESPONSE_BYTES <= QWC_EPOSE_CHALLENGE_RPC_IPV6_48_BYTE_CAPACITY);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_MAX_RESPONSE_BYTES <= QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_CAPACITY);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_IPV6_48_REQUESTS_PER_SECOND > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_IPV6_48_REFILL_MS > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_HOST_BYTE_REFILL > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_HOST_BYTE_REFILL <= QWC_EPOSE_CHALLENGE_RPC_HOST_BYTE_CAPACITY);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_IPV6_48_BYTE_REFILL > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_IPV6_48_BYTE_REFILL <= QWC_EPOSE_CHALLENGE_RPC_IPV6_48_BYTE_CAPACITY);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_BYTE_REFILL_MS > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_REFILL_MS > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_GLOBAL_REFILL_MS > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_REFILL_MS > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_REFILL > 0);
+static_assert(QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_REFILL <=
+    QWC_EPOSE_CHALLENGE_RPC_RESPONSE_BYTE_CAPACITY);
+namespace cryptonote { constexpr char EPOSE_SERVICE_CHALLENGE_V2_URI[] = "/epose_service_challenge_v2"; }
+constexpr uint8_t QWC_EPOSE_ROLLING_STATE_SCHEMA = 2;
+
+constexpr size_t QWC_CONTRACT_TX_EXTRA_MAX_SIZE = 64 * 1024;
+constexpr uint8_t QWC_CONTRACT_SIGNATURE_SCHEME_VERSION = 1;
+constexpr uint64_t QWC_VM_UNDO_RETENTION_BLOCKS = 2160;
+constexpr uint64_t QWC_MINT_UNLOCK_BLOCKS = CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
+constexpr uint64_t QWC_VM_TX_GAS_CAP = 10000000;
+constexpr uint64_t QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP = 1000000; // QWC-114
+constexpr uint64_t QWC_VM_BLOCK_GAS_LIMIT = 50000000;
+constexpr bool QWC_POOL_DRY_RUN_KEPT_TXS = false; // QWC-10
+constexpr size_t QWC_VM_MAX_MINTS_PER_BLOCK = 16; // QWC-10
+constexpr size_t QWC_MINT_DERIVATION_INDEX = 0; // QWC-10
+constexpr uint64_t QWC_WALLET_GAS_MARGIN_PERCENT = 10;
+constexpr bool QWC_VM_DRY_RUN_ON_RESTRICTED_RPC = true; // QWC-10
+
+constexpr char QWC_CONTRACTS_PARAMETER_SET_HASH[] =
+    "e56242016ea9903587373837b1d4290633504c8636489c931d99b91fcf84cdaf";
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 #define CRYPTONOTE_SCALING_2021_FEE_ROUNDING_PLACES 2
@@ -239,6 +345,26 @@ inline constexpr bool is_qwc_epose_v2_hardfork(const uint8_t version) noexcept
 //a custom tag (1 byte) and up to 32 bytes of custom data for each recipient.
 // (1+32) + (1+1+16*32) + (1+16*32) = 1060
 #define MAX_TX_EXTRA_SIZE                       1060
+
+constexpr size_t QWC_COINBASE_STATE_ROOT_FIELD_SIZE = 1 + 32;
+constexpr size_t QWC_COINBASE_MAX_REWARD_OUTPUTS = 1 + 20;
+constexpr size_t QWC_COINBASE_MAX_OUTPUTS = QWC_COINBASE_MAX_REWARD_OUTPUTS + QWC_VM_MAX_MINTS_PER_BLOCK;
+static_assert(QWC_COINBASE_MAX_OUTPUTS < 128, "mint key count must fit a one-byte varint");
+constexpr size_t QWC_COINBASE_MINT_KEYS_FIELD_SIZE = 1 + 1 + 32 * QWC_COINBASE_MAX_OUTPUTS;
+constexpr size_t QWC_COINBASE_MINT_OUTPUT_MAX_SIZE = 10 + 1 + 32 + 1;
+constexpr size_t QWC_COINBASE_CHAINLOCK_FIELD_SIZE = 1 + 2 + QWC_CHAINLOCK_MAX_SIZE;
+constexpr size_t QWC_CONTRACTS_COINBASE_EXTRA_MAX_SIZE = MAX_TX_EXTRA_SIZE + QWC_COINBASE_STATE_ROOT_FIELD_SIZE + QWC_COINBASE_MINT_KEYS_FIELD_SIZE
+    + QWC_COINBASE_CHAINLOCK_FIELD_SIZE;
+constexpr size_t QWC_CONTRACTS_COINBASE_BLOB_RESERVED_SIZE = CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE + QWC_CONTRACTS_COINBASE_EXTRA_MAX_SIZE
+    + QWC_COINBASE_MINT_OUTPUT_MAX_SIZE * QWC_VM_MAX_MINTS_PER_BLOCK;
+inline constexpr size_t get_coinbase_extra_size_limit(const uint8_t version) noexcept
+{
+  return is_qwc_contracts_hardfork(version) ? QWC_CONTRACTS_COINBASE_EXTRA_MAX_SIZE : MAX_TX_EXTRA_SIZE;
+}
+inline constexpr size_t get_coinbase_blob_reserved_size(const uint8_t version) noexcept
+{
+  return is_qwc_contracts_hardfork(version) ? QWC_CONTRACTS_COINBASE_BLOB_RESERVED_SIZE : CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+}
 
 // New constants are intended to go here
 namespace config
@@ -318,6 +444,23 @@ namespace config
     std::string const GENESIS_TX = "013c01ff0001ffffffffffff0302df5d56da0c7d643ddd1ce61901c7bdc5fb1738bfe39fbe69c28a3a7032729c0f2101168d0c4ca86fb55a4cf6a36d31431be1c53a3bd7411bb24e8832410289fa6f3b";
     uint32_t const GENESIS_NONCE = 10002;
   }
+
+  namespace devnet
+  {
+    constexpr uint64_t DIFFICULTY_TARGET = 15;
+    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x14823c;
+    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0x14823d;
+    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 0x14823e;
+    uint16_t const P2P_DEFAULT_PORT = 28196;
+    uint16_t const RPC_DEFAULT_PORT = 28197;
+    uint16_t const ZMQ_RPC_DEFAULT_PORT = 28199;
+    boost::uuids::uuid const NETWORK_ID = { {
+        0x51, 0x57, 0x43, 0x32, 0x44, 0x45, 0x56, 0x4e, 0x32, 0x30, 0x32, 0x36, 0x50, 0x4f, 0x43, 0x04
+      } }; // QWC2DEVN2026POC
+    std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd08807121017767aafcde9be00dcfd098715ebcf7f410daebc582fda69d24a28e9d0bc890d1";
+    uint32_t const GENESIS_NONCE = 30001;
+  }
+
 }
 
 namespace cryptonote
@@ -328,8 +471,54 @@ namespace cryptonote
     TESTNET,
     STAGENET,
     FAKECHAIN,
+    DEVNET,
     UNDEFINED = 255
   };
+#define QWC_TRANSLATABLE_NETWORK_NAME(context, name) name
+
+  inline const char *network_type_name(network_type nettype)
+  {
+    switch (nettype)
+    {
+      case MAINNET: return QWC_TRANSLATABLE_NETWORK_NAME("cryptonote::simple_wallet", "Mainnet");
+      case TESTNET: return QWC_TRANSLATABLE_NETWORK_NAME("cryptonote::simple_wallet", "Testnet");
+      case STAGENET: return QWC_TRANSLATABLE_NETWORK_NAME("cryptonote::simple_wallet", "Stagenet");
+      case FAKECHAIN: return QWC_TRANSLATABLE_NETWORK_NAME("cryptonote::simple_wallet", "Fakechain");
+      case DEVNET: return QWC_TRANSLATABLE_NETWORK_NAME("cryptonote::simple_wallet", "Devnet");
+      case UNDEFINED:
+      default: return QWC_TRANSLATABLE_NETWORK_NAME("cryptonote::simple_wallet", "Undefined");
+    }
+  }
+
+#undef QWC_TRANSLATABLE_NETWORK_NAME
+
+  inline std::string network_type_name_lowercase(network_type nettype)
+  {
+    std::string name = network_type_name(nettype);
+    std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+    return name;
+  }
+
+  constexpr uint64_t block_target(network_type nettype, uint8_t version = 2)
+  {
+    return version < 2 ? DIFFICULTY_TARGET_V1 : nettype == DEVNET ? ::config::devnet::DIFFICULTY_TARGET : DIFFICULTY_TARGET_V2;
+  }
+
+  constexpr uint64_t divide_round_up(uint64_t numerator, uint64_t denominator)
+  {
+    return numerator / denominator + (numerator % denominator != 0);
+  }
+
+  constexpr uint64_t blocks_for_duration(network_type nettype, uint64_t seconds)
+  {
+    return divide_round_up(seconds, block_target(nettype));
+  }
+
+  constexpr uint64_t locked_tx_allowed_delta_seconds(network_type nettype, uint8_t version)
+  {
+    return block_target(nettype, version) * CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS;
+  }
+
   struct config_t
   {
     uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX;
@@ -377,12 +566,24 @@ namespace cryptonote
       ::config::stagenet::GENESIS_TX,
       ::config::stagenet::GENESIS_NONCE
     };
+    static const config_t devnet = {
+      ::config::devnet::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX,
+      ::config::devnet::CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX,
+      ::config::devnet::CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX,
+      ::config::devnet::P2P_DEFAULT_PORT,
+      ::config::devnet::RPC_DEFAULT_PORT,
+      ::config::devnet::ZMQ_RPC_DEFAULT_PORT,
+      ::config::devnet::NETWORK_ID,
+      ::config::devnet::GENESIS_TX,
+      ::config::devnet::GENESIS_NONCE
+    };
     switch (nettype)
     {
       case MAINNET: return mainnet;
       case TESTNET: return testnet;
       case STAGENET: return stagenet;
       case FAKECHAIN: return mainnet;
+      case DEVNET: return devnet;
       default: throw std::runtime_error("Invalid network type");
     }
   };

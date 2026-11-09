@@ -7,6 +7,7 @@ lines = Path(sys.argv[1]).read_text().splitlines()
 warning_start = re.compile(r"CMake Warning at tests/functional_tests/CMakeLists\.txt:\d+ \(message\):")
 required = (
     "functional_tests_rpc and check_missing_rpc_methods skipped;",
+    "chainlock_daemon_methods also skipped",
 )
 for index, line in enumerate(lines):
     if warning_start.fullmatch(line):

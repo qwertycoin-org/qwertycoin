@@ -46,6 +46,7 @@ using namespace cryptonote;
 #include "tools.h"
 #include "device/device_cold.hpp"
 #include "device_trezor/device_trezor.hpp"
+#include "device_trezor/trezor/protocol.hpp"
 
 
 namespace po = boost::program_options;
@@ -85,6 +86,28 @@ static device_trezor_test *trezor_device = nullptr;
 static device_trezor_test *ensure_trezor_test_device();
 static void rollback_chain(cryptonote::core * core, const cryptonote::block & head);
 static void setup_chain(cryptonote::core * core, gen_trezor_base & trezor_base, std::string chain_path, bool fix_chain, const po::variables_map & vm_core);
+
+static void test_contract_call_refusal()
+{
+  tools::wallet2::unsigned_tx_set txs;
+  txs.txes.emplace_back();
+  cryptonote::tx_extra_vm_call call{};
+  call.kind = cryptonote::tx_extra_vm_call::kind_invoke;
+  CHECK_AND_ASSERT_THROW_MES(cryptonote::add_vm_call_to_tx_extra(txs.txes[0].extra, call), "Could not encode contract call");
+  hw::tx_aux_data aux_data;
+  hw::trezor::protocol::tx::Signer signer(nullptr, &txs, 0, &aux_data);
+  try
+  {
+    signer.step_init();
+  }
+  catch (const std::exception &e)
+  {
+    CHECK_AND_ASSERT_THROW_MES(std::string(e.what()).find("Contract calls are not supported by Trezor signing") != std::string::npos,
+        "Unexpected Trezor contract call refusal");
+    return;
+  }
+  throw std::runtime_error("Trezor accepted a contract call");
+}
 
 static long get_env_long(const char * flag_name, boost::optional<long> def = boost::none){
   const char *env_data = getenv(flag_name);
@@ -134,6 +157,11 @@ int main(int argc, char* argv[])
     std::string chain_path = command_line::get_arg(vm, arg_chain_path);
     const bool heavy_tests = command_line::get_arg(vm, arg_heavy_tests);
     const bool fix_chain = command_line::get_arg(vm, arg_fix_chain);
+
+    test_contract_call_refusal();
+    ++tests_count;
+    if (command_line::get_arg(vm, arg_filter) == "contract_call_refusal")
+      return 0;
 
     hw::register_device(HW_TREZOR_NAME, ensure_trezor_test_device());  // shim device for call tracking
 
@@ -1026,7 +1054,8 @@ void gen_trezor_base::test_trezor_tx(std::vector<test_event_entry>& events, std:
   for(auto &ptx : ptxs) {
     txs.txes.push_back(get_construction_data_with_decrypted_short_payment_id(ptx, *m_trezor));
   }
-  txs.transfers = std::make_pair(0, wallet_accessor_test::get_transfers(m_wl_alice.get()));
+  const auto &transfers = wallet_accessor_test::get_transfers(m_wl_alice.get());
+  txs.transfers = std::make_tuple(0, transfers.size(), transfers);
 
   auto dev_cold = dynamic_cast<::hw::device_cold*>(m_trezor);
   CHECK_AND_ASSERT_THROW_MES(dev_cold, "Device does not implement cold signing interface");
@@ -1451,8 +1480,8 @@ tsx_builder * tsx_builder::construct_pending_tx(tools::wallet2::pending_tx &ptx,
   auto sources_copy = m_sources;
   auto change_addr = m_from->get_account().get_keys().m_account_address;
   bool r = construct_tx_and_get_tx_key(m_from->get_account().get_keys(), subaddresses, m_sources, destinations_copy,
-                                       change_addr, extra ? extra.get() : std::vector<uint8_t>(), tx, 0, tx_key,
-                                       additional_tx_keys, true, m_rct_config, nullptr);
+                                       change_addr, extra ? extra.get() : std::vector<uint8_t>(), tx, tx_key,
+                                       additional_tx_keys, m_from->nettype(), true, m_rct_config);
   CHECK_AND_ASSERT_THROW_MES(r, "Transaction construction failed");
 
   // Selected transfers permutation
@@ -1955,4 +1984,3 @@ bool wallet_api_tests::generate(std::vector<test_event_entry>& events)
   mine_and_test(events);
   return true;
 }
-

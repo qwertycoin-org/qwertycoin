@@ -319,13 +319,36 @@ public:
                             , const uint64_t& coins_generated
                             , const std::vector<std::pair<transaction, blobdata>>& txs
                             , const epose_state_commitment_v2 *epose_commitment = nullptr
+                            , const vm_block_update *vm_update = nullptr
+                            , const chainlock_record *chainlock_carrier = nullptr
+                            , const std::string *epose_snapshot = nullptr
                             );
+
+  virtual bool get_last_chainlock_carrier(uint64_t &carrier_height, chainlock_record &lock) const;
+  virtual bool get_chainlock_carrier(uint64_t locked_height, uint64_t &carrier_height, chainlock_record &lock) const;
+  virtual void put_chainlock(const chainlock_record &lock);
+  virtual bool get_chainlock(uint64_t height, chainlock_record &lock) const;
+  virtual bool get_chainlock(uint64_t height, const crypto::hash &hash, chainlock_record &lock) const;
+  virtual bool for_chainlocks_descending(std::function<bool(const chainlock_record &lock)> f) const;
 
   virtual bool get_epose_state_commitment_v2(
       uint64_t height, epose_state_commitment_v2 &commitment) const;
+  virtual void put_epose_snapshot(uint64_t height, const std::string &image);
+  virtual void remove_epose_snapshot(uint64_t height);
+  virtual bool get_epose_snapshot(uint64_t target_height,
+      uint64_t &snapshot_height, std::string &image) const;
+  virtual bool get_epose_snapshot_height(uint64_t target_height,
+      uint64_t &snapshot_height) const;
+
+  virtual bool get_vm_commitment(uint64_t height, vm_block_commitment &commitment) const;
+  virtual bool get_vm_undo(uint64_t height, vm::write_set &undo) const;
+  virtual bool get_vm_state_value(const std::string &key, std::string &value) const;
+  virtual bool for_all_vm_state(std::function<bool(const std::string &key, const std::string &value)> f) const;
+  virtual void reset_vm_state();
 
   virtual void set_batch_transactions(bool batch_transactions);
   virtual bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0);
+  virtual bool batch_active() const { return m_batch_active; }
   virtual void batch_commit();
   virtual void batch_stop();
   virtual void batch_abort();
@@ -384,7 +407,15 @@ private:
       uint64_t height, const epose_state_commitment_v2 &commitment);
   virtual void remove_epose_state_commitment_v2(uint64_t height);
 
-  virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash);
+protected:
+  virtual void add_vm_block(uint64_t height, const vm_block_update &update);
+  virtual void remove_vm_block(uint64_t height);
+  virtual void add_chainlock_carrier(uint64_t height, const chainlock_record &lock);
+  virtual void remove_chainlock_carrier(uint64_t height);
+
+private:
+
+  virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, uint64_t unlock_time);
 
   virtual void remove_transaction_data(const crypto::hash& tx_hash, const transaction& tx);
 
@@ -450,6 +481,15 @@ private:
 
   // migrate from DB version 4 to 5
   void migrate_4_5();
+  void migrate_5_6();
+
+  void put_vm_state_value(const std::string &key, const boost::optional<std::string> &value);
+  bool read_vm_state_value(MDB_txn *txn, const std::string &key, std::string &value) const;
+  void write_chainlock(const chainlock_record &lock);
+  bool find_epose_snapshot(uint64_t target_height,
+      uint64_t &snapshot_height, std::string *image) const;
+  bool epose_snapshot_is_canonical(uint64_t height,
+      const char *image, size_t size) const;
 
   void cleanup_batch();
 
@@ -483,6 +523,15 @@ private:
 
   MDB_dbi m_properties;
   MDB_dbi m_epose_state_v2;
+  MDB_dbi m_epose_snapshots;
+  bool m_epose_snapshots_present = false;
+  MDB_dbi m_vm_state;
+  MDB_dbi m_vm_undo;
+  MDB_dbi m_vm_commitment;
+  MDB_dbi m_chainlock_carriers;
+  MDB_dbi m_chainlock_carriers_by_lock;
+  MDB_dbi m_chainlocks;
+  MDB_dbi m_chainlock_candidates;
 
   mutable uint64_t m_cum_size;	// used in batch size estimation
   mutable unsigned int m_cum_count;

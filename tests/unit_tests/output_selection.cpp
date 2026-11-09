@@ -26,11 +26,12 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// FIXME: move this into a full wallet2 unit test suite, if possible
-
 #include "gtest/gtest.h"
 
 #include "wallet/wallet2.h"
+#include <cmath>
+#include <limits>
+#include <numeric>
 #include <string>
 
 static tools::wallet2::transfer_container make_transfers_container(size_t N)
@@ -70,9 +71,6 @@ TEST(select_outputs, one_out_of_N)
 {
   tools::wallet2 w;
 
-  // check that if there are N-1 outputs of the same height, one of them
-  // already selected, the next one selected is the one that's from a
-  // different height
   tools::wallet2::transfer_container transfers = make_transfers_container(10);
   transfers[6].m_block_height = 700;
   std::vector<size_t> unused_indices({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
@@ -85,7 +83,6 @@ TEST(select_outputs, order)
 {
   tools::wallet2 w;
 
-  // check that most unrelated heights are picked in order
   tools::wallet2::transfer_container transfers = make_transfers_container(5);
   transfers[0].m_block_height = 700;
   transfers[1].m_block_height = 700;
@@ -95,10 +92,10 @@ TEST(select_outputs, order)
   std::vector<size_t> unused_indices({0, 1, 2, 3, 4});
   std::vector<size_t> selected;
   SELECT(0);
-  PICK(3); // first the one that's far away
-  PICK(2); // then the one that's close
-  PICK(4); // then the one that's adjacent
-  PICK(1); // then the one that's on the same height
+  PICK(3);
+  PICK(2);
+  PICK(4);
+  PICK(1);
 }
 
 #define MKOFFSETS(N, n) \
@@ -109,13 +106,20 @@ TEST(select_outputs, order)
     offset = n_outs += (n); \
   }
 
+static std::vector<uint64_t> make_one_output_per_block_offsets(size_t block_count)
+{
+  std::vector<uint64_t> offsets(block_count);
+  std::iota(offsets.begin(), offsets.end(), uint64_t{1});
+  return offsets;
+}
+
 TEST(select_outputs, gamma)
 {
   std::vector<uint64_t> offsets;
 
   MKOFFSETS(300000, 1);
   tools::gamma_picker picker(offsets);
-  std::vector<double> ages(100000);
+  std::vector<double> ages(1000000);
   double age_scale = 120. * (offsets.size() / (double)n_outs);
   for (size_t i = 0; i < ages.size(); )
   {
@@ -133,31 +137,70 @@ TEST(select_outputs, gamma)
   ASSERT_LE(median, 1.4 * 86400);
 }
 
+TEST(select_outputs, boundary_output_belongs_to_next_block)
+{
+  const auto offsets = make_one_output_per_block_offsets(1000);
+  constexpr double shape = 1e14;
+  const double target_seconds = CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE * DIFFICULTY_TARGET_V2 + 180.0;
+  tools::gamma_picker picker(offsets, shape, std::log(target_seconds) / shape);
+  const uint64_t expected_output = picker.get_num_rct_outs() - 2;
+  for (int i = 0; i < 20; ++i)
+    ASSERT_EQ(expected_output, picker.pick());
+}
+
+TEST(select_outputs, devnet_gamma_uses_fifteen_second_blocks)
+{
+  const auto offsets = make_one_output_per_block_offsets(1000);
+  constexpr double shape = 1e14;
+  const double target_seconds = CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE * cryptonote::block_target(cryptonote::DEVNET) + 37.5;
+  tools::gamma_picker picker(offsets, shape, std::log(target_seconds) / shape, cryptonote::DEVNET);
+  for (int i = 0; i < 20; ++i)
+    ASSERT_EQ(picker.get_num_rct_outs() - 3, picker.pick());
+}
+
+TEST(select_outputs, overflowing_gamma_age_is_rejected)
+{
+  const auto offsets = make_one_output_per_block_offsets(1000);
+  tools::gamma_picker picker(offsets, 1000.0, 1000.0);
+  ASSERT_EQ(std::numeric_limits<uint64_t>::max(), picker.pick());
+
+  std::vector<uint64_t> stale_offsets(300000, 1);
+  ASSERT_THROW(tools::gamma_picker(stale_offsets, 1000.0, 1000.0), tools::error::wallet_internal_error);
+}
+
+TEST(select_outputs, empty_recent_output_window_is_rejected)
+{
+  std::vector<uint64_t> offsets(300000, 100);
+  std::iota(offsets.begin(), offsets.begin() + 100, uint64_t{1});
+  constexpr double shape = 1e14;
+  const double target_seconds = CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE * DIFFICULTY_TARGET_V2 + 180.0;
+  ASSERT_THROW(tools::gamma_picker(offsets, shape, std::log(target_seconds) / shape), tools::error::wallet_internal_error);
+}
+
 TEST(select_outputs, density)
 {
   static const size_t NPICKS = 1000000;
   std::vector<uint64_t> offsets;
 
-  MKOFFSETS(300000, 1 + (crypto::rand<size_t>() & 0x1f));
+  size_t block_index = 0;
+  MKOFFSETS(300000, 1 + (block_index++ & 0x1f));
   tools::gamma_picker picker(offsets);
 
-  std::vector<int> picks(/*n_outs*/offsets.size(), 0);
+  std::vector<int> picks(offsets.size(), 0);
   for (int i = 0; i < NPICKS; )
   {
     uint64_t o = picker.pick();
     if (o >= n_outs)
       continue;
-    auto it = std::lower_bound(offsets.begin(), offsets.end(), o);
+    auto it = std::upper_bound(offsets.begin(), offsets.end(), o);
     auto idx = std::distance(offsets.begin(), it);
     ASSERT_LT(idx, picks.size());
     ++picks[idx];
     ++i;
   }
 
-  for (int d = 1; d < 0x20; ++d)
+  for (int d = 1; d <= 0x20; ++d)
   {
-    // count the number of times an output in a block of d outputs was selected
-    // count how many outputs are in a block of d outputs
     size_t count_selected = 0, count_chain = 0;
     for (size_t i = 0; i < offsets.size(); ++i)
     {
@@ -191,7 +234,7 @@ TEST(select_outputs, same_distribution)
     uint64_t o = picker.pick();
     if (o >= n_outs)
       continue;
-    auto it = std::lower_bound(offsets.begin(), offsets.end(), o);
+    auto it = std::upper_bound(offsets.begin(), offsets.end(), o);
     auto idx = std::distance(offsets.begin(), it);
     ASSERT_LT(idx, chain_picks.size());
     ++chain_picks[idx];
@@ -199,7 +242,6 @@ TEST(select_outputs, same_distribution)
     ++i;
   }
 
-  // scale them both to 0-100
   std::vector<int> chain_norm(100, 0), output_norm(100, 0);
   for (size_t i = 0; i < output_picks.size(); ++i)
     output_norm[i * 100 / output_picks.size()] += output_picks[i];

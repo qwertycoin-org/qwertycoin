@@ -28,6 +28,7 @@
 
 set(cn_deserialize_sources
   cn_deserialize.cpp
+  debug_version_banner.cpp
   )
 
 monero_add_executable(cn_deserialize
@@ -72,6 +73,7 @@ set_property(TARGET object_sizes
 
 set(dns_checks_sources
   dns_checks.cpp
+  debug_version_banner.cpp
   )
 
 monero_add_executable(dns_checks

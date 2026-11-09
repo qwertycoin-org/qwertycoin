@@ -40,7 +40,8 @@ namespace epose
   {
     accepted,
     // The exact authenticated wire envelope is already pending locally. It
-    // is never forwarded by an intermediary or added to the queue again.
+    // may be re-forwarded under the bounded transport policy without adding
+    // another queue entry.
     idempotent_duplicate,
     // A different authenticated envelope occupies the same logical receipt
     // slot in the same canonical context. Keep the existing queue entry and
@@ -61,7 +62,39 @@ namespace epose
     invalid_batch,
     expired,
     capacity_exhausted,
+    outside_retained_window,
     context_unavailable
+  };
+
+  constexpr bool local_ingress_is_expected_race_v2(relay_ingress_status_v2 status)
+  {
+    return status == relay_ingress_status_v2::expired
+        || status == relay_ingress_status_v2::outside_retained_window;
+  }
+
+  enum class relay_ingress_rejection_v2
+  {
+    none,
+    invalid_pool_or_policy,
+    envelope_budget,
+    envelope_parse,
+    receipt_structure,
+    receipt_window_unavailable,
+    receipt_late_unauthenticated,
+    receipt_slot_unauthenticated,
+    semantic_rejected,
+    queue_expired,
+    queue_full,
+    queue_rejected,
+    receipt_window_closed
+  };
+
+  struct relay_ingress_trace_v2
+  {
+    relay_ingress_rejection_v2 rejection = relay_ingress_rejection_v2::none;
+    semantic_status_v2 semantic = semantic_status_v2::accepted;
+    lifecycle_status_v2 lifecycle = lifecycle_status_v2::accepted;
+    size_t envelope_index = 0;
   };
 
   struct relay_record_selection_v2
@@ -104,7 +137,7 @@ namespace epose
     void prune_expired(uint64_t current_height);
     void prune_unusable_receipts(
         uint64_t current_height,
-        const semantic_state_v2 &canonical_state,
+        semantic_state_v2 &canonical_state,
         const canonical_context_source_v2 &contexts);
     relay_record_status_v2 select_for_template(
         uint64_t current_height,
@@ -120,6 +153,7 @@ namespace epose
     size_t bytes() const;
 
   private:
+    void prune_canonical_enrollment(const semantic_state_v2 &canonical_state);
     struct stored_record_v2
     {
       crypto::hash id{};
@@ -162,9 +196,10 @@ namespace epose
       uint64_t inclusion_height,
       const envelope_limits_v2 &envelope_limits,
       const relay_policy_v2 &policy,
-      const semantic_state_v2 &canonical_state,
+      semantic_state_v2 &canonical_state,
       const canonical_context_source_v2 &contexts,
       relay_record_pool_v2 &pool,
-      std::vector<std::string> &accepted);
+      std::vector<std::string> &accepted,
+      relay_ingress_trace_v2 *trace = nullptr);
 } // namespace epose
 } // namespace qwertycoin

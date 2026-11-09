@@ -35,10 +35,13 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "net.http"
 
 
-#define CHAIN_HTTP_TO_MAP2(context_type) bool handle_http_request(const epee::net_utils::http::http_request_info& query_info, \
+#define CHAIN_HTTP_TO_MAP2(context_type) CHAIN_HTTP_TO_MAP2_FILTERED(context_type, true)
+#define CHAIN_HTTP_TO_MAP2_FILTERED(context_type, precheck) CHAIN_HTTP_TO_MAP2_FILTERED_POST(context_type, precheck, static_cast<void>(0))
+#define CHAIN_HTTP_TO_MAP2_FILTERED_POST(context_type, precheck, postcheck) bool handle_http_request(const epee::net_utils::http::http_request_info& query_info, \
               epee::net_utils::http::http_response_info& response, \
               context_type& m_conn_context) \
 {\
+  if (!(precheck)) return true; \
   MINFO("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI); \
   response.m_response_code = 200; \
   response.m_response_comment = "Ok"; \
@@ -53,6 +56,7 @@
     response.m_response_code = 500; \
     response.m_response_comment = "Internal Server Error"; \
   } \
+  static_cast<void>(postcheck); \
   return true; \
 }
 

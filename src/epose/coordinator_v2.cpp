@@ -42,7 +42,8 @@ namespace epose
         && (empty_policy == empty_qualification_policy_v2::miner_fallback
             || empty_policy == empty_qualification_policy_v2::permanent_nonissuance)
         && service_reward_bps == EPOSE_SERVICE_REWARD_BPS_V2
-        && state_commitment_schema == 1;
+        && state_commitment_schema == 1
+        && retained_epochs == QWC_EPOSE_RETAINED_EPOCHS;
   }
 
   bool compiled_consensus_parameters_v2(
@@ -51,28 +52,51 @@ namespace epose
       consensus_parameters_v2 &parameters)
   {
     parameters = {};
+    const char *genesis_hex = nullptr;
+    const char *parameter_set_hex = nullptr;
     crypto::hash expected_genesis{};
     crypto::hash parameter_set_hash{};
-    if (nettype != cryptonote::MAINNET
-        || !epee::string_tools::hex_to_pod(MAINNET_FINAL_GENESIS_HASH_V2, expected_genesis)
-        || !epee::string_tools::hex_to_pod(
-            MAINNET_FINAL_PARAMETER_SET_HASH_V2, parameter_set_hash)
+    if (nettype == cryptonote::FAKECHAIN)
+    {
+      expected_genesis = genesis_hash;
+      parameter_set_hex = FAKECHAIN_PARAMETER_SET_HASH_V2;
+    }
+    else if (!compiled_profile_hashes_v2(nettype, genesis_hex, parameter_set_hex)
+        || !epee::string_tools::hex_to_pod(genesis_hex, expected_genesis)
         || genesis_hash != expected_genesis)
+      return false;
+    if (expected_genesis == crypto::null_hash
+        || !epee::string_tools::hex_to_pod(parameter_set_hex, parameter_set_hash))
       return false;
 
     parameters.nettype = nettype;
     parameters.genesis_hash = expected_genesis;
     parameters.parameter_set_hash = parameter_set_hash;
-    parameters.timing = {0, 720, 60};
-    parameters.admission = {
-        admission_work_algorithm_v2::randomx, 18, 1};
+    if (nettype == cryptonote::FAKECHAIN)
+    {
+      parameters.timing = {0, 120, 10};
+      parameters.admission = {admission_work_algorithm_v2::randomx, 4, 1};
+      parameters.committee.round_offsets = {0, 40, 80};
+    }
+    else if (nettype == cryptonote::DEVNET)
+    {
+      parameters.timing = {0, 60, 5};
+      parameters.admission = {admission_work_algorithm_v2::randomx, 4, 1};
+      parameters.committee.round_offsets = {0, 20, 40};
+    }
+    else
+    {
+      parameters.timing = {0, 720, 60};
+      parameters.admission = {admission_work_algorithm_v2::randomx, 18, 1};
+      parameters.committee.round_offsets = {0, 200, 400};
+    }
     parameters.committee.committee_size = 9;
     parameters.committee.threshold = 6;
     parameters.committee.round_count = 3;
     parameters.committee.rounds_required = 2;
+    parameters.committee.min_compatible_committee = QWC_EPOSE_MIN_COMPATIBLE_COMMITTEE;
     parameters.committee.service_kind =
         static_cast<uint8_t>(service_kind_v2::canonical_object);
-    parameters.committee.round_offsets = {0, 200, 400};
     parameters.committee.max_active_population = 100;
 
     parameters.limits.max_envelopes_per_transaction = 4;
@@ -81,12 +105,17 @@ namespace epose
     parameters.limits.envelope.max_record_payload_bytes = 65536;
     parameters.limits.envelope.max_signature_verifications = 2048;
     parameters.limits.envelope.max_admission_verifications = 8;
-    parameters.limits.envelope.supported_record_versions = {0, 1, 1, 1, 1, 1};
+    parameters.limits.envelope.supported_record_versions = {0, 2, 2, 1, 2, 1};
     parameters.limits.block = {262144, 1024, 2048, 8};
     parameters.limits.max_recent_undo_blocks = 2160;
     parameters.empty_policy = empty_qualification_policy_v2::miner_fallback;
     parameters.service_reward_bps = EPOSE_SERVICE_REWARD_BPS_V2;
     parameters.state_commitment_schema = 1;
+    parameters.retained_epochs = QWC_EPOSE_RETAINED_EPOCHS;
+    if (!epee::string_tools::hex_to_pod(
+            QWC_CONTRACTS_PARAMETER_SET_HASH,
+            parameters.window_parameter_set_hash))
+      return false;
     return parameters.valid();
   }
 
@@ -96,7 +125,9 @@ namespace epose
       transition_(
           parameters.nettype, parameters.genesis_hash,
           parameters.parameter_set_hash, parameters.timing,
-          parameters.admission, parameters.committee, parameters.limits),
+          parameters.admission, parameters.committee, parameters.limits,
+          parameters.retained_epochs,
+          parameters.window_parameter_set_hash),
       valid_(parameters.valid() && transition_.valid())
   {
   }
@@ -104,6 +135,7 @@ namespace epose
   bool consensus_coordinator_v2::valid() const { return valid_; }
 
   coordinator_status_v2 consensus_coordinator_v2::plan_reward(
+      uint8_t major_version,
       uint64_t height,
       const crypto::hash &parent_hash,
       uint64_t scheduled_subsidy,
@@ -141,6 +173,9 @@ namespace epose
     if (payout_epoch == 0)
       return coordinator_status_v2::invalid_payout_state;
     const uint64_t source_epoch = payout_epoch - 1;
+    if (transition_.state().membership().read_epoch(source_epoch)
+        != pipeline_status_v2::accepted)
+      return coordinator_status_v2::outside_retained_window;
     const qualification_set_v2 *qualification =
         transition_.state().membership().qualification(source_epoch);
     if (qualification == nullptr)
@@ -209,6 +244,13 @@ namespace epose
       return coordinator_status_v2::unresolved_reward_policy;
     if (reward_status != reward_status_v2::accepted)
       return coordinator_status_v2::arithmetic_overflow;
+    if (!service_payout_due_v2(
+            major_version, plan.has_service_payee, plan.allocation.service_reward))
+    {
+      plan.has_service_payee = false;
+      plan.expectation = {};
+      return coordinator_status_v2::accepted;
+    }
     plan.expectation.service_reward = plan.allocation.service_reward;
     return coordinator_status_v2::accepted;
   }
@@ -236,7 +278,7 @@ namespace epose
 
     coordinator_reward_plan_v2 plan{};
     const coordinator_status_v2 plan_status = plan_reward(
-        block.height, block.parent_hash, block.scheduled_subsidy,
+        block.major_version, block.height, block.parent_hash, block.scheduled_subsidy,
         block.transaction_fees, contexts, plan);
     if (plan_status != coordinator_status_v2::accepted)
       return plan_status;
@@ -247,7 +289,8 @@ namespace epose
     uint64_t actual_coinbase_total = 0;
     if (!sum_coinbase_outputs(*block.coinbase, actual_coinbase_total))
       return coordinator_status_v2::arithmetic_overflow;
-    if (actual_coinbase_total != allocation.coinbase_total)
+    if (actual_coinbase_total < block.contract_mints
+        || actual_coinbase_total - block.contract_mints != allocation.coinbase_total) // H-30
       return coordinator_status_v2::invalid_coinbase_amount;
 
     validated_service_payment_v2 validated_payment{};
@@ -309,20 +352,68 @@ namespace epose
         ? validated_payment.context()
         : service_payment_context_v2{};
     result.transition = transition_summary;
-    result.state_commitment_schema = parameters_.state_commitment_schema;
+    result.state_commitment_schema = transition_.state().state_commitment_schema();
     result.state_hash = transition_.state().state_hash();
-    result.parameter_set_hash = parameters_.parameter_set_hash;
+    if (result.state_hash == crypto::null_hash)
+    {
+      transition_.disconnect_tip(block.height);
+      return coordinator_status_v2::transition_failed;
+    }
+    result.parameter_set_hash =
+        result.state_commitment_schema == QWC_EPOSE_ROLLING_STATE_SCHEMA
+            ? transition_.state().window_parameter_hash()
+            : parameters_.parameter_set_hash;
+    ++generation_;
     return coordinator_status_v2::accepted;
   }
 
   block_transition_status_v2 consensus_coordinator_v2::disconnect_tip(uint64_t height)
   {
+    ++generation_;
     return transition_.disconnect_tip(height);
   }
 
   const semantic_state_v2 &consensus_coordinator_v2::state() const
   {
     return transition_.state();
+  }
+
+  semantic_state_v2 &consensus_coordinator_v2::preview_state()
+  {
+    ++generation_;
+    return transition_.preview_state();
+  }
+
+  state_storage_diagnostics_v2 consensus_coordinator_v2::state_diagnostics() const
+  {
+    return transition_.state_diagnostics();
+  }
+
+  bool consensus_coordinator_v2::tip_height(uint64_t &height) const
+  {
+    return transition_.tip_height(height);
+  }
+
+  std::string consensus_coordinator_v2::serialize_state() const
+  {
+    return transition_.serialize_state();
+  }
+
+  bool consensus_coordinator_v2::restore_state(uint64_t height, const std::string &image)
+  {
+    ++generation_;
+    return valid_ && transition_.restore_state(height, image);
+  }
+
+  uint64_t consensus_coordinator_v2::generation() const noexcept
+  {
+    return generation_;
+  }
+
+  crypto::hash consensus_coordinator_v2::state_hash() const
+  {
+    ++state_hash_calls_;
+    return transition_.state().state_hash();
   }
 } // namespace epose
 } // namespace qwertycoin

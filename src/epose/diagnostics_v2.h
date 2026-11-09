@@ -210,6 +210,10 @@ namespace epose
     uint64_t rounds_required = 0;
     uint64_t rounds_passed = 0;
     uint64_t rounds_remaining = 0;
+    uint64_t rounds_judged = 0;
+    uint64_t rounds_unjudged = 0;
+    uint8_t dial_capabilities = 0;
+    uint8_t dns_address_families = 0;
     crypto::public_key subject_identity{};
     std::vector<uint64_t> canonical_unique_receipts;
     std::vector<uint64_t> committee_sizes;
@@ -238,7 +242,8 @@ namespace epose
         const receipt_attempt_terminal_v2 &terminal,
         uint64_t warning_now_steady_ms);
     bool canonical_inclusion(
-        uint64_t epoch, uint64_t round, const crypto::hash &slot);
+        uint64_t epoch, uint64_t round, const crypto::hash &slot,
+        uint64_t *attempt_id = nullptr);
     void transport_retry(uint64_t epoch, uint64_t round, bool relayed);
     void skipped(receipt_scheduler_skip_v2 reason);
     receipt_diagnostics_snapshot_v2 snapshot() const;

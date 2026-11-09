@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <cstring>
 #include <string>
 #include <exception>
 #include <boost/program_options.hpp>
@@ -40,6 +41,7 @@
 #include "cryptonote_basic/difficulty.h"
 #include "cryptonote_basic/hardfork.h"
 #include "cryptonote_protocol/enums.h"
+#include "vm/state_view.h"
 
 /** \file
  * Cryptonote Blockchain Database Interface
@@ -109,6 +111,30 @@ struct epose_state_commitment_v2
   crypto::hash parameter_set_hash{};
 };
 
+struct vm_block_commitment
+{
+  crypto::hash root{};
+  uint64_t gas_used = 0;
+  uint64_t deposited = 0;
+  uint64_t withdrawn = 0;
+};
+
+struct vm_block_update
+{
+  vm::write_set writes;
+  vm_block_commitment commitment;
+};
+
+struct chainlock_record
+{
+  uint64_t height = 0;
+  crypto::hash block_hash{};
+  bool tombstoned = false;
+  blobdata lock;
+};
+
+std::string encode_vm_write_set(const vm::write_set &writes);
+bool decode_vm_write_set(const std::string &blob, vm::write_set &writes);
 
 /** a pair of <transaction hash, output index>, typedef for convenience */
 typedef std::pair<crypto::hash, uint64_t> tx_out_index;
@@ -182,7 +208,56 @@ struct txpool_tx_meta_t
   uint8_t is_forwarding: 1;
   uint8_t bf_padding: 3;
 
-  uint8_t padding[76]; // till 192 bytes
+  uint8_t has_height_window;
+  uint8_t height_window_from[8];
+  uint8_t height_window_until[8];
+  uint8_t contract_deposit[8];
+  uint8_t contract_gas_price[8];
+  uint8_t non_input_verified_version;
+  uint8_t last_failed_version;
+  uint8_t padding[41];
+
+  void clear_height_window() noexcept
+  {
+    has_height_window = 0;
+    memset(height_window_from, 0, sizeof(height_window_from));
+    memset(height_window_until, 0, sizeof(height_window_until));
+  }
+  void set_height_window(uint64_t from, uint64_t until) noexcept
+  {
+    has_height_window = 1;
+    memcpy(height_window_from, &from, sizeof(from));
+    memcpy(height_window_until, &until, sizeof(until));
+  }
+  bool get_height_window(uint64_t &from, uint64_t &until) const noexcept
+  {
+    if (!has_height_window)
+      return false;
+    memcpy(&from, height_window_from, sizeof(from));
+    memcpy(&until, height_window_until, sizeof(until));
+    return true;
+  }
+  void set_contract_call(uint64_t deposit, uint64_t gas_price) noexcept
+  {
+    memcpy(contract_deposit, &deposit, sizeof(deposit));
+    memcpy(contract_gas_price, &gas_price, sizeof(gas_price));
+  }
+  uint64_t get_contract_deposit() const noexcept
+  {
+    uint64_t deposit;
+    memcpy(&deposit, contract_deposit, sizeof(deposit));
+    return deposit;
+  }
+  uint64_t get_miner_fee() const noexcept
+  {
+    return fee - std::min(fee, get_contract_deposit()); // H-29
+  }
+  uint64_t get_contract_gas_price() const noexcept
+  {
+    uint64_t gas_price;
+    memcpy(&gas_price, contract_gas_price, sizeof(gas_price));
+    return gas_price;
+  }
 
   void set_relay_method(relay_method method) noexcept;
   relay_method get_relay_method() const noexcept;
@@ -196,7 +271,7 @@ struct txpool_tx_meta_t
     return matches_category(get_relay_method(), category);
   }
 };
-
+static_assert(sizeof(txpool_tx_meta_t) == 192, "txpool_tx_meta_t is stored raw in LMDB; its size must not change");
 
 #define DBF_SAFE       1
 #define DBF_FAST       2
@@ -436,6 +511,10 @@ private:
   virtual void add_epose_state_commitment_v2(
       uint64_t height, const epose_state_commitment_v2 &commitment) {}
   virtual void remove_epose_state_commitment_v2(uint64_t height) {}
+  virtual void add_vm_block(uint64_t height, const vm_block_update &update) {}
+  virtual void remove_vm_block(uint64_t height) {}
+  virtual void add_chainlock_carrier(uint64_t height, const chainlock_record &lock) {}
+  virtual void remove_chainlock_carrier(uint64_t height) {}
 
   /**
    * @brief store the transaction and its metadata
@@ -457,7 +536,7 @@ private:
    * @param tx_prunable_hash the hash of the prunable part of the transaction
    * @return the transaction ID
    */
-  virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash) = 0;
+  virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, uint64_t unlock_time) = 0;
 
   /**
    * @brief remove data about a transaction
@@ -585,7 +664,7 @@ protected:
    * @param tx_hash_ptr the hash of the transaction, if already calculated
    * @param tx_prunable_hash_ptr the hash of the prunable part of the transaction, if already calculated
    */
-  void add_transaction(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash* tx_hash_ptr = NULL, const crypto::hash* tx_prunable_hash_ptr = NULL);
+  void add_transaction(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash* tx_hash_ptr = NULL, const crypto::hash* tx_prunable_hash_ptr = NULL, uint8_t block_major_version = 0);
 
   mutable uint64_t time_tx_exists = 0;  //!< a performance metric
   uint64_t time_commit1 = 0;  //!< a performance metric
@@ -790,6 +869,7 @@ public:
    * @return true if we started the batch, false if already started
    */
   virtual bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0) = 0;
+  virtual bool batch_active() const { return true; }
 
   /**
    * @brief ends a batch transaction
@@ -876,7 +956,20 @@ public:
                             , const uint64_t& coins_generated
                             , const std::vector<std::pair<transaction, blobdata>>& txs
                             , const epose_state_commitment_v2 *epose_commitment = nullptr
+                            , const vm_block_update *vm_update = nullptr
+                            , const chainlock_record *chainlock_carrier = nullptr
+                            , const std::string *epose_snapshot = nullptr
                             );
+
+  virtual bool get_last_chainlock_carrier(uint64_t &carrier_height, chainlock_record &lock) const { return false; }
+  virtual bool get_chainlock_carrier(uint64_t locked_height, uint64_t &carrier_height, chainlock_record &lock) const { return false; }
+  virtual void put_chainlock(const chainlock_record &lock) {}
+  virtual bool get_chainlock(uint64_t height, chainlock_record &lock) const { return false; }
+  virtual bool get_chainlock(uint64_t height, const crypto::hash &hash, chainlock_record &lock) const
+  {
+    return get_chainlock(height, lock) && lock.block_hash == hash;
+  }
+  virtual bool for_chainlocks_descending(std::function<bool(const chainlock_record &lock)> f) const { return true; }
 
   virtual bool get_epose_state_commitment_v2(
       uint64_t height, epose_state_commitment_v2 &commitment) const
@@ -884,6 +977,32 @@ public:
     commitment = {};
     return false;
   }
+  virtual void put_epose_snapshot(uint64_t height, const std::string &image) {}
+  virtual void remove_epose_snapshot(uint64_t height) {}
+  virtual bool get_epose_snapshot(uint64_t target_height,
+      uint64_t &snapshot_height, std::string &image) const
+  {
+    snapshot_height = 0;
+    image.clear();
+    return false;
+  }
+  virtual bool get_epose_snapshot_height(uint64_t target_height,
+      uint64_t &snapshot_height) const
+  {
+    std::string image;
+    return get_epose_snapshot(target_height, snapshot_height, image);
+  }
+
+  virtual bool get_vm_commitment(uint64_t height, vm_block_commitment &commitment) const
+  {
+    commitment = {};
+    return false;
+  }
+  virtual bool get_vm_undo(uint64_t height, vm::write_set &undo) const { return false; }
+  virtual bool get_vm_state_value(const std::string &key, std::string &value) const { return false; }
+  virtual bool for_all_vm_state(std::function<bool(const std::string &key, const std::string &value)> f) const { return true; }
+  virtual void reset_vm_state() {}
+  void replay_vm_block(uint64_t height, const vm_block_update &update) { add_vm_block(height, update); }
 
   /**
    * @brief checks if a block exists

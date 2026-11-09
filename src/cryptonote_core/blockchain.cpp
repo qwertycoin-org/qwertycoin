@@ -30,19 +30,26 @@
 
 #include "epose/record_codec_v2.h"
 #include <algorithm>
+#include <exception>
 #include <cstdio>
 #include <iterator>
+#include <unordered_set>
+#include <chrono>
+#include <thread>
 #include <boost/asio/dispatch.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/range/adaptor/reversed.hpp>
 #include <boost/format.hpp>
+#include <boost/scope_exit.hpp>
 
 #include "include_base_utils.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "tx_pool.h"
 #include "blockchain.h"
+#include "hdr_info_hf18.h"
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_basic/cryptonote_boost_serialization.h"
+#include "cryptonote_basic/height_window.h"
 #include "cryptonote_basic/events.h"
 #include "cryptonote_config.h"
 #include "cryptonote_basic/miner.h"
@@ -56,6 +63,7 @@
 #include "warnings.h"
 #include "crypto/hash.h"
 #include "cryptonote_core.h"
+#include "alternative_child_index.h"
 #include "ringct/rctSigs.h"
 #include "common/perf_timer.h"
 #include "common/notify.h"
@@ -63,6 +71,7 @@
 #include "common/pruning.h"
 #include "common/data_cache.h"
 #include "epose/service_node.h"
+#include "epose/state_index_v2.h"
 #include "time_helper.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -71,6 +80,196 @@
 #define FIND_BLOCKCHAIN_SUPPLEMENT_MAX_SIZE (100*1024*1024) // 100 MB
 
 using namespace crypto;
+
+namespace
+{
+  class epose_context_source final
+      : public qwertycoin::epose::canonical_context_source_v2
+  {
+  public:
+    epose_context_source(
+        const qwertycoin::epose::consensus_parameters_v2 &parameters,
+        std::function<bool(uint64_t, crypto::hash &)> block_hash)
+      : parameters_(parameters), block_hash_(std::move(block_hash)) {}
+
+    bool block_hash(uint64_t height, crypto::hash &hash) const override
+    {
+      return block_hash_(height, hash);
+    }
+
+    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
+    {
+      if (round >= parameters_.committee.round_offsets.size())
+        return false;
+      uint64_t height = 0;
+      if (round == 0)
+      {
+        if (!parameters_.timing.committee_anchor(epoch, height))
+          return false;
+      }
+      else
+      {
+        if (!parameters_.timing.epoch_start(epoch, height)
+            || height > std::numeric_limits<uint64_t>::max()
+                - parameters_.committee.round_offsets[round])
+          return false;
+        height += parameters_.committee.round_offsets[round];
+      }
+      return block_hash(height, hash);
+    }
+
+  private:
+    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
+    std::function<bool(uint64_t, crypto::hash &)> block_hash_;
+  };
+
+  epose_context_source main_chain_context_source(
+      const cryptonote::Blockchain &blockchain,
+      const qwertycoin::epose::consensus_parameters_v2 &parameters)
+  {
+    return epose_context_source(parameters,
+        [&blockchain](uint64_t height, crypto::hash &hash) {
+          hash = blockchain.get_block_id_by_height(height);
+          return hash != crypto::null_hash;
+        });
+  }
+
+  std::function<bool(uint64_t, bool, uint64_t &)> canonical_weight_reader(
+      cryptonote::BlockchainDB &db)
+  {
+    return [&db](uint64_t index, bool long_term, uint64_t &weight) {
+      weight = long_term ? db.get_block_long_term_weight(index)
+          : db.get_block_weight(index);
+      return true;
+    };
+  }
+
+  uint64_t median_or_zero(std::vector<uint64_t> &weights)
+  {
+    return weights.empty() ? 0 : epee::misc_utils::median(weights);
+  }
+
+  template <typename LongTermMedian>
+  bool block_reward_median_weight(uint8_t version, uint64_t short_median,
+      LongTermMedian long_term_median, uint64_t &median_weight)
+  {
+    median_weight = short_median;
+    if (version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
+    {
+      uint64_t long_median = 0;
+      if (!long_term_median(long_median))
+        return false;
+      const uint64_t effective_long_median = std::max<uint64_t>(
+          CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_median);
+      if (effective_long_median > std::numeric_limits<uint64_t>::max()
+              / CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR)
+        return false;
+      const uint64_t upper = CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR
+          * effective_long_median;
+      median_weight = version >= HF_VERSION_2021_SCALING
+          ? std::min<uint64_t>(
+              std::max<uint64_t>(effective_long_median, short_median), upper)
+          : std::min<uint64_t>(
+              std::max<uint64_t>(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
+                  short_median), upper);
+    }
+    return true;
+  }
+
+  struct epose_block_inputs
+  {
+    uint64_t scheduled_subsidy = 0;
+    uint64_t fees = 0;
+    uint64_t mints = 0;
+  };
+
+  uint64_t constrained_long_term_block_weight(uint64_t block_weight,
+      uint64_t long_term_median, uint8_t hf_version)
+  {
+    if (hf_version < HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
+      return block_weight;
+    const uint64_t effective = std::max<uint64_t>(
+        CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_term_median);
+    if (hf_version >= HF_VERSION_2021_SCALING)
+    {
+      block_weight = std::max<uint64_t>(block_weight, effective * 10 / 17);
+      return std::min<uint64_t>(block_weight, effective + effective * 7 / 10);
+    }
+    return std::min<uint64_t>(block_weight, effective + effective * 2 / 5);
+  }
+
+  bool derive_epose_block_inputs(
+      uint8_t version, uint64_t height, uint64_t block_weight,
+      uint64_t already_generated, uint64_t mints, size_t long_window,
+      const std::vector<const cryptonote::transaction *> &transactions,
+      const std::function<bool(uint64_t, bool, uint64_t &)> &weight_at,
+      epose_block_inputs &inputs)
+  {
+    inputs = {};
+    inputs.mints = mints;
+    for (const cryptonote::transaction *tx : transactions)
+    {
+      if (!tx)
+        return false;
+      const uint64_t fee = cryptonote::contract_miner_fee(
+          *tx, cryptonote::get_tx_fee(*tx), version);
+      if (inputs.fees > std::numeric_limits<uint64_t>::max() - fee)
+        return false;
+      inputs.fees += fee;
+    }
+    const uint64_t short_count = std::min<uint64_t>(
+        height, CRYPTONOTE_REWARD_BLOCKS_WINDOW);
+    std::vector<uint64_t> short_weights;
+    short_weights.reserve(static_cast<size_t>(short_count));
+    for (uint64_t index = height - short_count; index < height; ++index)
+    {
+      uint64_t weight = 0;
+      if (!weight_at(index, false, weight))
+        return false;
+      short_weights.push_back(weight);
+    }
+    const uint64_t short_median = median_or_zero(short_weights);
+    uint64_t median_weight = 0;
+    if (!block_reward_median_weight(version, short_median,
+            [&](uint64_t &long_median) {
+              const uint64_t long_count = std::min<uint64_t>(height, long_window);
+              std::vector<uint64_t> long_weights;
+              long_weights.reserve(static_cast<size_t>(long_count));
+              for (uint64_t index = height - long_count; index < height; ++index)
+              {
+                uint64_t weight = 0;
+                if (!weight_at(index, true, weight))
+                  return false;
+                long_weights.push_back(weight);
+              }
+              long_median = median_or_zero(long_weights);
+              return true;
+            },
+            median_weight))
+      return false;
+    median_weight = std::max<uint64_t>(median_weight,
+        cryptonote::get_min_block_weight(version));
+    return cryptonote::get_block_reward(median_weight, block_weight,
+        already_generated, inputs.scheduled_subsidy, version);
+  }
+
+  class epose_rebuild_defer_guard
+  {
+  public:
+    explicit epose_rebuild_defer_guard(bool &deferred)
+      : deferred_(deferred), previous_(deferred)
+    {
+      deferred_ = true;
+    }
+    ~epose_rebuild_defer_guard()
+    {
+      deferred_ = previous_;
+    }
+  private:
+    bool &deferred_;
+    bool previous_;
+  };
+}
 
 //#include "serialization/json_archive.h"
 
@@ -106,7 +305,8 @@ Blockchain::Blockchain(tx_memory_pool& tx_pool) :
   m_batch_success(true),
   m_prepare_height(0),
   m_rct_ver_cache(),
-  m_epose_state()
+  m_epose_state(),
+  m_epose_rebuild_timer(m_async_service)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 }
@@ -272,6 +472,12 @@ bool Blockchain::scan_outputkeys_for_indexes(size_t tx_version, const txin_to_ke
   return true;
 }
 //------------------------------------------------------------------
+crypto::hash Blockchain::get_vm_state_root() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  return m_vm_state.get_root();
+}
+//------------------------------------------------------------------
 uint64_t Blockchain::get_current_blockchain_height() const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
@@ -316,6 +522,19 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   m_epose_v2_parameters = {};
   m_epose_v2_relay_pool.reset();
   m_epose_v2_relay_policy = {};
+  m_epose_rebuild_deferred = false;
+  m_epose_rebuild_retry_scheduled = false;
+  m_epose_rebuild_fatal = false;
+  m_epose_switch_busy = false;
+  m_epose_switch_mutated = false;
+  m_epose_retry_best_chain = false;
+  m_epose_retry_chain_attempts.clear();
+  m_epose_retry_exhausted_tip = crypto::null_hash;
+  ++m_epose_state_validation_generation;
+  m_epose_state_validation_height = std::numeric_limits<uint64_t>::max();
+  m_epose_rebuild_attempts = 0;
+  m_epose_rebuild_shutdown = false;
+  m_async_service.restart();
   if (m_hardfork == nullptr)
   {
     if (m_nettype ==  FAKECHAIN)
@@ -332,6 +551,8 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
           : 1;
       m_hardfork = new HardFork(*db, initial_version, 0);
     }
+    else if (m_nettype == DEVNET)
+      m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE, 0);
     else if (m_nettype == STAGENET)
       m_hardfork = new HardFork(*db, HF_VERSION_QWC_EPOSE, 0);
     else if (m_nettype == TESTNET)
@@ -348,6 +569,11 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   {
     for (size_t n = 0; n < num_testnet_hard_forks; ++n)
       m_hardfork->add_fork(testnet_hard_forks[n].version, testnet_hard_forks[n].height, testnet_hard_forks[n].threshold, testnet_hard_forks[n].time);
+  }
+  else if (m_nettype == DEVNET)
+  {
+    for (size_t n = 0; n < num_devnet_hard_forks; ++n)
+      m_hardfork->add_fork(devnet_hard_forks[n].version, devnet_hard_forks[n].height, devnet_hard_forks[n].threshold, devnet_hard_forks[n].time);
   }
   else if (m_nettype == STAGENET)
   {
@@ -488,6 +714,12 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     m_long_term_block_weights_cache_rolling_median =
         epee::misc_utils::rolling_median_t<uint64_t>(
             m_long_term_block_weights_window);
+  }
+
+  if (!load_vm_state())
+  {
+    LOG_ERROR("Failed to load contract state from blockchain database");
+    return false;
   }
 
   if (!rebuild_epose_state())
@@ -639,6 +871,8 @@ bool Blockchain::store_blockchain()
 bool Blockchain::deinit()
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
+  m_epose_rebuild_shutdown = true;
+  m_epose_rebuild_timer.cancel();
 
   MTRACE("Stopping blockchain read/write activity");
 
@@ -700,6 +934,7 @@ void Blockchain::pop_blocks(uint64_t nblocks)
     LOG_ERROR("Error when popping blocks after processing " << i << " blocks: " << e.what());
     if (stop_batch)
       m_db->batch_abort();
+    schedule_epose_recovery();
     return;
   }
 
@@ -707,6 +942,7 @@ void Blockchain::pop_blocks(uint64_t nblocks)
 
   if (stop_batch)
     m_db->batch_stop();
+  schedule_epose_recovery();
 
   if (m_hardfork->get_current_version() >= RX_BLOCK_VERSION)
   {
@@ -732,6 +968,11 @@ block Blockchain::pop_block_from_blockchain()
   CHECK_AND_ASSERT_THROW_MES(m_db->height() > 1, "Cannot pop the genesis block");
 
   const uint8_t previous_hf_version = get_current_hard_fork_version();
+  const uint64_t popped_height = m_db->height() - 1;
+  vm_block_commitment popped_vm_commitment{};
+  vm::write_set popped_vm_undo;
+  const bool popped_contract_block = m_db->get_vm_commitment(popped_height, popped_vm_commitment);
+  const bool popped_vm_undo_kept = popped_contract_block && m_db->get_vm_undo(popped_height, popped_vm_undo);
   try
   {
     m_db->pop_block(popped_block, popped_txs);
@@ -748,6 +989,12 @@ block Blockchain::pop_block_from_blockchain()
     LOG_ERROR("Error popping block from blockchain, throwing!");
     throw;
   }
+  m_chainlock_verification_cache.clear();
+
+  if (popped_vm_undo_kept)
+    m_vm_state.apply(popped_vm_undo);
+  else if (popped_contract_block)
+    m_vm_state_stale = true; // H-11
 
   rollback_epose_block(m_db->height());
 
@@ -816,9 +1063,16 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
   invalidate_block_template_cache();
   m_db->reset();
   m_db->drop_alt_blocks();
+  m_vm_state = vm::state_tree();
+  m_vm_state_stale = false;
   m_hardfork->init();
   m_epose_state.reset();
   m_epose_block_snapshots.clear();
+  m_epose_rebuild_timer.cancel();
+  m_epose_rebuild_retry_scheduled = false;
+  m_epose_rebuild_attempts = 0;
+  m_epose_rebuild_fatal = false;
+  m_epose_retry_best_chain = false;
   if (m_epose_v2)
   {
     CHECK_AND_ASSERT_MES(
@@ -970,6 +1224,62 @@ uint64_t Blockchain::get_epose_current_epoch() const
   return qwertycoin::epose::epoch_for_height(height > 0 ? height - 1 : 0);
 }
 //------------------------------------------------------------------
+bool Blockchain::epose_rpc_ready() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  return epose_state_at_tip();
+}
+//------------------------------------------------------------------
+Blockchain::epose_rpc_snapshot Blockchain::get_epose_rpc_snapshot(uint64_t requested_epoch) const
+{
+  // QWC-26 D3
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+  for (;;)
+  {
+    {
+      CRITICAL_REGION_LOCAL(m_blockchain_lock);
+      if (!m_epose_rpc_batch_open)
+      {
+        epose_rpc_snapshot snapshot{};
+        snapshot.ready = epose_rpc_ready();
+        if (!snapshot.ready)
+          return snapshot;
+        snapshot.epoch = requested_epoch == 0 ? get_epose_current_epoch() : requested_epoch;
+        snapshot.oldest_retained_epoch = get_epose_oldest_retained_epoch_v2();
+        if (snapshot.epoch < snapshot.oldest_retained_epoch)
+          return snapshot;
+        get_epose_identity_descriptors_v2(snapshot.epoch, snapshot.descriptors);
+        snapshot.frozen_membership_available = get_epose_membership_snapshot_v2(
+            snapshot.epoch, snapshot.frozen_membership) == epose_query_status::found;
+        snapshot.round_count = m_epose_v2_parameters.committee.round_count;
+        snapshot.committee_size = m_epose_v2_parameters.committee.committee_size;
+        snapshot.min_compatible_committee = m_epose_v2_parameters.committee.min_compatible_committee;
+        snapshot.attestation_count = get_epose_attestation_count();
+        snapshot.state_hash = get_epose_state_hash();
+        snapshot.start_height = get_epose_epoch_start_height(snapshot.epoch);
+        snapshot.end_height = get_epose_epoch_end_height(snapshot.epoch);
+        if (requested_epoch == 0)
+          snapshot.qualification_available = get_epose_latest_closed_qualification_epoch(snapshot.qualification_epoch) == epose_query_status::found;
+        else
+        {
+          snapshot.qualification_epoch = requested_epoch;
+          qwertycoin::epose::qualification_set_v2 qualification{};
+          snapshot.qualification_available = get_epose_qualification_v2(requested_epoch, qualification) == epose_query_status::found;
+          if (snapshot.qualification_available)
+            snapshot.qualified_nodes = std::move(qualification.qualified_nodes);
+        }
+        if (requested_epoch == 0 && snapshot.qualification_available)
+          get_epose_qualified_service_nodes(snapshot.qualification_epoch, snapshot.qualified_nodes);
+        snapshot.qualification_pruned = epose_qualification_pruned_v2(snapshot.qualification_epoch);
+        return snapshot;
+      }
+    }
+    if (std::chrono::steady_clock::now() >= deadline)
+      return {};
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+}
+//------------------------------------------------------------------
 uint64_t Blockchain::get_epose_epoch_start_height(uint64_t epoch) const
 {
   if (m_epose_v2)
@@ -1010,61 +1320,27 @@ bool Blockchain::get_epose_reward_source_epoch_v2(uint64_t height, uint64_t &epo
 qwertycoin::epose::relay_ingress_status_v2
 Blockchain::submit_epose_relay_envelopes_v2(
     const std::vector<blobdata> &envelopes,
-    std::vector<blobdata> &accepted)
+    std::vector<blobdata> &accepted,
+    qwertycoin::epose::relay_ingress_trace_v2 *trace)
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
   accepted.clear();
-  if (!m_epose_v2 || !m_epose_v2_relay_pool)
+  if (!epose_state_at_tip() || !m_epose_v2 || !m_epose_v2_relay_pool)
+  {
+    if (trace != nullptr)
+      *trace = {qwertycoin::epose::relay_ingress_rejection_v2::invalid_pool_or_policy};
     return envelopes.empty()
         ? qwertycoin::epose::relay_ingress_status_v2::accepted
         : qwertycoin::epose::relay_ingress_status_v2::invalid_configuration;
+  }
 
-  class relay_context_source final
-      : public qwertycoin::epose::canonical_context_source_v2
-  {
-  public:
-    relay_context_source(
-        const Blockchain &chain,
-        const qwertycoin::epose::consensus_parameters_v2 &parameters)
-      : chain_(chain), parameters_(parameters) {}
-
-    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
-    {
-      hash = chain_.get_block_id_by_height(context_height);
-      return hash != crypto::null_hash;
-    }
-
-    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
-    {
-      if (round >= parameters_.committee.round_offsets.size())
-        return false;
-      uint64_t anchor_height = 0;
-      if (round == 0)
-      {
-        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
-          return false;
-      }
-      else
-      {
-        uint64_t start = 0;
-        if (!parameters_.timing.epoch_start(epoch, start)
-            || start > std::numeric_limits<uint64_t>::max()
-                - parameters_.committee.round_offsets[round])
-          return false;
-        anchor_height = start + parameters_.committee.round_offsets[round];
-      }
-      return block_hash(anchor_height, hash);
-    }
-
-  private:
-    const Blockchain &chain_;
-    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
-  } contexts(*this, m_epose_v2_parameters);
+  epose_context_source contexts(
+      main_chain_context_source(*this, m_epose_v2_parameters));
 
   return qwertycoin::epose::admit_relay_envelopes_v2(
       envelopes, m_db->height(), m_epose_v2_parameters.limits.envelope,
-      m_epose_v2_relay_policy, m_epose_v2->state(), contexts,
-      *m_epose_v2_relay_pool, accepted);
+      m_epose_v2_relay_policy, m_epose_v2->preview_state(), contexts,
+      *m_epose_v2_relay_pool, accepted, trace);
 }
 //------------------------------------------------------------------
 qwertycoin::epose::relay_pool_diagnostics_v2
@@ -1092,55 +1368,905 @@ std::vector<qwertycoin::epose::service_attestation> Blockchain::get_epose_attest
   return m_epose_state->attestations();
 }
 //------------------------------------------------------------------
-std::vector<crypto::public_key> Blockchain::get_epose_qualified_service_nodes(uint64_t epoch) const
+Blockchain::epose_query_status Blockchain::get_epose_qualified_service_nodes(
+    uint64_t epoch, std::vector<crypto::public_key> &nodes) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  nodes.clear();
+  if (!epose_state_at_tip())
+    return epose_query_status::absent;
   if (m_epose_v2)
   {
-    const auto *qualification =
-        m_epose_v2->state().membership().qualification(epoch);
-    return qualification == nullptr
-        ? std::vector<crypto::public_key>{}
-        : qualification->qualified_nodes;
+    return query_epose_epoch_v2_at_tip(epoch, [&](const auto &coordinator) {
+      const auto *qualification = coordinator.state().membership().qualification(epoch);
+      if (qualification == nullptr)
+        return false;
+      nodes = qualification->qualified_nodes;
+      return true;
+    });
   }
-  return m_epose_state
-      ? m_epose_state->qualified_service_nodes(epoch)
-      : std::vector<crypto::public_key>{};
+  if (!m_epose_state)
+    return epose_query_status::absent;
+  nodes = m_epose_state->qualified_service_nodes(epoch);
+  return nodes.empty() ? epose_query_status::absent : epose_query_status::found;
 }
 //------------------------------------------------------------------
-std::vector<qwertycoin::epose::identity_descriptor_v2>
-Blockchain::get_epose_identity_descriptors_v2(uint64_t epoch) const
+Blockchain::epose_query_status Blockchain::get_epose_latest_closed_qualification_epoch(uint64_t &epoch) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  return m_epose_v2
-      ? m_epose_v2->state().lifecycle().descriptors_for_epoch(epoch)
-      : std::vector<qwertycoin::epose::identity_descriptor_v2>{};
+  epoch = 0;
+  if (!epose_state_at_tip() || !m_epose_v2 || !m_db || m_db->height() == 0)
+    return epose_query_status::absent;
+  const uint64_t current_epoch = get_epose_current_epoch();
+  const auto &membership = m_epose_v2->state().membership();
+  const uint64_t tip_height = m_db->height() - 1;
+  uint64_t deadline = 0;
+  if (m_epose_v2_parameters.timing.evidence_deadline(current_epoch, deadline)
+      && tip_height >= deadline
+      && membership.qualification(current_epoch) != nullptr)
+  {
+    epoch = current_epoch;
+    return epose_query_status::found;
+  }
+  if (current_epoch == 0)
+    return epose_query_status::absent;
+  return query_epose_epoch_v2_at_tip(current_epoch - 1, [&](const auto &coordinator) {
+    if (coordinator.state().membership().qualification(current_epoch - 1) == nullptr)
+      return false;
+    epoch = current_epoch - 1;
+    return true;
+  });
 }
 //------------------------------------------------------------------
-bool Blockchain::get_epose_membership_snapshot_v2(
+template <typename Result, typename Query>
+Result Blockchain::query_epose_v2_at_tip(Result fallback, Query &&query) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return fallback;
+  return m_epose_v2 ? query(*m_epose_v2) : fallback;
+}
+//------------------------------------------------------------------
+template <typename Record, typename Lookup>
+bool Blockchain::copy_epose_record_v2(Record &record, Lookup &&lookup) const
+{
+  return query_epose_v2_at_tip(false, [&](auto &coordinator) {
+    const auto *stored = lookup(coordinator);
+    if (stored == nullptr)
+      return false;
+    record = *stored;
+    return true;
+  });
+}
+//------------------------------------------------------------------
+template <typename Query>
+Blockchain::epose_query_status Blockchain::query_epose_epoch_v2_at_tip(uint64_t epoch, Query &&query) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip() || !m_epose_v2)
+    return epose_query_status::absent;
+  if (query(*m_epose_v2))
+    return epose_query_status::found;
+  const auto &membership = m_epose_v2->state().membership();
+  return !membership.epoch_recorded(epoch, false) && membership.read_epoch(epoch)
+      == qwertycoin::epose::pipeline_status_v2::outside_retained_window
+      ? epose_query_status::outside_retained_window : epose_query_status::absent;
+}
+//------------------------------------------------------------------
+template <typename Record, typename Lookup>
+Blockchain::epose_query_status Blockchain::copy_epose_epoch_record_v2(
+    uint64_t epoch, Record &record, Lookup &&lookup) const
+{
+  return query_epose_epoch_v2_at_tip(epoch, [&](const auto &coordinator) {
+    const auto *stored = lookup(coordinator);
+    if (stored == nullptr)
+      return false;
+    record = *stored;
+    return true;
+  });
+}
+//------------------------------------------------------------------
+Blockchain::epose_query_status Blockchain::get_epose_identity_descriptors_v2(
+    uint64_t epoch, std::vector<qwertycoin::epose::identity_descriptor_v2> &descriptors) const
+{
+  descriptors.clear();
+  return query_epose_epoch_v2_at_tip(epoch, [&](const auto &coordinator) {
+    descriptors = coordinator.state().lifecycle().descriptors_for_epoch(epoch);
+    return !descriptors.empty();
+  });
+}
+//------------------------------------------------------------------
+bool Blockchain::get_epose_latest_lifecycle_record_v2(
+    const crypto::hash &identity_id,
+    qwertycoin::epose::lifecycle_record_v2 &record) const
+{
+  return copy_epose_record_v2(record, [&](auto &coordinator) {
+    return coordinator.state().lifecycle().latest_record(identity_id);
+  });
+}
+//------------------------------------------------------------------
+Blockchain::epose_query_status Blockchain::get_epose_membership_snapshot_v2(
     uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const
 {
+  return copy_epose_epoch_record_v2(epoch, snapshot, [&](const auto &coordinator) {
+    return coordinator.state().membership().snapshot(epoch);
+  });
+}
+//------------------------------------------------------------------
+Blockchain::epose_query_status Blockchain::get_epose_qualification_v2(
+    uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const
+{
+  return copy_epose_epoch_record_v2(epoch, qualification, [&](const auto &coordinator) {
+    return coordinator.state().membership().qualification(epoch);
+  });
+}
+//------------------------------------------------------------------
+bool Blockchain::epose_qualification_pruned_v2(uint64_t epoch) const
+{
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  if (!m_epose_v2)
+  return epose_state_at_tip() && m_epose_v2
+      && m_epose_v2->state().membership().qualification_pruned(epoch);
+}
+//------------------------------------------------------------------
+bool Blockchain::set_chainlock_test_quorum(
+    const qwertycoin::epose::epoch_timing_v2 &timing, std::vector<crypto::public_key> candidates)
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (m_nettype != FAKECHAIN || !timing.valid())
     return false;
-  const auto *stored = m_epose_v2->state().membership().snapshot(epoch);
-  if (stored == nullptr)
-    return false;
-  snapshot = *stored;
+  m_chainlock_test_quorum = chainlock_test_quorum{timing, std::move(candidates)};
+  m_chainlock_verification_cache.clear();
   return true;
 }
 //------------------------------------------------------------------
-bool Blockchain::get_epose_qualification_v2(
-    uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const
+bool Blockchain::get_chainlock_timing(qwertycoin::epose::epoch_timing_v2 &timing) const
 {
-  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
+
+  if (m_chainlock_test_quorum)
+  {
+    timing = m_chainlock_test_quorum->timing;
+    return true;
+  }
   if (!m_epose_v2)
     return false;
-  const auto *stored = m_epose_v2->state().membership().qualification(epoch);
-  if (stored == nullptr)
+  timing = m_epose_v2_parameters.timing;
+  return timing.valid();
+}
+//------------------------------------------------------------------
+bool Blockchain::chainlock_quorum_shared(uint64_t epoch, uint64_t split_height) const
+{
+  qwertycoin::epose::epoch_timing_v2 timing{};
+  uint64_t anchor_height = 0;
+  return get_chainlock_timing(timing)
+      && timing.committee_anchor(epoch, anchor_height)
+      && split_height > anchor_height;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_chainlock_context(qwertycoin::epose::chainlock_context_v1 &context) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
     return false;
-  qualification = *stored;
+  if ((!m_epose_v2 && !m_chainlock_test_quorum) || m_db->height() == 0)
+    return false;
+  context = {m_nettype, m_db->get_block_hash_from_height(0), m_epose_v2_parameters.parameter_set_hash};
   return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_chainlock_epoch(uint64_t height, uint64_t &epoch) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  qwertycoin::epose::epoch_timing_v2 timing{};
+  return get_chainlock_timing(timing) && timing.epoch_of(height, epoch);
+}
+//------------------------------------------------------------------
+bool Blockchain::get_chainlock_quorum(uint64_t epoch, qwertycoin::epose::chainlock_quorum_v1 &quorum) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  chainlock_selection_inputs inputs;
+  if (get_chainlock_selection_inputs(epoch, inputs) != chainlock_membership_restore::restored)
+    return false;
+  return select_chainlock_quorum(inputs, quorum);
+}
+//------------------------------------------------------------------
+bool Blockchain::select_chainlock_quorum(const chainlock_selection_inputs &inputs,
+    qwertycoin::epose::chainlock_quorum_v1 &quorum) const
+{
+  const auto candidates = inputs.test_candidates ? *inputs.test_candidates
+      : qwertycoin::epose::chainlock_candidates_v1(*inputs.snapshot, *inputs.qualification);
+  ++m_chainlock_quorum_selections;
+  quorum = qwertycoin::epose::select_chainlock_quorum_v1(inputs.epoch, inputs.anchor_hash, candidates, inputs.context);
+  return quorum.can_lock();
+}
+//------------------------------------------------------------------
+Blockchain::chainlock_membership_restore Blockchain::get_chainlock_selection_inputs(
+    uint64_t epoch, chainlock_selection_inputs &inputs,
+    boost::unique_lock<epee::critical_section> *blockchain_lock, bool allow_reconstruct) const
+{
+  inputs = {};
+  if (!get_chainlock_context(inputs.context))
+    return chainlock_membership_restore::unavailable;
+  inputs.epoch = epoch;
+  if (m_chainlock_test_quorum)
+  {
+    if (!m_chainlock_test_quorum->timing.committee_anchor(epoch, inputs.anchor_height)
+        || inputs.anchor_height >= m_db->height())
+      return chainlock_membership_restore::unavailable;
+    inputs.anchor_hash = m_db->get_block_hash_from_height(inputs.anchor_height);
+    inputs.test_candidates = &m_chainlock_test_quorum->candidates;
+    return chainlock_membership_restore::restored;
+  }
+  if (epoch == 0)
+    return chainlock_membership_restore::unavailable;
+  const auto &membership = m_epose_v2->state().membership();
+  if (m_epose_v2->state().chainlock_membership_stored(epoch))
+  {
+    inputs.snapshot = membership.snapshot(epoch);
+    inputs.qualification = membership.qualification(epoch - 1);
+  }
+  else
+  {
+    if (!allow_reconstruct || !blockchain_lock)
+      return chainlock_membership_restore::unavailable;
+    qwertycoin::epose::membership_snapshot_v2 snapshot;
+    qwertycoin::epose::qualification_set_v2 qualification;
+    const auto status = restore_chainlock_membership(epoch, *blockchain_lock, snapshot, qualification);
+    if (status != chainlock_membership_restore::restored)
+      return status;
+    inputs.restored_snapshot = std::move(snapshot);
+    inputs.restored_qualification = std::move(qualification);
+    inputs.snapshot = &*inputs.restored_snapshot;
+    inputs.qualification = &*inputs.restored_qualification;
+  }
+  inputs.anchor_height = inputs.snapshot->anchor_height;
+  inputs.anchor_hash = inputs.snapshot->anchor_hash;
+  if (inputs.anchor_height >= m_db->height()
+      || m_db->get_block_hash_from_height(inputs.anchor_height) != inputs.anchor_hash)
+    return chainlock_membership_restore::unavailable;
+  return chainlock_membership_restore::restored;
+}
+//------------------------------------------------------------------
+bool Blockchain::chainlock_quorum_inputs_require_reconstruction(uint64_t epoch) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_epose_v2 || m_chainlock_test_quorum || epoch == 0)
+    return false;
+  return !m_epose_v2->state().chainlock_membership_stored(epoch);
+}
+//------------------------------------------------------------------
+Blockchain::chainlock_membership_restore Blockchain::restore_chainlock_membership(
+    uint64_t epoch, boost::unique_lock<epee::critical_section> &blockchain_lock,
+    qwertycoin::epose::membership_snapshot_v2 &snapshot,
+    qwertycoin::epose::qualification_set_v2 &qualification) const
+{
+  if (!m_epose_v2 || !m_db->height()
+      || !chainlock_quorum_inputs_require_reconstruction(epoch))
+    return chainlock_membership_restore::unavailable;
+  if (!epose_state_at_tip())
+    return chainlock_membership_restore::unavailable;
+  const bool restored = m_epose_v2->state().reconstruct_chainlock_membership(
+      epoch, snapshot, qualification);
+  return restored ? chainlock_membership_restore::restored
+      : chainlock_membership_restore::unavailable;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_chainlock_quorum_inputs(uint64_t epoch, chainlock_quorum_inputs &inputs,
+    uint64_t offset, uint64_t limit, bool allow_reconstruct) const
+{
+  boost::unique_lock<epee::critical_section> blockchain_lock(m_blockchain_lock);
+  inputs = {};
+  chainlock_selection_inputs selection;
+  if (epoch == 0 || !get_chainlock_timing(inputs.timing))
+    return false;
+  if (get_chainlock_selection_inputs(epoch, selection, &blockchain_lock, allow_reconstruct)
+      != chainlock_membership_restore::restored)
+    return false;
+  inputs.context = selection.context;
+  inputs.epoch = epoch;
+  if (!inputs.timing.epoch_start(epoch - 1, inputs.previous_epoch_start_height)
+      || !inputs.timing.epoch_start(epoch, inputs.epoch_start_height)
+      || inputs.epoch_start_height >= m_db->height())
+    return false;
+  inputs.previous_epoch_start_block_id = m_db->get_block_hash_from_height(inputs.previous_epoch_start_height);
+  inputs.epoch_start_block_id = m_db->get_block_hash_from_height(inputs.epoch_start_height);
+  const auto page_bounds = [offset, limit](uint64_t total) {
+    const size_t start = static_cast<size_t>(std::min(offset, total));
+    return std::make_pair(start, static_cast<size_t>(std::min(limit, total - start)));
+  };
+  inputs.snapshot_height = selection.anchor_height;
+  inputs.snapshot_block_id = selection.anchor_hash;
+  if (selection.test_candidates)
+  {
+    if (!inputs.timing.evidence_deadline(epoch - 1, inputs.qualification_height))
+      return false;
+    inputs.snapshot_total = selection.test_candidates->size();
+    inputs.qualification_total = inputs.snapshot_total;
+    const auto page = page_bounds(inputs.snapshot_total);
+    inputs.snapshot_members.assign(selection.test_candidates->begin() + page.first,
+        selection.test_candidates->begin() + page.first + page.second);
+    inputs.qualified_members = inputs.snapshot_members;
+    inputs.test_override = true;
+  }
+  else
+  {
+    inputs.snapshot_hash = selection.snapshot->snapshot_hash;
+    inputs.qualification_height = selection.qualification->closed_height;
+    inputs.qualification_hash = selection.qualification->qualification_hash;
+    inputs.snapshot_total = selection.snapshot->members.size();
+    inputs.qualification_total = selection.qualification->qualified_nodes.size();
+    const auto snapshot_page = page_bounds(inputs.snapshot_total);
+    for (size_t index = snapshot_page.first;
+        index < snapshot_page.first + snapshot_page.second; ++index)
+      inputs.snapshot_members.push_back(selection.snapshot->members[index].service_public_key);
+    const auto qualified_page = page_bounds(inputs.qualification_total);
+    inputs.qualified_members.assign(selection.qualification->qualified_nodes.begin() + qualified_page.first,
+        selection.qualification->qualified_nodes.begin() + qualified_page.first + qualified_page.second);
+  }
+  inputs.qualification_block_id = m_db->get_block_hash_from_height(inputs.qualification_height);
+  return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::verify_complete_chainlock(const qwertycoin::epose::chainlock_v1 &lock, bool check_signatures) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
+
+  uint64_t epoch = 0;
+  qwertycoin::epose::chainlock_quorum_v1 quorum;
+  qwertycoin::epose::chainlock_context_v1 context{};
+  if (!get_chainlock_epoch(lock.height, epoch) || epoch != lock.epoch
+      || !get_chainlock_quorum(lock.epoch, quorum)
+      || !qwertycoin::epose::chainlock_complete_v1(lock, quorum)
+      || !get_chainlock_context(context))
+    return false;
+  if (!check_signatures)
+    return qwertycoin::epose::verify_chainlock_v1(lock, quorum, context, false);
+
+  const blobdata lock_blob = qwertycoin::epose::serialize_chainlock_v1(lock);
+  blobdata quorum_bytes(reinterpret_cast<const char *>(&quorum.epoch), sizeof(quorum.epoch));
+  for (const crypto::public_key &member : quorum.members)
+    quorum_bytes.append(reinterpret_cast<const char *>(&member), sizeof(member));
+  const crypto::hash quorum_set_hash = crypto::cn_fast_hash(quorum_bytes.data(), quorum_bytes.size());
+  blobdata quorum_identity(reinterpret_cast<const char *>(&quorum_set_hash), sizeof(quorum_set_hash));
+  quorum_identity += quorum_bytes;
+  quorum_identity.push_back(static_cast<char>(context.nettype));
+  quorum_identity.append(reinterpret_cast<const char *>(&context.genesis_hash), sizeof(context.genesis_hash));
+  quorum_identity.append(reinterpret_cast<const char *>(&context.parameter_set_hash), sizeof(context.parameter_set_hash));
+  const auto key = std::make_pair(lock_blob, quorum_identity);
+  if (m_chainlock_verification_cache.count(key) != 0)
+    return true;
+  ++m_chainlock_signature_verifications;
+  const bool accepted = qwertycoin::epose::verify_chainlock_v1(lock, quorum, context, true);
+  if (accepted)
+  {
+    const uint64_t oldest = m_db->height() > QWC_LOCK_MAX_AGE_BLOCKS
+        ? m_db->height() - QWC_LOCK_MAX_AGE_BLOCKS : 0;
+    for (auto cached = m_chainlock_verification_cache.begin();
+        cached != m_chainlock_verification_cache.end();)
+      cached = cached->second < oldest
+          ? m_chainlock_verification_cache.erase(cached) : std::next(cached);
+    if (lock.height >= oldest)
+    {
+      if (m_chainlock_verification_cache.size() >= QWC_CHAINLOCK_QUORUM_MAX)
+        m_chainlock_verification_cache.erase(m_chainlock_verification_cache.begin());
+      m_chainlock_verification_cache.emplace(key, lock.height);
+    }
+  }
+  return accepted;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_alt_chainlock_quorum(const qwertycoin::epose::chainlock_v1 &lock,
+    const std::list<block_extended_info> &alt_chain,
+    qwertycoin::epose::chainlock_quorum_v1 &quorum)
+{
+  if (alt_chain.empty() || !epose_state_at_tip())
+    return false;
+  qwertycoin::epose::epoch_timing_v2 timing{};
+  uint64_t epoch = 0;
+  uint64_t anchor_height = 0;
+  if (!get_chainlock_timing(timing) || !timing.epoch_of(lock.height, epoch)
+      || epoch != lock.epoch || !timing.committee_anchor(epoch, anchor_height))
+    return false;
+  if (anchor_height < alt_chain.front().height)
+    return get_chainlock_quorum(epoch, quorum);
+
+  crypto::hash anchor_hash = crypto::null_hash;
+  for (const block_extended_info &entry : alt_chain)
+    if (entry.height == anchor_height)
+    {
+      anchor_hash = get_block_hash(entry.bl);
+      break;
+    }
+  if (anchor_hash == crypto::null_hash)
+    return false;
+
+  std::vector<crypto::public_key> candidates;
+  if (m_chainlock_test_quorum)
+    candidates = m_chainlock_test_quorum->candidates;
+  else
+  {
+    std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> split_state;
+    std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> anchor_state;
+    crypto::hash failed_block{};
+    if (preflight_epose_chain(alt_chain, split_state, failed_block, anchor_height, &anchor_state)
+            != epose_preflight_result::accepted || !anchor_state)
+      return false;
+    qwertycoin::epose::membership_snapshot_v2 snapshot;
+    qwertycoin::epose::qualification_set_v2 qualification;
+    if (!anchor_state->state().reconstruct_chainlock_membership(epoch, snapshot, qualification)
+        || snapshot.anchor_height != anchor_height || snapshot.anchor_hash != anchor_hash)
+      return false;
+    candidates = qwertycoin::epose::chainlock_candidates_v1(snapshot, qualification);
+  }
+  qwertycoin::epose::chainlock_context_v1 context{};
+  if (!get_chainlock_context(context))
+    return false;
+  ++m_chainlock_quorum_selections;
+  quorum = qwertycoin::epose::select_chainlock_quorum_v1(
+      epoch, anchor_hash, candidates, context);
+  return quorum.can_lock();
+}
+//------------------------------------------------------------------
+bool Blockchain::verify_alt_chainlock(const qwertycoin::epose::chainlock_v1 &lock,
+    const std::list<block_extended_info> &alt_chain)
+{
+  qwertycoin::epose::chainlock_quorum_v1 quorum;
+  qwertycoin::epose::chainlock_context_v1 context{};
+  return get_alt_chainlock_quorum(lock, alt_chain, quorum)
+      && get_chainlock_context(context)
+      && qwertycoin::epose::chainlock_complete_v1(lock, quorum)
+      && qwertycoin::epose::verify_chainlock_v1(lock, quorum, context, true);
+}
+//------------------------------------------------------------------
+bool Blockchain::get_highest_main_chainlock(uint64_t &height) const
+{
+  crypto::hash block_hash{};
+  return get_highest_main_chainlock(height, block_hash);
+}
+//------------------------------------------------------------------
+bool Blockchain::get_highest_main_chainlock(uint64_t &height, crypto::hash &block_hash) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
+  const uint64_t chain_height = m_db->height();
+  bool found = false;
+  m_db->for_chainlocks_descending([&](const chainlock_record &lock) {
+    if (lock.tombstoned || lock.height >= chain_height
+        || m_db->get_block_hash_from_height(lock.height) != lock.block_hash)
+      return true;
+    height = lock.height;
+    block_hash = lock.block_hash;
+    found = true;
+    return false;
+  });
+  uint64_t carrier_height = 0;
+  chainlock_record carrier;
+  if (m_db->get_last_chainlock_carrier(carrier_height, carrier) && (!found || carrier.height > height))
+  {
+    height = carrier.height;
+    block_hash = carrier.block_hash;
+    found = true;
+  }
+  return found;
+}
+//------------------------------------------------------------------
+bool Blockchain::canonical_chainlock_supersedes(uint64_t height) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
+  bool verified = false;
+  m_db->for_chainlocks_descending([&](const chainlock_record &stored) {
+    if (stored.height <= height)
+      return false;
+    if (stored.tombstoned || stored.height >= m_db->height()
+        || m_db->get_block_hash_from_height(stored.height) != stored.block_hash)
+      return true;
+    qwertycoin::epose::chainlock_v1 lock;
+    if (qwertycoin::epose::parse_chainlock_v1(stored.lock, lock)
+        && verify_complete_chainlock(lock, true))
+    {
+      verified = true;
+      return false;
+    }
+    return true;
+  });
+  return verified;
+}
+//------------------------------------------------------------------
+bool Blockchain::validate_block_chainlock(
+    const block &bl, uint64_t height, bool check_signatures, chainlock_record &carrier, bool &has_carrier) const
+{
+  if (!epose_state_at_tip())
+    return false;
+
+  has_carrier = false;
+  blobdata blob;
+  const size_t count = get_tx_chainlock(bl.miner_tx.extra, blob);
+  if (count == 0)
+    return true;
+  qwertycoin::epose::chainlock_v1 lock;
+  if (count != 1 || !is_qwc_contracts_hardfork(bl.major_version) || !qwertycoin::epose::parse_chainlock_v1(blob, lock))
+    return false;
+  if (lock.height >= height || qwc_chainlock_age_expired(lock.height, height)) // H-32
+    return false;
+  if (m_db->get_block_hash_from_height(lock.height) != lock.block_hash)
+    return false;
+  uint64_t last_carrier_height = 0;
+  chainlock_record last;
+  if (m_db->get_last_chainlock_carrier(last_carrier_height, last) && lock.height <= last.height)
+    return false;
+  chainlock_record stored;
+  if (m_db->get_chainlock(lock.height, lock.block_hash, stored) && stored.tombstoned)
+    return false;
+  if (!verify_complete_chainlock(lock, check_signatures))
+    return false;
+  carrier = {lock.height, lock.block_hash, false, blob};
+  has_carrier = true;
+  return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::select_template_chainlock(uint64_t height, blobdata &blob) const
+{
+  if (!epose_state_at_tip() || height == 0)
+    return false;
+
+  uint64_t last_carrier_height = 0;
+  chainlock_record last;
+  const bool has_last = m_db->get_last_chainlock_carrier(last_carrier_height, last);
+  const uint64_t oldest = height > QWC_LOCK_MAX_AGE_BLOCKS
+      ? height - QWC_LOCK_MAX_AGE_BLOCKS : 0;
+  for (uint64_t candidate_height = height; candidate_height-- > oldest;)
+  {
+    if (has_last && candidate_height <= last.height)
+      break;
+    if (candidate_height >= m_db->height())
+      continue;
+    chainlock_record stored;
+    if (!m_db->get_chainlock(candidate_height,
+            m_db->get_block_hash_from_height(candidate_height), stored) || stored.tombstoned)
+      continue;
+    qwertycoin::epose::chainlock_v1 lock;
+    if (!qwertycoin::epose::parse_chainlock_v1(stored.lock, lock) || !verify_complete_chainlock(lock, true))
+      continue;
+    blob = stored.lock;
+    return true;
+  }
+  return false;
+}
+//------------------------------------------------------------------
+void Blockchain::tombstone_main_chainlocks_from(uint64_t height)
+{
+  if (!epose_state_at_tip())
+    return;
+
+  const uint64_t chain_height = m_db->height();
+  std::vector<chainlock_record> conflicting;
+  m_db->for_chainlocks_descending([&](const chainlock_record &lock) {
+    if (lock.height < height)
+      return false;
+    if (!lock.tombstoned && lock.height < chain_height
+        && m_db->get_block_hash_from_height(lock.height) == lock.block_hash)
+      conflicting.push_back({lock.height, lock.block_hash, true, {}});
+    return true;
+  });
+  for (const chainlock_record &tombstone : conflicting)
+  {
+    MWARNING("Checkpoint overrides chainlock at height " << tombstone.height << ", tombstoning " << tombstone.block_hash);
+    m_db->put_chainlock(tombstone);
+  }
+}
+//------------------------------------------------------------------
+Blockchain::alt_chainlock_evaluation Blockchain::evaluate_alt_chainlocks(const std::list<block_extended_info> &alt_chain)
+{
+  if (!epose_state_at_tip())
+    return {alt_chainlock_verdict::blocked};
+
+  const uint64_t split_height = alt_chain.front().height;
+  std::unordered_map<uint64_t, crypto::hash> alt_hashes;
+  for (const block_extended_info &bei : alt_chain)
+    alt_hashes.emplace(bei.height, get_block_hash(bei.bl));
+  const auto in_alt_chain = [&alt_hashes](uint64_t height, const crypto::hash &hash) {
+    const auto it = alt_hashes.find(height);
+    return it != alt_hashes.end() && it->second == hash;
+  };
+
+  uint64_t alt_lock = 0;
+  crypto::hash alt_lock_hash{};
+  bool has_alt = false;
+  m_db->for_chainlocks_descending([&](const chainlock_record &lock) {
+    if (lock.height < split_height)
+      return false;
+    if (lock.tombstoned || !in_alt_chain(lock.height, lock.block_hash))
+      return true;
+    qwertycoin::epose::chainlock_v1 candidate;
+    if (qwertycoin::epose::parse_chainlock_v1(lock.lock, candidate)
+        && verify_alt_chainlock(candidate, alt_chain))
+    {
+      alt_lock = lock.height;
+      alt_lock_hash = lock.block_hash;
+      has_alt = true;
+      return false;
+    }
+    return true;
+  });
+
+  for (const block_extended_info &bei : alt_chain)
+  {
+    blobdata blob;
+    qwertycoin::epose::chainlock_v1 lock;
+    if (get_tx_chainlock(bei.bl.miner_tx.extra, blob) != 1 || !qwertycoin::epose::parse_chainlock_v1(blob, lock)
+        || !in_alt_chain(lock.height, lock.block_hash) || (has_alt && lock.height <= alt_lock))
+      continue;
+    if (!verify_alt_chainlock(lock, alt_chain))
+      continue;
+    alt_lock = lock.height;
+    alt_lock_hash = lock.block_hash;
+    has_alt = true;
+  }
+
+  uint64_t main_lock = 0;
+  crypto::hash main_lock_hash{};
+  const bool has_main = get_highest_main_chainlock(main_lock, main_lock_hash);
+  if (has_alt && (!has_main || alt_lock > main_lock
+          || (is_qwc_contracts_hardfork(alt_chain.back().bl.major_version)
+              && alt_lock == main_lock && alt_lock_hash < main_lock_hash)))
+    return {alt_chainlock_verdict::switch_verified, alt_lock, alt_lock_hash};
+  if (has_main && main_lock >= split_height)
+    return {alt_chainlock_verdict::blocked};
+  return {alt_chainlock_verdict::difficulty};
+}
+//------------------------------------------------------------------
+void Blockchain::prune_chainlock_partials()
+{
+  const uint64_t chain_height = m_db->height();
+  for (auto it = m_chainlock_partials.begin(); it != m_chainlock_partials.end();)
+  {
+    if (qwc_chainlock_age_expired(it->first.first, chain_height))
+      it = m_chainlock_partials.erase(it);
+    else
+      ++it;
+  }
+  while (m_chainlock_partials.size() > QWC_CHAINLOCK_PENDING_MAX)
+    m_chainlock_partials.erase(m_chainlock_partials.begin());
+}
+//------------------------------------------------------------------
+void Blockchain::prune_irrecoverable_alternatives()
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!m_db || m_db->is_read_only() || m_db->height() == 0
+      || !is_qwc_contracts_hardfork(get_ideal_hard_fork_version()))
+    return;
+  if (m_db->batch_active())
+  {
+    m_alternative_prune_pending = true;
+    return;
+  }
+  struct alternative_parent
+  {
+    uint64_t height;
+    crypto::hash parent;
+  };
+  std::unordered_map<crypto::hash, alternative_parent> blocks;
+  std::vector<crypto::hash> remove;
+  blocks.reserve(m_db->get_alt_block_count());
+  m_db->for_all_alt_blocks([&](const crypto::hash &hash,
+      const alt_block_data_t &data, const blobdata_ref *blob) {
+    block parsed{};
+    if (blob && parse_and_validate_block_from_blob(*blob, parsed))
+      blocks.emplace(hash, alternative_parent{data.height, parsed.prev_id});
+    else
+      remove.push_back(hash);
+    return true;
+  }, true);
+  const uint64_t tip_height = m_db->height() - 1;
+  const uint64_t cutoff = tip_height > QWC_LOCK_MAX_AGE_BLOCKS
+      ? tip_height - QWC_LOCK_MAX_AGE_BLOCKS : 0;
+  std::unordered_set<crypto::hash> retained;
+  const auto retain_ancestors = [&](crypto::hash hash) {
+    auto found = blocks.find(hash);
+    while (found != blocks.end() && retained.insert(hash).second)
+    {
+      hash = found->second.parent;
+      found = blocks.find(hash);
+    }
+  };
+  for (const auto &entry : blocks)
+    if (entry.second.height >= cutoff)
+      retain_ancestors(entry.first);
+  m_db->for_chainlocks_descending([&](const chainlock_record &lock) {
+    if (!lock.tombstoned && lock.height >= cutoff
+        && blocks.count(lock.block_hash) != 0)
+      retain_ancestors(lock.block_hash);
+    return true;
+  });
+  for (const auto &entry : blocks)
+    if (retained.count(entry.first) == 0)
+      remove.push_back(entry.first);
+  if (remove.empty())
+  {
+    m_alternative_prune_pending = false;
+    return;
+  }
+  const bool stop_batch = m_db->batch_start();
+  if (!stop_batch)
+  {
+    m_alternative_prune_pending = true;
+    return;
+  }
+  try
+  {
+    size_t removed = 0;
+    for (const crypto::hash &hash : remove)
+    {
+      if (m_alternative_prune_removal_hook)
+        m_alternative_prune_removal_hook(removed);
+      m_db->remove_alt_block(hash);
+      ++removed;
+    }
+    m_db->batch_stop();
+    m_alternative_prune_pending = false;
+  }
+  catch (...)
+  {
+    m_db->batch_abort();
+    m_alternative_prune_pending = true;
+    throw;
+  }
+}
+//------------------------------------------------------------------
+void Blockchain::prune_after_canonical_advance(uint64_t previous_height)
+{
+  if (!m_db || m_db->height() == 0
+      || !is_qwc_contracts_hardfork(get_current_hard_fork_version()))
+    return;
+  const uint64_t height = m_db->height();
+  if (!m_alternative_prune_pending
+      && (height <= previous_height
+          || height / 16 <= previous_height / 16))
+    return;
+  try
+  {
+    prune_irrecoverable_alternatives();
+  }
+  catch (const std::exception &error)
+  {
+    m_alternative_prune_pending = true;
+    MERROR("Alternative pruning deferred: " << error.what());
+  }
+  catch (...)
+  {
+    m_alternative_prune_pending = true;
+    MERROR("Alternative pruning deferred after an unknown failure");
+  }
+}
+//------------------------------------------------------------------
+Blockchain::chainlock_ingress Blockchain::handle_incoming_chainlock(const blobdata &blob, blobdata &relay_blob)
+{
+  CRITICAL_REGION_LOCAL(m_tx_pool);
+  CRITICAL_REGION_LOCAL1(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return chainlock_ingress::ignored;
+  relay_blob.clear();
+  qwertycoin::epose::chainlock_v1 lock;
+  if (!qwertycoin::epose::parse_chainlock_v1(blob, lock))
+    return chainlock_ingress::rejected;
+  if (!is_qwc_contracts_hardfork(m_hardfork->get_ideal_version(lock.height))
+      || qwc_chainlock_age_expired(lock.height, m_db->height()))
+    return chainlock_ingress::ignored;
+
+  chainlock_record stored;
+  if (m_db->get_chainlock(lock.height, lock.block_hash, stored))
+    return chainlock_ingress::ignored;
+  if (!m_checkpoints.check_block(lock.height, lock.block_hash))
+  {
+    m_db->put_chainlock({lock.height, lock.block_hash, true, {}});
+    return chainlock_ingress::ignored;
+  }
+
+  uint64_t epoch = 0;
+  if (!get_chainlock_epoch(lock.height, epoch))
+    return chainlock_ingress::ignored;
+  if (epoch != lock.epoch)
+    return chainlock_ingress::rejected;
+
+  const auto remember_pending = [&] {
+    if (m_chainlock_pending.size() < QWC_CHAINLOCK_PENDING_MAX
+        && std::find(m_chainlock_pending.begin(), m_chainlock_pending.end(), blob)
+            == m_chainlock_pending.end())
+      m_chainlock_pending.push_back(blob);
+  };
+  std::list<block_extended_info> lock_branch;
+  if (m_db->get_alt_block(lock.block_hash, nullptr, nullptr))
+  {
+    std::vector<uint64_t> timestamps;
+    block_verification_context bvc{};
+    if (!build_alt_chain(lock.block_hash, lock_branch, timestamps, bvc))
+    {
+      remember_pending();
+      return chainlock_ingress::ignored;
+    }
+  }
+  else if (lock.height >= m_db->height()
+      || m_db->get_block_hash_from_height(lock.height) != lock.block_hash)
+  {
+    remember_pending();
+    return chainlock_ingress::ignored;
+  }
+  qwertycoin::epose::chainlock_quorum_v1 quorum;
+  if (!(lock_branch.empty() ? get_chainlock_quorum(lock.epoch, quorum)
+          : get_alt_chainlock_quorum(lock, lock_branch, quorum)))
+  {
+    remember_pending();
+    return chainlock_ingress::ignored;
+  }
+
+  const auto key = std::make_pair(lock.height, lock.block_hash);
+  auto partial = m_chainlock_partials.find(key);
+  if (partial != m_chainlock_partials.end())
+  {
+    bool adds_signers = false;
+    for (size_t i = 0; i < lock.signers.size(); ++i)
+      adds_signers |= (lock.signers[i] & ~partial->second.signers[i]) != 0;
+    if (!adds_signers)
+      return chainlock_ingress::ignored;
+  }
+
+  qwertycoin::epose::chainlock_context_v1 context{};
+  if (!get_chainlock_context(context) || !qwertycoin::epose::verify_chainlock_v1(lock, quorum, context, true))
+    return chainlock_ingress::ignored;
+
+  if (partial == m_chainlock_partials.end())
+  {
+    qwertycoin::epose::chainlock_v1 aggregate;
+    aggregate.height = lock.height;
+    aggregate.block_hash = lock.block_hash;
+    aggregate.epoch = lock.epoch;
+    partial = m_chainlock_partials.emplace(key, aggregate).first;
+  }
+  qwertycoin::epose::merge_chainlock_share_v1(partial->second, lock, quorum.threshold());
+  relay_blob = qwertycoin::epose::serialize_chainlock_v1(partial->second);
+  if (qwertycoin::epose::chainlock_complete_v1(partial->second, quorum))
+  {
+    m_db->put_chainlock({lock.height, lock.block_hash, false, relay_blob});
+    m_chainlock_partials.erase(partial);
+    MINFO("Chainlock complete for height " << lock.height << " block " << lock.block_hash);
+    if (m_db->get_alt_block(lock.block_hash, nullptr, nullptr))
+    {
+      const crypto::hash best_tip = best_alternative_descendant(lock.block_hash);
+      std::list<block_extended_info> alt_chain;
+      std::vector<uint64_t> timestamps;
+      block_verification_context bvc{};
+      if (build_alt_chain(best_tip, alt_chain, timestamps, bvc)
+          && !alt_chain.empty()
+          && evaluate_alt_chainlocks(alt_chain).verdict == alt_chainlock_verdict::switch_verified)
+        switch_to_alternative_blockchain_with_batch(alt_chain);
+    }
+  }
+  prune_chainlock_partials();
+  return chainlock_ingress::accepted;
+}
+//------------------------------------------------------------------
+std::vector<blobdata> Blockchain::retry_pending_chainlocks()
+{
+  CRITICAL_REGION_LOCAL(m_tx_pool);
+  CRITICAL_REGION_LOCAL1(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return {};
+  std::vector<blobdata> pending;
+  pending.swap(m_chainlock_pending);
+  std::vector<blobdata> relay;
+  for (const blobdata &blob : pending)
+  {
+    blobdata relay_blob;
+    if (handle_incoming_chainlock(blob, relay_blob) == chainlock_ingress::accepted)
+      relay.push_back(std::move(relay_blob));
+  }
+  return relay;
 }
 //------------------------------------------------------------------
 bool Blockchain::get_epose_consensus_parameters_v2(
@@ -1154,10 +2280,43 @@ bool Blockchain::get_epose_consensus_parameters_v2(
   return true;
 }
 //------------------------------------------------------------------
+uint64_t Blockchain::get_epose_oldest_retained_epoch_v2() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return 0;
+  return m_epose_v2
+      ? m_epose_v2->state().membership().oldest_retained_epoch()
+      : 0;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_epose_state_diagnostics_v2(
+    qwertycoin::epose::state_storage_diagnostics_v2 &diagnostics) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  diagnostics = {};
+  if (!m_epose_v2)
+    return false;
+  diagnostics = m_epose_v2->state_diagnostics();
+  diagnostics.rebuilding = !epose_state_at_tip();
+  diagnostics.fatal = m_epose_rebuild_fatal;
+  diagnostics.retry_exhausted = m_epose_retry_exhausted_tip != crypto::null_hash;
+  diagnostics.retry_exhausted_tip = m_epose_retry_exhausted_tip;
+  if (!diagnostics.rebuilding && m_db && m_db->height() > 0)
+  {
+    uint64_t snapshot_height = 0;
+    if (m_db->get_epose_snapshot_height(m_db->height() - 1, snapshot_height))
+      diagnostics.last_snapshot_height = snapshot_height;
+  }
+  return true;
+}
+//------------------------------------------------------------------
 bool Blockchain::has_epose_admission_v2(
     const crypto::hash &identity_id, uint64_t target_epoch) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
   return m_epose_v2 && m_epose_v2->state().membership().has_admission(
       identity_id, target_epoch);
 }
@@ -1168,29 +2327,34 @@ Blockchain::get_epose_committee_v2(
     const crypto::public_key &subject_public_key,
     const crypto::hash &round_anchor_hash) const
 {
-  CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  return m_epose_v2
-      ? m_epose_v2->state().membership().committee(
-            epoch, round, subject_public_key, round_anchor_hash)
-      : std::vector<qwertycoin::epose::verifier_assignment_v2>{};
+  return query_epose_v2_at_tip(
+      std::vector<qwertycoin::epose::verifier_assignment_v2>{},
+      [&](auto &coordinator) {
+        return coordinator.state().membership().committee(
+            epoch, round, subject_public_key, round_anchor_hash);
+      });
 }
-
+//------------------------------------------------------------------
 bool Blockchain::has_epose_receipt_slot_v2(
     uint64_t epoch, uint64_t round,
     const crypto::public_key &subject_public_key,
     const crypto::public_key &verifier_public_key) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
   return m_epose_v2 && m_epose_v2->state().membership().has_receipt_slot(
       epoch, round, subject_public_key, verifier_public_key);
 }
-
+//------------------------------------------------------------------
 bool Blockchain::get_epose_receipt_coverage_v2(
     const uint64_t epoch,
     const crypto::public_key &subject_public_key,
     std::vector<size_t> &coverage) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
   coverage.clear();
   if (!m_epose_v2)
     return false;
@@ -1202,6 +2366,8 @@ bool Blockchain::get_epose_receipt_coverage_v2(
 uint64_t Blockchain::get_epose_attestation_count() const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return 0;
   if (m_epose_v2)
     return m_epose_v2->state().membership().receipt_count();
   if (!m_epose_state)
@@ -1212,6 +2378,8 @@ uint64_t Blockchain::get_epose_attestation_count() const
 crypto::hash Blockchain::get_epose_state_hash() const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return crypto::null_hash;
   if (m_epose_v2)
     return m_epose_v2->state().state_hash();
   if (!m_epose_state)
@@ -1231,116 +2399,69 @@ crypto::hash Blockchain::get_epose_epoch_context_hash(uint64_t epoch) const
   return get_block_id_by_height(seed_height);
 }
 //------------------------------------------------------------------
-bool Blockchain::get_epose_service_reward_for_block(uint64_t height, uint64_t total_reward, account_public_address &reward_address, crypto::secret_key &reward_view_secret_key, uint64_t &service_reward) const
+bool Blockchain::next_template_reward_inputs_v2(uint64_t height,
+    size_t &median_weight, uint64_t &already_generated_coins) const
 {
-  service_reward = 0;
-  if (!is_epose_enabled_for_height(height) || !m_epose_state)
+  if (!m_db || height == 0 || height != m_db->height())
     return false;
-
-  const uint64_t reward_source_epoch = qwertycoin::epose::reward_source_epoch_for_height(height);
-  const auto qualified_nodes = m_epose_state->qualified_service_nodes(reward_source_epoch);
-  crypto::public_key expected_payee{};
-  if (!qwertycoin::epose::select_service_payee(qualified_nodes, get_epose_epoch_context_hash(reward_source_epoch), height, expected_payee))
-    return false;
-
-  const auto registrations = m_epose_state->registry().registrations();
-  for (const auto &identity : registrations)
-  {
-    if (identity.service_public_key == expected_payee && qwertycoin::epose::identity_active_in_epoch(identity, reward_source_epoch))
-    {
-      reward_address = identity.reward_address;
-      reward_view_secret_key = identity.reward_view_secret_key;
-      service_reward = qwertycoin::epose::split_block_reward(total_reward, 0).service_reward;
-      return service_reward > 0;
-    }
-  }
-
-  return false;
-}
-//------------------------------------------------------------------
-bool Blockchain::validate_epose_service_reward(const block &b, uint64_t height, uint64_t total_reward) const
-{
-  account_public_address reward_address{};
-  crypto::secret_key reward_view_secret_key{};
-  uint64_t service_reward = 0;
-  if (!get_epose_service_reward_for_block(height, total_reward, reward_address, reward_view_secret_key, service_reward))
-    return true;
-
-  crypto::public_key tx_public_key = get_tx_pub_key_from_extra(b.miner_tx);
-  CHECK_AND_ASSERT_MES(tx_public_key != crypto::null_pkey, false, "EPoSE service reward cannot be validated without a coinbase tx public key");
-
-  if (qwertycoin::epose::validate_service_reward_output(b.miner_tx, reward_address, reward_view_secret_key, service_reward))
-    return true;
-
-  MERROR_VER("coinbase transaction does not pay required EPoSE service reward " << print_money(service_reward)
-      << " to the registered reward address");
-  return false;
+  median_weight = m_current_block_cumul_weight_limit / 2;
+  already_generated_coins = m_db->get_block_already_generated_coins(height - 1);
+  return true;
 }
 //------------------------------------------------------------------
 bool Blockchain::plan_epose_reward_v2(
+    uint8_t major_version,
     uint64_t height,
     const crypto::hash &parent_hash,
     uint64_t scheduled_subsidy,
     uint64_t fees,
     qwertycoin::epose::coordinator_reward_plan_v2 &plan) const
 {
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
   plan = {};
-  if (!m_epose_v2)
+  if (!epose_state_at_tip() || !m_epose_v2)
     return false;
 
-  class template_context_source final
-      : public qwertycoin::epose::canonical_context_source_v2
-  {
-  public:
-    template_context_source(
-        const Blockchain &chain,
-        const qwertycoin::epose::consensus_parameters_v2 &parameters)
-      : chain_(chain), parameters_(parameters) {}
-
-    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
-    {
-      hash = chain_.get_block_id_by_height(context_height);
-      return hash != crypto::null_hash;
-    }
-
-    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
-    {
-      if (round >= parameters_.committee.round_offsets.size())
-        return false;
-      uint64_t anchor_height = 0;
-      if (round == 0)
-      {
-        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
-          return false;
-      }
-      else
-      {
-        uint64_t start = 0;
-        if (!parameters_.timing.epoch_start(epoch, start)
-            || start > std::numeric_limits<uint64_t>::max()
-                - parameters_.committee.round_offsets[round])
-          return false;
-        anchor_height = start + parameters_.committee.round_offsets[round];
-      }
-      return block_hash(anchor_height, hash);
-    }
-
-  private:
-    const Blockchain &chain_;
-    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
-  } contexts(*this, m_epose_v2_parameters);
+  epose_context_source contexts(
+      main_chain_context_source(*this, m_epose_v2_parameters));
 
   return m_epose_v2->plan_reward(
-      height, parent_hash, scheduled_subsidy, fees, contexts, plan)
+      major_version, height, parent_hash, scheduled_subsidy, fees, contexts, plan)
       == qwertycoin::epose::coordinator_status_v2::accepted;
+}
+//------------------------------------------------------------------
+bool Blockchain::preview_epose_reward_v2(
+    uint64_t height, qwertycoin::epose::coordinator_reward_plan_v2 &plan) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  plan = {};
+  if (!m_db || height == 0 || height != m_db->height() || !epose_state_at_tip())
+    return false;
+
+  const uint8_t major_version = get_ideal_hard_fork_version(height);
+  size_t median_weight = 0;
+  uint64_t already_generated_coins = 0;
+  uint64_t scheduled_subsidy = 0;
+  return next_template_reward_inputs_v2(height, median_weight,
+             already_generated_coins)
+      && get_block_reward(median_weight, 0, already_generated_coins,
+             scheduled_subsidy, major_version)
+      && plan_epose_reward_v2(major_version, height, get_tail_id(),
+             scheduled_subsidy, 0, plan);
 }
 //------------------------------------------------------------------
 bool Blockchain::get_epose_block_reward_mapping_v2(
     const crypto::hash &block_hash,
-    epose_block_reward_mapping_v2 &mapping) const
+    epose_block_reward_mapping_v2 &mapping,
+    bool &outside_retained_window,
+    bool &busy) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
   mapping = {};
+  outside_retained_window = false;
+  busy = !epose_state_at_tip();
+  if (busy)
+    return false;
   if (!m_db || !m_epose_v2 || block_hash == crypto::null_hash)
     return false;
 
@@ -1352,6 +2473,15 @@ bool Blockchain::get_epose_block_reward_mapping_v2(
     const uint64_t height = m_db->get_block_height(block_hash);
     if (height >= chain_height || m_db->get_block_hash_from_height(height) != block_hash)
       return false;
+    uint64_t source_epoch = 0;
+    if (!get_epose_reward_source_epoch_v2(height, source_epoch))
+      return false;
+    if (m_epose_v2->state().membership().read_epoch(source_epoch)
+        == qwertycoin::epose::pipeline_status_v2::outside_retained_window)
+    {
+      outside_retained_window = true;
+      return false;
+    }
 
     const block bl = m_db->get_block_from_height(height);
     if (get_block_hash(bl) != block_hash || bl.major_version != get_ideal_hard_fork_version(height))
@@ -1361,13 +2491,9 @@ bool Blockchain::get_epose_block_reward_mapping_v2(
     if (txs.size() != bl.tx_hashes.size())
       return false;
     uint64_t fees = 0;
-    for (const transaction &tx : txs)
-    {
-      const uint64_t fee = get_tx_fee(tx);
-      if (fees > std::numeric_limits<uint64_t>::max() - fee)
-        return false;
-      fees += fee;
-    }
+    uint64_t contract_mints = 0;
+    if (!sum_contract_miner_fees(txs, bl.major_version, fees) || !get_vm_minted(height, bl.major_version, contract_mints))
+      return false;
 
     const uint8_t version = bl.major_version;
     const size_t short_count = static_cast<size_t>(
@@ -1376,36 +2502,21 @@ bool Blockchain::get_epose_block_reward_mapping_v2(
     std::vector<uint64_t> short_weights = short_count == 0
         ? std::vector<uint64_t>{}
         : m_db->get_block_weights(short_start, short_count);
-    const uint64_t short_median = short_weights.empty()
-        ? 0 : epee::misc_utils::median(short_weights);
-    uint64_t median_weight = short_median;
-    if (version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
-    {
-      const size_t long_count = static_cast<size_t>(
-          std::min<uint64_t>(height, m_long_term_block_weights_window));
-      const uint64_t long_start = height - long_count;
-      std::vector<uint64_t> long_weights = long_count == 0
-          ? std::vector<uint64_t>{}
-          : m_db->get_long_term_block_weights(long_start, long_count);
-      const uint64_t long_median = long_weights.empty()
-          ? 0 : epee::misc_utils::median(long_weights);
-      const uint64_t effective_long_median = std::max<uint64_t>(
-          CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_median);
-      if (effective_long_median
-          > std::numeric_limits<uint64_t>::max()
-              / CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR)
-        return false;
-      const uint64_t upper = CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR
-          * effective_long_median;
-      median_weight = version >= HF_VERSION_2021_SCALING
-          ? std::min<uint64_t>(
-              std::max<uint64_t>(effective_long_median, short_median), upper)
-          : std::min<uint64_t>(
-              std::max<uint64_t>(
-                  CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
-                  short_median),
-              upper);
-    }
+    const uint64_t short_median = median_or_zero(short_weights);
+    uint64_t median_weight = 0;
+    if (!block_reward_median_weight(version, short_median,
+            [&](uint64_t &long_median) {
+              const size_t long_count = static_cast<size_t>(
+                  std::min<uint64_t>(height, m_long_term_block_weights_window));
+              const uint64_t long_start = height - long_count;
+              std::vector<uint64_t> long_weights = long_count == 0
+                  ? std::vector<uint64_t>{}
+                  : m_db->get_long_term_block_weights(long_start, long_count);
+              long_median = median_or_zero(long_weights);
+              return true;
+            },
+            median_weight))
+      return false;
     median_weight = std::max<uint64_t>(
         median_weight, get_min_block_weight(version));
 
@@ -1419,7 +2530,7 @@ bool Blockchain::get_epose_block_reward_mapping_v2(
 
     qwertycoin::epose::coordinator_reward_plan_v2 plan{};
     if (!plan_epose_reward_v2(
-            height, bl.prev_id, scheduled_subsidy, fees, plan))
+            bl.major_version, height, bl.prev_id, scheduled_subsidy, fees, plan))
       return false;
 
     uint64_t actual_coinbase_total = 0;
@@ -1430,7 +2541,8 @@ bool Blockchain::get_epose_block_reward_mapping_v2(
         return false;
       actual_coinbase_total += output.amount;
     }
-    if (actual_coinbase_total != plan.allocation.coinbase_total)
+    if (actual_coinbase_total < contract_mints
+        || actual_coinbase_total - contract_mints != plan.allocation.coinbase_total) // H-30
       return false;
 
     qwertycoin::epose::service_payment_context_v2 payment{};
@@ -1443,9 +2555,6 @@ bool Blockchain::get_epose_block_reward_mapping_v2(
             qwertycoin::epose::reward_status_v2::accepted)
       return false;
 
-    uint64_t source_epoch = 0;
-    if (!get_epose_reward_source_epoch_v2(height, source_epoch))
-      return false;
     const auto *qualification =
         m_epose_v2->state().membership().qualification(source_epoch);
     if (qualification == nullptr)
@@ -1486,53 +2595,19 @@ bool Blockchain::select_epose_template_records_v2(
     return true;
   m_epose_v2_relay_pool->prune_expired(height);
 
-  class template_record_context_source final
-      : public qwertycoin::epose::canonical_context_source_v2
-  {
-  public:
-    template_record_context_source(
-        const Blockchain &chain,
-        const qwertycoin::epose::consensus_parameters_v2 &parameters)
-      : chain_(chain), parameters_(parameters) {}
-    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
-    {
-      hash = chain_.get_block_id_by_height(context_height);
-      return hash != crypto::null_hash;
-    }
-    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
-    {
-      if (round >= parameters_.committee.round_offsets.size())
-        return false;
-      uint64_t anchor_height = 0;
-      if (round == 0)
-      {
-        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
-          return false;
-      }
-      else
-      {
-        uint64_t start = 0;
-        if (!parameters_.timing.epoch_start(epoch, start)
-            || start > std::numeric_limits<uint64_t>::max()
-                - parameters_.committee.round_offsets[round])
-          return false;
-        anchor_height = start + parameters_.committee.round_offsets[round];
-      }
-      return block_hash(anchor_height, hash);
-    }
-  private:
-    const Blockchain &chain_;
-    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
-  } contexts(*this, m_epose_v2_parameters);
+  epose_context_source contexts(
+      main_chain_context_source(*this, m_epose_v2_parameters));
 
   m_epose_v2_relay_pool->prune_unusable_receipts(
-      height, m_epose_v2->state(), contexts);
+      height, m_epose_v2->preview_state(), contexts);
   std::vector<qwertycoin::epose::relay_record_selection_v2> selected;
   if (m_epose_v2_relay_pool->select_for_template(height, selected, &m_epose_v2->state())
       != qwertycoin::epose::relay_record_status_v2::accepted)
     return false;
 
-  qwertycoin::epose::semantic_state_v2 semantic = m_epose_v2->state();
+  qwertycoin::epose::semantic_state_v2 &semantic = m_epose_v2->preview_state();
+  auto undo = semantic.checkpoint();
+  BOOST_SCOPE_EXIT_ALL(&) { semantic.rollback(undo); };
   std::vector<qwertycoin::epose::envelope_record_v2> candidates;
   for (const auto &selection : selected)
     candidates.push_back(selection.record);
@@ -1547,7 +2622,8 @@ bool Blockchain::select_epose_template_records_v2(
     qwertycoin::epose::semantic_apply_summary_v2 summary{};
     const qwertycoin::epose::semantic_transaction_context_v2 transaction{
         height, true, nullptr, nullptr};
-    if (semantic.apply_transaction(batch, transaction, contexts, summary)
+    if (semantic.apply_transaction(
+            batch, transaction, contexts, summary, &undo)
         != qwertycoin::epose::semantic_status_v2::accepted)
       continue;
     records.insert(records.end(), batch.begin(), batch.end());
@@ -1561,8 +2637,10 @@ bool Blockchain::apply_epose_block(
     const block &bl,
     const std::vector<std::pair<transaction, blobdata>> &txs,
     uint64_t height,
+    size_t block_weight,
     uint64_t scheduled_subsidy,
     uint64_t fees,
+    uint64_t contract_mints,
     epose_state_commitment_v2 &commitment,
     std::vector<qwertycoin::epose::envelope_record_v2> &confirmed_records)
 {
@@ -1570,50 +2648,13 @@ bool Blockchain::apply_epose_block(
   confirmed_records.clear();
   if (!is_epose_enabled_for_height(height))
     return true;
+  if (!epose_state_at_tip())
+    return false;
   if (!m_epose_v2)
     return m_nettype == FAKECHAIN;
 
-  class blockchain_context_source final
-      : public qwertycoin::epose::canonical_context_source_v2
-  {
-  public:
-    blockchain_context_source(
-        const Blockchain &chain,
-        const qwertycoin::epose::consensus_parameters_v2 &parameters)
-      : chain_(chain), parameters_(parameters) {}
-
-    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
-    {
-      hash = chain_.get_block_id_by_height(context_height);
-      return hash != crypto::null_hash;
-    }
-
-    bool round_anchor(uint64_t epoch, uint64_t round, crypto::hash &hash) const override
-    {
-      if (round >= parameters_.committee.round_offsets.size())
-        return false;
-      uint64_t anchor_height = 0;
-      if (round == 0)
-      {
-        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
-          return false;
-      }
-      else
-      {
-        uint64_t start = 0;
-        if (!parameters_.timing.epoch_start(epoch, start)
-            || start > std::numeric_limits<uint64_t>::max()
-                - parameters_.committee.round_offsets[round])
-          return false;
-        anchor_height = start + parameters_.committee.round_offsets[round];
-      }
-      return block_hash(anchor_height, hash);
-    }
-
-  private:
-    const Blockchain &chain_;
-    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
-  } contexts(*this, m_epose_v2_parameters);
+  epose_context_source contexts(
+      main_chain_context_source(*this, m_epose_v2_parameters));
 
   std::vector<const transaction *> transactions;
   transactions.reserve(txs.size());
@@ -1634,21 +2675,33 @@ bool Blockchain::apply_epose_block(
               tx->extra, bl.major_version,
               m_epose_v2_parameters.limits.max_envelopes_per_transaction,
               m_epose_v2_parameters.limits.envelope,
-              parsed, ignored) != qwertycoin::epose::envelope_status_v2::accepted)
+              parsed, ignored, tx == &bl.miner_tx ? contract_extra_scope::coinbase : contract_extra_scope::transaction) != qwertycoin::epose::envelope_status_v2::accepted)
         return false;
       confirmed_records.insert(
           confirmed_records.end(), parsed.begin(), parsed.end());
     }
   }
+  epose_block_inputs inputs{};
+  const uint64_t already_generated = height == 0
+      ? 0 : m_db->get_block_already_generated_coins(height - 1);
+  const auto canonical_weight = canonical_weight_reader(*m_db);
+  if (!derive_epose_block_inputs(bl.major_version, height,
+          block_weight,
+          already_generated, contract_mints, m_long_term_block_weights_window,
+          transactions, canonical_weight, inputs)
+      || inputs.scheduled_subsidy != scheduled_subsidy
+      || inputs.fees != fees || inputs.mints != contract_mints)
+    return false;
   const qwertycoin::epose::coordinator_block_v2 candidate{
       bl.major_version,
       height,
       get_block_hash(bl),
       bl.prev_id,
-      scheduled_subsidy,
-      fees,
+      inputs.scheduled_subsidy,
+      inputs.fees,
       &bl.miner_tx,
-      transactions};
+      transactions,
+      inputs.mints};
   qwertycoin::epose::coordinator_result_v2 result{};
   if (m_epose_v2->connect_block(candidate, contexts, result)
       != qwertycoin::epose::coordinator_status_v2::accepted)
@@ -1657,6 +2710,7 @@ bool Blockchain::apply_epose_block(
         << " failed hardened EPoSE-v2 consensus validation");
     return false;
   }
+  ++m_epose_state_validation_generation;
   commitment.schema_version = result.state_commitment_schema;
   commitment.block_hash = candidate.block_hash;
   commitment.state_hash = result.state_hash;
@@ -1666,185 +2720,910 @@ bool Blockchain::apply_epose_block(
 //------------------------------------------------------------------
 void Blockchain::rollback_epose_block(uint64_t popped_height)
 {
-  if (!m_epose_v2)
+  if (!m_epose_v2 || m_epose_rebuild_deferred)
     return;
-  const qwertycoin::epose::block_transition_status_v2 status =
-      m_epose_v2->disconnect_tip(popped_height);
+  ++m_epose_state_validation_generation;
+  const auto status = m_epose_v2->disconnect_tip(popped_height);
   if (status == qwertycoin::epose::block_transition_status_v2::deep_replay_required)
   {
-    if (!rebuild_epose_state())
-      MERROR("Failed to replay hardened EPoSE-v2 state after deep rollback at height " << popped_height);
+    if (!try_rebuild_epose_state())
+    {
+      MERROR("Failed to replay EPoSE state after deep rollback at height " << popped_height);
+      schedule_epose_recovery();
+    }
   }
   else if (status != qwertycoin::epose::block_transition_status_v2::accepted)
-    MERROR("Failed to disconnect hardened EPoSE-v2 state at height " << popped_height);
+  {
+    MERROR("Failed to disconnect EPoSE state at height " << popped_height);
+    schedule_epose_recovery();
+  }
 }
 //------------------------------------------------------------------
-bool Blockchain::rebuild_epose_state()
+bool Blockchain::rebuild_epose_state(bool full_rebuild, uint64_t target_height, std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> *scratch)
 {
   if (!m_db)
     return false;
   if (!m_epose_v2)
     return m_nettype == FAKECHAIN;
 
-  class replay_context_source final
-      : public qwertycoin::epose::canonical_context_source_v2
-  {
-  public:
-    replay_context_source(
-        const Blockchain &chain,
-        const qwertycoin::epose::consensus_parameters_v2 &parameters)
-      : chain_(chain), parameters_(parameters) {}
-
-    bool block_hash(uint64_t context_height, crypto::hash &hash) const override
-    {
-      hash = chain_.get_block_id_by_height(context_height);
-      return hash != crypto::null_hash;
-    }
-
-    bool round_anchor(
-        uint64_t epoch, uint64_t round, crypto::hash &hash) const override
-    {
-      if (round >= parameters_.committee.round_offsets.size())
-        return false;
-      uint64_t anchor_height = 0;
-      if (round == 0)
-      {
-        if (!parameters_.timing.committee_anchor(epoch, anchor_height))
-          return false;
-      }
-      else
-      {
-        uint64_t start = 0;
-        if (!parameters_.timing.epoch_start(epoch, start)
-            || start > std::numeric_limits<uint64_t>::max()
-                - parameters_.committee.round_offsets[round])
-          return false;
-        anchor_height = start + parameters_.committee.round_offsets[round];
-      }
-      return block_hash(anchor_height, hash);
-    }
-
-  private:
-    const Blockchain &chain_;
-    const qwertycoin::epose::consensus_parameters_v2 &parameters_;
-  } contexts(*this, m_epose_v2_parameters);
+  epose_context_source contexts(
+      main_chain_context_source(*this, m_epose_v2_parameters));
 
   auto rebuilt = std::make_unique<qwertycoin::epose::consensus_coordinator_v2>(
       m_epose_v2_parameters);
   if (!rebuilt->valid())
     return false;
 
-  const uint64_t chain_height = m_db->height();
-  for (uint64_t height = 0; height < chain_height; ++height)
+  const uint64_t chain_height = std::min(target_height, m_db->height());
+  uint64_t replay_start = 0;
+  bool loaded_snapshot = false;
+  if (chain_height > 0 && !full_rebuild)
   {
-    const block bl = m_db->get_block_from_height(height);
-    const uint8_t ideal_version = m_hardfork->get_ideal_version(height);
-    if (!is_qwc_epose_v2_hardfork(bl.major_version)
-        || bl.major_version != ideal_version)
+    uint64_t search_height = chain_height - 1;
+    uint64_t snapshot_height = 0;
+    std::string image;
+    while (m_db->get_epose_snapshot(search_height, snapshot_height, image))
     {
-      MERROR("Unexpected block version while replaying EPoSE-v2 at height " << height);
-      return false;
-    }
-
-    std::vector<transaction> txs = m_db->get_tx_list(bl.tx_hashes);
-    if (txs.size() != bl.tx_hashes.size())
-      return false;
-    uint64_t fees = 0;
-    for (const transaction &tx : txs)
-    {
-      const uint64_t fee = get_tx_fee(tx);
-      if (fees > std::numeric_limits<uint64_t>::max() - fee)
-        return false;
-      fees += fee;
-    }
-
-    const uint8_t version = bl.major_version;
-    const size_t short_count = static_cast<size_t>(
-        std::min<uint64_t>(height, CRYPTONOTE_REWARD_BLOCKS_WINDOW));
-    const uint64_t short_start = height - short_count;
-    std::vector<uint64_t> short_weights =
-        short_count == 0
-        ? std::vector<uint64_t>{}
-        : m_db->get_block_weights(short_start, short_count);
-    const uint64_t short_median = short_weights.empty()
-        ? 0 : epee::misc_utils::median(short_weights);
-    uint64_t median_weight = short_median;
-    if (version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
-    {
-      const size_t long_count = static_cast<size_t>(
-          std::min<uint64_t>(height, m_long_term_block_weights_window));
-      const uint64_t long_start = height - long_count;
-      std::vector<uint64_t> long_weights =
-          long_count == 0
-          ? std::vector<uint64_t>{}
-          : m_db->get_long_term_block_weights(long_start, long_count);
-      const uint64_t long_median = long_weights.empty()
-          ? 0 : epee::misc_utils::median(long_weights);
-      const uint64_t effective_long_median = std::max<uint64_t>(
-          CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_median);
-      if (effective_long_median
-          > std::numeric_limits<uint64_t>::max()
-              / CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR)
-        return false;
-      const uint64_t upper =
-          CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR
-          * effective_long_median;
-      median_weight = version >= HF_VERSION_2021_SCALING
-          ? std::min<uint64_t>(
-              std::max<uint64_t>(effective_long_median, short_median), upper)
-          : std::min<uint64_t>(
-              std::max<uint64_t>(
-                  CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5,
-                  short_median),
-              upper);
-    }
-    median_weight = std::max<uint64_t>(
-        median_weight, get_min_block_weight(version));
-
-    const uint64_t already_generated = height == 0
-        ? 0 : m_db->get_block_already_generated_coins(height - 1);
-    uint64_t scheduled_subsidy = 0;
-    if (!get_block_reward(
-            median_weight, m_db->get_block_weight(height),
-            already_generated, scheduled_subsidy, version))
-      return false;
-
-    std::vector<const transaction *> transaction_pointers;
-    transaction_pointers.reserve(txs.size());
-    for (const transaction &tx : txs)
-      transaction_pointers.push_back(&tx);
-    const qwertycoin::epose::coordinator_block_v2 candidate{
-        version,
-        height,
-        get_block_hash(bl),
-        bl.prev_id,
-        scheduled_subsidy,
-        fees,
-        &bl.miner_tx,
-        transaction_pointers};
-    qwertycoin::epose::coordinator_result_v2 result{};
-    if (rebuilt->connect_block(candidate, contexts, result)
-        != qwertycoin::epose::coordinator_status_v2::accepted)
-    {
-      MERROR("Failed to replay hardened EPoSE-v2 transition at height " << height);
-      return false;
-    }
-
-    epose_state_commitment_v2 committed{};
-    if (!m_db->get_epose_state_commitment_v2(height, committed)
-        || committed.schema_version != result.state_commitment_schema
-        || committed.block_hash != candidate.block_hash
-        || committed.state_hash != result.state_hash
-        || committed.parameter_set_hash != result.parameter_set_hash)
-    {
-      MERROR("EPoSE-v2 state commitment mismatch at height " << height);
-      return false;
+      const crypto::hash canonical_hash = m_db->get_block_hash_from_height(snapshot_height);
+      epose_state_commitment_v2 committed{};
+      const bool has_commitment = m_db->get_epose_state_commitment_v2(
+          snapshot_height, committed);
+      const crypto::hash expected_parameters = has_commitment
+          && committed.schema_version == QWC_EPOSE_ROLLING_STATE_SCHEMA
+          ? m_epose_v2_parameters.window_parameter_set_hash
+          : m_epose_v2_parameters.parameter_set_hash;
+      qwertycoin::epose::state_snapshot_v2 snapshot{};
+      if (snapshot_height >= m_epose_v2_parameters.timing.activation_height
+          && has_commitment
+          && committed.parameter_set_hash == expected_parameters
+          && snapshot.restore(image, expected_parameters)
+              == qwertycoin::epose::state_index_status_v2::accepted
+          && committed.block_hash == canonical_hash
+          && snapshot.matches(committed.schema_version, snapshot_height,
+              canonical_hash, committed.state_hash)
+          && rebuilt->restore_state(snapshot_height, snapshot.state_image)
+          && rebuilt->state().state_hash() == snapshot.state_root)
+      {
+        loaded_snapshot = true;
+        replay_start = snapshot_height + 1;
+        break;
+      }
+      MERROR("EPoSE boundary snapshot mismatch at height " << snapshot_height);
+      rebuilt = std::make_unique<qwertycoin::epose::consensus_coordinator_v2>(
+          m_epose_v2_parameters);
+      if (snapshot_height == 0)
+        break;
+      search_height = snapshot_height - 1;
     }
   }
 
-  m_epose_v2 = std::move(rebuilt);
+  const auto replay_from = [&](uint64_t first_height) -> bool {
+    for (uint64_t height = first_height; height < chain_height; ++height)
+    {
+      if (!is_epose_enabled_for_height(height))
+        continue;
+      const block bl = m_db->get_block_from_height(height);
+      const uint8_t ideal_version = m_hardfork->get_ideal_version(height);
+      if (!is_qwc_epose_v2_hardfork(bl.major_version)
+          || bl.major_version != ideal_version)
+      {
+        MERROR("Unexpected block version while replaying EPoSE-v2 at height " << height);
+        return false;
+      }
+
+      std::vector<transaction> txs = m_db->get_tx_list(bl.tx_hashes);
+      if (txs.size() != bl.tx_hashes.size())
+        return false;
+      uint64_t contract_mints = 0;
+      if (!get_vm_minted(height, bl.major_version, contract_mints))
+        return false;
+
+      std::vector<const transaction *> transaction_pointers;
+      transaction_pointers.reserve(txs.size());
+      for (const transaction &tx : txs)
+        transaction_pointers.push_back(&tx);
+      epose_block_inputs inputs{};
+      const auto canonical_weight = canonical_weight_reader(*m_db);
+      const uint64_t already_generated = height == 0
+          ? 0 : m_db->get_block_already_generated_coins(height - 1);
+      if (!derive_epose_block_inputs(bl.major_version, height,
+              m_db->get_block_weight(height), already_generated, contract_mints,
+              m_long_term_block_weights_window, transaction_pointers,
+              canonical_weight, inputs))
+        return false;
+      const qwertycoin::epose::coordinator_block_v2 candidate{
+          bl.major_version, height, get_block_hash(bl), bl.prev_id,
+          inputs.scheduled_subsidy, inputs.fees, &bl.miner_tx,
+          transaction_pointers, inputs.mints};
+      qwertycoin::epose::coordinator_result_v2 result{};
+      if (rebuilt->connect_block(candidate, contexts, result)
+          != qwertycoin::epose::coordinator_status_v2::accepted)
+      {
+        MERROR("Failed to replay hardened EPoSE-v2 transition at height " << height);
+        return false;
+      }
+
+      epose_state_commitment_v2 committed{};
+      if (!m_db->get_epose_state_commitment_v2(height, committed)
+          || committed.schema_version != result.state_commitment_schema
+          || committed.block_hash != candidate.block_hash
+          || committed.state_hash != result.state_hash
+          || committed.parameter_set_hash != result.parameter_set_hash)
+      {
+        MERROR("EPoSE-v2 state commitment mismatch at height " << height);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  if (!replay_from(replay_start))
+  {
+    if (!loaded_snapshot)
+      return false;
+    MERROR("EPoSE replay after boundary snapshot failed; rebuilding from canonical blocks");
+    rebuilt = std::make_unique<qwertycoin::epose::consensus_coordinator_v2>(
+        m_epose_v2_parameters);
+    if (!rebuilt->valid() || !replay_from(0))
+      return false;
+  }
+
+  if (scratch)
+    *scratch = std::move(rebuilt);
+  else
+  {
+    m_epose_v2 = std::move(rebuilt);
+    ++m_epose_state_validation_generation;
+  }
   MINFO("Replayed and verified hardened EPoSE-v2 state through "
       << chain_height << " canonical blocks");
+  return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::try_rebuild_epose_state(bool full_rebuild)
+{
+  try
+  {
+    if (m_epose_rebuild_injection && !m_epose_rebuild_injection(full_rebuild))
+      return false;
+    return rebuild_epose_state(full_rebuild);
+  }
+  catch (const std::exception &error)
+  {
+    MERROR("EPoSE rebuild failed: " << error.what());
+    return false;
+  }
+  catch (...)
+  {
+    MERROR("EPoSE rebuild failed with an unknown error");
+    return false;
+  }
+}
+//------------------------------------------------------------------
+bool Blockchain::epose_state_at_tip() const
+{
+  if (!m_epose_v2 || !m_db || m_epose_rebuild_fatal)
+    return !m_epose_rebuild_fatal && !m_epose_v2;
+  const uint64_t height = m_db->height();
+  if (height == 0 || height - 1 < m_epose_v2_parameters.timing.activation_height)
+    return true;
+  const crypto::hash tip = m_db->top_block_hash();
+  if (m_epose_state_validation_height == height
+      && m_epose_state_validation_tip == tip
+      && m_epose_state_validation_checked_generation == m_epose_state_validation_generation
+      && m_epose_state_validation_coordinator_generation == m_epose_v2->generation())
+    return m_epose_state_validation_result;
+  uint64_t state_height = 0;
+  epose_state_commitment_v2 commitment{};
+  const bool aligned = m_epose_v2->tip_height(state_height)
+      && state_height == height - 1
+      && m_db->get_epose_state_commitment_v2(state_height, commitment)
+      && commitment.block_hash == tip;
+  const bool result = aligned && commitment.state_hash == m_epose_v2->state_hash();
+  m_epose_state_validation_height = height;
+  m_epose_state_validation_tip = tip;
+  m_epose_state_validation_checked_generation = m_epose_state_validation_generation;
+  m_epose_state_validation_coordinator_generation = m_epose_v2->generation();
+  m_epose_state_validation_result = result;
+  return result;
+}
+//------------------------------------------------------------------
+void Blockchain::schedule_epose_recovery()
+{
+  if ((epose_state_at_tip() && !m_epose_retry_best_chain)
+      || m_epose_rebuild_retry_scheduled || m_epose_rebuild_shutdown
+      || m_epose_rebuild_fatal)
+    return;
+  m_epose_rebuild_retry_scheduled = true;
+  m_epose_rebuild_timer.expires_after(std::chrono::seconds(1));
+  m_epose_rebuild_timer.async_wait([this](const boost::system::error_code &error) {
+    if (m_epose_rebuild_shutdown)
+      return;
+    const auto mark_fatal = [this] {
+      CRITICAL_REGION_LOCAL(m_tx_pool);
+      CRITICAL_REGION_LOCAL1(m_blockchain_lock);
+      m_epose_rebuild_retry_scheduled = false;
+      m_epose_rebuild_fatal = true;
+    };
+    try
+    {
+      const auto recover = [this, &error] {
+        CRITICAL_REGION_LOCAL(m_tx_pool);
+        CRITICAL_REGION_LOCAL1(m_blockchain_lock);
+        m_epose_rebuild_retry_scheduled = false;
+        if (error == boost::asio::error::operation_aborted)
+          return;
+        if (error)
+          MERROR("EPoSE recovery timer failed: " << error.message());
+        const auto resume_best_chain_retry = [this] {
+          m_epose_rebuild_attempts = 0;
+          retry_best_epose_chain();
+        };
+        if (epose_state_at_tip())
+        {
+          resume_best_chain_retry();
+          return;
+        }
+        const bool full = m_epose_rebuild_attempts >= 3;
+        ++m_epose_rebuild_attempts;
+        if (try_rebuild_epose_state(full) && epose_state_at_tip())
+        {
+          resume_best_chain_retry();
+          return;
+        }
+        if (full)
+        {
+          m_epose_rebuild_fatal = true;
+          MERROR("FATAL: EPoSE state recovery failed from boundary snapshots and genesis; block validation is stopped");
+          return;
+        }
+        schedule_epose_recovery();
+      };
+      if (m_epose_recovery_intake)
+        m_epose_recovery_intake(recover);
+      else if (m_epose_retry_best_chain)
+      {
+        m_epose_rebuild_retry_scheduled = false;
+        m_epose_rebuild_fatal = true;
+      }
+      else
+        recover();
+    }
+    catch (const std::exception &failure)
+    {
+      MERROR("EPoSE recovery failed: " << failure.what());
+      mark_fatal();
+    }
+    catch (...)
+    {
+      MERROR("EPoSE recovery failed");
+      mark_fatal();
+    }
+  });
+}
+//------------------------------------------------------------------
+bool Blockchain::retry_best_epose_chain()
+{
+  if (!m_epose_retry_best_chain || !epose_state_at_tip())
+    return true;
+  m_epose_retry_best_chain = false;
+  auto tips = get_alternative_tips();
+  const bool hf18 = is_qwc_contracts_hardfork(get_current_hard_fork_version());
+  if (hf18)
+    std::sort(tips.begin(), tips.end(), [](const alternative_tip &left,
+        const alternative_tip &right) {
+      return left.cumulative_difficulty > right.cumulative_difficulty
+          || (left.cumulative_difficulty == right.cumulative_difficulty
+              && left.hash < right.hash);
+    });
+  difficulty_type best_difficulty = m_db->get_block_cumulative_difficulty(m_db->height() - 1);
+  crypto::hash best_tip{};
+  bool best_verified = false;
+  epose_retry_priority best_priority{};
+  uint64_t main_lock_height = 0;
+  crypto::hash main_lock_hash{};
+  const bool has_main_lock = hf18
+      && get_highest_main_chainlock(main_lock_height, main_lock_hash);
+  std::list<block_extended_info> best;
+  std::unordered_map<crypto::hash, alt_chainlock_evaluation> lock_evaluations;
+  bool found_best = false;
+  for (const auto &candidate : tips)
+  {
+    if (hf18 && !candidate.potential_lock
+        && (best_verified
+            || (has_main_lock && main_lock_height >= candidate.split_height)
+            || candidate.cumulative_difficulty < best_difficulty
+            || (candidate.cumulative_difficulty == best_difficulty
+                && (!found_best || !(candidate.hash < best_tip)))))
+      continue;
+    std::list<block_extended_info> branch;
+    std::vector<uint64_t> timestamps;
+    block_verification_context bvc{};
+    const crypto::hash tip = candidate.hash;
+    alt_chainlock_evaluation evaluation{alt_chainlock_verdict::difficulty};
+    if (!hf18 || candidate.potential_lock)
+    {
+      const auto cached = hf18 ? lock_evaluations.find(candidate.lock_source)
+          : lock_evaluations.end();
+      if (cached != lock_evaluations.end())
+        evaluation = cached->second;
+      else
+      {
+        if (!build_alt_chain(tip, branch, timestamps, bvc) || branch.empty())
+          continue;
+        evaluation = evaluate_alt_chainlocks(branch);
+        if (hf18)
+          lock_evaluations.emplace(candidate.lock_source, evaluation);
+      }
+    }
+    if (evaluation.verdict == alt_chainlock_verdict::blocked)
+      continue;
+    if (!hf18)
+    {
+      if (evaluation.verdict == alt_chainlock_verdict::difficulty
+          && candidate.cumulative_difficulty <= best_difficulty)
+        continue;
+      best_difficulty = candidate.cumulative_difficulty;
+      best = std::move(branch);
+      found_best = true;
+      continue;
+    }
+    const bool verified = evaluation.verdict == alt_chainlock_verdict::switch_verified;
+    const epose_retry_priority priority{verified, evaluation.verified_height,
+        evaluation.verified_hash, candidate.cumulative_difficulty, tip};
+    if (found_best && !better_epose_retry_priority(priority, best_priority))
+      continue;
+    if (!found_best && !verified
+        && candidate.cumulative_difficulty <= best_difficulty)
+      continue;
+    if (branch.empty()
+        && (!build_alt_chain(tip, branch, timestamps, bvc) || branch.empty()))
+      continue;
+    best_verified = verified;
+    best_priority = priority;
+    best_difficulty = candidate.cumulative_difficulty;
+    best_tip = tip;
+    best = std::move(branch);
+    found_best = true;
+  }
+  if (!best.empty())
+  {
+    const crypto::hash tip = get_block_hash(best.back().bl);
+    if (m_epose_retry_chain_attempts.size() >= 64
+        && m_epose_retry_chain_attempts.count(tip) == 0)
+      m_epose_retry_chain_attempts.erase(m_epose_retry_chain_attempts.begin());
+    unsigned &attempts = m_epose_retry_chain_attempts[tip];
+    if (attempts >= 3)
+    {
+      m_epose_retry_exhausted_tip = tip;
+      MERROR("EPoSE alternative chain retry limit reached for " << tip);
+      return true;
+    }
+    ++attempts;
+    if (!switch_to_alternative_blockchain_with_batch(best))
+    {
+      MERROR("Recovered EPoSE state, but the best alternative chain did not pass revalidation");
+      if (m_epose_switch_busy)
+      {
+        if (m_epose_switch_mutated)
+          m_batch_success = false;
+        return false;
+      }
+    }
+    if (m_epose_retry_chain_attempts.size() > 64)
+      m_epose_retry_chain_attempts.erase(m_epose_retry_chain_attempts.begin());
+  }
+  return true;
+}
+//------------------------------------------------------------------
+template <typename Step>
+Blockchain::epose_preflight_result Blockchain::guard_epose_preflight_step(
+    const char *failure_message, Step &&step)
+{
+  try
+  {
+    return step();
+  }
+  catch (const std::bad_alloc &)
+  {
+    return epose_preflight_result::busy;
+  }
+  catch (const std::exception &failure)
+  {
+    MERROR(failure_message << failure.what());
+    return epose_preflight_result::invalid;
+  }
+}
+//------------------------------------------------------------------
+Blockchain::epose_preflight_result Blockchain::preflight_epose_chain(
+    const std::list<block_extended_info> &alt_chain,
+    std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> &scratch,
+    crypto::hash &failed_block, uint64_t anchor_height,
+    std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> *anchor_state)
+{
+  ++m_epose_preflight_runs;
+  failed_block = crypto::null_hash;
+  if (!m_epose_v2)
+    return epose_preflight_result::accepted;
+  if (!epose_state_at_tip() || alt_chain.empty())
+    return epose_preflight_result::busy;
+  if (std::none_of(alt_chain.begin(), alt_chain.end(),
+          [this](const block_extended_info &entry) {
+            return is_epose_enabled_for_height(entry.height);
+          }))
+    return epose_preflight_result::accepted;
+  const uint64_t split_height = alt_chain.front().height;
+  if ((m_epose_rebuild_injection && !m_epose_rebuild_injection(false))
+      || !rebuild_epose_state(false, split_height, &scratch))
+    return epose_preflight_result::busy;
+  auto candidate = std::make_unique<qwertycoin::epose::consensus_coordinator_v2>(m_epose_v2_parameters);
+  if (!candidate->valid())
+    return epose_preflight_result::busy;
+  if (split_height > m_epose_v2_parameters.timing.activation_height
+      && !candidate->restore_state(split_height - 1, scratch->serialize_state()))
+    return epose_preflight_result::busy;
+
+  epose_context_source contexts(m_epose_v2_parameters,
+      [this, &alt_chain](uint64_t height, crypto::hash &hash) {
+        for (const auto &entry : alt_chain)
+          if (entry.height == height)
+          {
+            hash = get_block_hash(entry.bl);
+            return true;
+          }
+        if (height >= alt_chain.front().height)
+          return false;
+        hash = get_block_id_by_height(height);
+        return hash != crypto::null_hash;
+      });
+
+  std::unordered_map<uint64_t, const block_extended_info *> branch_blocks;
+  std::unordered_map<uint64_t, uint64_t> branch_long_weights;
+  for (const auto &entry : alt_chain)
+    branch_blocks.emplace(entry.height, &entry);
+  uint64_t generated_before = split_height == 0 ? 0
+      : m_db->get_block_already_generated_coins(split_height - 1);
+
+  for (const auto &entry : alt_chain)
+  {
+    if (entry.height > anchor_height)
+      break;
+    const block &bl = entry.bl;
+    failed_block = get_block_hash(bl);
+    if (!is_epose_enabled_for_height(entry.height))
+    {
+      generated_before = entry.already_generated_coins;
+      continue;
+    }
+    if (!is_qwc_epose_v2_hardfork(bl.major_version))
+      return epose_preflight_result::invalid;
+    std::vector<transaction> txs;
+    txs.reserve(bl.tx_hashes.size());
+    for (const crypto::hash &id : bl.tx_hashes)
+    {
+      transaction tx{};
+      if (!m_db->get_tx(id, tx))
+      {
+        blobdata blob;
+        if (!m_tx_pool.get_transaction(id, blob, relay_category::legacy))
+        {
+          if (!m_tx_pool.get_expired_window_tx(id, tx))
+            return epose_preflight_result::busy;
+        }
+        else
+        {
+          const epose_preflight_result parsed = guard_epose_preflight_step(
+              "EPoSE alternative transaction parsing failed: ", [&] {
+                return parse_and_validate_tx_from_blob(blob, tx)
+                    ? epose_preflight_result::accepted
+                    : epose_preflight_result::invalid;
+              });
+          if (parsed != epose_preflight_result::accepted)
+            return parsed;
+        }
+      }
+      txs.push_back(std::move(tx));
+    }
+    if (is_qwc_contracts_hardfork(bl.major_version) && !anchor_state)
+      return epose_preflight_result::accepted;
+    if (entry.height > split_height && !anchor_state)
+      return epose_preflight_result::accepted;
+    std::vector<const transaction *> pointers;
+    pointers.reserve(txs.size());
+    for (const transaction &tx : txs)
+      pointers.push_back(&tx);
+    const auto branch_weight = [this, split_height, &branch_blocks, &branch_long_weights](uint64_t index,
+        bool long_term, uint64_t &weight) {
+      if (index >= split_height)
+      {
+        if (long_term)
+        {
+          const auto found = branch_long_weights.find(index);
+          if (found == branch_long_weights.end())
+            return false;
+          weight = found->second;
+          return true;
+        }
+        const auto found = branch_blocks.find(index);
+        if (found == branch_blocks.end())
+          return false;
+        weight = found->second->block_cumulative_weight;
+        return true;
+      }
+      try
+      {
+        weight = long_term ? m_db->get_block_long_term_weight(index)
+            : m_db->get_block_weight(index);
+        return true;
+      }
+      catch (const std::exception &failure)
+      {
+        MERROR("EPoSE alternative weight lookup failed: " << failure.what());
+        return false;
+      }
+    };
+    if (bl.major_version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT)
+    {
+      const uint64_t count = std::min<uint64_t>(entry.height, m_long_term_block_weights_window);
+      std::vector<uint64_t> weights;
+      weights.reserve(count);
+      for (uint64_t index = entry.height - count; index < entry.height; ++index)
+      {
+        uint64_t weight = 0;
+        if (!branch_weight(index, true, weight))
+          return epose_preflight_result::busy;
+        weights.push_back(weight);
+      }
+      const uint64_t median = weights.empty() ? 0 : epee::misc_utils::median(weights);
+      branch_long_weights.emplace(entry.height,
+          constrained_long_term_block_weight(entry.block_cumulative_weight, median, bl.major_version));
+    }
+    epose_block_inputs inputs{};
+    const epose_preflight_result derived = guard_epose_preflight_step(
+        "EPoSE alternative reward inputs failed: ", [&] {
+          return derive_epose_block_inputs(bl.major_version, entry.height,
+                     entry.block_cumulative_weight, generated_before, 0,
+                     m_long_term_block_weights_window, pointers, branch_weight,
+                     inputs)
+              ? epose_preflight_result::accepted
+              : epose_preflight_result::busy;
+        });
+    if (derived != epose_preflight_result::accepted)
+      return derived;
+    const qwertycoin::epose::coordinator_block_v2 candidate_block{
+        bl.major_version, entry.height, get_block_hash(bl), bl.prev_id,
+        inputs.scheduled_subsidy, inputs.fees, &bl.miner_tx, pointers,
+        inputs.mints};
+    qwertycoin::epose::coordinator_result_v2 result{};
+    qwertycoin::epose::coordinator_status_v2 status{};
+    const epose_preflight_result connected = guard_epose_preflight_step(
+        "EPoSE alternative block transition failed: ", [&] {
+          status = candidate->connect_block(candidate_block, contexts, result);
+          return epose_preflight_result::accepted;
+        });
+    if (connected != epose_preflight_result::accepted)
+      return connected;
+    if (status != qwertycoin::epose::coordinator_status_v2::accepted)
+      return epose_preflight_result::invalid;
+    generated_before = entry.already_generated_coins;
+  }
+  if (anchor_state)
+    *anchor_state = std::move(candidate);
+  failed_block = crypto::null_hash;
+  return epose_preflight_result::accepted;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_contract_block_context(uint64_t height, contract_block_context &context) const
+{
+  context = {};
+  if (height == 0 || height > m_db->height())
+    return false;
+  context.height = height;
+  context.network = m_nettype;
+  context.parent.height = height - 1;
+  context.parent.hash = m_db->get_block_hash_from_height(height - 1);
+  context.parent.prev = height >= 2 ? m_db->get_block_hash_from_height(height - 2) : crypto::null_hash;
+  context.parent.timestamp = m_db->get_block_timestamp(height - 1);
+  bind_hdr_info_hf18(*this, context);
+  if (m_header_provider_override)
+    context.headers = m_header_provider_override;
+  return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::make_vm_commitment(uint64_t height, const contract_effects &effects, vm_block_commitment &commitment) const
+{
+  vm_block_commitment previous{};
+  if (height > 0)
+    m_db->get_vm_commitment(height - 1, previous);
+  if (previous.gas_used > std::numeric_limits<uint64_t>::max() - effects.gas_used
+      || previous.deposited > std::numeric_limits<uint64_t>::max() - effects.deposited
+      || previous.withdrawn > std::numeric_limits<uint64_t>::max() - effects.withdrawn)
+    return false;
+  commitment.root = m_vm_state.get_root();
+  commitment.gas_used = effects.gas_used;
+  commitment.deposited = previous.deposited + effects.deposited;
+  commitment.withdrawn = previous.withdrawn + effects.withdrawn;
+  return commitment.withdrawn <= commitment.deposited;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_vm_minted(uint64_t height, uint8_t version, uint64_t &minted) const
+{
+  minted = 0;
+  if (!is_qwc_contracts_hardfork(version))
+    return true;
+  vm_block_commitment current{};
+  vm_block_commitment previous{};
+  if (!m_db->get_vm_commitment(height, current))
+    return false;
+  if (height > 0)
+    m_db->get_vm_commitment(height - 1, previous);
+  if (current.withdrawn < previous.withdrawn)
+    return false;
+  minted = current.withdrawn - previous.withdrawn;
+  return true;
+}
+//------------------------------------------------------------------
+contract_call_verdict Blockchain::dry_run_contract_tx(const transaction &tx, uint64_t fee, contract_effects &effects, bool verify_signatures, uint64_t *height, const std::function<void()> &after_snapshot) const
+{
+  effects = {};
+  contract_block_context context{};
+  vm::state_tree state;
+  {
+    CRITICAL_REGION_LOCAL(m_blockchain_lock);
+    if (!get_contract_block_context(m_db->height(), context))
+      return contract_call_verdict::failed;
+    state = m_vm_state;
+  }
+  if (height)
+    *height = context.height;
+  if (after_snapshot)
+    after_snapshot();
+  contract_block_executor executor(state, context);
+  const contract_call_verdict verdict = executor.execute(tx, fee, verify_signatures);
+  effects = executor.effects();
+  return verdict;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_vm_tip_commitment(uint64_t &height, vm_block_commitment &commitment) const
+{
+  return get_vm_commitment_at(boost::none, height, commitment);
+}
+//------------------------------------------------------------------
+bool Blockchain::get_vm_commitment_at(boost::optional<uint64_t> requested_height, uint64_t &height, vm_block_commitment &commitment) const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  commitment = {};
+  const uint64_t chain_height = m_db->height();
+  height = requested_height ? *requested_height : (chain_height ? chain_height - 1 : 0);
+  return height < chain_height && m_db->get_vm_commitment(height, commitment);
+}
+//------------------------------------------------------------------
+bool Blockchain::get_vm_state_proof(const std::string &key, crypto::hash &root, boost::optional<std::string> &value, vm::state_proof &proof) const
+{
+  uint64_t height = 0;
+  return get_vm_state_proof_at(boost::none, key, height, root, value, proof) == vm_proof_result::ok;
+}
+//------------------------------------------------------------------
+void Blockchain::with_restored_vm_state(const vm::write_set &restore, const std::function<void()> &operation) const
+{
+  std::exception_ptr failure;
+  try
+  {
+    operation();
+  }
+  catch (...)
+  {
+    failure = std::current_exception();
+  }
+  try
+  {
+    if (m_vm_restore_hook)
+      m_vm_restore_hook();
+    m_vm_state.apply(restore);
+  }
+  catch (...)
+  {
+    m_vm_state_stale = true;
+    if (!failure)
+      failure = std::current_exception();
+  }
+  if (failure)
+    std::rethrow_exception(failure);
+}
+//------------------------------------------------------------------
+vm_proof_result Blockchain::get_vm_state_proof_at(boost::optional<uint64_t> requested_height, const std::string &key, uint64_t &height,
+    crypto::hash &root, boost::optional<std::string> &value, vm::state_proof &proof) const
+{
+  const uint64_t observed_height = m_db->height();
+  const bool historical = requested_height && observed_height != 0 && *requested_height < observed_height - 1;
+  historical_vm_proof_guard guard(m_historical_vm_proof_in_flight, historical);
+  if (!guard.acquired())
+    return vm_proof_result::busy;
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (m_vm_state_stale)
+    return vm_proof_result::rebuilding;
+  const uint64_t chain_height = m_db->height();
+  if (chain_height == 0)
+    return vm_proof_result::unavailable;
+  const uint64_t tip = chain_height - 1;
+  height = requested_height ? *requested_height : tip;
+  if (height > tip)
+    return vm_proof_result::unavailable;
+  if (tip - height > QWC_VM_UNDO_RETENTION_BLOCKS)
+    return vm_proof_result::outside_retention;
+
+  vm::write_set restore;
+  vm_proof_result result = vm_proof_result::ok;
+  with_restored_vm_state(restore, [&]() {
+    if (height < tip)
+    {
+      for (uint64_t current = tip; current > height; --current)
+      {
+        vm::write_set undo;
+        if (!m_db->get_vm_undo(current, undo)
+            && is_qwc_contracts_hardfork(m_db->get_block_from_height(current).major_version))
+        {
+          result = vm_proof_result::unavailable;
+          return;
+        }
+        for (const auto &entry : undo)
+        {
+          if (restore.count(entry.first) != 0)
+            continue;
+          std::string previous;
+          if (m_vm_state.get(entry.first, previous))
+            restore.emplace(entry.first, std::move(previous));
+          else
+            restore.emplace(entry.first, boost::none);
+        }
+        m_vm_state.apply(undo);
+      }
+    }
+    crypto::hash claimed_root{};
+    const block target = m_db->get_block_from_height(height);
+    const size_t roots = get_tx_vm_state_root(target.miner_tx.extra, claimed_root);
+    if (roots != 1 && height != 0 && (height < tip || is_qwc_contracts_hardfork(target.major_version)))
+    {
+      result = vm_proof_result::unavailable;
+      return;
+    }
+    root = m_vm_state.get_root();
+    if (roots == 1 && root != claimed_root)
+    {
+      MERROR("VM state root mismatch at height " << height << ": claimed " << claimed_root << ", actual " << root);
+      if (height == tip)
+        m_vm_state_stale = true;
+      result = height == tip ? vm_proof_result::rebuilding : vm_proof_result::unavailable;
+      return;
+    }
+    std::string stored;
+    value = m_vm_state.get(key, stored) ? boost::optional<std::string>(stored) : boost::none;
+    proof = m_vm_state.get_proof(key);
+  });
+  return result;
+}
+//------------------------------------------------------------------
+chainlock_proof_result Blockchain::get_chainlock_proof(uint64_t requested_height, chainlock_proof &result,
+    bool allow_reconstruct) const
+{
+  boost::unique_lock<epee::critical_section> blockchain_lock(m_blockchain_lock);
+  const uint64_t chain_height = m_db->height();
+  uint64_t carrier_height = 0;
+  chainlock_record carrier;
+  if (!m_db->get_last_chainlock_carrier(carrier_height, carrier))
+    return chainlock_proof_result::no_lock;
+  if (requested_height != 0)
+  {
+    if (requested_height >= chain_height || requested_height > carrier.height)
+      return chainlock_proof_result::height_not_locked;
+    if (!m_db->get_chainlock_carrier(requested_height, carrier_height, carrier))
+      return chainlock_proof_result::height_not_locked;
+  }
+
+  if (carrier_height >= chain_height)
+    return chainlock_proof_result::height_not_locked;
+  blobdata carried_blob;
+  const block carrier_block = m_db->get_block_from_height(carrier_height);
+  if (get_tx_chainlock(carrier_block.miner_tx.extra, carried_blob) != 1 || carried_blob != carrier.lock)
+    return chainlock_proof_result::height_not_locked;
+  qwertycoin::epose::chainlock_v1 lock;
+  if (!qwertycoin::epose::parse_chainlock_v1(carrier.lock, lock) || lock.height >= carrier_height
+      || lock.height >= chain_height || m_db->get_block_hash_from_height(lock.height) != lock.block_hash)
+    return chainlock_proof_result::height_not_locked;
+  chainlock_selection_inputs selection;
+  const auto selection_status = get_chainlock_selection_inputs(
+      lock.epoch, selection, &blockchain_lock, allow_reconstruct);
+  if (selection_status != chainlock_membership_restore::restored
+      || !select_chainlock_quorum(selection, result.quorum))
+    return chainlock_proof_result::height_not_locked;
+  if (!qwertycoin::epose::chainlock_complete_v1(lock, result.quorum))
+    return chainlock_proof_result::height_not_locked;
+  result.height = lock.height;
+  result.block_id = lock.block_hash;
+  result.locked_block = m_db->get_block_from_height(lock.height);
+  result.lock_blob = carrier.lock;
+  result.lock_carrier_height = carrier_height;
+  if (get_tx_vm_state_root(result.locked_block.miner_tx.extra, result.vm_state_root) != 1)
+    return chainlock_proof_result::height_not_locked;
+
+  if (!get_miner_tx_branch(result.locked_block, result.miner_tx_branch))
+    return chainlock_proof_result::height_not_locked;
+  return chainlock_proof_result::ok;
+}
+//------------------------------------------------------------------
+crypto::hash Blockchain::get_vm_state_root_after(const vm::write_set &writes)
+{
+  const vm::write_set undo = vm::undo_for(m_vm_state, writes);
+  crypto::hash root{};
+  with_restored_vm_state(undo, [&]() {
+    m_vm_state.apply(writes);
+    root = m_vm_state.get_root();
+  });
+  return root;
+}
+//------------------------------------------------------------------
+bool Blockchain::load_vm_state()
+{
+  m_vm_state = vm::state_tree();
+  m_vm_state_stale = false;
+  const uint64_t chain_height = m_db->height();
+  if (chain_height == 0)
+    return true;
+  m_db->for_all_vm_state([this](const std::string &key, const std::string &value) {
+    m_vm_state.set(key, value);
+    return true;
+  });
+  vm_block_commitment tip{};
+  const bool contracts_tip = is_qwc_contracts_hardfork(m_db->get_block_from_height(chain_height - 1).major_version);
+  if (contracts_tip ? m_db->get_vm_commitment(chain_height - 1, tip) && tip.root == m_vm_state.get_root() : m_vm_state.size() == 0)
+    return true;
+  MWARNING("Contract state does not match the chain tip, replaying contract calls");
+  return rebuild_vm_state();
+}
+//------------------------------------------------------------------
+bool Blockchain::rebuild_vm_state()
+{
+  m_vm_state = vm::state_tree();
+  m_vm_state_stale = true;
+  db_wtxn_guard wtxn_guard(m_db);
+  m_db->reset_vm_state();
+  const uint64_t chain_height = m_db->height();
+  const uint64_t fork_height = m_hardfork->get_earliest_ideal_height_for_version(HF_VERSION_QWC_CONTRACTS);
+  for (uint64_t height = std::max<uint64_t>(fork_height, 1); height < chain_height; ++height)
+  {
+    const block bl = m_db->get_block_from_height(height);
+    if (!is_qwc_contracts_hardfork(bl.major_version))
+      continue;
+    crypto::hash claimed_root{};
+    contract_block_context context{};
+    if (get_tx_vm_state_root(bl.miner_tx.extra, claimed_root) != 1 || !get_contract_block_context(height, context))
+      return false;
+    const std::vector<transaction> txs = m_db->get_tx_list(bl.tx_hashes);
+    if (txs.size() != bl.tx_hashes.size())
+      return false;
+    contract_block_executor executor(m_vm_state, context);
+    for (const transaction &tx : txs)
+    {
+      const contract_call_verdict verdict = executor.execute(tx, get_tx_fee(tx));
+      if (!contract_call_accepted(verdict))
+      {
+        MERROR("Contract call replay failed at height " << height << ": " << contract_call_verdict_name(verdict));
+        return false;
+      }
+    }
+    vm_block_update update{};
+    update.writes = executor.writes();
+    m_vm_state.apply(update.writes);
+    if (!make_vm_commitment(height, executor.effects(), update.commitment) || update.commitment.root != claimed_root)
+    {
+      MERROR("Contract state root mismatch while replaying height " << height);
+      return false;
+    }
+    m_db->replay_vm_block(height, update);
+  }
+  m_vm_state_stale = false;
+  MINFO("Replayed contract state through " << chain_height << " blocks");
   return true;
 }
 //------------------------------------------------------------------
@@ -2030,7 +3809,7 @@ size_t Blockchain::recalculate_difficulties(boost::optional<uint64_t> start_heig
   std::vector<difficulty_type> new_cumulative_difficulties;
   for (uint64_t height = start_height; height <= top_height; ++height)
   {
-    size_t target = get_ideal_hard_fork_version(height) < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+    size_t target = block_target(m_nettype, get_ideal_hard_fork_version(height));
     difficulty_type recalculated_diff = next_difficulty(timestamps, difficulties, target);
 
     boost::multiprecision::uint256_t recalculated_cum_diff_256 = boost::multiprecision::uint256_t(recalculated_diff) + last_cum_diff;
@@ -2132,7 +3911,12 @@ bool Blockchain::rollback_blockchain_switching(std::list<block>& original_chain,
   {
     block_verification_context bvc = {};
     bool r = handle_block_to_main_chain(bl, bvc);
-    CHECK_AND_ASSERT_MES(r && bvc.m_added_to_main_chain, false, "PANIC! failed to add (again) block while chain switching during the rollback!");
+    if (!r || !bvc.m_added_to_main_chain)
+    {
+      m_batch_success = false;
+      MERROR("PANIC! failed to add (again) block while chain switching during the rollback!");
+      return false;
+    }
   }
 
   m_hardfork->reorganize_from_chain_height(rollback_height);
@@ -2145,59 +3929,249 @@ bool Blockchain::rollback_blockchain_switching(std::list<block>& original_chain,
   return true;
 }
 //------------------------------------------------------------------
+bool Blockchain::abandon_epose_switch(std::list<block>& disconnected_chain, uint64_t rollback_height, const char *rollback_failure_message)
+{
+  try
+  {
+    if (!rollback_blockchain_switching(disconnected_chain, rollback_height))
+    {
+      m_batch_success = false;
+      m_epose_rebuild_fatal = true;
+    }
+  }
+  catch (...)
+  {
+    if (rollback_failure_message != nullptr)
+      MERROR(rollback_failure_message);
+    m_batch_success = false;
+    m_epose_rebuild_fatal = true;
+  }
+  schedule_epose_recovery();
+  return false;
+}
+//------------------------------------------------------------------
 // This function attempts to switch to an alternate chain, returning
 // boolean based on success therein.
-bool Blockchain::switch_to_alternative_blockchain(std::list<block_extended_info>& alt_chain, bool discard_disconnected_chain)
+bool Blockchain::switch_to_alternative_blockchain(std::list<block_extended_info>& alt_chain, bool discard_disconnected_chain, bool invalidate_failed_block)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  const uint64_t previous_height = m_db->height();
 
   m_timestamps_and_difficulties_height = 0;
   m_reset_timestamps_and_difficulties_height = true;
 
-  // if empty alt chain passed (not sure how that could happen), return false
   CHECK_AND_ASSERT_MES(alt_chain.size(), false, "switch_to_alternative_blockchain: empty chain passed");
+  if (is_qwc_contracts_hardfork(alt_chain.back().bl.major_version)
+      && !m_db->batch_active())
+    return false;
 
-  // verify that main chain has front of alt chain's parent block
   if (!m_db->block_exists(alt_chain.front().bl.prev_id))
   {
     LOG_ERROR("Attempting to move to an alternate chain, but it doesn't appear to connect to the main chain!");
     return false;
   }
 
-  // pop blocks from the blockchain until the top block is the parent
-  // of the front block of the alt chain.
-  std::list<block> disconnected_chain;
-  while (m_db->top_block_hash() != alt_chain.front().bl.prev_id)
+  std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> split_state;
+  m_epose_switch_busy = false;
+  m_epose_switch_mutated = false;
+  epose_preflight_result preflight = epose_preflight_result::busy;
+  crypto::hash invalid_block = crypto::null_hash;
+  try
   {
-    block b = pop_block_from_blockchain();
-    disconnected_chain.push_front(b);
+    preflight = preflight_epose_chain(alt_chain, split_state, invalid_block);
   }
-  CHECK_AND_ASSERT_THROW_MES(update_next_cumulative_weight_limit(), "Error updating next cumulative weight limit");
+  catch (const std::exception &error)
+  {
+    MERROR("EPoSE alternative chain preflight failed locally: " << error.what());
+  }
 
-  auto split_height = m_db->height();
+  if (preflight != epose_preflight_result::accepted)
+  {
+    if (preflight == epose_preflight_result::invalid)
+    {
+      MERROR("Invalid EPoSE transition in alternative chain preflight at " << invalid_block);
+      bool remove = false;
+      try
+      {
+        for (const auto &entry : alt_chain)
+        {
+          const crypto::hash id = get_block_hash(entry.bl);
+          remove = remove || id == invalid_block;
+          if (remove)
+          {
+            add_block_as_invalid(entry, id);
+            m_db->remove_alt_block(id);
+          }
+        }
+      }
+      catch (...)
+      {
+        m_epose_switch_busy = true;
+        m_epose_retry_best_chain = true;
+        schedule_epose_recovery();
+      }
+      return false;
+    }
+    m_epose_switch_busy = true;
+    const crypto::hash tip = get_block_hash(alt_chain.back().bl);
+    if (m_epose_retry_chain_attempts.size() >= 64
+        && m_epose_retry_chain_attempts.count(tip) == 0)
+      m_epose_retry_chain_attempts.erase(m_epose_retry_chain_attempts.begin());
+    m_epose_retry_best_chain = m_epose_retry_chain_attempts[tip] < 3;
+    if (!m_epose_retry_best_chain)
+      m_epose_retry_exhausted_tip = tip;
+    MERROR("EPoSE alternative chain preflight is waiting for local state or transactions");
+    schedule_epose_recovery();
+    return false;
+  }
 
-  //connecting new alternative chain
+  m_epose_switch_mutated = true;
+  if (discard_disconnected_chain)
+    tombstone_main_chainlocks_from(alt_chain.front().height);
+
+  std::list<block> disconnected_chain;
+  try
+  {
+    epose_rebuild_defer_guard deferred(m_epose_rebuild_deferred);
+    while (m_db->top_block_hash() != alt_chain.front().bl.prev_id)
+    {
+      block b = pop_block_from_blockchain();
+      disconnected_chain.push_front(b);
+    }
+  }
+  catch (...)
+  {
+    m_epose_switch_busy = true;
+    const uint64_t remaining_height = m_db->height();
+    if (!rebuild_epose_state(false, remaining_height)
+        && !rebuild_epose_state(true, remaining_height))
+      m_epose_rebuild_fatal = true;
+    return abandon_epose_switch(disconnected_chain, remaining_height, nullptr);
+  }
+  const uint64_t split_height = m_db->height();
+  const std::string split_image = split_state ? split_state->serialize_state() : std::string{};
+  if (split_state)
+  {
+    m_epose_v2 = std::move(split_state);
+    ++m_epose_state_validation_generation;
+  }
+  bool updated_weight_limit = false;
+  try
+  {
+    updated_weight_limit = update_next_cumulative_weight_limit();
+  }
+  catch (...)
+  {
+    MERROR("Failed to update block weight limit during EPoSE reorganization");
+  }
+  if (!updated_weight_limit)
+  {
+    m_epose_switch_busy = true;
+    return abandon_epose_switch(disconnected_chain, split_height,
+        "Failed to restore original chain after block weight update failure");
+  }
+
   for(auto alt_ch_iter = alt_chain.begin(); alt_ch_iter != alt_chain.end(); alt_ch_iter++)
   {
     const auto &bei = *alt_ch_iter;
     block_verification_context bvc = {};
 
-    // add block to main chain
-    bool r = handle_block_to_main_chain(bei.bl, bvc);
+    bool r = false;
+    try
+    {
+      r = handle_block_to_main_chain(bei.bl, bvc);
+    }
+    catch (const std::exception &failure)
+    {
+      MERROR("EPoSE alternative block apply failed: " << failure.what());
+      m_epose_switch_busy = true;
+      bvc.m_retryable_busy = true;
+    }
+    catch (...)
+    {
+      MERROR("EPoSE alternative block apply failed");
+      m_epose_switch_busy = true;
+      bvc.m_retryable_busy = true;
+    }
 
-    // if adding block to main chain failed, rollback to previous state and
-    // return false
     if(!r || !bvc.m_added_to_main_chain)
     {
       MERROR("Failed to switch to alternative blockchain");
 
-      // rollback_blockchain_switching should be moved to two different
-      // functions: rollback and apply_chain, but for now we pretend it is
-      // just the latter (because the rollback was done above).
-      rollback_blockchain_switching(disconnected_chain, split_height);
-
+      try
+      {
+        epose_rebuild_defer_guard deferred(m_epose_rebuild_deferred);
+        while (m_db->height() > split_height)
+          pop_block_from_blockchain();
+      }
+      catch (...)
+      {
+        m_epose_switch_busy = true;
+        bool restored_chain = false;
+        try
+        {
+          restored_chain = rollback_blockchain_switching(
+              disconnected_chain, split_height);
+        }
+        catch (...)
+        {
+          MERROR("Failed to restore original chain after alternative pop failure");
+        }
+        if (!restored_chain)
+        {
+          m_batch_success = false;
+          m_epose_rebuild_fatal = true;
+        }
+        else if (!epose_state_at_tip() && !try_rebuild_epose_state())
+          schedule_epose_recovery();
+        return false;
+      }
+      if (m_epose_v2)
+      {
+        auto restored = std::make_unique<qwertycoin::epose::consensus_coordinator_v2>(m_epose_v2_parameters);
+        if (split_height > m_epose_v2_parameters.timing.activation_height
+            && !restored->restore_state(split_height - 1, split_image))
+        {
+          MERROR("Failed to restore EPoSE split state after rejecting alternative block");
+          m_epose_switch_busy = true;
+          if (!rebuild_epose_state(false, split_height, &restored)
+              && !rebuild_epose_state(true, split_height, &restored))
+            m_epose_rebuild_fatal = true;
+        }
+        if (restored)
+        {
+          m_epose_v2 = std::move(restored);
+          ++m_epose_state_validation_generation;
+        }
+      }
+      bool restored_chain = false;
+      try
+      {
+        restored_chain = rollback_blockchain_switching(disconnected_chain, split_height);
+      }
+      catch (...)
+      {
+        m_epose_rebuild_fatal = true;
+      }
+      if (!restored_chain)
+      {
+        MERROR("Failed to restore original chain after rejecting alternative block");
+        m_batch_success = false;
+        m_epose_switch_busy = true;
+        if (epose_state_at_tip())
+          m_epose_retry_best_chain = true;
+        schedule_epose_recovery();
+        return false;
+      }
+      if (!bvc.m_verifivation_failed || bvc.m_retryable_busy || m_epose_switch_busy)
+      {
+        m_epose_switch_busy = true;
+        schedule_epose_recovery();
+      }
       const crypto::hash blkid = cryptonote::get_block_hash(bei.bl);
+      if (invalidate_failed_block && bvc.m_verifivation_failed && !bvc.m_missing_txs)
+        add_block_as_invalid(bei, blkid);
       m_db->remove_alt_block(blkid);
       alt_ch_iter++;
 
@@ -2211,11 +4185,9 @@ bool Blockchain::switch_to_alternative_blockchain(std::list<block_extended_info>
     }
   }
 
-  // if we're to keep the disconnected blocks, add them as alternates
   const size_t discarded_blocks = disconnected_chain.size();
   if(!discard_disconnected_chain)
   {
-    //pushing old chain as alternative chain
     for (auto& old_ch_ent : disconnected_chain)
     {
       block_verification_context bvc = {};
@@ -2224,13 +4196,10 @@ bool Blockchain::switch_to_alternative_blockchain(std::list<block_extended_info>
       if(!r)
       {
         MERROR("Failed to push ex-main chain blocks to alternative chain ");
-        // previously this would fail the blockchain switching, but I don't
-        // think this is bad enough to warrant that.
       }
     }
   }
 
-  //removing alt_chain entries from alternative chains container
   for (const auto &bei: alt_chain)
   {
     m_db->remove_alt_block(cryptonote::get_block_hash(bei.bl));
@@ -2265,8 +4234,40 @@ bool Blockchain::switch_to_alternative_blockchain(std::list<block_extended_info>
   if (m_hardfork->get_current_version() >= RX_BLOCK_VERSION)
     rx_set_main_seedhash(seedhash.data, tools::get_max_concurrency());
 
+  m_epose_retry_best_chain = false;
+  m_epose_retry_chain_attempts.erase(get_block_hash(alt_chain.back().bl));
+  m_epose_retry_exhausted_tip = crypto::null_hash;
   MGINFO_GREEN("REORGANIZE SUCCESS! on height: " << split_height << ", new blockchain size: " << m_db->height());
+  prune_after_canonical_advance(previous_height);
   return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::switch_to_alternative_blockchain_with_batch(std::list<block_extended_info> &alt_chain)
+{
+  const bool stop_batch = m_db->batch_start();
+  bool switched = false;
+  try
+  {
+    switched = switch_to_alternative_blockchain(alt_chain, false);
+  }
+  catch (...)
+  {
+    if (stop_batch)
+      m_db->batch_abort();
+    throw;
+  }
+  if (stop_batch)
+  {
+    if (switched)
+      m_db->batch_stop();
+    else
+      m_db->batch_abort();
+  }
+  if (switched && !m_db->batch_active() && m_alternative_prune_pending)
+    prune_after_canonical_advance(m_db->height());
+  if (!switched && !epose_state_at_tip())
+    schedule_epose_recovery();
+  return switched;
 }
 //------------------------------------------------------------------
 // This function calculates the difficulty target for the block being added to
@@ -2333,7 +4334,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   }
 
   // FIXME: This will fail if fork activation heights are subject to voting
-  size_t target = get_ideal_hard_fork_version(bei.height) < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+  size_t target = block_target(m_nettype, get_ideal_hard_fork_version(bei.height));
 
   // calculate the difficulty target for the block and return it
   return next_difficulty(timestamps, cumulative_difficulties, target);
@@ -2375,17 +4376,25 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height, 
 
   CHECK_AND_ASSERT_MES(check_output_types(b.miner_tx, hf_version), false, "miner transaction has invalid output type(s) in block " << get_block_hash(b));
 
+  CHECK_AND_ASSERT_MES(check_tx_contract_extra(b.miner_tx, hf_version, contract_extra_scope::coinbase), false, "coinbase transaction carries contract fields not allowed in block " << get_block_hash(b));
+
   return true;
 }
 //------------------------------------------------------------------
 // This function validates the miner transaction reward
-bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version)
+bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t minted, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   //validate reward
   uint64_t money_in_use = 0;
   for (auto& o: b.miner_tx.vout)
     money_in_use += o.amount;
+  if (money_in_use < minted)
+  {
+    MERROR_VER("coinbase transaction pays less than its contract mints");
+    return false;
+  }
+  money_in_use -= minted; // H-30
   partial_block_reward = false;
 
   if (version == 3) {
@@ -2542,6 +4551,8 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   m_tx_pool.lock();
   const auto unlock_guard = epee::misc_utils::create_scope_leave_handler([&]() { m_tx_pool.unlock(); });
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  if (!epose_state_at_tip())
+    return false;
   if (m_epose_v2 && from_block && *from_block != get_tail_id())
   {
     MERROR("EPoSE-v2 block templates for alternative parents require branch-specific state replay");
@@ -2653,19 +4664,26 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   else
   {
     height = m_db->height();
-    b.major_version = m_hardfork->get_current_version();
+    b.major_version = get_ideal_hard_fork_version(height);
     b.minor_version = m_hardfork->get_ideal_version();
     b.prev_id = get_tail_id();
-    median_weight = m_current_block_cumul_weight_limit / 2;
+    if (!next_template_reward_inputs_v2(height, median_weight,
+            already_generated_coins))
+      return false;
     diffic = get_difficulty_for_next_block();
-    already_generated_coins = m_db->get_block_already_generated_coins(height - 1);
-    if (m_hardfork->get_current_version() >= RX_BLOCK_VERSION)
+    if (b.major_version >= RX_BLOCK_VERSION)
     {
       uint64_t next_height;
       crypto::rx_seedheights(height, &seed_height, &next_height);
       seed_hash = get_block_id_by_height(seed_height);
     }
   }
+  if (from_block && is_qwc_contracts_hardfork(b.major_version))
+  {
+    MERROR("Contract block templates for alternative parents require branch-specific state replay");
+    return false;
+  }
+  b.tx_hashes.clear();
   b.timestamp = time(NULL);
 
   uint64_t median_ts;
@@ -2678,10 +4696,25 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 
   size_t txs_weight;
   uint64_t fee;
-  if (!m_tx_pool.fill_block_template(b, median_weight, already_generated_coins, txs_weight, fee, expected_reward, b.major_version))
+  boost::optional<contract_block_executor> contract_executor;
+  if (is_qwc_contracts_hardfork(b.major_version))
+  {
+    contract_block_context contract_context{};
+    CHECK_AND_ASSERT_MES(get_contract_block_context(height, contract_context), false, "Failed to derive the contract block context for the template");
+    contract_executor.emplace(m_vm_state, contract_context);
+  }
+  if (!m_tx_pool.fill_block_template(b, median_weight, already_generated_coins, txs_weight, fee, expected_reward, b.major_version, height, contract_executor.get_ptr()))
   {
     return false;
   }
+  miner_contract_outputs contract_outputs{};
+  if (contract_executor)
+  {
+    contract_outputs.state_root = get_vm_state_root_after(contract_executor->writes());
+    contract_outputs.mints = contract_executor->effects().mints;
+    select_template_chainlock(height, contract_outputs.chainlock);
+  }
+  const miner_contract_outputs *contract_outputs_ptr = contract_executor ? &contract_outputs : nullptr;
   pool_cookie = m_tx_pool.cookie();
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
   size_t real_txs_weight = 0;
@@ -2745,8 +4778,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   size_t max_outs = hf_version >= 4 ? 1 : 11;
   uint64_t template_base_reward = 0;
   CHECK_AND_ASSERT_MES(
-      get_block_reward(
-          median_weight, txs_weight, already_generated_coins,
+      get_block_reward(median_weight, txs_weight, already_generated_coins,
           template_base_reward, hf_version),
       false, "Failed to calculate first-pass block reward");
   qwertycoin::epose::coordinator_reward_plan_v2 reward_plan{};
@@ -2757,7 +4789,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   {
     CHECK_AND_ASSERT_MES(
         plan_epose_reward_v2(
-            height, b.prev_id, template_base_reward, fee, reward_plan),
+            hf_version, height, b.prev_id, template_base_reward, fee, reward_plan),
         false, "Failed to derive first-pass EPoSE-v2 reward plan");
     service_payment.expectation = reward_plan.has_service_payee
         ? &reward_plan.expectation : nullptr;
@@ -2784,12 +4816,16 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
         false, "HF17 block template requires the EPoSE-v2 coordinator");
 
   const auto construct_template_miner_tx = [&](size_t current_weight) {
-    // The constructor budgets the fully serialized extra, including the proof,
-    // while preserving receipt priority and the enrollment dependency prefix.
+    const crypto::secret_key template_tx_key = m_template_tx_key_override
+        ? m_template_tx_key_override(height) : crypto::secret_key{};
+    if (service_payment_ptr != nullptr)
+      service_payment.carrier_records = relay_records.empty()
+          ? nullptr : &relay_records;
     return construct_miner_tx(
         height, median_weight, already_generated_coins,
         current_weight, fee, miner_address, b.miner_tx, ex_nonce,
-        max_outs, hf_version, nullptr, 0, service_payment_ptr);
+        max_outs, hf_version, service_payment_ptr, contract_outputs_ptr,
+        m_template_tx_key_override ? &template_tx_key : nullptr);
   };
 
   bool r = construct_template_miner_tx(txs_weight);
@@ -2803,16 +4839,15 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   {
     template_base_reward = 0;
     CHECK_AND_ASSERT_MES(
-        get_block_reward(
-            median_weight, cumulative_weight, already_generated_coins,
-            template_base_reward, hf_version),
+        get_block_reward(median_weight, cumulative_weight,
+            already_generated_coins, template_base_reward, hf_version),
         false, "Failed to calculate EPoSE-v2 template reward");
     if (service_payment_ptr != nullptr)
     {
       reward_plan = {};
       CHECK_AND_ASSERT_MES(
           plan_epose_reward_v2(
-              height, b.prev_id, template_base_reward, fee, reward_plan),
+              hf_version, height, b.prev_id, template_base_reward, fee, reward_plan),
           false, "Failed to derive EPoSE-v2 template reward plan");
       service_payment.expectation = reward_plan.has_service_payee
           ? &reward_plan.expectation : nullptr;
@@ -2876,6 +4911,8 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 
     if (!from_block)
       cache_block_template(b, miner_address, ex_nonce, diffic, height, expected_reward, seed_height, seed_hash, pool_cookie);
+    if (service_payment_ptr != nullptr && m_epose_template_plan_observer)
+      m_epose_template_plan_observer(reward_plan);
     return true;
   }
   LOG_ERROR("Failed to create_block_template with " << 10 << " tries");
@@ -2893,6 +4930,11 @@ bool Blockchain::get_miner_data(uint8_t& major_version, uint64_t& height, crypto
   ++height;
 
   major_version = m_hardfork->get_ideal_version(height);
+  if (is_qwc_contracts_hardfork(major_version)) // H-18
+  {
+    MERROR("Miner data cannot carry the contract state root, use get_block_template");
+    return false;
+  }
 
   seed_hash = crypto::null_hash;
   if (m_hardfork->get_current_version() >= RX_BLOCK_VERSION)
@@ -2942,6 +4984,7 @@ bool Blockchain::build_alt_chain(const crypto::hash &prev_id, std::list<block_ex
     timestamps.clear();
     while(found)
     {
+      ++m_alternative_ancestor_walks;
       block_extended_info bei;
       CHECK_AND_ASSERT_MES(cryptonote::parse_and_validate_block_from_blob(blob, bei.bl), false, "Failed to parse alt block");
       bei.height = data.height;
@@ -2986,6 +5029,17 @@ bool Blockchain::build_alt_chain(const crypto::hash &prev_id, std::list<block_ex
     }
 
     return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::record_alternative_switch_result(bool switched, block_verification_context &bvc)
+{
+  if (switched)
+    bvc.m_added_to_main_chain = true;
+  else if (m_epose_switch_busy)
+    bvc.m_retryable_busy = true;
+  else
+    bvc.m_verifivation_failed = true;
+  return switched;
 }
 //------------------------------------------------------------------
 // If a block is to be added and its parent block is not the current
@@ -3129,7 +5183,7 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
 
     // Now that we have the PoW verification out of the way, verify all pool supplement txs
     tx_verification_context tvc{};
-    if (!ver_non_input_consensus(extra_block_txs, tvc, hf_version))
+    if (!ver_non_input_consensus(extra_block_txs, tvc, b.major_version))
     {
       MERROR_VER("Transaction pool supplement verification failure for alt block " << id);
       bvc.m_verifivation_failed = true;
@@ -3144,11 +5198,17 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
       transaction& tx = extra_block_tx.second.first;
       const blobdata &tx_blob = extra_block_tx.second.second;
 
+      tx_extra_vm_call call{};
+      if (contract_call_before_activation(get_tx_vm_call(tx.extra, call), b.major_version))
+      {
+        bvc.m_verifivation_failed = true;
+        return false;
+      }
       tx_verification_context tvc{};
-      if ((!m_tx_pool.have_tx(txid, relay_category::legacy) &&
+      if (((!m_tx_pool.have_tx(txid, relay_category::legacy) &&
           !m_db->tx_exists(txid) &&
-          !m_tx_pool.add_tx(tx, tvc, relay_method::block, /*relayed=*/true, hf_version, hf_version))
-          || tvc.m_verifivation_failed)
+          !m_tx_pool.add_tx(tx, tvc, relay_method::block, /*relayed=*/true, b.major_version, b.major_version))
+          || tvc.m_verifivation_failed) && !tvc.m_window_expired) // QWC-3 (h)
       {
         MERROR_VER("Transaction " << txid <<
           " in pool supplement failed to enter main pool for alt block " << id);
@@ -3226,21 +5286,29 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
       bool r = switch_to_alternative_blockchain(alt_chain, true);
 
       if(r) bvc.m_added_to_main_chain = true;
+      else if (m_epose_switch_busy) bvc.m_retryable_busy = true;
       else bvc.m_verifivation_failed = true;
 
       return r;
+    }
+    const alt_chainlock_verdict chainlock_verdict = evaluate_alt_chainlocks(alt_chain).verdict;
+    if (chainlock_verdict == alt_chainlock_verdict::blocked)
+    {
+      MGINFO_BLUE("----- BLOCK ADDED AS ALTERNATIVE ON HEIGHT " << bei.height << ", reorganization blocked by chainlock" << std::endl << "id:\t" << id);
+      return true;
+    }
+    if (chainlock_verdict != alt_chainlock_verdict::difficulty)
+    {
+      MGINFO_GREEN("###### REORGANIZE on height: " << alt_chain.front().height << " of " << m_db->height() - 1 << ", alternative chain carries a newer chainlock");
+      return record_alternative_switch_result(
+          switch_to_alternative_blockchain(alt_chain, false, chainlock_verdict == alt_chainlock_verdict::switch_speculative), bvc);
     }
     else if(main_chain_cumulative_difficulty < bei.cumulative_difficulty) //check if difficulty bigger then in main chain
     {
       //do reorganize!
       MGINFO_GREEN("###### REORGANIZE on height: " << alt_chain.front().height << " of " << m_db->height() - 1 << " with cum_difficulty " << m_db->get_block_cumulative_difficulty(m_db->height() - 1) << std::endl << " alternative blockchain size: " << alt_chain.size() << " with cum_difficulty " << bei.cumulative_difficulty);
 
-      bool r = switch_to_alternative_blockchain(alt_chain, false);
-      if (r)
-        bvc.m_added_to_main_chain = true;
-      else
-        bvc.m_verifivation_failed = true;
-      return r;
+      return record_alternative_switch_result(switch_to_alternative_blockchain(alt_chain, false), bvc);
     }
     else
     {
@@ -4084,7 +6152,7 @@ bool Blockchain::get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<u
 // This function overloads its sister function with
 // an extra value (hash of highest block that holds an output used as input)
 // as a return-by-reference.
-bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block) const
+bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block, uint8_t tx_rules_version) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
@@ -4100,7 +6168,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_heigh
 #endif
 
   TIME_MEASURE_START(a);
-  bool res = check_tx_inputs(tx, tvc, &max_used_block_height);
+  bool res = check_tx_inputs(tx, tvc, &max_used_block_height, tx_rules_version);
   TIME_MEASURE_FINISH(a);
   if(m_show_time_stats)
   {
@@ -4370,7 +6438,7 @@ bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_pr
 //        check_tx_input() rather than here, and use this function simply
 //        to iterate the inputs as necessary (splitting the task
 //        using threads, etc.)
-bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height) const
+bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height, uint8_t tx_rules_version) const
 {
   PERF_TIMER(check_tx_inputs);
   LOG_PRINT_L3("Blockchain::" << __func__);
@@ -4378,9 +6446,10 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
   if(pmax_used_block_height)
     *pmax_used_block_height = 0;
 
-  crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx);
-
   const uint8_t hf_version = m_hardfork->get_current_version();
+  crypto::hash tx_prefix_hash;
+  if (!get_contract_ring_hash(tx, tx_prefix_hash, tx_rules_version))
+    return false;
 
   if (hf_version >= HF_VERSION_MIN_2_OUTPUTS)
   {
@@ -4482,7 +6551,16 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       tvc.m_verifivation_failed = true;
       return false;
     }
-    const size_t min_tx_version = (n_unmixable > 0 ? 1 : (hf_version >= HF_VERSION_ENFORCE_RCT) ? 2 : 1);
+    tx_extra_vm_call contract_call{};
+    uint64_t contract_fee = 0;
+    uint64_t transaction_fee = 0;
+    const bool zero_output_contract_call = is_qwc_contracts_hardfork(hf_version)
+        && tx.version == 1 && tx.vout.empty()
+        && get_tx_vm_call(tx.extra, contract_call) == 1
+        && contract_call_fee_floor(contract_call, contract_fee)
+        && get_tx_fee(tx, transaction_fee) && transaction_fee == contract_fee;
+    const size_t min_tx_version = (n_unmixable > 0 || zero_output_contract_call
+        ? 1 : (hf_version >= HF_VERSION_ENFORCE_RCT) ? 2 : 1);
     if (tx.version < min_tx_version)
     {
       MERROR_VER("transaction version " << (unsigned)tx.version << " is lower than min accepted version " << min_tx_version);
@@ -4641,7 +6719,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     case rct::RCTTypeCLSAG:
     case rct::RCTTypeBulletproofPlus:
     {
-      if (!ver_rct_non_semantics_simple_cached(tx, pubkeys, m_rct_ver_cache, RCT_CACHE_TYPE))
+      if (!ver_rct_non_semantics_simple_cached(tx, pubkeys, m_rct_ver_cache, RCT_CACHE_TYPE, tx_rules_version))
       {
         MERROR_VER("Failed to check ringct signatures!");
         return false;
@@ -4992,7 +7070,7 @@ bool Blockchain::is_tx_spendtime_unlocked(uint64_t unlock_time, uint8_t hf_versi
   {
     //interpret as time
     const uint64_t current_time = hf_version >= HF_VERSION_DETERMINISTIC_UNLOCK_TIME ? get_adjusted_time(m_db->height()) : static_cast<uint64_t>(time(NULL));
-    if(current_time + (get_current_hard_fork_version() < 2 ? CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V1 : CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2) >= unlock_time)
+    if(current_time + (locked_tx_allowed_delta_seconds(m_nettype, get_current_hard_fork_version())) >= unlock_time)
       return true;
     else
       return false;
@@ -5086,11 +7164,11 @@ uint64_t Blockchain::get_adjusted_time(uint64_t height) const
 
   // project the median to match approximately when the block being validated will appear
   // the median is calculated from a chunk of past blocks, so we use +1 to offset onto the current block
-  median_ts += (BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW + 1) * DIFFICULTY_TARGET_V2 / 2;
+  median_ts += (BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW + 1) * block_target(m_nettype) / 2;
 
   // project the current block's time based on the previous block's time
   // we don't use the current block's time directly to mitigate timestamp manipulation
-  uint64_t adjusted_current_block_ts = timestamps.back() + DIFFICULTY_TARGET_V2;
+  uint64_t adjusted_current_block_ts = timestamps.back() + block_target(m_nettype);
 
   // return minimum of ~current block time and adjusted median time
   // we do this since it's better to report a time in the past than a time in the future
@@ -5184,6 +7262,13 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   TIME_MEASURE_START(t1);
 
   static bool seen_future_version = false;
+
+  if (m_vm_state_stale && !rebuild_vm_state())
+  {
+    MERROR_VER("Contract state could not be replayed, refusing block " << id);
+    bvc.m_verifivation_failed = true;
+    return false;
+  }
 
   db_rtxn_guard rtxn_guard(m_db);
   uint64_t blockchain_height;
@@ -5320,7 +7405,7 @@ leave:
   TIME_MEASURE_START(t3);
 
   // sanity check basic miner tx properties;
-  if(!prevalidate_miner_transaction(bl, blockchain_height, hf_version))
+  if(!prevalidate_miner_transaction(bl, blockchain_height, bl.major_version))
   {
     MERROR_VER("Block with id: " << id << " failed to pass prevalidation");
     bvc.m_verifivation_failed = true;
@@ -5334,7 +7419,7 @@ leave:
   {
     tx_verification_context tvc{};
     // If fail non-input consensus rule checking...
-    if (!ver_non_input_consensus(extra_block_txs, tvc, hf_version))
+    if (!ver_non_input_consensus(extra_block_txs, tvc, bl.major_version))
     {
       MERROR_VER("Pool supplement provided for block with id: " << id << " failed to pass validation");
       bvc.m_verifivation_failed = true;
@@ -5352,9 +7437,10 @@ leave:
   // This will be the data sent to the ZMQ pool listeners for txs which skipped the mempool
   std::vector<txpool_event> txpool_events;
 
-  // this lambda returns relevant txs back to the mempool
-  auto return_txs_to_pool = [this, &txs, &txs_meta, &hf_version]()
+  const uint8_t pool_rules_version = get_ideal_hard_fork_version(blockchain_height);
+  auto return_txs_to_pool = [this, &txs, &txs_meta, &rtxn_guard, pool_rules_version]()
   {
+    rtxn_guard.stop();
     if (txs_meta.size() != txs.size())
     {
       MERROR("BUG: txs_meta and txs not matching size!!!");
@@ -5363,28 +7449,20 @@ leave:
 
     for (size_t i = 0; i < txs.size(); ++i)
     {
-      // if this transaction wasn't ever in the pool, don't return it back to the pool
       const bool found_in_pool = std::get<2>(txs_meta[i]);
       if (!found_in_pool)
         continue;
 
-      transaction &tx = txs[i].first;
-      const crypto::hash &txid = std::get<0>(txs_meta[i]);
-      const blobdata &tx_blob = txs[i].second;
-      const size_t tx_weight = std::get<1>(txs_meta[i]);
-
-      // We assume that if they were in a block, the transactions are already known to the network
-      // as a whole. However, if we had mined that block, that might not be always true. Unlikely
-      // though, and always relaying these again might cause a spike of traffic as many nodes
-      // re-relay all the transactions in a popped block when a reorg happens. You might notice that
-      // we also set the "nic_verified_hf_version" paramater. Since we know we took this transaction
-      // from the mempool earlier in this function call, when the mempool has the same current fork
-      // version, we can return it without re-verifying the consensus rules on it.
-      cryptonote::tx_verification_context tvc{};
-      if (!m_tx_pool.add_tx(tx, txid, tx_blob, tx_weight, tvc, relay_method::block, true,
-          hf_version, hf_version))
-        MERROR("Failed to return taken transaction with hash: " << txid << " to tx_pool");
+      m_returned_pool_txs.push_back({std::move(txs[i].first), std::move(txs[i].second),
+          std::get<0>(txs_meta[i]), std::get<1>(txs_meta[i]), pool_rules_version});
     }
+  };
+  const auto reject_block_as_invalid = [this, &bl, &id, &bvc, &return_txs_to_pool]()
+  {
+    add_block_as_invalid(bl, id);
+    bvc.m_verifivation_failed = true;
+    return_txs_to_pool();
+    return false;
   };
 
   key_images_container keys;
@@ -5395,6 +7473,17 @@ leave:
   uint64_t t_pool = 0;
   uint64_t t_dblspnd = 0;
   uint64_t n_pruned = 0;
+
+  const bool contracts_active = is_qwc_contracts_hardfork(bl.major_version);
+  contract_block_context contract_context{};
+  if (contracts_active && !get_contract_block_context(blockchain_height, contract_context))
+  {
+    MERROR_VER("Block with id: " << id << " has no parent for contract execution");
+    bvc.m_verifivation_failed = true;
+    goto leave;
+  }
+  contract_block_executor contract_executor(m_vm_state, contract_context);
+
   TIME_MEASURE_FINISH(t3);
 
 // XXX old code adds miner tx here
@@ -5448,6 +7537,13 @@ leave:
           _unused1, _unused2, _unused3, pruned, /*suppress_missing_msgs=*/true)
       };
     bool find_tx_failure{!found_tx_in_pool};
+    bool return_to_pool_on_failure{false};
+    const auto measure_loose_tx = [&]()
+    {
+      tx_weight = tx.pruned ? get_pruned_transaction_weight(tx) : get_transaction_weight(tx, txblob.size());
+      fee = get_tx_fee(tx);
+      pruned = tx.pruned;
+    };
     if (!found_tx_in_pool) // if not in mempool:
     {
       const auto extra_txs_it{extra_block_txs.txs_by_txid.find(tx_id)};
@@ -5455,12 +7551,32 @@ leave:
       {
         tx = std::move(extra_txs_it->second.first);
         txblob = std::move(extra_txs_it->second.second);
-        tx_weight = tx.pruned ? get_pruned_transaction_weight(tx) : get_transaction_weight(tx, txblob.size());
-        fee = get_tx_fee(tx);
-        pruned = tx.pruned;
+        measure_loose_tx();
         extra_block_txs.txs_by_txid.erase(extra_txs_it);
         txpool_events.emplace_back(txpool_event{tx, tx_id, txblob.size(), tx_weight, true});
         find_tx_failure = false;
+      }
+      else if (m_tx_pool.take_expired_window_tx(tx_id, tx, txblob)) // QWC-3
+      {
+        measure_loose_tx();
+        return_to_pool_on_failure = true;
+        find_tx_failure = false;
+      }
+      else
+      {
+        const auto returned = std::find_if(m_returned_pool_txs.begin(), m_returned_pool_txs.end(),
+            [&tx_id](const returned_pool_tx &entry) { return entry.id == tx_id; });
+        if (returned != m_returned_pool_txs.end())
+        {
+          tx = std::move(returned->tx);
+          txblob = std::move(returned->blob);
+          tx_weight = returned->weight;
+          fee = get_tx_fee(tx);
+          pruned = tx.pruned;
+          m_returned_pool_txs.erase(returned);
+          return_to_pool_on_failure = true;
+          find_tx_failure = false;
+        }
       }
     }
 
@@ -5490,7 +7606,24 @@ leave:
     // add the transaction to the temp list of transactions, so we can either
     // store the list of transactions all at once or return the ones we've
     // taken from the tx_pool back to it if the block fails verification.
-    txs_meta.emplace_back(tx_id, tx_weight, found_tx_in_pool);
+    txs_meta.emplace_back(tx_id, tx_weight, found_tx_in_pool || return_to_pool_on_failure);
+
+    tx_extra_vm_call call{};
+    if (contract_call_before_activation(get_tx_vm_call(tx.extra, call), bl.major_version)
+        || !check_tx_contract_extra(tx, bl.major_version, contract_extra_scope::transaction))
+    {
+      MERROR_VER("Block with id: " << id << " has a transaction (id: " << tx_id << ") with contract fields invalid for its version");
+      return reject_block_as_invalid();
+    }
+
+    tx_extra_height_window window{};
+    const height_window_verdict window_verdict = check_block_tx_height_window(tx, bl.major_version, blockchain_height, window);
+    if (window_verdict != height_window_verdict::absent && window_verdict != height_window_verdict::inside)
+    {
+      MERROR_VER("Block with id: " << id << " has a transaction (id: " << tx_id << ") outside its height window at height " << blockchain_height);
+      return reject_block_as_invalid();
+    }
+
     TIME_MEASURE_START(dd);
 
     // FIXME: the storage should not be responsible for validation.
@@ -5516,7 +7649,7 @@ leave:
     {
       // validate that transaction inputs and the keys spending them are correct.
       tx_verification_context tvc;
-      if(!check_tx_inputs(tx, tvc))
+      if(!check_tx_inputs(tx, tvc, nullptr, bl.major_version))
       {
         MERROR_VER("Block with id: " << id  << " has at least one transaction (id: " << tx_id << ") with wrong inputs.");
 
@@ -5531,8 +7664,44 @@ leave:
 
     TIME_MEASURE_FINISH(cc);
     t_checktx += cc;
+
+    if (contracts_active)
+    {
+      contract_call_verdict verdict;
+      try
+      {
+        verdict = contract_executor.execute(tx, fee);
+      }
+      catch (...)
+      {
+        MERROR_VER("Block with id: " << id << " could not execute contract call (tx id: " << tx_id << ")");
+        bvc.m_verifivation_failed = true;
+        return_txs_to_pool();
+        return false;
+      }
+      if (!contract_call_accepted(verdict))
+      {
+        MERROR_VER("Block with id: " << id << " has a contract call (tx id: " << tx_id << ") that is " << contract_call_verdict_name(verdict));
+        return reject_block_as_invalid();
+      }
+    }
+
     fee_summary += fee;
     cumulative_block_weight += tx_weight;
+  }
+
+  uint64_t contract_minted = 0;
+  if (contracts_active)
+  {
+    fee_summary -= contract_executor.effects().deposited; // H-29
+    contract_minted = contract_executor.effects().withdrawn;
+    if (!check_contract_mints_in_miner_tx(bl.miner_tx, contract_executor.effects().mints))
+    {
+      MERROR_VER("Block with id: " << id << " does not pay its contract mints in the coinbase");
+      bvc.m_verifivation_failed = true;
+      return_txs_to_pool();
+      return false;
+    }
   }
 
   // if we were syncing pruned blocks
@@ -5546,10 +7715,50 @@ leave:
     cumulative_block_weight = m_blocks_hash_check[blockchain_height].second;
   }
 
+  vm_block_update vm_update{};
+  vm::write_set vm_undo;
+  bool vm_mirror_applied = false;
+  const auto revert_vm_mirror = epee::misc_utils::create_scope_leave_handler([&]() {
+    if (vm_mirror_applied)
+      m_vm_state.apply(vm_undo);
+  });
+  if (contracts_active)
+  {
+    crypto::hash claimed_root{};
+    if (get_tx_vm_state_root(bl.miner_tx.extra, claimed_root) != 1)
+    {
+      MERROR_VER("Block with id: " << id << " does not carry exactly one contract state root");
+      bvc.m_verifivation_failed = true;
+      return_txs_to_pool();
+      return false;
+    }
+    vm_update.writes = contract_executor.writes();
+    vm_undo = vm::undo_for(m_vm_state, vm_update.writes);
+    m_vm_state.apply(vm_update.writes);
+    vm_mirror_applied = true;
+    if (!make_vm_commitment(blockchain_height, contract_executor.effects(), vm_update.commitment) || vm_update.commitment.root != claimed_root)
+    {
+      MERROR_VER("Block with id: " << id << " has contract state root " << claimed_root << ", expected " << vm_update.commitment.root);
+      bvc.m_verifivation_failed = true;
+      return_txs_to_pool();
+      return false;
+    }
+  }
+
+  chainlock_record chainlock_carrier;
+  bool has_chainlock_carrier = false;
+  if (!validate_block_chainlock(bl, blockchain_height, !fast_check, chainlock_carrier, has_chainlock_carrier))
+  {
+    MERROR_VER("Block with id: " << id << " carries an invalid chainlock");
+    bvc.m_verifivation_failed = true;
+    return_txs_to_pool();
+    return false;
+  }
+
   TIME_MEASURE_START(vmt);
   uint64_t base_reward = 0;
   uint64_t already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;
-  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_summary, base_reward, already_generated_coins, bvc.m_partial_block_reward, m_hardfork->get_current_version()))
+  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_summary, contract_minted, base_reward, already_generated_coins, bvc.m_partial_block_reward, bl.major_version))
   {
     MERROR_VER("Block with id: " << id << " has incorrect miner transaction");
     bvc.m_verifivation_failed = true;
@@ -5560,7 +7769,8 @@ leave:
   epose_state_commitment_v2 epose_commitment{};
   std::vector<qwertycoin::epose::envelope_record_v2> confirmed_epose_records;
   if (!apply_epose_block(
-          bl, txs, blockchain_height, base_reward, fee_summary,
+          bl, txs, blockchain_height, cumulative_block_weight, base_reward,
+          fee_summary, contract_minted,
           epose_commitment, confirmed_epose_records))
   {
     bvc.m_verifivation_failed = true;
@@ -5587,6 +7797,24 @@ leave:
   if(precomputed)
     block_processing_time += m_fake_pow_calc_time;
 
+  std::string epose_snapshot_image;
+  if (m_epose_v2 && qwertycoin::epose::requires_boundary_snapshot(
+          epose_commitment.schema_version, blockchain_height,
+          m_epose_v2_parameters.timing.epoch_length))
+  {
+    qwertycoin::epose::state_snapshot_v2 snapshot{};
+    snapshot.state_schema = epose_commitment.schema_version;
+    snapshot.parameter_set_hash = epose_commitment.parameter_set_hash;
+    snapshot.height = blockchain_height;
+    snapshot.block_hash = epose_commitment.block_hash;
+    snapshot.state_root = epose_commitment.state_hash;
+    snapshot.state_image = m_epose_v2->serialize_state();
+    if (!snapshot.state_image.empty())
+      epose_snapshot_image = snapshot.serialize();
+    if (epose_snapshot_image.empty())
+      MERROR("Failed to serialize EPoSE boundary snapshot at height " << blockchain_height);
+  }
+
   rtxn_guard.stop();
   TIME_MEASURE_START(addblock);
   uint64_t new_height = 0;
@@ -5598,7 +7826,8 @@ leave:
       cryptonote::blobdata bd = cryptonote::block_to_blob(bl);
       const epose_state_commitment_v2 *commitment =
           m_epose_v2 ? &epose_commitment : nullptr;
-      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, txs, commitment);
+      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, txs, commitment, contracts_active ? &vm_update : nullptr, has_chainlock_carrier ? &chainlock_carrier : nullptr, epose_snapshot_image.empty() ? nullptr : &epose_snapshot_image);
+      vm_mirror_applied = false;
     }
     catch (const KEY_IMAGE_EXISTS& e)
     {
@@ -5729,24 +7958,8 @@ uint64_t Blockchain::get_next_long_term_block_weight(uint64_t block_weight) cons
   if (nblocks == 0)
     return block_weight;
 
-  uint64_t long_term_median = get_long_term_block_weight_median(db_height - nblocks, nblocks);
-  uint64_t long_term_effective_median_block_weight = std::max<uint64_t>(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5, long_term_median);
-
-  uint64_t short_term_constraint;
-  if (hf_version >= HF_VERSION_2021_SCALING)
-  {
-    // long_term_block_weight = block_weight bounded to range [long-term-median/1.7, long-term-median*1.7]
-    block_weight = std::max<uint64_t>(block_weight, long_term_effective_median_block_weight * 10 / 17);
-    short_term_constraint = long_term_effective_median_block_weight + long_term_effective_median_block_weight * 7 / 10;
-  }
-  else
-  {
-    // long_term_block_weight = block_weight bounded to range [0, long-term-median*1.4]
-    short_term_constraint = long_term_effective_median_block_weight + long_term_effective_median_block_weight * 2 / 5;
-  }
-  uint64_t long_term_block_weight = std::min<uint64_t>(block_weight, short_term_constraint);
-
-  return long_term_block_weight;
+  return constrained_long_term_block_weight(block_weight,
+      get_long_term_block_weight_median(db_height - nblocks, nblocks), hf_version);
 }
 //------------------------------------------------------------------
 bool Blockchain::update_next_cumulative_weight_limit(uint64_t *long_term_effective_median_block_weight)
@@ -5824,7 +8037,15 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
   crypto::hash id = get_block_hash(bl);
   CRITICAL_REGION_LOCAL(m_tx_pool);//to avoid deadlock lets lock tx_pool for whole add/reorganize process
   CRITICAL_REGION_LOCAL1(m_blockchain_lock);
+  m_epose_switch_mutated = false;
+  if (!epose_state_at_tip())
+  {
+    bvc.m_retryable_busy = true;
+    schedule_epose_recovery();
+    return false;
+  }
   db_rtxn_guard rtxn_guard(m_db);
+  const uint64_t previous_height = m_db->height();
   if(have_block(id))
   {
     LOG_PRINT_L3("block with id = " << id << " already exists");
@@ -5843,13 +8064,26 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
   }
 
   rtxn_guard.stop();
-  return handle_block_to_main_chain(bl, id, bvc, extra_block_txs);
+  const bool added = handle_block_to_main_chain(bl, id, bvc, extra_block_txs);
+  if (added && bvc.m_added_to_main_chain)
+    prune_after_canonical_advance(previous_height);
+  return added;
 
   }
   catch (const std::exception &e)
   {
     LOG_ERROR("Exception at [add_new_block], what=" << e.what());
-    bvc.m_verifivation_failed = true;
+    CRITICAL_REGION_LOCAL(m_tx_pool);
+    CRITICAL_REGION_LOCAL1(m_blockchain_lock);
+    if (m_epose_switch_mutated)
+    {
+      m_batch_success = false;
+      m_epose_switch_busy = true;
+      bvc.m_retryable_busy = true;
+      bvc.m_verifivation_failed = false;
+    }
+    else
+      bvc.m_verifivation_failed = true;
     return false;
   }
 }
@@ -5878,6 +8112,7 @@ void Blockchain::check_against_checkpoints(const checkpoints& points, bool enfor
       if (enforce)
       {
         LOG_ERROR("Local blockchain failed to pass a checkpoint, rolling back!");
+        tombstone_main_chainlocks_from(pt.first); // H-5
         std::list<block> empty;
         rollback_blockchain_switching(empty, pt.first - 2);
       }
@@ -5956,8 +8191,11 @@ void Blockchain::block_longhash_worker(uint64_t height, const epee::span<const b
 //------------------------------------------------------------------
 bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
 {
+  epee::misc_utils::auto_scope_leave_caller unlocker = epee::misc_utils::create_scope_leave_handler([&](){m_tx_pool.unlock();});
   bool success = false;
   bool batch_aborted = false;
+  bool batch_closed = false;
+  std::vector<returned_pool_tx> returned_pool_txs;
 
   MTRACE("Blockchain::" << __func__);
   CRITICAL_REGION_BEGIN(m_blockchain_lock);
@@ -5979,6 +8217,10 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
       m_db->batch_abort();
       batch_aborted = true;
     }
+    batch_closed = true;
+    m_epose_rpc_batch_open = false;
+    if (m_batch_success && m_alternative_prune_pending)
+      prune_after_canonical_advance(m_db->height());
     success = true;
   }
   catch (const std::exception &e)
@@ -5990,9 +8232,16 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
   // LMDB rolls the complete batch back while the in-memory coordinator has
   // already advanced through each earlier block. Rebuild only after the
   // abort completed so memory and the canonical database converge again.
-  if (success && batch_aborted && m_epose_v2 && !rebuild_epose_state())
+  if (success && batch_aborted && !load_vm_state())
+  {
+    MERROR("Failed to reload contract state after database batch abort");
+    success = false;
+  }
+
+  if (success && batch_aborted && m_epose_v2 && !try_rebuild_epose_state())
   {
     MERROR("Failed to replay EPoSE-v2 state after database batch abort");
+    schedule_epose_recovery();
     success = false;
   }
 
@@ -6036,12 +8285,29 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
     m_blocks_hash_check.shrink_to_fit();
   }
 
+  if (batch_closed)
+    returned_pool_txs.swap(m_returned_pool_txs);
+
   CRITICAL_REGION_END();
-  m_tx_pool.unlock();
+  for (returned_pool_tx &returned : returned_pool_txs)
+  {
+    tx_verification_context tvc{};
+    try
+    {
+      if (!m_tx_pool.add_tx(returned.tx, returned.id, returned.blob, returned.weight, tvc,
+          relay_method::block, true, returned.rules_version, returned.rules_version)
+          && !tvc.m_window_expired)
+        MERROR("Failed to return taken transaction with hash: " << returned.id << " to tx_pool");
+    }
+    catch (const std::exception &e)
+    {
+      MERROR("Failed to return taken transaction with hash: " << returned.id << " to tx_pool: " << e.what());
+    }
+  }
 
   update_blockchain_pruning();
 
-  return success;
+  return success && !batch_aborted;
 }
 
 //------------------------------------------------------------------
@@ -6247,6 +8513,7 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
     m_blockchain_lock.lock();
   }
   m_batch_success = true;
+  m_epose_rpc_batch_open = true;
 
   const uint64_t height = m_db->height();
   if ((height + blocks_entry.size()) < m_blocks_hash_check.size())
@@ -6539,23 +8806,31 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
 
 void Blockchain::prepare_handle_incoming_block_no_preprocess(const size_t block_byte_estimate)
 {
-  // acquire locks
   m_tx_pool.lock();
-  CRITICAL_REGION_LOCAL1(m_blockchain_lock);
-
-  // increment sync byte counter to trigger sync against database backing store
-  // later in cleanup_handle_incoming_blocks()
-  m_bytes_to_sync += block_byte_estimate;
-
-  // spin until we start a batch
-  while (!m_db->batch_start(1, block_byte_estimate)) {
-    m_blockchain_lock.unlock();
-    m_tx_pool.unlock();
-    epee::misc_utils::sleep_no_w(1000);
-    m_tx_pool.lock();
-    m_blockchain_lock.lock();
+  bool pool_locked = true;
+  try
+  {
+    CRITICAL_REGION_LOCAL1(m_blockchain_lock);
+    m_bytes_to_sync += block_byte_estimate;
+    while (!m_db->batch_start(1, block_byte_estimate))
+    {
+      m_blockchain_lock.unlock();
+      m_tx_pool.unlock();
+      pool_locked = false;
+      epee::misc_utils::sleep_no_w(1000);
+      m_tx_pool.lock();
+      pool_locked = true;
+      m_blockchain_lock.lock();
+    }
+    m_batch_success = true;
+    m_epose_rpc_batch_open = true;
   }
-  m_batch_success = true;
+  catch (...)
+  {
+    if (pool_locked)
+      m_tx_pool.unlock();
+    throw;
+  }
 }
 
 void Blockchain::add_txpool_tx(const crypto::hash &txid, const cryptonote::blobdata &blob, const txpool_tx_meta_t &meta)
@@ -6681,7 +8956,7 @@ bool Blockchain::get_hard_fork_voting_info(uint8_t version, uint32_t &window, ui
 
 uint64_t Blockchain::get_difficulty_target() const
 {
-  return get_current_hard_fork_version() < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+  return block_target(m_nettype, get_current_hard_fork_version());
 }
 
 std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> Blockchain:: get_output_histogram(const std::vector<uint64_t> &amounts, bool unlocked, uint64_t recent_cutoff, uint64_t min_count) const
@@ -6689,19 +8964,16 @@ std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> Blockchain:: get_ou
   return m_db->get_output_histogram(amounts, unlocked, recent_cutoff, min_count);
 }
 
-std::vector<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> Blockchain::get_alternative_chains() const
+void Blockchain::load_alternative_blocks(blocks_ext_by_hash &blocks,
+    alternative_child_index &children) const
 {
-  std::vector<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> chains;
-
-  blocks_ext_by_hash alt_blocks;
-  alt_blocks.reserve(m_db->get_alt_block_count());
-  m_db->for_all_alt_blocks([&alt_blocks](const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata_ref *blob) {
+  blocks.reserve(m_db->get_alt_block_count());
+  m_db->for_all_alt_blocks([&blocks, &children](const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata_ref *blob) {
     if (!blob)
     {
       MERROR("No blob, but blobs were requested");
       return false;
     }
-    cryptonote::block bl;
     block_extended_info bei;
     if (cryptonote::parse_and_validate_block_from_blob(*blob, bei.bl))
     {
@@ -6710,26 +8982,26 @@ std::vector<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>
       bei.cumulative_difficulty = data.cumulative_difficulty_high;
       bei.cumulative_difficulty = (bei.cumulative_difficulty << 64) + data.cumulative_difficulty_low;
       bei.already_generated_coins = data.already_generated_coins;
-      alt_blocks.insert(std::make_pair(cryptonote::get_block_hash(bei.bl), std::move(bei)));
+      children.add(bei.bl.prev_id, blkid);
+      blocks.insert(std::make_pair(blkid, std::move(bei)));
     }
     else
       MERROR("Failed to parse block from blob");
     return true;
   }, true);
+}
+
+std::vector<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> Blockchain::get_alternative_chains() const
+{
+  std::vector<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> chains;
+  blocks_ext_by_hash alt_blocks;
+  alternative_child_index children(m_db->get_alt_block_count());
+  load_alternative_blocks(alt_blocks, children);
 
   for (const auto &i: alt_blocks)
   {
     const crypto::hash top = cryptonote::get_block_hash(i.second.bl);
-    bool found = false;
-    for (const auto &j: alt_blocks)
-    {
-      if (j.second.bl.prev_id == top)
-      {
-        found = true;
-        break;
-      }
-    }
-    if (!found)
+    if (!children.has_child(top))
     {
       std::vector<crypto::hash> chain;
       auto h = i.second.bl.prev_id;
@@ -6737,6 +9009,7 @@ std::vector<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>
       blocks_ext_by_hash::const_iterator prev;
       while ((prev = alt_blocks.find(h)) != alt_blocks.end())
       {
+        ++m_alternative_ancestor_walks;
         chain.push_back(h);
         h = prev->second.bl.prev_id;
       }
@@ -6744,6 +9017,75 @@ std::vector<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>
     }
   }
   return chains;
+}
+
+std::vector<Blockchain::alternative_tip> Blockchain::get_alternative_tips(size_t *operation_count) const
+{
+  blocks_ext_by_hash alt_blocks;
+  alternative_child_index children(m_db->get_alt_block_count());
+  load_alternative_blocks(alt_blocks, children);
+  std::unordered_set<crypto::hash> stored_locks;
+  m_db->for_chainlocks_descending([&](const chainlock_record &lock) {
+    if (!lock.tombstoned)
+      stored_locks.insert(lock.block_hash);
+    return true;
+  });
+  std::vector<blocks_ext_by_hash::const_iterator> ordered;
+  ordered.reserve(alt_blocks.size());
+  for (auto it = alt_blocks.cbegin(); it != alt_blocks.cend(); ++it)
+    ordered.push_back(it);
+  std::sort(ordered.begin(), ordered.end(), [](const auto &left, const auto &right) {
+    return left->second.height < right->second.height;
+  });
+  struct branch_summary
+  {
+    uint64_t split_height;
+    bool potential_lock;
+    crypto::hash lock_source;
+  };
+  std::unordered_map<crypto::hash, branch_summary> summaries;
+  summaries.reserve(alt_blocks.size());
+  for (const auto &it : ordered)
+  {
+    const auto parent = summaries.find(it->second.bl.prev_id);
+    blobdata carrier;
+    const bool local_lock = stored_locks.count(it->first) != 0
+        || get_tx_chainlock(it->second.bl.miner_tx.extra, carrier) == 1;
+    summaries.emplace(it->first, branch_summary{
+        parent == summaries.end() ? it->second.height : parent->second.split_height,
+        local_lock || (parent != summaries.end() && parent->second.potential_lock),
+        local_lock ? it->first
+            : parent == summaries.end() ? crypto::null_hash : parent->second.lock_source});
+  }
+  std::vector<alternative_tip> tips;
+  tips.reserve(alt_blocks.size());
+  for (const auto &entry : alt_blocks)
+    if (!children.has_child(entry.first))
+    {
+      const auto summary = summaries.find(entry.first);
+      tips.push_back({entry.first, entry.second.cumulative_difficulty,
+          summary->second.split_height, summary->second.potential_lock,
+          summary->second.lock_source});
+    }
+  if (operation_count)
+    *operation_count = children.operations();
+  return tips;
+}
+
+crypto::hash Blockchain::best_alternative_descendant(const crypto::hash &ancestor,
+    size_t *operation_count) const
+{
+  blocks_ext_by_hash blocks;
+  alternative_child_index children(m_db->get_alt_block_count());
+  load_alternative_blocks(blocks, children);
+  std::unordered_map<crypto::hash, difficulty_type> scores;
+  scores.reserve(blocks.size());
+  for (const auto &entry : blocks)
+    scores.emplace(entry.first, entry.second.cumulative_difficulty);
+  const crypto::hash best = children.best_descendant(ancestor, scores);
+  if (operation_count)
+    *operation_count = children.operations();
+  return best;
 }
 
 void Blockchain::cancel()

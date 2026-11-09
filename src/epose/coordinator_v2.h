@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <vector>
 
+namespace cryptonote { class BlockchainRecoveryHarness; }
+
 #include "epose/block_transition_v2.h"
 
 namespace qwertycoin
@@ -24,6 +26,8 @@ namespace epose
     empty_qualification_policy_v2 empty_policy = empty_qualification_policy_v2::unset;
     uint64_t service_reward_bps = EPOSE_SERVICE_REWARD_BPS_V2;
     uint8_t state_commitment_schema = 0;
+    uint64_t retained_epochs = QWC_EPOSE_RETAINED_EPOCHS;
+    crypto::hash window_parameter_set_hash{};
 
     bool valid() const;
   };
@@ -46,6 +50,7 @@ namespace epose
     uint64_t transaction_fees = 0;
     const cryptonote::transaction *coinbase = nullptr;
     std::vector<const cryptonote::transaction *> transactions;
+    uint64_t contract_mints = 0;
   };
 
   struct coordinator_result_v2
@@ -72,6 +77,7 @@ namespace epose
     invalid_configuration,
     invalid_block,
     missing_qualification,
+    outside_retained_window,
     invalid_payout_state,
     unresolved_reward_policy,
     invalid_coinbase_amount,
@@ -90,6 +96,7 @@ namespace epose
 
     bool valid() const;
     coordinator_status_v2 plan_reward(
+        uint8_t major_version,
         uint64_t height,
         const crypto::hash &parent_hash,
         uint64_t scheduled_subsidy,
@@ -102,11 +109,21 @@ namespace epose
         coordinator_result_v2 &result);
     block_transition_status_v2 disconnect_tip(uint64_t height);
     const semantic_state_v2 &state() const;
+    semantic_state_v2 &preview_state();
+    state_storage_diagnostics_v2 state_diagnostics() const;
+    bool tip_height(uint64_t &height) const;
+    std::string serialize_state() const;
+    bool restore_state(uint64_t height, const std::string &image);
+    uint64_t generation() const noexcept;
+    crypto::hash state_hash() const;
 
   private:
+    friend class cryptonote::BlockchainRecoveryHarness;
+    mutable uint64_t state_hash_calls_ = 0;
     consensus_parameters_v2 parameters_{};
     block_transition_v2 transition_;
     bool valid_ = false;
+    uint64_t generation_ = 0;
   };
 } // namespace epose
 } // namespace qwertycoin

@@ -14,11 +14,15 @@ namespace
   }
 
   void append_u8(std::string &out, uint8_t value) { out.push_back(static_cast<char>(value)); }
-  void append_u64_le(std::string &out, uint64_t value)
+
+  template <typename T>
+  void append_le(std::string &out, T value)
   {
-    for (unsigned shift = 0; shift < 64; shift += 8)
+    for (unsigned shift = 0; shift < 8 * sizeof(T); shift += 8)
       out.push_back(static_cast<char>((value >> shift) & 0xff));
   }
+
+  void append_u64_le(std::string &out, uint64_t value) { append_le(out, value); }
 
   template <typename T>
   bool read_bytes(const std::string &in, size_t &offset, T &value)
@@ -38,14 +42,27 @@ namespace
     return true;
   }
 
-  bool read_u64_le(const std::string &in, size_t &offset, uint64_t &value)
+  template <typename T>
+  bool read_le(const std::string &in, size_t &offset, T &value)
   {
-    if (offset > in.size() || in.size() - offset < 8)
+    if (offset > in.size() || in.size() - offset < sizeof(T))
       return false;
     value = 0;
-    for (unsigned shift = 0; shift < 64; shift += 8)
-      value |= static_cast<uint64_t>(static_cast<uint8_t>(in[offset++])) << shift;
+    for (unsigned shift = 0; shift < 8 * sizeof(T); shift += 8)
+      value |= static_cast<T>(static_cast<uint8_t>(in[offset++])) << shift;
     return true;
+  }
+
+  bool read_u64_le(const std::string &in, size_t &offset, uint64_t &value)
+  {
+    return read_le(in, offset, value);
+  }
+
+  size_t payment_proof_payload_bytes(bool indexed)
+  {
+    return indexed
+        ? qwertycoin::epose::EPOSE_PAYMENT_PROOF_INDEXED_PAYLOAD_BYTES_V2
+        : qwertycoin::epose::EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2;
   }
 }
 
@@ -71,6 +88,12 @@ namespace epose
     append_bytes(payload, lease.member.reward_binding_hash);
     append_bytes(payload, lease.member.endpoint_descriptor_hash);
     append_u64_le(payload, lease.member.sequence);
+    if (lease.member.descriptor_version == 2)
+    {
+      append_u8(payload, lease.member.endpoint_transport);
+      append_u8(payload, lease.member.dial_capabilities);
+      append_u8(payload, lease.member.dns_address_families);
+    }
     append_u64_le(payload, lease.target_epoch);
     append_u8(payload, lease.work_algorithm);
     append_u8(payload, lease.leading_zero_bits);
@@ -79,10 +102,12 @@ namespace epose
     append_u64_le(payload, lease.nonce);
     append_bytes(payload, lease.work_hash);
     append_bytes(payload, lease.lease_hash);
-    if (payload.size() != EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2)
+    if (payload.size() != (lease.member.descriptor_version == 2
+            ? EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_HF18_V2
+            : EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2))
       return record_codec_status_v2::wrong_size;
     record.type = static_cast<uint8_t>(record_type_v2::admission_lease);
-    record.version = EPOSE_ADMISSION_LEASE_RECORD_VERSION_V2;
+    record.version = lease.member.descriptor_version;
     record.payload.swap(payload);
     return record_codec_status_v2::accepted;
   }
@@ -94,9 +119,11 @@ namespace epose
     lease = {};
     if (record.type != static_cast<uint8_t>(record_type_v2::admission_lease))
       return record_codec_status_v2::wrong_type;
-    if (record.version != EPOSE_ADMISSION_LEASE_RECORD_VERSION_V2)
+    if (record.version != 1 && record.version != 2)
       return record_codec_status_v2::wrong_version;
-    if (record.payload.size() != EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2)
+    if (record.payload.size() != (record.version == 2
+            ? EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_HF18_V2
+            : EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_V2))
       return record_codec_status_v2::wrong_size;
     admission_lease_v2 next{};
     size_t offset = 0;
@@ -106,8 +133,15 @@ namespace epose
         || !read_bytes(record.payload, offset, next.member.descriptor_hash)
         || !read_bytes(record.payload, offset, next.member.reward_binding_hash)
         || !read_bytes(record.payload, offset, next.member.endpoint_descriptor_hash)
-        || !read_u64_le(record.payload, offset, next.member.sequence)
-        || !read_u64_le(record.payload, offset, next.target_epoch)
+        || !read_u64_le(record.payload, offset, next.member.sequence))
+      return record_codec_status_v2::wrong_size;
+    next.member.descriptor_version = record.version;
+    if (record.version == 2
+        && (!read_u8(record.payload, offset, next.member.endpoint_transport)
+            || !read_u8(record.payload, offset, next.member.dial_capabilities)
+            || !read_u8(record.payload, offset, next.member.dns_address_families)))
+      return record_codec_status_v2::wrong_size;
+    if (!read_u64_le(record.payload, offset, next.target_epoch)
         || !read_u8(record.payload, offset, next.work_algorithm)
         || !read_u8(record.payload, offset, next.leading_zero_bits)
         || !read_u64_le(record.payload, offset, next.admission_context_height)
@@ -154,6 +188,14 @@ namespace epose
     if (validate_lifecycle_record_authorization_v2(
             nettype, genesis_hash, parameter_set_hash, lifecycle) != lifecycle_status_v2::accepted)
       return record_codec_status_v2::invalid_record;
+    return encode_applied_lifecycle_record_v2(lifecycle, record);
+  }
+
+  record_codec_status_v2 encode_applied_lifecycle_record_v2(
+      const lifecycle_record_v2 &lifecycle,
+      envelope_record_v2 &record)
+  {
+    record = {};
     std::string payload;
     payload.reserve(EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2);
     append_u8(payload, static_cast<uint8_t>(lifecycle.action));
@@ -168,13 +210,21 @@ namespace epose
     append_u64_le(payload, lifecycle.next_descriptor.sequence);
     append_u64_le(payload, lifecycle.next_descriptor.effective_epoch);
     append_u64_le(payload, lifecycle.next_descriptor.expiry_epoch);
+    if (lifecycle.next_descriptor.version == 2)
+    {
+      append_u8(payload, lifecycle.next_descriptor.endpoint_transport);
+      append_u8(payload, lifecycle.next_descriptor.dial_capabilities);
+      append_u8(payload, lifecycle.next_descriptor.dns_address_families);
+    }
     append_bytes(payload, lifecycle.operator_signature);
     append_bytes(payload, lifecycle.service_signature);
-    if (payload.size() != EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2)
+    if (payload.size() != (lifecycle.next_descriptor.version == 2
+            ? EPOSE_LIFECYCLE_PAYLOAD_BYTES_HF18_V2
+            : EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2))
       return record_codec_status_v2::wrong_size;
     record.type = static_cast<uint8_t>(lifecycle.action == lifecycle_action_v2::register_identity
         ? record_type_v2::identity_descriptor : record_type_v2::descriptor_lifecycle);
-    record.version = EPOSE_LIFECYCLE_RECORD_VERSION_V2;
+    record.version = lifecycle.next_descriptor.version;
     record.payload.swap(payload);
     return record_codec_status_v2::accepted;
   }
@@ -187,9 +237,11 @@ namespace epose
     if (record.type != static_cast<uint8_t>(record_type_v2::identity_descriptor)
         && record.type != static_cast<uint8_t>(record_type_v2::descriptor_lifecycle))
       return record_codec_status_v2::wrong_type;
-    if (record.version != EPOSE_LIFECYCLE_RECORD_VERSION_V2)
+    if (record.version != 1 && record.version != 2)
       return record_codec_status_v2::wrong_version;
-    if (record.payload.size() != EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2)
+    if (record.payload.size() != (record.version == 2
+            ? EPOSE_LIFECYCLE_PAYLOAD_BYTES_HF18_V2
+            : EPOSE_LIFECYCLE_PAYLOAD_BYTES_V2))
       return record_codec_status_v2::wrong_size;
     lifecycle_record_v2 next{};
     uint8_t action = 0;
@@ -205,7 +257,14 @@ namespace epose
         || !read_bytes(record.payload, offset, next.next_descriptor.endpoint_descriptor_hash)
         || !read_u64_le(record.payload, offset, next.next_descriptor.sequence)
         || !read_u64_le(record.payload, offset, next.next_descriptor.effective_epoch)
-        || !read_u64_le(record.payload, offset, next.next_descriptor.expiry_epoch)
+        || !read_u64_le(record.payload, offset, next.next_descriptor.expiry_epoch))
+      return record_codec_status_v2::wrong_size;
+    if (record.version == 2
+        && (!read_u8(record.payload, offset, next.next_descriptor.endpoint_transport)
+            || !read_u8(record.payload, offset, next.next_descriptor.dial_capabilities)
+            || !read_u8(record.payload, offset, next.next_descriptor.dns_address_families)))
+      return record_codec_status_v2::wrong_size;
+    if (record.version != next.next_descriptor.version
         || !read_bytes(record.payload, offset, next.operator_signature)
         || !read_bytes(record.payload, offset, next.service_signature)
         || offset != record.payload.size())
@@ -250,11 +309,15 @@ namespace epose
     record = {};
     if (verify_scoped_payment_proof_v2(context, proof) != reward_status_v2::accepted)
       return record_codec_status_v2::invalid_record;
+    const size_t payload_bytes = payment_proof_payload_bytes(
+        static_cast<bool>(proof.service_output_start));
     std::string payload;
-    payload.reserve(EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2);
+    payload.reserve(payload_bytes);
     append_bytes(payload, proof.derivation);
     append_bytes(payload, proof.proof);
-    if (payload.size() != EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2)
+    if (proof.service_output_start)
+      append_le(payload, *proof.service_output_start);
+    if (payload.size() != payload_bytes)
       return record_codec_status_v2::wrong_size;
     record.type = static_cast<uint8_t>(record_type_v2::service_payment_proof);
     record.version = EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2;
@@ -295,13 +358,22 @@ namespace epose
       return record_codec_status_v2::wrong_type;
     if (record.version != EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2)
       return record_codec_status_v2::wrong_version;
-    if (record.payload.size() != EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2)
+    const bool indexed = record.payload.size() == payment_proof_payload_bytes(true);
+    if (record.payload.size() != payment_proof_payload_bytes(indexed))
       return record_codec_status_v2::wrong_size;
     scoped_payment_proof_v2 next{};
     size_t offset = 0;
     if (!read_bytes(record.payload, offset, next.derivation)
-        || !read_bytes(record.payload, offset, next.proof)
-        || offset != record.payload.size())
+        || !read_bytes(record.payload, offset, next.proof))
+      return record_codec_status_v2::wrong_size;
+    if (indexed)
+    {
+      uint32_t service_output_start = 0;
+      if (!read_le(record.payload, offset, service_output_start))
+        return record_codec_status_v2::wrong_size;
+      next.service_output_start = service_output_start;
+    }
+    if (offset != record.payload.size())
       return record_codec_status_v2::wrong_size;
     proof = next;
     return record_codec_status_v2::accepted;

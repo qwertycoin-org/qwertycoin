@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
+import os
 import sys
 import re
 
-USAGE = 'usage: check_untested_methods.py <rootdir>'
+USAGE = 'usage: check_missing_rpc_methods.py <rootdir>'
 try:
   rootdir = sys.argv[1]
 except:
@@ -31,12 +32,25 @@ modules = [
   }
 ]
 
+uri_constants = {}
+for source in ('cryptonote_config.h',):
+  uri_constants.update(dict(re.findall(r'constexpr\s+char\s+(\w+)\[\]\s*=\s*"([^"]+)"',
+    open(rootdir + '/src/' + source).read())))
+
 error = False
 for module in modules:
   for line in open(module['path']).readlines():
     if 'MAP_URI_AUTO_JON2' in line or 'MAP_JON_RPC' in line:
-      match = re.search('.*\"(.*)\".*', line)
-      name = match.group(1)
+      match = re.search(r'\(\s*"([^"]+)"', line)
+      if match is None:
+        identifier = re.search(r'\(\s*([A-Za-z_]\w*)\s*,', line)
+        if identifier is None or identifier.group(1) not in uri_constants:
+          print('Error: unresolved RPC URI constant %s' % (identifier.group(1) if identifier else line.strip()))
+          error = True
+          continue
+        name = uri_constants[identifier.group(1)]
+      else:
+        name = match.group(1)
       if name in module['ignore'] or name.endswith('.bin'):
         continue
       if 'MAP_URI_AUTO_JON2' in line:
@@ -47,5 +61,35 @@ for module in modules:
       if not hasattr(module['object'], name):
         print('Error: %s API method %s does not have a matching function' % (module['name'], name))
         error = True
+
+class RouteRecorder(object):
+  def __init__(self):
+    self.calls = []
+
+  def send_request(self, path, inputs):
+    self.calls.append((path, inputs))
+
+recorder = RouteRecorder()
+daemon_client = daemon.Daemon()
+daemon_client.rpc = recorder
+daemon_client.get_chainlock()
+daemon_client.get_chainlock(17, 'client')
+daemon_client.get_chainlock_quorum_inputs(5)
+daemon_client.get_chainlock_quorum_inputs(5, 2, 9, 'client')
+daemon_client.get_chainlock_quorum_inputs()
+if recorder.calls != [
+  ('/get_chainlock', {'height': 0, 'client': ''}),
+  ('/get_chainlock', {'height': 17, 'client': 'client'}),
+  ('/get_chainlock_quorum_inputs', {'epoch': 5, 'offset': 0, 'limit': 128, 'client': ''}),
+  ('/get_chainlock_quorum_inputs', {'epoch': 5, 'offset': 2, 'limit': 9, 'client': 'client'}),
+  ('/get_chainlock_quorum_inputs', {'epoch': (1 << 64) - 1, 'offset': 0, 'limit': 128, 'client': ''}),
+]:
+  print('Error: chainlock RPC wrapper route or arguments differ')
+  error = True
+
+if os.environ.get('QWC_CHAINLOCK_REPLAY_TEST_BINARY'):
+  from chainlock_archive_replay import main as replay_chainlock_archive
+  if replay_chainlock_archive() != 0:
+    error = True
 
 sys.exit(1 if error else 0)

@@ -28,6 +28,8 @@
 
 set(cryptonote_core_sources
   blockchain.cpp
+  contract_state.cpp
+  hdr_info_hf18.cpp
   cryptonote_core.cpp
   epose_http_client.cpp
   tx_pool.cpp
@@ -55,6 +57,7 @@ target_link_libraries(cryptonote_core
     ringct
     device
     epose
+    vm
     hardforks
     ${Boost_DATE_TIME_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}

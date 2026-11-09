@@ -7,6 +7,8 @@
 #include <limits>
 
 #include "epose/resource_policy_v2.h"
+#include "epose/transport_profile_v2.h"
+#include "epose/service_probe_connector_v2.h"
 
 namespace
 {
@@ -74,6 +76,130 @@ TEST(epose_resource_policy_v2, endpoint_wire_codec_is_canonical_context_bound_an
   EXPECT_EQ(resource_status_v2::invalid_signature, decode_endpoint_descriptor_v2(
       cryptonote::TESTNET, hash_text("other-genesis"), hash_text("parameters"), blob, decoded));
   EXPECT_TRUE(decoded.host.empty());
+}
+
+TEST(epose_resource_policy_v2, version_two_capabilities_are_signed_and_round_trip)
+{
+  crypto::secret_key secret{};
+  auto value = descriptor(secret);
+  value.version = 2;
+  value.dial_capabilities = EPOSE_DIAL_BOTH_V2;
+  value.dns_address_families = EPOSE_DIAL_IPV6_V2;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(cryptonote::TESTNET,
+      hash_text("genesis"), hash_text("parameters"), value, secret));
+  cryptonote::blobdata blob;
+  ASSERT_EQ(resource_status_v2::accepted, encode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), value, blob));
+  endpoint_descriptor_v2 decoded{};
+  ASSERT_EQ(resource_status_v2::accepted, decode_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), blob, decoded));
+  EXPECT_EQ(2, decoded.version);
+  EXPECT_EQ(EPOSE_DIAL_BOTH_V2, decoded.dial_capabilities);
+  EXPECT_EQ(EPOSE_DIAL_IPV6_V2, decoded.dns_address_families);
+  decoded.dial_capabilities = EPOSE_DIAL_IPV6_V2;
+  EXPECT_EQ(resource_status_v2::invalid_signature, validate_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), decoded));
+  decoded = value;
+  decoded.dns_address_families = EPOSE_DIAL_BOTH_V2;
+  EXPECT_EQ(resource_status_v2::invalid_signature, validate_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), decoded));
+  decoded = value;
+  decoded.version = 1;
+  EXPECT_EQ(resource_status_v2::invalid_descriptor, validate_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), decoded));
+}
+
+TEST(epose_resource_policy_v2, dns_probe_uses_only_declared_and_verifier_families)
+{
+  endpoint_descriptor_v2 endpoint{};
+  endpoint.version = 2;
+  endpoint.transport = endpoint_transport_v2::dns;
+  endpoint.dns_address_families = EPOSE_DIAL_IPV6_V2;
+  EXPECT_EQ(EPOSE_DIAL_IPV6_V2,
+      permitted_dial_families_v2(endpoint, EPOSE_DIAL_BOTH_V2));
+  EXPECT_EQ(0, permitted_dial_families_v2(endpoint, EPOSE_DIAL_IPV4_V2));
+  endpoint.dns_address_families = EPOSE_DIAL_BOTH_V2;
+  EXPECT_EQ(EPOSE_DIAL_BOTH_V2,
+      permitted_dial_families_v2(endpoint, EPOSE_DIAL_BOTH_V2));
+  endpoint.version = 1;
+  EXPECT_EQ(0, permitted_dial_families_v2(endpoint, 0));
+}
+
+TEST(epose_resource_policy_v2, production_probe_connector_enforces_address_and_answer_policy)
+{
+  using boost::asio::ip::tcp;
+  endpoint_descriptor_v2 endpoint{};
+  endpoint.version = 2;
+  endpoint.transport = endpoint_transport_v2::dns;
+  endpoint.dns_address_families = EPOSE_DIAL_IPV6_V2;
+  auto connector = service_probe_connector_v2(endpoint, EPOSE_DIAL_BOTH_V2);
+  EXPECT_EQ(EPOSE_DIAL_IPV6_V2, connector.allowed_families);
+  EXPECT_EQ(16u, connector.max_resolved_endpoints);
+  ASSERT_TRUE(connector.endpoint_allowed);
+  EXPECT_FALSE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("127.0.0.1"), 80)));
+  EXPECT_FALSE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("169.254.169.254"), 80)));
+  EXPECT_TRUE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("2606:4700:4700::1111"), 80)));
+  EXPECT_TRUE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("8.8.8.8"), 80)));
+  endpoint.dns_address_families = EPOSE_DIAL_IPV4_V2;
+  EXPECT_EQ(EPOSE_DIAL_IPV4_V2,
+      service_probe_connector_v2(endpoint, EPOSE_DIAL_BOTH_V2).allowed_families);
+  endpoint.dns_address_families = EPOSE_DIAL_IPV6_V2;
+  EXPECT_EQ(0,
+      service_probe_connector_v2(endpoint, EPOSE_DIAL_IPV4_V2).allowed_families);
+}
+
+TEST(epose_resource_policy_v2, fakechain_loopback_probe_is_limited_to_literal_endpoint)
+{
+  using boost::asio::ip::tcp;
+  endpoint_descriptor_v2 endpoint{};
+  endpoint.version = 2;
+  endpoint.transport = endpoint_transport_v2::tcp_ipv4;
+  endpoint.host = "127.0.0.1";
+  endpoint.port = 18081;
+  endpoint.dial_capabilities = EPOSE_DIAL_IPV4_V2;
+  const auto connector = service_probe_connector_v2(endpoint, EPOSE_DIAL_IPV4_V2, true);
+  ASSERT_TRUE(connector.endpoint_allowed);
+  EXPECT_TRUE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("127.0.0.1"), 18081)));
+  EXPECT_FALSE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("127.0.0.1"), 18082)));
+  EXPECT_FALSE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("127.0.0.2"), 18081)));
+  EXPECT_FALSE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("10.0.0.1"), 18081)));
+  EXPECT_FALSE(connector.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("8.8.8.8"), 18081)));
+  const auto production = service_probe_connector_v2(endpoint, EPOSE_DIAL_IPV4_V2);
+  ASSERT_TRUE(production.endpoint_allowed);
+  EXPECT_FALSE(production.endpoint_allowed(tcp::endpoint(
+      boost::asio::ip::make_address("127.0.0.1"), 18081)));
+}
+
+TEST(epose_resource_policy_v2, fakechain_accepts_loopback_descriptor_only)
+{
+  crypto::secret_key secret{};
+  auto endpoint = descriptor(secret);
+  endpoint.version = 2;
+  endpoint.transport = endpoint_transport_v2::tcp_ipv4;
+  endpoint.host = "127.0.0.1";
+  endpoint.port = 18081;
+  endpoint.dial_capabilities = EPOSE_DIAL_IPV4_V2;
+  endpoint.dns_address_families = 0;
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(cryptonote::FAKECHAIN,
+      hash_text("genesis"), hash_text("parameters"), endpoint, secret));
+  EXPECT_EQ(resource_status_v2::accepted, validate_endpoint_descriptor_v2(
+      cryptonote::FAKECHAIN, hash_text("genesis"), hash_text("parameters"), endpoint));
+  EXPECT_EQ(resource_status_v2::prohibited_address, validate_endpoint_descriptor_v2(
+      cryptonote::TESTNET, hash_text("genesis"), hash_text("parameters"), endpoint));
+  endpoint.host = "10.0.0.1";
+  ASSERT_TRUE(sign_endpoint_descriptor_v2(cryptonote::FAKECHAIN,
+      hash_text("genesis"), hash_text("parameters"), endpoint, secret));
+  EXPECT_EQ(resource_status_v2::prohibited_address, validate_endpoint_descriptor_v2(
+      cryptonote::FAKECHAIN, hash_text("genesis"), hash_text("parameters"), endpoint));
 }
 
 TEST(epose_resource_policy_v2, endpoint_discovery_cache_is_context_bound_bounded_and_expiring)
@@ -249,6 +375,30 @@ TEST(epose_resource_policy_v2, dns_resolution_is_bounded_and_rechecked)
       validate_resolved_targets_v2({"8.8.8.8", "2606:4700:4700::1111"}, 2));
   EXPECT_EQ(resource_status_v2::prohibited_address,
       validate_resolved_targets_v2({"8.8.8.8", "169.254.169.254"}, 2));
+}
+
+TEST(epose_resource_policy_v2, configured_families_require_outbound_reachability)
+{
+  int probes = 0;
+  const auto probe = [&](bool ipv6) {
+    ++probes;
+    return ipv6;
+  };
+  EXPECT_EQ(0u, reachable_dial_capabilities_v2(0, probe));
+  EXPECT_EQ(0u, reachable_dial_capabilities_v2(1, probe));
+  EXPECT_EQ(2u, reachable_dial_capabilities_v2(2, probe));
+  EXPECT_EQ(2u, reachable_dial_capabilities_v2(3, probe));
+  EXPECT_EQ(4, probes);
+}
+
+TEST(epose_resource_policy_v2, unreachable_probe_falls_back_to_configured_families)
+{
+  const auto unreachable = [](bool) { return false; };
+  EXPECT_EQ(2u, dial_capabilities_or_configured_v2(2, reachable_dial_capabilities_v2(2, unreachable)));
+  EXPECT_EQ(3u, dial_capabilities_or_configured_v2(3, reachable_dial_capabilities_v2(3, unreachable)));
+  EXPECT_EQ(1u, dial_capabilities_or_configured_v2(3, 1));
+  EXPECT_EQ(0u, dial_capabilities_or_configured_v2(0, 0));
+  EXPECT_TRUE(valid_transport_profile_v2(2, dial_capabilities_or_configured_v2(2, 0), 0));
 }
 
 TEST(epose_resource_policy_v2, probe_budget_bounds_bytes_timeout_concurrency_and_peers)

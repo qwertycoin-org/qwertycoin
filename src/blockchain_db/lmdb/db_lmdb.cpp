@@ -27,22 +27,27 @@
 
 #include "db_lmdb.h"
 
+#include <algorithm>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/format.hpp>
 #include <boost/circular_buffer.hpp>
 #include <memory>  // std::unique_ptr
+#include <vector>
 #include <cstring>  // memcpy
 
 #ifdef WIN32
 #include <winioctl.h>
 #endif
 
+#include "int-util.h"
 #include "string_tools.h"
 #include "common/util.h"
 #include "common/pruning.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "crypto/crypto.h"
+#include "epose/service_node.h"
+#include "epose/state_index_v2.h"
 #include "profile_tools.h"
 #include "ringct/rctOps.h"
 
@@ -58,7 +63,7 @@ using epee::string_tools::pod_to_hex;
 using namespace crypto;
 
 // Increase when the DB structure changes
-#define VERSION 5
+#define VERSION 6
 
 namespace
 {
@@ -242,6 +247,14 @@ const char* const LMDB_HF_VERSIONS = "hf_versions";
 
 const char* const LMDB_PROPERTIES = "properties";
 const char* const LMDB_EPOSE_STATE_V2 = "epose_state_v2";
+const char* const LMDB_EPOSE_SNAPSHOTS = "epose_snapshots";
+const char* const LMDB_VM_STATE = "vm_state";
+const char* const LMDB_VM_UNDO = "vm_undo";
+const char* const LMDB_VM_COMMITMENT = "vm_commitment";
+const char* const LMDB_CHAINLOCK_CARRIERS = "chainlock_carriers";
+const char* const LMDB_CHAINLOCK_CARRIERS_BY_LOCK = "chainlock_carriers_by_lock";
+const char* const LMDB_CHAINLOCKS = "chainlocks";
+const char* const LMDB_CHAINLOCK_CANDIDATES = "chainlock_candidates";
 
 const char zerokey[8] = {0};
 const MDB_val zerokval = { sizeof(zerokey), (void *)zerokey };
@@ -258,6 +271,103 @@ inline void lmdb_db_open(MDB_txn* txn, const char* name, int flags, MDB_dbi& dbi
     throw0(cryptonote::DB_OPEN_FAILURE((lmdb_error(error_string + " : ", res) + std::string(" - you may want to start with --db-salvage")).c_str()));
 }
 
+inline bool lmdb_db_open_or_create(MDB_txn* txn, const char* name, int flags, bool read_only, MDB_dbi& dbi, const std::string& error_string)
+{
+  if (read_only)
+  {
+    const int res = mdb_dbi_open(txn, name, flags, &dbi);
+    if (res == MDB_NOTFOUND)
+      return false;
+    if (res)
+      throw0(cryptonote::DB_OPEN_FAILURE(lmdb_error(error_string + " : ", res).c_str()));
+    return true;
+  }
+  lmdb_db_open(txn, name, flags | MDB_CREATE, dbi, error_string);
+  return true;
+}
+
+crypto::hash vm_state_db_key(const std::string &key)
+{
+  return crypto::cn_fast_hash(key.data(), key.size());
+}
+
+std::string encode_vm_state_entry(const std::string &key, const std::string &value)
+{
+  return cryptonote::encode_vm_write_set(::vm::write_set{{key, value}});
+}
+
+void decode_vm_state_entry(const MDB_val &data, std::string &key, std::string &value)
+{
+  ::vm::write_set entry;
+  if (!cryptonote::decode_vm_write_set(std::string(static_cast<const char *>(data.mv_data), data.mv_size), entry)
+      || entry.size() != 1 || !entry.begin()->second)
+    throw0(cryptonote::DB_ERROR("Invalid VM state entry"));
+  key = entry.begin()->first;
+  value = *entry.begin()->second;
+}
+
+std::string encode_vm_commitment(const cryptonote::vm_block_commitment &commitment)
+{
+  std::string value(reinterpret_cast<const char *>(&commitment.root), sizeof(commitment.root));
+  for (uint64_t field : {commitment.gas_used, commitment.deposited, commitment.withdrawn})
+  {
+    field = SWAP64LE(field);
+    value.append(reinterpret_cast<const char *>(&field), sizeof(field));
+  }
+  return value;
+}
+
+void decode_vm_commitment(const MDB_val &data, cryptonote::vm_block_commitment &commitment)
+{
+  if (data.mv_size != sizeof(crypto::hash) + 3 * sizeof(uint64_t))
+    throw0(cryptonote::DB_ERROR("Invalid VM commitment size"));
+  const char *bytes = static_cast<const char *>(data.mv_data);
+  std::memcpy(&commitment.root, bytes, sizeof(commitment.root));
+  bytes += sizeof(commitment.root);
+  for (uint64_t *field : {&commitment.gas_used, &commitment.deposited, &commitment.withdrawn})
+  {
+    std::memcpy(field, bytes, sizeof(*field));
+    *field = SWAP64LE(*field);
+    bytes += sizeof(*field);
+  }
+}
+
+std::string encode_chainlock_record(const cryptonote::chainlock_record &lock)
+{
+  const uint64_t height = SWAP64LE(lock.height);
+  std::string value(reinterpret_cast<const char *>(&height), sizeof(height));
+  value.append(reinterpret_cast<const char *>(&lock.block_hash), sizeof(lock.block_hash));
+  value.push_back(lock.tombstoned ? 1 : 0);
+  value.append(lock.lock);
+  return value;
+}
+
+std::string chainlock_candidate_key(uint64_t height, const crypto::hash &hash)
+{
+  std::string key(sizeof(height) + sizeof(hash), '\0');
+  for (size_t index = 0; index < sizeof(height); ++index)
+    key[index] = static_cast<char>(height >> (8 * (sizeof(height) - index - 1)));
+  std::memcpy(&key[sizeof(height)], &hash, sizeof(hash));
+  return key;
+}
+
+void decode_chainlock_record(const MDB_val &data, cryptonote::chainlock_record &lock)
+{
+  constexpr size_t fixed_size = sizeof(uint64_t) + sizeof(crypto::hash) + 1;
+  if (data.mv_size < fixed_size)
+    throw0(cryptonote::DB_ERROR("Invalid chainlock record size"));
+  const char *bytes = static_cast<const char *>(data.mv_data);
+  std::memcpy(&lock.height, bytes, sizeof(lock.height));
+  lock.height = SWAP64LE(lock.height);
+  bytes += sizeof(lock.height);
+  std::memcpy(&lock.block_hash, bytes, sizeof(lock.block_hash));
+  bytes += sizeof(lock.block_hash);
+  if (*bytes != 0 && *bytes != 1)
+    throw0(cryptonote::DB_ERROR("Invalid chainlock tombstone flag"));
+  lock.tombstoned = *bytes == 1;
+  ++bytes;
+  lock.lock.assign(bytes, data.mv_size - fixed_size);
+}
 
 }  // anonymous namespace
 
@@ -888,7 +998,7 @@ void BlockchainLMDB::remove_block()
       throw1(DB_ERROR(lmdb_error("Failed to add removal of block info to db transaction: ", result).c_str()));
 }
 
-uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& txp, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash)
+uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& txp, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, uint64_t unlock_time)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -918,7 +1028,7 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
   txindex ti;
   ti.key = tx_hash;
   ti.data.tx_id = tx_id;
-  ti.data.unlock_time = tx.unlock_time;
+  ti.data.unlock_time = unlock_time;
   ti.data.block_id = m_height;  // we don't need blk_hash since we know m_height
 
   val_h.mv_size = sizeof(ti);
@@ -1516,8 +1626,72 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   lmdb_db_open(txn, LMDB_HF_VERSIONS, MDB_INTEGERKEY | MDB_CREATE, m_hf_versions, "Failed to open db handle for m_hf_versions");
 
   lmdb_db_open(txn, LMDB_PROPERTIES, MDB_CREATE, m_properties, "Failed to open db handle for m_properties");
-  lmdb_db_open(txn, LMDB_EPOSE_STATE_V2, MDB_INTEGERKEY | MDB_CREATE,
+  const bool read_only = mdb_flags & MDB_RDONLY;
+  bool optional_tables_present = lmdb_db_open_or_create(txn, LMDB_EPOSE_STATE_V2, MDB_INTEGERKEY, read_only,
       m_epose_state_v2, "Failed to open db handle for m_epose_state_v2");
+  m_epose_snapshots_present = lmdb_db_open_or_create(txn, LMDB_EPOSE_SNAPSHOTS, MDB_INTEGERKEY, read_only,
+      m_epose_snapshots, "Failed to open db handle for m_epose_snapshots");
+  optional_tables_present &= lmdb_db_open_or_create(txn, LMDB_VM_STATE, 0, read_only, m_vm_state, "Failed to open db handle for m_vm_state");
+  optional_tables_present &= lmdb_db_open_or_create(txn, LMDB_VM_UNDO, MDB_INTEGERKEY, read_only, m_vm_undo, "Failed to open db handle for m_vm_undo");
+  optional_tables_present &= lmdb_db_open_or_create(txn, LMDB_VM_COMMITMENT, MDB_INTEGERKEY, read_only, m_vm_commitment, "Failed to open db handle for m_vm_commitment");
+  optional_tables_present &= lmdb_db_open_or_create(txn, LMDB_CHAINLOCK_CARRIERS, MDB_INTEGERKEY, read_only, m_chainlock_carriers, "Failed to open db handle for m_chainlock_carriers");
+  optional_tables_present &= lmdb_db_open_or_create(txn, LMDB_CHAINLOCK_CARRIERS_BY_LOCK, MDB_INTEGERKEY, read_only, m_chainlock_carriers_by_lock, "Failed to open db handle for m_chainlock_carriers_by_lock");
+  optional_tables_present &= lmdb_db_open_or_create(txn, LMDB_CHAINLOCKS, MDB_INTEGERKEY, read_only, m_chainlocks, "Failed to open db handle for m_chainlocks");
+  optional_tables_present &= lmdb_db_open_or_create(txn, LMDB_CHAINLOCK_CANDIDATES, 0, read_only, m_chainlock_candidates, "Failed to open db handle for m_chainlock_candidates");
+  if (!read_only)
+  {
+    MDB_stat index_stat{}, carrier_stat{};
+    if (mdb_stat(txn, m_chainlock_carriers_by_lock, &index_stat)
+        || mdb_stat(txn, m_chainlock_carriers, &carrier_stat))
+      throw0(DB_ERROR("Failed to inspect chainlock carrier index"));
+    const auto scan_carriers = [&](const auto &consume) {
+      MDB_cursor *cursor = nullptr;
+      if (mdb_cursor_open(txn, m_chainlock_carriers, &cursor))
+        throw0(DB_ERROR("Failed to scan chainlock carriers"));
+      const auto close_cursor = epee::misc_utils::create_scope_leave_handler([cursor]() { mdb_cursor_close(cursor); });
+      MDB_val carrier_key{}, carrier_data{};
+      int rc = mdb_cursor_get(cursor, &carrier_key, &carrier_data, MDB_FIRST);
+      for (; rc == 0; rc = mdb_cursor_get(cursor, &carrier_key, &carrier_data, MDB_NEXT))
+      {
+        chainlock_record carrier;
+        decode_chainlock_record(carrier_data, carrier);
+        if (!consume(carrier_key, carrier))
+          return false;
+      }
+      if (rc != MDB_NOTFOUND)
+        throw0(DB_ERROR("Failed to scan chainlock carriers"));
+      return true;
+    };
+    const auto rebuild_carrier_index = [&]() {
+      if (mdb_drop(txn, m_chainlock_carriers_by_lock, 0))
+        throw0(DB_ERROR("Failed to clear chainlock carrier index"));
+      scan_carriers([&](MDB_val &carrier_key, const chainlock_record &carrier) {
+        uint64_t locked_height = carrier.height;
+        MDB_val locked_key{sizeof(locked_height), &locked_height};
+        if (mdb_put(txn, m_chainlock_carriers_by_lock, &locked_key, &carrier_key, MDB_NOOVERWRITE))
+          throw0(DB_ERROR("Failed to rebuild chainlock carrier index"));
+        return true;
+      });
+    };
+    bool rebuild_index = index_stat.ms_entries != carrier_stat.ms_entries;
+    if (!rebuild_index && carrier_stat.ms_entries != 0)
+    {
+      rebuild_index = !scan_carriers([&](MDB_val &carrier_key, const chainlock_record &carrier) {
+        uint64_t locked_height = carrier.height;
+        MDB_val locked_key{sizeof(locked_height), &locked_height};
+        MDB_val indexed_carrier{};
+        const int index_result = mdb_get(txn, m_chainlock_carriers_by_lock, &locked_key, &indexed_carrier);
+        if (index_result == MDB_NOTFOUND)
+          return false;
+        if (index_result)
+          throw0(DB_ERROR(lmdb_error("Failed to inspect chainlock carrier index: ", index_result).c_str()));
+        return indexed_carrier.mv_size == carrier_key.mv_size
+            && std::memcmp(indexed_carrier.mv_data, carrier_key.mv_data, carrier_key.mv_size) == 0;
+      });
+    }
+    if (rebuild_index)
+      rebuild_carrier_index();
+  }
 
   mdb_set_dupsort(txn, m_spent_keys, compare_hash32);
   mdb_set_dupsort(txn, m_block_heights, compare_hash32);
@@ -1592,6 +1766,9 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
     if (VERSION > 0 && m_height > 0)
       compatible = false;
   }
+
+  if (!optional_tables_present)
+    compatible = false;
 
   if (!compatible)
   {
@@ -1707,6 +1884,15 @@ void BlockchainLMDB::reset()
     throw0(DB_ERROR(lmdb_error("Failed to drop m_properties: ", result).c_str()));
   if (auto result = mdb_drop(txn, m_epose_state_v2, 0))
     throw0(DB_ERROR(lmdb_error("Failed to drop m_epose_state_v2: ", result).c_str()));
+  if (m_epose_snapshots_present)
+    if (auto result = mdb_drop(txn, m_epose_snapshots, 0))
+      throw0(DB_ERROR(lmdb_error("Failed to drop m_epose_snapshots: ", result).c_str()));
+  for (MDB_dbi dbi : {m_vm_state, m_vm_undo, m_vm_commitment})
+    if (auto result = mdb_drop(txn, dbi, 0))
+      throw0(DB_ERROR(lmdb_error("Failed to drop VM table: ", result).c_str()));
+  for (MDB_dbi dbi : {m_chainlock_carriers, m_chainlock_carriers_by_lock, m_chainlocks, m_chainlock_candidates})
+    if (auto result = mdb_drop(txn, dbi, 0))
+      throw0(DB_ERROR(lmdb_error("Failed to drop chainlock table: ", result).c_str()));
 
   // init with current version
   MDB_val_str(k, "version");
@@ -1738,9 +1924,22 @@ std::vector<std::string> BlockchainLMDB::get_filenames() const
 bool BlockchainLMDB::remove_data_file(const std::string& folder) const
 {
   const std::string filename = folder + "/data.mdb";
+  const std::string lock_filename = folder + "/" + CRYPTONOTE_BLOCKCHAINDATA_LOCK_FILENAME;
   try
   {
+    if (!boost::filesystem::exists(lock_filename))
+    {
+      boost::filesystem::remove(filename);
+      return true;
+    }
+    const tools::file_locker env_lock(lock_filename);
+    if (!env_lock.locked())
+    {
+      MERROR("Refusing to remove " << filename << ": the database is open in another process");
+      return false;
+    }
     boost::filesystem::remove(filename);
+    boost::filesystem::remove(lock_filename);
   }
   catch (const std::exception &e)
   {
@@ -4087,7 +4286,10 @@ void BlockchainLMDB::block_rtxn_abort() const
 
 uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
     const std::vector<std::pair<transaction, blobdata>>& txs,
-    const epose_state_commitment_v2 *epose_commitment)
+    const epose_state_commitment_v2 *epose_commitment,
+    const vm_block_update *vm_update,
+    const chainlock_record *chainlock_carrier,
+    const std::string *epose_snapshot)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -4106,7 +4308,7 @@ uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t
   try
   {
     BlockchainDB::add_block(blk, block_weight, long_term_block_weight,
-        cumulative_difficulty, coins_generated, txs, epose_commitment);
+        cumulative_difficulty, coins_generated, txs, epose_commitment, vm_update, chainlock_carrier, epose_snapshot);
   }
   catch (const DB_ERROR_TXN_START& e)
   {
@@ -4164,13 +4366,590 @@ bool BlockchainLMDB::get_epose_state_commitment_v2(
     throw0(DB_ERROR("Invalid EPoSE v2 state commitment size"));
   const auto *bytes = static_cast<const uint8_t *>(data.mv_data);
   commitment.schema_version = bytes[0];
-  if (commitment.schema_version != EPOSE_STATE_COMMITMENT_SCHEMA_V2)
+  if (commitment.schema_version != EPOSE_STATE_COMMITMENT_SCHEMA_V2
+      && commitment.schema_version != QWC_EPOSE_ROLLING_STATE_SCHEMA)
     throw0(DB_ERROR("Unsupported EPoSE v2 state commitment schema"));
   std::memcpy(&commitment.block_hash, bytes + 1, sizeof(commitment.block_hash));
   std::memcpy(&commitment.state_hash, bytes + 1 + sizeof(crypto::hash), sizeof(commitment.state_hash));
   std::memcpy(&commitment.parameter_set_hash,
       bytes + 1 + 2 * sizeof(crypto::hash), sizeof(commitment.parameter_set_hash));
   return true;
+}
+
+void BlockchainLMDB::put_epose_snapshot(uint64_t height, const std::string &image)
+{
+  if (!m_write_txn)
+  {
+    MERROR("EPoSE snapshot requires the canonical block write transaction");
+    return;
+  }
+  MDB_val key{sizeof(height), &height};
+  MDB_val data{image.size(), const_cast<char *>(image.data())};
+  int result = mdb_put(*m_write_txn, m_epose_snapshots, &key, &data, 0);
+  if (result)
+  {
+    MERROR(lmdb_error("Failed to add EPoSE snapshot: ", result));
+    return;
+  }
+  MDB_cursor *cursor = nullptr;
+  result = mdb_cursor_open(*m_write_txn, m_epose_snapshots, &cursor);
+  if (result)
+  {
+    MERROR(lmdb_error("Failed to open EPoSE snapshot cursor: ", result));
+    return;
+  }
+  std::vector<uint64_t> valid_heights;
+  std::vector<uint64_t> remove_heights;
+  MDB_val candidate_key{}, candidate_data{};
+  result = mdb_cursor_get(cursor, &candidate_key, &candidate_data, MDB_FIRST);
+  while (result == 0)
+  {
+    if (candidate_key.mv_size != sizeof(uint64_t))
+    {
+      mdb_cursor_close(cursor);
+      MERROR("Invalid EPoSE snapshot key size");
+      return;
+    }
+    uint64_t candidate_height = 0;
+    std::memcpy(&candidate_height, candidate_key.mv_data, sizeof(candidate_height));
+    if (epose_snapshot_is_canonical(candidate_height,
+            static_cast<const char *>(candidate_data.mv_data), candidate_data.mv_size))
+      valid_heights.push_back(candidate_height);
+    else
+      remove_heights.push_back(candidate_height);
+    result = mdb_cursor_get(cursor, &candidate_key, &candidate_data, MDB_NEXT);
+  }
+  mdb_cursor_close(cursor);
+  if (result != MDB_NOTFOUND)
+  {
+    MERROR(lmdb_error("Failed to scan EPoSE snapshots: ", result));
+    return;
+  }
+  const uint64_t chain_height = this->height();
+  const uint64_t tip = chain_height == 0 ? 0 : chain_height - 1;
+  constexpr uint64_t horizon = 3 * qwertycoin::epose::EPOSE_EPOCH_LENGTH
+      + qwertycoin::epose::EPOSE_FINALITY_DEPTH;
+  const uint64_t floor = tip > horizon ? tip - horizon : 0;
+  const auto first_recent = std::lower_bound(valid_heights.begin(),
+      valid_heights.end(), floor);
+  if (first_recent != valid_heights.begin())
+    remove_heights.insert(remove_heights.end(), valid_heights.begin(),
+        first_recent - 1);
+  for (const uint64_t remove_height : remove_heights)
+  {
+    MDB_val remove_key{sizeof(remove_height), const_cast<uint64_t *>(&remove_height)};
+    result = mdb_del(*m_write_txn, m_epose_snapshots, &remove_key, nullptr);
+    if (result && result != MDB_NOTFOUND)
+    {
+      MERROR(lmdb_error("Failed to prune EPoSE snapshot: ", result));
+      return;
+    }
+  }
+}
+
+bool BlockchainLMDB::epose_snapshot_is_canonical(uint64_t height,
+    const char *image, size_t size) const
+{
+  if (height >= this->height())
+    return false;
+  epose_state_commitment_v2 commitment{};
+  if (!get_epose_state_commitment_v2(height, commitment))
+    return false;
+  const crypto::hash canonical_hash = get_block_hash_from_height(height);
+  return commitment.block_hash == canonical_hash
+      && qwertycoin::epose::snapshot_matches_image(image, size,
+          commitment.schema_version, commitment.parameter_set_hash,
+          height, canonical_hash, commitment.state_hash);
+}
+
+void BlockchainLMDB::remove_epose_snapshot(uint64_t height)
+{
+  if (!m_write_txn)
+  {
+    MERROR("EPoSE snapshot removal requires the canonical block write transaction");
+    return;
+  }
+  MDB_val key{sizeof(height), &height};
+  const int result = mdb_del(*m_write_txn, m_epose_snapshots, &key, nullptr);
+  if (result && result != MDB_NOTFOUND)
+    MERROR(lmdb_error("Failed to remove EPoSE snapshot: ", result));
+}
+
+bool BlockchainLMDB::get_epose_snapshot(uint64_t target_height,
+    uint64_t &snapshot_height, std::string &image) const
+{
+  return find_epose_snapshot(target_height, snapshot_height, &image);
+}
+
+bool BlockchainLMDB::get_epose_snapshot_height(uint64_t target_height,
+    uint64_t &snapshot_height) const
+{
+  return find_epose_snapshot(target_height, snapshot_height, nullptr);
+}
+
+bool BlockchainLMDB::find_epose_snapshot(uint64_t target_height,
+    uint64_t &snapshot_height, std::string *image) const
+{
+  check_open();
+  snapshot_height = 0;
+  if (image != nullptr)
+    image->clear();
+  if (!m_epose_snapshots_present)
+    return false;
+  TXN_PREFIX_RDONLY();
+  MDB_cursor *cursor = nullptr;
+  int result = mdb_cursor_open(m_txn, m_epose_snapshots, &cursor);
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to open EPoSE snapshot cursor: ", result).c_str()));
+  MDB_val key{}, data{};
+  result = mdb_cursor_get(cursor, &key, &data, MDB_LAST);
+  while (result == 0)
+  {
+    if (key.mv_size != sizeof(snapshot_height))
+    {
+      mdb_cursor_close(cursor);
+      throw0(DB_ERROR("Invalid EPoSE snapshot key size"));
+    }
+    std::memcpy(&snapshot_height, key.mv_data, sizeof(snapshot_height));
+    if (snapshot_height <= target_height
+        && epose_snapshot_is_canonical(snapshot_height,
+            static_cast<const char *>(data.mv_data), data.mv_size))
+    {
+      if (image != nullptr)
+        image->assign(static_cast<const char *>(data.mv_data), data.mv_size);
+      mdb_cursor_close(cursor);
+      return true;
+    }
+    result = mdb_cursor_get(cursor, &key, &data, MDB_PREV);
+  }
+  mdb_cursor_close(cursor);
+  if (result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to read EPoSE snapshot: ", result).c_str()));
+  snapshot_height = 0;
+  return false;
+}
+
+void BlockchainLMDB::put_vm_state_value(const std::string &key, const boost::optional<std::string> &value)
+{
+  crypto::hash db_key = vm_state_db_key(key);
+  MDB_val k{sizeof(db_key), &db_key};
+  if (!value)
+  {
+    const int result = mdb_del(*m_write_txn, m_vm_state, &k, nullptr);
+    if (result != 0 && result != MDB_NOTFOUND)
+      throw0(DB_ERROR(lmdb_error("Failed to remove VM state value: ", result).c_str()));
+    return;
+  }
+  const std::string entry = encode_vm_state_entry(key, *value);
+  MDB_val data{entry.size(), const_cast<char *>(entry.data())};
+  if (const int result = mdb_put(*m_write_txn, m_vm_state, &k, &data, 0))
+    throw0(DB_ERROR(lmdb_error("Failed to write VM state value: ", result).c_str()));
+}
+
+bool BlockchainLMDB::read_vm_state_value(MDB_txn *txn, const std::string &key, std::string &value) const
+{
+  crypto::hash db_key = vm_state_db_key(key);
+  MDB_val k{sizeof(db_key), &db_key};
+  MDB_val data{};
+  const int result = mdb_get(txn, m_vm_state, &k, &data);
+  if (result == MDB_NOTFOUND)
+    return false;
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to read VM state value: ", result).c_str()));
+  std::string stored_key;
+  decode_vm_state_entry(data, stored_key, value);
+  if (stored_key != key)
+    throw0(DB_ERROR("VM state key collision"));
+  return true;
+}
+
+void BlockchainLMDB::add_vm_block(uint64_t height, const vm_block_update &update)
+{
+  check_open();
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("VM block update requires the canonical block write transaction"));
+
+  struct write_txn_view final : vm::state_view
+  {
+    const BlockchainLMDB &db;
+    MDB_txn *txn;
+    write_txn_view(const BlockchainLMDB &db, MDB_txn *txn) : db(db), txn(txn) {}
+    bool get(const std::string &key, std::string &value) const override { return db.read_vm_state_value(txn, key, value); }
+  };
+  const vm::write_set undo = vm::undo_for(write_txn_view(*this, *m_write_txn), update.writes);
+  for (const auto &write : update.writes)
+    put_vm_state_value(write.first, write.second);
+
+  const std::string undo_blob = encode_vm_write_set(undo);
+  MDB_val key{sizeof(height), &height};
+  MDB_val undo_data{undo_blob.size(), const_cast<char *>(undo_blob.data())};
+  if (const int result = mdb_put(*m_write_txn, m_vm_undo, &key, &undo_data, MDB_NOOVERWRITE))
+    throw0(DB_ERROR(lmdb_error("Failed to add VM undo: ", result).c_str()));
+
+  const std::string commitment = encode_vm_commitment(update.commitment);
+  MDB_val commitment_data{commitment.size(), const_cast<char *>(commitment.data())};
+  if (const int result = mdb_put(*m_write_txn, m_vm_commitment, &key, &commitment_data, MDB_NOOVERWRITE))
+    throw0(DB_ERROR(lmdb_error("Failed to add VM commitment: ", result).c_str()));
+
+  if (height >= QWC_VM_UNDO_RETENTION_BLOCKS)
+  {
+    uint64_t expired = height - QWC_VM_UNDO_RETENTION_BLOCKS;
+    MDB_val expired_key{sizeof(expired), &expired};
+    const int result = mdb_del(*m_write_txn, m_vm_undo, &expired_key, nullptr);
+    if (result != 0 && result != MDB_NOTFOUND)
+      throw0(DB_ERROR(lmdb_error("Failed to expire VM undo: ", result).c_str()));
+  }
+}
+
+void BlockchainLMDB::remove_vm_block(uint64_t height)
+{
+  check_open();
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("VM block removal requires the canonical block write transaction"));
+  MDB_val key{sizeof(height), &height};
+  MDB_val data{};
+  int result = mdb_get(*m_write_txn, m_vm_undo, &key, &data);
+  if (result == 0)
+  {
+    vm::write_set undo;
+    if (!decode_vm_write_set(std::string(static_cast<const char *>(data.mv_data), data.mv_size), undo))
+      throw0(DB_ERROR("Invalid VM undo record"));
+    for (const auto &write : undo)
+      put_vm_state_value(write.first, write.second);
+    result = mdb_del(*m_write_txn, m_vm_undo, &key, nullptr);
+  }
+  if (result != 0 && result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to remove VM undo: ", result).c_str()));
+  result = mdb_del(*m_write_txn, m_vm_commitment, &key, nullptr);
+  if (result != 0 && result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to remove VM commitment: ", result).c_str()));
+}
+
+void BlockchainLMDB::write_chainlock(const chainlock_record &lock)
+{
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("Chainlock write requires a write transaction"));
+  const std::string record_key = chainlock_candidate_key(lock.height, lock.block_hash);
+  MDB_val key{record_key.size(), const_cast<char *>(record_key.data())};
+  MDB_val existing{};
+  const int found = mdb_get(*m_write_txn, m_chainlock_candidates, &key, &existing);
+  if (found != 0 && found != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to read chainlock: ", found).c_str()));
+  if (found == 0 && !lock.tombstoned)
+    return;
+  const std::string value = encode_chainlock_record(lock);
+  MDB_val data{value.size(), const_cast<char *>(value.data())};
+  if (const int result = mdb_put(*m_write_txn, m_chainlock_candidates, &key, &data, 0))
+    throw0(DB_ERROR(lmdb_error("Failed to store chainlock: ", result).c_str()));
+
+  if (lock.height < QWC_CHAINLOCK_STORE_RETENTION_BLOCKS)
+    return;
+  const uint64_t cutoff = lock.height - QWC_CHAINLOCK_STORE_RETENTION_BLOCKS;
+  for (MDB_dbi table : {m_chainlocks, m_chainlock_candidates})
+  {
+    MDB_cursor *cursor = nullptr;
+    if (const int result = mdb_cursor_open(*m_write_txn, table, &cursor))
+      throw0(DB_ERROR(lmdb_error("Failed to open chainlock cursor: ", result).c_str()));
+    const auto cursor_closer = epee::misc_utils::create_scope_leave_handler([cursor](){ mdb_cursor_close(cursor); });
+    MDB_val key{}, value{};
+    for (;;)
+    {
+      const int result = mdb_cursor_get(cursor, &key, &value, MDB_FIRST);
+      if (result == MDB_NOTFOUND)
+        break;
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to iterate chainlocks: ", result).c_str()));
+      uint64_t stored_height = 0;
+      if (table == m_chainlocks)
+        std::memcpy(&stored_height, key.mv_data, sizeof(stored_height));
+      else
+      {
+        const unsigned char *bytes = static_cast<const unsigned char *>(key.mv_data);
+        for (size_t index = 0; index < sizeof(stored_height); ++index)
+          stored_height = (stored_height << 8) | bytes[index];
+      }
+      if (stored_height >= cutoff)
+        break;
+      if (const int del = mdb_cursor_del(cursor, 0))
+        throw0(DB_ERROR(lmdb_error("Failed to prune chainlock: ", del).c_str()));
+    }
+  }
+}
+
+void BlockchainLMDB::add_chainlock_carrier(uint64_t height, const chainlock_record &lock)
+{
+  check_open();
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("Chainlock carrier requires the canonical block write transaction"));
+  uint64_t locked_height = lock.height;
+  MDB_val locked_key{sizeof(locked_height), &locked_height};
+  MDB_val carrier_data{sizeof(height), &height};
+  MDB_val indexed_carrier{};
+  const int index_result = mdb_get(*m_write_txn, m_chainlock_carriers_by_lock, &locked_key, &indexed_carrier);
+  if (index_result != 0 && index_result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to read chainlock carrier index: ", index_result).c_str()));
+  unsigned put_flags = MDB_NOOVERWRITE;
+  if (index_result == 0)
+  {
+    uint64_t indexed_height = 0;
+    if (indexed_carrier.mv_size == sizeof(indexed_height))
+    {
+      std::memcpy(&indexed_height, indexed_carrier.mv_data, sizeof(indexed_height));
+      if (indexed_height != height)
+      {
+        MDB_val indexed_key{sizeof(indexed_height), &indexed_height}, indexed_data{};
+        const int carrier_result = mdb_get(*m_write_txn, m_chainlock_carriers, &indexed_key, &indexed_data);
+        if (carrier_result != 0 && carrier_result != MDB_NOTFOUND)
+          throw0(DB_ERROR(lmdb_error("Failed to read indexed chainlock carrier: ", carrier_result).c_str()));
+        if (carrier_result == 0)
+        {
+          chainlock_record indexed_lock;
+          decode_chainlock_record(indexed_data, indexed_lock);
+          if (indexed_lock.height == lock.height)
+            throw0(DB_ERROR("Failed to index chainlock carrier: existing carrier for locked height"));
+        }
+      }
+    }
+    put_flags = 0;
+  }
+  const std::string value = encode_chainlock_record(lock);
+  MDB_val key{sizeof(height), &height};
+  MDB_val data{value.size(), const_cast<char *>(value.data())};
+  if (const int result = mdb_put(*m_write_txn, m_chainlock_carriers, &key, &data, MDB_NOOVERWRITE))
+    throw0(DB_ERROR(lmdb_error("Failed to add chainlock carrier: ", result).c_str()));
+  if (const int result = mdb_put(*m_write_txn, m_chainlock_carriers_by_lock, &locked_key, &carrier_data, put_flags))
+    throw0(DB_ERROR(lmdb_error("Failed to index chainlock carrier: ", result).c_str()));
+  write_chainlock(lock);
+}
+
+void BlockchainLMDB::remove_chainlock_carrier(uint64_t height)
+{
+  check_open();
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("Chainlock carrier removal requires the canonical block write transaction"));
+  MDB_val key{sizeof(height), &height};
+  MDB_val carrier_data{};
+  if (mdb_get(*m_write_txn, m_chainlock_carriers, &key, &carrier_data) == 0)
+  {
+    chainlock_record carrier;
+    decode_chainlock_record(carrier_data, carrier);
+    MDB_val locked_key{sizeof(carrier.height), &carrier.height};
+    MDB_val indexed_data{};
+    const int index_lookup = mdb_get(*m_write_txn, m_chainlock_carriers_by_lock, &locked_key, &indexed_data);
+    if (index_lookup == 0)
+    {
+      uint64_t indexed_height = 0;
+      if (indexed_data.mv_size != sizeof(indexed_height))
+        throw0(DB_ERROR("Invalid chainlock carrier index height"));
+      memcpy(&indexed_height, indexed_data.mv_data, sizeof(indexed_height));
+      if (indexed_height == height)
+      {
+        const int index_result = mdb_del(*m_write_txn, m_chainlock_carriers_by_lock, &locked_key, nullptr);
+        if (index_result != 0)
+          throw0(DB_ERROR(lmdb_error("Failed to remove chainlock carrier index: ", index_result).c_str()));
+      }
+    }
+    else if (index_lookup != MDB_NOTFOUND)
+      throw0(DB_ERROR(lmdb_error("Failed to read chainlock carrier index: ", index_lookup).c_str()));
+  }
+  const int result = mdb_del(*m_write_txn, m_chainlock_carriers, &key, nullptr);
+  if (result != 0 && result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to remove chainlock carrier: ", result).c_str()));
+}
+
+bool BlockchainLMDB::get_last_chainlock_carrier(uint64_t &carrier_height, chainlock_record &lock) const
+{
+  check_open();
+  lock = {};
+  TXN_PREFIX_RDONLY();
+  MDB_cursor *cursor = nullptr;
+  if (const int result = mdb_cursor_open(m_txn, m_chainlock_carriers, &cursor))
+    throw0(DB_ERROR(lmdb_error("Failed to open chainlock carrier cursor: ", result).c_str()));
+  epee::misc_utils::auto_scope_leave_caller cursor_closer = epee::misc_utils::create_scope_leave_handler([cursor](){ mdb_cursor_close(cursor); });
+  MDB_val k{}, data{};
+  const int result = mdb_cursor_get(cursor, &k, &data, MDB_LAST);
+  if (result == MDB_NOTFOUND)
+    return false;
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to read last chainlock carrier: ", result).c_str()));
+  std::memcpy(&carrier_height, k.mv_data, sizeof(carrier_height));
+  decode_chainlock_record(data, lock);
+  return true;
+}
+
+bool BlockchainLMDB::get_chainlock_carrier(uint64_t locked_height, uint64_t &carrier_height, chainlock_record &lock) const
+{
+  check_open();
+  TXN_PREFIX_RDONLY();
+  MDB_val locked_key{sizeof(locked_height), &locked_height}, carrier_data{};
+  const int index_result = mdb_get(m_txn, m_chainlock_carriers_by_lock, &locked_key, &carrier_data);
+  if (index_result == MDB_NOTFOUND)
+    return false;
+  if (index_result != 0 || carrier_data.mv_size != sizeof(carrier_height))
+    throw0(DB_ERROR("Failed to read chainlock carrier index"));
+  std::memcpy(&carrier_height, carrier_data.mv_data, sizeof(carrier_height));
+  MDB_val carrier_key{sizeof(carrier_height), &carrier_height}, data{};
+  const int carrier_result = mdb_get(m_txn, m_chainlock_carriers, &carrier_key, &data);
+  if (carrier_result == MDB_NOTFOUND)
+    return false;
+  if (carrier_result != 0)
+    throw0(DB_ERROR(lmdb_error("Failed to read indexed chainlock carrier: ", carrier_result).c_str()));
+  decode_chainlock_record(data, lock);
+  return lock.height == locked_height;
+}
+
+void BlockchainLMDB::put_chainlock(const chainlock_record &lock)
+{
+  check_open();
+  db_wtxn_guard guard(this);
+  write_chainlock(lock);
+}
+
+bool BlockchainLMDB::get_chainlock(uint64_t height, chainlock_record &lock) const
+{
+  lock = {};
+  bool found = false;
+  for_chainlocks_descending([&](const chainlock_record &candidate) {
+    if (candidate.height < height)
+      return false;
+    if (candidate.height == height)
+    {
+      lock = candidate;
+      found = true;
+      return false;
+    }
+    return true;
+  });
+  return found;
+}
+
+bool BlockchainLMDB::get_chainlock(uint64_t height, const crypto::hash &hash, chainlock_record &lock) const
+{
+  check_open();
+  lock = {};
+  TXN_PREFIX_RDONLY();
+  const std::string record_key = chainlock_candidate_key(height, hash);
+  MDB_val key{record_key.size(), const_cast<char *>(record_key.data())};
+  MDB_val data{};
+  const int candidate_result = mdb_get(m_txn, m_chainlock_candidates, &key, &data);
+  if (candidate_result == 0)
+  {
+    decode_chainlock_record(data, lock);
+    return true;
+  }
+  if (candidate_result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("Failed to read chainlock candidate: ", candidate_result).c_str()));
+  MDB_val legacy_key{sizeof(height), &height};
+  const int result = mdb_get(m_txn, m_chainlocks, &legacy_key, &data);
+  if (result == MDB_NOTFOUND)
+    return false;
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to read legacy chainlock: ", result).c_str()));
+  decode_chainlock_record(data, lock);
+  return lock.block_hash == hash;
+}
+
+bool BlockchainLMDB::for_chainlocks_descending(std::function<bool(const chainlock_record &lock)> f) const
+{
+  check_open();
+  TXN_PREFIX_RDONLY();
+  std::map<std::pair<uint64_t, crypto::hash>, chainlock_record> records;
+  for (MDB_dbi table : {m_chainlocks, m_chainlock_candidates})
+  {
+    MDB_cursor *cursor = nullptr;
+    if (const int result = mdb_cursor_open(m_txn, table, &cursor))
+      throw0(DB_ERROR(lmdb_error("Failed to open chainlock cursor: ", result).c_str()));
+    const auto cursor_closer = epee::misc_utils::create_scope_leave_handler([cursor](){ mdb_cursor_close(cursor); });
+    MDB_val key{}, data{};
+    for (MDB_cursor_op op = MDB_FIRST;; op = MDB_NEXT)
+    {
+      const int result = mdb_cursor_get(cursor, &key, &data, op);
+      if (result == MDB_NOTFOUND)
+        break;
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to iterate chainlocks: ", result).c_str()));
+      chainlock_record record;
+      decode_chainlock_record(data, record);
+      records[{record.height, record.block_hash}] = std::move(record);
+    }
+  }
+  for (auto it = records.rbegin(); it != records.rend(); ++it)
+    if (!f(it->second))
+      return false;
+  return true;
+}
+
+bool BlockchainLMDB::get_vm_commitment(uint64_t height, vm_block_commitment &commitment) const
+{
+  check_open();
+  commitment = {};
+  TXN_PREFIX_RDONLY();
+  MDB_val key{sizeof(height), &height};
+  MDB_val data{};
+  const int result = mdb_get(m_txn, m_vm_commitment, &key, &data);
+  if (result == MDB_NOTFOUND)
+    return false;
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to read VM commitment: ", result).c_str()));
+  decode_vm_commitment(data, commitment);
+  return true;
+}
+
+bool BlockchainLMDB::get_vm_undo(uint64_t height, vm::write_set &undo) const
+{
+  check_open();
+  undo.clear();
+  TXN_PREFIX_RDONLY();
+  MDB_val key{sizeof(height), &height};
+  MDB_val data{};
+  const int result = mdb_get(m_txn, m_vm_undo, &key, &data);
+  if (result == MDB_NOTFOUND)
+    return false;
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to read VM undo: ", result).c_str()));
+  if (!decode_vm_write_set(std::string(static_cast<const char *>(data.mv_data), data.mv_size), undo))
+    throw0(DB_ERROR("Invalid VM undo record"));
+  return true;
+}
+
+bool BlockchainLMDB::get_vm_state_value(const std::string &key, std::string &value) const
+{
+  check_open();
+  TXN_PREFIX_RDONLY();
+  return read_vm_state_value(m_txn, key, value);
+}
+
+bool BlockchainLMDB::for_all_vm_state(std::function<bool(const std::string &key, const std::string &value)> f) const
+{
+  check_open();
+  TXN_PREFIX_RDONLY();
+  MDB_cursor *cursor = nullptr;
+  if (const int result = mdb_cursor_open(m_txn, m_vm_state, &cursor))
+    throw0(DB_ERROR(lmdb_error("Failed to open VM state cursor: ", result).c_str()));
+  epee::misc_utils::auto_scope_leave_caller cursor_closer = epee::misc_utils::create_scope_leave_handler([cursor](){ mdb_cursor_close(cursor); });
+  MDB_val k{}, data{};
+  for (MDB_cursor_op op = MDB_FIRST;; op = MDB_NEXT)
+  {
+    const int result = mdb_cursor_get(cursor, &k, &data, op);
+    if (result == MDB_NOTFOUND)
+      return true;
+    if (result)
+      throw0(DB_ERROR(lmdb_error("Failed to iterate VM state: ", result).c_str()));
+    std::string key, value;
+    decode_vm_state_entry(data, key, value);
+    if (!f(key, value))
+      return false;
+  }
+}
+
+void BlockchainLMDB::reset_vm_state()
+{
+  check_open();
+  if (!m_write_txn)
+    throw0(DB_ERROR_TXN_START("VM state reset requires a write transaction"));
+  for (MDB_dbi dbi : {m_vm_state, m_vm_undo, m_vm_commitment})
+    if (const int result = mdb_drop(*m_write_txn, dbi, 0))
+      throw0(DB_ERROR(lmdb_error("Failed to reset VM table: ", result).c_str()));
 }
 
 void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
@@ -5768,6 +6547,21 @@ void BlockchainLMDB::migrate_4_5()
   txn.commit();
 }
 
+void BlockchainLMDB::migrate_5_6()
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  MGINFO_YELLOW("Migrating blockchain from DB version 5 to 6");
+  mdb_txn_safe txn(false);
+  if (const int result = mdb_txn_begin(m_env, NULL, 0, txn))
+    throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
+  uint32_t version = 6;
+  MDB_val v{sizeof(version), &version};
+  MDB_val_str(vk, "version");
+  if (const int result = mdb_put(txn, m_properties, &vk, &v, 0))
+    throw0(DB_ERROR(lmdb_error("Failed to update version for the db: ", result).c_str()));
+  txn.commit();
+}
+
 void BlockchainLMDB::migrate(const uint32_t oldversion)
 {
   if (oldversion < 1)
@@ -5780,6 +6574,8 @@ void BlockchainLMDB::migrate(const uint32_t oldversion)
     migrate_3_4();
   if (oldversion < 5)
     migrate_4_5();
+  if (oldversion < 6)
+    migrate_5_6();
 }
 
 }  // namespace cryptonote

@@ -10,6 +10,7 @@
 
 namespace
 {
+#include "service_producer_transport_v2.h"
   bool valid_key_pair(
       const crypto::public_key &public_key,
       const crypto::secret_key &secret_key)
@@ -64,6 +65,10 @@ namespace
         parameters.parameter_set_hash, descriptor.reward_address);
     lease.member.endpoint_descriptor_hash = descriptor.endpoint_descriptor_hash;
     lease.member.sequence = descriptor.sequence;
+    lease.member.descriptor_version = descriptor.version;
+    lease.member.endpoint_transport = descriptor.endpoint_transport;
+    lease.member.dial_capabilities = descriptor.dial_capabilities;
+    lease.member.dns_address_families = descriptor.dns_address_families;
     lease.target_epoch = target_epoch;
     lease.work_algorithm = static_cast<uint8_t>(parameters.admission.algorithm);
     lease.leading_zero_bits = parameters.admission.leading_zero_bits;
@@ -121,10 +126,13 @@ namespace
   {
     using namespace qwertycoin::epose;
     endpoint = {};
+    endpoint.version = configuration.endpoint_version;
     endpoint.service_public_key = configuration.keystore.service_public_key;
     endpoint.transport = configuration.endpoint_transport;
     endpoint.host = configuration.endpoint_host;
     endpoint.port = configuration.endpoint_port;
+    endpoint.dial_capabilities = configuration.dial_capabilities;
+    endpoint.dns_address_families = configuration.dns_address_families;
     endpoint.service_kind = parameters.committee.service_kind;
     endpoint.service_version = EPOSE_PROTOCOL_VERSION_V2;
     endpoint.sequence = sequence;
@@ -143,12 +151,83 @@ namespace
     }
     return service_producer_status_v2::accepted;
   }
+
+  bool valid_keystore_key_pairs(const qwertycoin::epose::service_keystore_v2 &keystore)
+  {
+    return valid_key_pair(keystore.operator_public_key, keystore.operator_secret_key)
+        && valid_key_pair(keystore.service_public_key, keystore.service_secret_key);
+  }
+
+  qwertycoin::epose::service_producer_status_v2 encode_enrollment_records(
+      const qwertycoin::epose::consensus_parameters_v2 &parameters,
+      const uint64_t target_epoch,
+      const crypto::hash &admission_context_hash,
+      const uint64_t max_nonce_attempts,
+      qwertycoin::epose::service_enrollment_v2 &enrollment,
+      const std::atomic<bool> *cancel)
+  {
+    using namespace qwertycoin::epose;
+    envelope_record_v2 lifecycle_record{};
+    envelope_record_v2 admission_record{};
+    if (encode_lifecycle_record_v2(
+            enrollment.lifecycle, parameters.nettype,
+            parameters.genesis_hash, parameters.parameter_set_hash,
+            lifecycle_record) != record_codec_status_v2::accepted)
+    {
+      enrollment = {};
+      return service_producer_status_v2::encoding_failed;
+    }
+    const service_producer_status_v2 admission_status = build_admission(
+        parameters, enrollment.lifecycle.next_descriptor, target_epoch,
+        admission_context_hash, max_nonce_attempts,
+        enrollment.admission, admission_record, cancel);
+    if (admission_status != service_producer_status_v2::accepted)
+    {
+      enrollment = {};
+      return admission_status;
+    }
+    enrollment.records = {std::move(lifecycle_record), std::move(admission_record)};
+    return service_producer_status_v2::accepted;
+  }
 }
 
 namespace qwertycoin
 {
 namespace epose
 {
+  bool receipt_launch_allowed_v2(
+      uint8_t block_version,
+      bool has_previous_attempt,
+      std::chrono::steady_clock::duration elapsed,
+      std::chrono::steady_clock::duration interval)
+  {
+    return is_qwc_contracts_hardfork(block_version)
+        || !has_previous_attempt || elapsed >= interval;
+  }
+
+  service_producer_status_v2 build_service_admission_v2(
+      const consensus_parameters_v2 &parameters,
+      const identity_descriptor_v2 &descriptor,
+      uint64_t target_epoch,
+      const crypto::hash &admission_context_hash,
+      uint64_t max_nonce_attempts,
+      service_enrollment_v2 &enrollment,
+      const std::atomic<bool> *cancel)
+  {
+    enrollment = {};
+    envelope_record_v2 admission_record{};
+    const service_producer_status_v2 status = build_admission(
+        parameters, descriptor, target_epoch, admission_context_hash,
+        max_nonce_attempts, enrollment.admission, admission_record, cancel);
+    if (status != service_producer_status_v2::accepted)
+    {
+      enrollment = {};
+      return status;
+    }
+    enrollment.records.push_back(std::move(admission_record));
+    return service_producer_status_v2::accepted;
+  }
+
   receipt_retry_tracker_v2::receipt_retry_tracker_v2(
       const size_t max_entries,
       const uint64_t base_backoff_ms,
@@ -380,40 +459,43 @@ namespace epose
       const std::vector<std::string> &envelopes, uint64_t peer_id,
       uint64_t now_ms, bool origin)
   {
-    std::vector<std::string> delivery;
-    bool enrollment_dependency_filtered = false;
-    for (const auto &envelope : envelopes)
+    std::vector<bool> enrollment(envelopes.size());
+    std::vector<std::string> keys;
+    keys.reserve(envelopes.size());
+    for (size_t i = 0; i < envelopes.size(); ++i)
     {
-      // Only classify the already validated one-record relay envelope here.
-      // Use its byte size as the structural bound, not a consensus policy.
+      const auto &envelope = envelopes[i];
       const envelope_limits_v2 limits{envelope.size(), 1, envelope.size(),
           2, 1, {0, 1, 1, 1, 1, 1}};
       std::vector<envelope_record_v2> records;
       envelope_budget_v2 budget{};
-      const bool enrollment = parse_envelope_v2(envelope, limits, records, budget)
+      enrollment[i] = parse_envelope_v2(envelope, limits, records, budget)
               == envelope_status_v2::accepted && records.size() == 1
           && (records.front().type == static_cast<uint8_t>(record_type_v2::identity_descriptor)
               || records.front().type == static_cast<uint8_t>(record_type_v2::descriptor_lifecycle)
               || records.front().type == static_cast<uint8_t>(record_type_v2::admission_lease));
-      // Only the origin's enrollment is already paced as a complete set by
-      // the producer. Local receipts use the same bound as received receipts.
-      if (origin && enrollment)
-      {
-        delivery.push_back(envelope);
-        continue;
-      }
-      // Do not send a dependent enrollment suffix after filtering a possible
-      // prerequisite. Independent receipts are still considered individually.
-      if (enrollment && enrollment_dependency_filtered)
-        continue;
       const auto hash = crypto::cn_fast_hash(envelope.data(), envelope.size());
       std::string key(reinterpret_cast<const char *>(&hash), sizeof(hash));
       key.append(reinterpret_cast<const char *>(&peer_id), sizeof(peer_id));
-      if (limiter.allow(key, now_ms))
-        delivery.push_back(envelope);
-      else if (enrollment)
-        enrollment_dependency_filtered = true;
+      keys.push_back(std::move(key));
     }
+    bool enrollment_allowed = true;
+    if (!origin && std::any_of(enrollment.begin(), enrollment.end(), [](bool value) { return value; }))
+    {
+      auto staged = limiter;
+      for (size_t i = 0; i < envelopes.size(); ++i)
+        if (enrollment[i] && !staged.allow(keys[i], now_ms))
+        {
+          enrollment_allowed = false;
+          break;
+        }
+      if (enrollment_allowed)
+        limiter = std::move(staged);
+    }
+    std::vector<std::string> delivery;
+    for (size_t i = 0; i < envelopes.size(); ++i)
+      if (enrollment[i] ? enrollment_allowed : limiter.allow(keys[i], now_ms))
+        delivery.push_back(envelopes[i]);
     return delivery;
   }
 
@@ -473,12 +555,7 @@ namespace epose
         || configuration.expiry_epoch <= configuration.target_epoch
         || configuration.keystore.operator_public_key
             == configuration.keystore.service_public_key
-        || !valid_key_pair(
-            configuration.keystore.operator_public_key,
-            configuration.keystore.operator_secret_key)
-        || !valid_key_pair(
-            configuration.keystore.service_public_key,
-            configuration.keystore.service_secret_key))
+        || !valid_keystore_key_pairs(configuration.keystore))
       return service_producer_status_v2::invalid_configuration;
     if (admission_context_hash == crypto::null_hash
         || configuration.target_epoch
@@ -511,6 +588,7 @@ namespace epose
     descriptor.endpoint_descriptor_hash = hash_endpoint_descriptor_v2(
         parameters.nettype, parameters.genesis_hash,
         parameters.parameter_set_hash, enrollment.endpoint_update.descriptor);
+    bind_endpoint_transport_v2(descriptor, enrollment.endpoint_update.descriptor);
     descriptor.sequence = 0;
     descriptor.effective_epoch = configuration.target_epoch;
     descriptor.expiry_epoch = configuration.expiry_epoch;
@@ -525,27 +603,9 @@ namespace epose
             != lifecycle_status_v2::accepted)
       return service_producer_status_v2::signing_failed;
 
-    envelope_record_v2 lifecycle_record{};
-    envelope_record_v2 admission_record{};
-    if (encode_lifecycle_record_v2(
-            enrollment.lifecycle, parameters.nettype,
-            parameters.genesis_hash, parameters.parameter_set_hash,
-            lifecycle_record) != record_codec_status_v2::accepted)
-    {
-      enrollment = {};
-      return service_producer_status_v2::encoding_failed;
-    }
-    const service_producer_status_v2 admission_status = build_admission(
-        parameters, descriptor, configuration.target_epoch,
-        admission_context_hash, max_nonce_attempts,
-        enrollment.admission, admission_record, cancel);
-    if (admission_status != service_producer_status_v2::accepted)
-    {
-      enrollment = {};
-      return admission_status;
-    }
-    enrollment.records = {std::move(lifecycle_record), std::move(admission_record)};
-    return service_producer_status_v2::accepted;
+    return encode_enrollment_records(
+        parameters, configuration.target_epoch, admission_context_hash,
+        max_nonce_attempts, enrollment, cancel);
   }
 
   bool save_pending_enrollment_v2(const std::string &path,
@@ -647,12 +707,7 @@ namespace epose
         || current_descriptor.reward_address.m_spend_public_key
             != configuration.reward_address.m_spend_public_key
         || configuration.expiry_epoch != target_epoch + 2
-        || !valid_key_pair(
-            configuration.keystore.operator_public_key,
-            configuration.keystore.operator_secret_key)
-        || !valid_key_pair(
-            configuration.keystore.service_public_key,
-            configuration.keystore.service_secret_key)
+        || !valid_keystore_key_pairs(configuration.keystore)
         || current_descriptor.sequence == std::numeric_limits<uint64_t>::max()
         || target_epoch < current_descriptor.effective_epoch
         || target_epoch > std::numeric_limits<uint64_t>::max() - 2)
@@ -693,6 +748,8 @@ namespace epose
             parameters.nettype, parameters.genesis_hash,
             parameters.parameter_set_hash,
             enrollment.endpoint_update.descriptor);
+    bind_endpoint_transport_v2(enrollment.lifecycle.next_descriptor,
+        enrollment.endpoint_update.descriptor);
     if (enrollment.lifecycle.next_descriptor.expiry_epoch
             <= current_descriptor.expiry_epoch
         || !sign_lifecycle_record_v2(
@@ -709,27 +766,49 @@ namespace epose
       return service_producer_status_v2::signing_failed;
     }
 
-    envelope_record_v2 lifecycle_record{};
-    envelope_record_v2 admission_record{};
-    if (encode_lifecycle_record_v2(
-            enrollment.lifecycle, parameters.nettype,
-            parameters.genesis_hash, parameters.parameter_set_hash,
-            lifecycle_record) != record_codec_status_v2::accepted)
+    return encode_enrollment_records(
+        parameters, target_epoch, admission_context_hash,
+        max_nonce_attempts, enrollment, cancel);
+  }
+
+  service_producer_status_v2 build_service_enrollment_v2(
+      const consensus_parameters_v2 &parameters,
+      const service_enrollment_config_v2 &configuration,
+      const lifecycle_record_v2 *latest_record,
+      const crypto::hash &admission_context_hash,
+      uint64_t max_nonce_attempts,
+      service_enrollment_v2 &enrollment,
+      const std::atomic<bool> *cancel)
+  {
+    if (latest_record == nullptr)
+      return build_initial_service_enrollment_v2(
+          parameters, configuration, admission_context_hash,
+          max_nonce_attempts, enrollment, cancel);
+    if (latest_record->action == lifecycle_action_v2::deregister_identity)
     {
       enrollment = {};
-      return service_producer_status_v2::encoding_failed;
+      return service_producer_status_v2::deregistered;
     }
-    const service_producer_status_v2 admission_status = build_admission(
-        parameters, enrollment.lifecycle.next_descriptor, target_epoch,
-        admission_context_hash, max_nonce_attempts,
-        enrollment.admission, admission_record, cancel);
-    if (admission_status != service_producer_status_v2::accepted)
-    {
-      enrollment = {};
-      return admission_status;
-    }
-    enrollment.records = {std::move(lifecycle_record), std::move(admission_record)};
-    return service_producer_status_v2::accepted;
+    const identity_descriptor_v2 &descriptor = latest_record->next_descriptor;
+    if (descriptor.effective_epoch <= configuration.target_epoch
+        && configuration.target_epoch < descriptor.expiry_epoch)
+      return build_service_admission_v2(
+          parameters, descriptor, configuration.target_epoch,
+          admission_context_hash, max_nonce_attempts, enrollment, cancel);
+    return build_service_renewal_enrollment_v2(
+        parameters, configuration, descriptor, admission_context_hash,
+        max_nonce_attempts, enrollment, cancel);
+  }
+
+  bool service_enrollment_inputs_match_v2(
+      uint64_t epoch, const crypto::hash &descriptor_hash,
+      const crypto::hash &context_hash, uint64_t pending_epoch,
+      const crypto::hash &pending_descriptor_hash,
+      const crypto::hash &pending_context_hash)
+  {
+    return epoch == pending_epoch
+        && descriptor_hash == pending_descriptor_hash
+        && context_hash == pending_context_hash;
   }
 } // namespace epose
 } // namespace qwertycoin

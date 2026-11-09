@@ -149,6 +149,20 @@ public:
   std::vector<http::http_request_info> requests;
 };
 
+class forbidden_http_handler final : public http::i_http_server_handler<epee::net_utils::connection_context_base>
+{
+public:
+  bool handle_http_request(const http::http_request_info&,
+      http::http_response_info& response,
+      epee::net_utils::connection_context_base&) override
+  {
+    response.m_response_code = 403;
+    response.m_response_comment = "Forbidden";
+    response.m_header_info.m_connection = "close";
+    return true;
+  }
+};
+
 struct http_request_capture
 {
   std::vector<bool> results;
@@ -867,6 +881,20 @@ TEST(HTTP, Server_Parses_Content_Length_First_Header)
   ASSERT_EQ(1u, capture.requests.size());
   EXPECT_STREQ("10", capture.requests.front().m_header_info.m_content_length.c_str());
   EXPECT_EQ(body, capture.requests.front().m_body);
+}
+
+TEST(HTTP, Server_Closes_Forbidden_Response)
+{
+  forbidden_http_handler handler;
+  test_http_endpoint endpoint;
+  epee::net_utils::connection_context_base context;
+  http::custum_handler_config<epee::net_utils::connection_context_base> config;
+  config.m_phandler = &handler;
+  http::http_custom_handler<epee::net_utils::connection_context_base> connection(&endpoint, config, context);
+  const std::string request = "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
+  EXPECT_FALSE(connection.handle_recv(request.data(), request.size()));
+  EXPECT_NE(std::string::npos, endpoint.sent.find("HTTP/1.1 403 Forbidden"));
+  EXPECT_NE(std::string::npos, endpoint.sent.find("Connection: close\r\n"));
 }
 
 TEST(HTTP, Server_Parses_First_Header_After_Split_Request_Line)

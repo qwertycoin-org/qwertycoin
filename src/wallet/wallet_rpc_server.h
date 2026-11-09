@@ -91,6 +91,11 @@ namespace tools
         MAP_JON_RPC_WE("frozen",             on_frozen,             wallet_rpc::COMMAND_RPC_FROZEN)
         MAP_JON_RPC_WE("transfer",           on_transfer,           wallet_rpc::COMMAND_RPC_TRANSFER)
         MAP_JON_RPC_WE("transfer_split",     on_transfer_split,     wallet_rpc::COMMAND_RPC_TRANSFER_SPLIT)
+        MAP_JON_RPC_WE("contract_call",      on_contract_call,      wallet_rpc::COMMAND_RPC_CONTRACT_CALL)
+        MAP_JON_RPC_WE("attach_contract_signatures", on_attach_contract_signatures, wallet_rpc::COMMAND_RPC_ATTACH_CONTRACT_SIGNATURES)
+        MAP_JON_RPC_WE("derive_contract_key", on_derive_contract_key, wallet_rpc::COMMAND_RPC_DERIVE_CONTRACT_KEY)
+        MAP_JON_RPC_WE("get_vm_state_value", on_get_vm_state_value, wallet_rpc::COMMAND_RPC_GET_VM_STATE_VALUE)
+        MAP_JON_RPC_WE("invoke_app_shader",  on_invoke_app_shader,  wallet_rpc::COMMAND_RPC_INVOKE_APP_SHADER)
         MAP_JON_RPC_WE("sign_transfer",      on_sign_transfer,      wallet_rpc::COMMAND_RPC_SIGN_TRANSFER)
         MAP_JON_RPC_WE("describe_transfer",  on_describe_transfer,  wallet_rpc::COMMAND_RPC_DESCRIBE_TRANSFER)
         MAP_JON_RPC_WE("submit_transfer",    on_submit_transfer,    wallet_rpc::COMMAND_RPC_SUBMIT_TRANSFER)
@@ -187,6 +192,11 @@ namespace tools
       bool on_thaw(const wallet_rpc::COMMAND_RPC_THAW::request& req, wallet_rpc::COMMAND_RPC_THAW::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
       bool on_frozen(const wallet_rpc::COMMAND_RPC_FROZEN::request& req, wallet_rpc::COMMAND_RPC_FROZEN::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
       bool on_transfer(const wallet_rpc::COMMAND_RPC_TRANSFER::request& req, wallet_rpc::COMMAND_RPC_TRANSFER::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
+      bool on_contract_call(const wallet_rpc::COMMAND_RPC_CONTRACT_CALL::request& req, wallet_rpc::COMMAND_RPC_CONTRACT_CALL::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
+      bool on_attach_contract_signatures(const wallet_rpc::COMMAND_RPC_ATTACH_CONTRACT_SIGNATURES::request& req, wallet_rpc::COMMAND_RPC_ATTACH_CONTRACT_SIGNATURES::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
+      bool on_derive_contract_key(const wallet_rpc::COMMAND_RPC_DERIVE_CONTRACT_KEY::request& req, wallet_rpc::COMMAND_RPC_DERIVE_CONTRACT_KEY::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
+      bool on_get_vm_state_value(const wallet_rpc::COMMAND_RPC_GET_VM_STATE_VALUE::request& req, wallet_rpc::COMMAND_RPC_GET_VM_STATE_VALUE::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
+      bool on_invoke_app_shader(const wallet_rpc::COMMAND_RPC_INVOKE_APP_SHADER::request& req, wallet_rpc::COMMAND_RPC_INVOKE_APP_SHADER::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
       bool on_transfer_split(const wallet_rpc::COMMAND_RPC_TRANSFER_SPLIT::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_SPLIT::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
       bool on_sign_transfer(const wallet_rpc::COMMAND_RPC_SIGN_TRANSFER::request& req, wallet_rpc::COMMAND_RPC_SIGN_TRANSFER::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
       bool on_describe_transfer(const wallet_rpc::COMMAND_RPC_DESCRIBE_TRANSFER::request& req, wallet_rpc::COMMAND_RPC_DESCRIBE_TRANSFER::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
@@ -277,6 +287,8 @@ namespace tools
           bool get_tx_key, Ts& tx_key, Tu &amount, Ta &amounts_by_dest, Tu &fee, Tu &weight, std::string &multisig_txset, std::string &unsigned_txset, bool do_not_relay,
           Ts &tx_hash, bool get_tx_hex, Ts &tx_blob, bool get_tx_metadata, Ts &tx_metadata, Tk &spent_key_images, epee::json_rpc::error &er);
 
+      bool transfer_single(const wallet_rpc::COMMAND_RPC_TRANSFER::request_t& req, const boost::optional<cryptonote::tx_extra_vm_call>& call, wallet_rpc::single_transfer_response& res, epee::json_rpc::error& er, const std::vector<crypto::public_key>& external_contract_signers = {}, std::string* signature_hash = nullptr);
+      bool decode_pending_tx(const std::string& hex, tools::wallet2::pending_tx& ptx, epee::json_rpc::error& er);
       bool validate_transfer(const std::list<wallet_rpc::transfer_destination>& destinations, const std::string& payment_id, std::vector<cryptonote::tx_destination_entry>& dsts, std::vector<uint8_t>& extra, bool at_least_one_destination, epee::json_rpc::error& er);
 
       void check_background_mining();

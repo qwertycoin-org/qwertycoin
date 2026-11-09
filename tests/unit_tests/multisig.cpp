@@ -31,6 +31,7 @@
 #include "multisig/multisig_kex_msg.h"
 #include "ringct/rctOps.h"
 #include "wallet/wallet2.h"
+#include "test_multisig_wallet.h"
 
 #include "gtest/gtest.h"
 
@@ -274,6 +275,9 @@ TEST(multisig, make_1_3)
 
 TEST(multisig, make_2_2)
 {
+  std::array<tools::wallet2, 2> offline_wallets;
+  make_two_of_two_multisig_wallets(offline_wallets);
+  EXPECT_TRUE(offline_wallets.front().multisig());
   make_wallets(2, 2, false);
   make_wallets(2, 2, true);
 }

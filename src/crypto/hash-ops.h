@@ -98,6 +98,9 @@ void rx_slow_hash_free_state(void);
 uint64_t rx_seedheight(const uint64_t height);
 void rx_seedheights(const uint64_t height, uint64_t *seed_height, uint64_t *next_height);
 
+int rx_large_pages_unavailable(void);
+unsigned long rx_large_page_attempts(void);
+
 void rx_set_main_seedhash(const char *seedhash, size_t max_dataset_init_threads);
 void rx_slow_hash(const char *seedhash, const void *data, size_t length, char *result_hash);
 

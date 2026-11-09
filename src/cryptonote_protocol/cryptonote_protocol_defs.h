@@ -430,5 +430,20 @@ namespace cryptonote
     };
     typedef epee::misc_utils::struct_init<request_t> request;
   };
-    
+
+  struct NOTIFY_CHAINLOCK_V1
+  {
+    const static int ID = BC_COMMANDS_POOL_BASE + 14;
+
+    struct request_t
+    {
+      blobdata lock;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(lock)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+  };
+
 }

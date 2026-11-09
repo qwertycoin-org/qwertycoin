@@ -243,6 +243,8 @@ block's `block_id`, `block_hashing_blob`, `miner_tx_blob`,
 `/get_chainlock_quorum_inputs` provides paginated membership and qualification
 keys plus the epoch timing, anchor, and source block IDs needed to derive the
 ordered quorum independently. See [the light-client derivation](../chainlock-light-client.md).
+An omitted `epoch` selects the current epoch, and an explicit `0` returns
+`Invalid epoch`.
 Pruned ChainLock membership can be reconstructed only through unrestricted RPC.
 `/get_vm_state_proof` accepts a hex `key` and optional `height`.
 `/get_vm_state_root` also accepts an optional `height`. For both calls,
@@ -252,7 +254,10 @@ Historical proof requests use the VM undo journal; heights older than the
 retained journal return `Height outside VM undo retention`. Both calls are
 available on restricted RPC.
 Restricted `vm_call_dry_run` charges RPC credits in proportion to requested
-gas and rejects calls above `QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP`.
+gas and rejects calls above `QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP`. The cap
+leaves room for several signature checks. A wallet estimating gas first asks
+for `QWC_VM_TX_GAS_CAP` and, on the restricted cap status, retries at
+`QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP`.
 
 A light client should hash the serialized miner transaction, fold it with
 `miner_tx_branch` in miner position zero, and compare the result with the

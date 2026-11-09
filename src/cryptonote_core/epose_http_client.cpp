@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose_http_client.h"
+#include "epose/service_probe_connector_v2.h"
 
 #include <algorithm>
 #include "net/net_parse_helpers.h"
@@ -13,7 +14,6 @@ namespace cryptonote
 {
 namespace
 {
-  constexpr size_t EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES = 2 * 1024 * 1024;
   constexpr uint64_t EPOSE_V2_PROBE_TIMEOUT_MS = 5000;
 
   uint64_t epose_v2_steady_milliseconds()
@@ -306,18 +306,27 @@ namespace
     using namespace qwertycoin::epose;
     if (!lease.available())
       return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::transport_timeout};
+    const auto policy = lease.connector();
     boost::system::error_code error;
     const auto literal = boost::asio::ip::make_address(host, error);
+    const bool pinned_loopback = !error && literal.is_loopback() && policy.endpoint_allowed
+        && policy.endpoint_allowed({literal, port});
+    const auto allowed = [policy, pinned_loopback, literal, port](const boost::asio::ip::address &address) {
+      return (public_epose_dial_address(address) || (pinned_loopback && address == literal))
+          && (policy.allowed_families == 0
+              || (policy.allowed_families & (address.is_v4() ? 1 : 2)))
+          && (!policy.endpoint_allowed || policy.endpoint_allowed({address, port}));
+    };
     std::vector<boost::asio::ip::address> addresses;
     if (!error)
     {
-      if (!public_epose_dial_address(literal))
+      if (!allowed(literal))
         return {receipt_attempt_stage_v2::network_connect, receipt_failure_reason_v2::address_prohibited};
       addresses.push_back(literal);
     }
     auto &client = lease.client();
     client.set_server(host, std::to_string(port), boost::none);
-    client.set_connector([addresses = std::move(addresses), host, port, network,
+    client.set_connector([addresses = std::move(addresses), host, port, network, policy, allowed,
         deadline = std::chrono::steady_clock::time_point::max()](
         const std::string &, const std::string &, boost::asio::steady_timer &timeout) mutable {
       // DNS, address fallback and reconnect dials share the original deadline.
@@ -326,8 +335,10 @@ namespace
       if (addresses.empty())
       {
         addresses = resolve_addresses(host, network.resolve, timeout);
+        if (policy.max_resolved_endpoints != 0 && addresses.size() > policy.max_resolved_endpoints)
+          throw boost::system::system_error(prohibited_address_error());
         addresses.erase(std::remove_if(addresses.begin(), addresses.end(),
-            [](const boost::asio::ip::address &address) { return !public_epose_dial_address(address); }),
+            [&allowed](const boost::asio::ip::address &address) { return !allowed(address); }),
             addresses.end());
         if (addresses.empty())
           throw boost::system::system_error(prohibited_address_error());
@@ -420,6 +431,13 @@ namespace
       return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_lookup,
           qwertycoin::epose::receipt_failure_reason_v2::descriptor_unavailable};
     epose_http_client client;
+    if (parameters.nettype == cryptonote::FAKECHAIN)
+    {
+      qwertycoin::epose::endpoint_descriptor_v2 discovery{};
+      discovery.host = host;
+      discovery.port = port;
+      client.set_connector(qwertycoin::epose::service_probe_connector_v2(discovery, 0, true));
+    }
     const auto dial = prepare_epose_http_client(client, host, port, network);
     if (!dial.accepted())
       return dial;
@@ -437,7 +455,9 @@ namespace
         || response.transport > std::numeric_limits<uint8_t>::max()
         || response.port > std::numeric_limits<uint16_t>::max()
         || response.service_kind > std::numeric_limits<uint8_t>::max()
-        || response.service_version > std::numeric_limits<uint8_t>::max())
+        || response.service_version > std::numeric_limits<uint8_t>::max()
+        || response.dial_capabilities > std::numeric_limits<uint8_t>::max()
+        || response.dns_address_families > std::numeric_limits<uint8_t>::max())
       return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
           qwertycoin::epose::receipt_failure_reason_v2::descriptor_invalid};
     descriptor.version = static_cast<uint8_t>(response.version);
@@ -448,6 +468,8 @@ namespace
     descriptor.service_version = static_cast<uint8_t>(response.service_version);
     descriptor.sequence = response.sequence;
     descriptor.expiry_epoch = response.expiry_epoch;
+    descriptor.dial_capabilities = static_cast<uint8_t>(response.dial_capabilities);
+    descriptor.dns_address_families = static_cast<uint8_t>(response.dns_address_families);
     if (!epee::string_tools::hex_to_pod(
             response.service_public_key, descriptor.service_public_key)
         || !epee::string_tools::hex_to_pod(response.signature, descriptor.signature))
@@ -488,10 +510,18 @@ namespace
       const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,
       const qwertycoin::epose::consensus_parameters_v2 &parameters,
       qwertycoin::epose::canonical_service_response_v2 &service_response,
-      const epose_network_v2 &network)
+      const epose_network_v2 &network,
+      uint8_t verifier_dial_capabilities)
   {
     service_response = {};
+    auto connector = qwertycoin::epose::service_probe_connector_v2(
+        endpoint, verifier_dial_capabilities,
+        parameters.nettype == cryptonote::FAKECHAIN);
+    if (verifier_dial_capabilities != 0 && connector.allowed_families == 0)
+      return {qwertycoin::epose::receipt_attempt_stage_v2::descriptor_validation,
+          qwertycoin::epose::receipt_failure_reason_v2::descriptor_invalid};
     epose_http_client client;
+    client.set_connector(std::move(connector));
     const auto dial = prepare_epose_http_client(
         client, endpoint.host, endpoint.port, network);
     if (!dial.accepted())
@@ -509,10 +539,9 @@ namespace
     request.nonce = epee::string_tools::pod_to_hex(challenge.nonce);
     request.requested_object_hash = epee::string_tools::pod_to_hex(challenge.requested_object_hash);
     cryptonote::COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::response response{};
-    const size_t max_http_response =
-        EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES * 2 + 4096;
+    const size_t max_http_response = QWC_EPOSE_CHALLENGE_RPC_MAX_RESPONSE_BYTES;
     const auto http_result = invoke_epose_http_json(
-        "/epose_service_challenge_v2", request, response, client.client(),
+        cryptonote::EPOSE_SERVICE_CHALLENGE_V2_URI, request, response, client.client(),
         max_http_response);
     if (!http_result.accepted())
       return http_result;
@@ -521,7 +550,7 @@ namespace
           qwertycoin::epose::receipt_failure_reason_v2::remote_challenge_rejected};
     if (response.block_blob.size() % 2 != 0
         || response.block_blob.size() / 2
-            > EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES)
+            > QWC_EPOSE_V2_MAX_CANONICAL_BLOCK_RESPONSE_BYTES)
       return {qwertycoin::epose::receipt_attempt_stage_v2::response_decode,
           qwertycoin::epose::receipt_failure_reason_v2::response_oversized};
     if (!epee::string_tools::parse_hexstr_to_binbuff(

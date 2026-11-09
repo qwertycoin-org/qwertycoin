@@ -28,6 +28,7 @@
 
 set(ringct_basic_sources
   rctOps.cpp
+  rct_prime_order.cpp
   rctTypes.cpp
   rctCryptoOps.c
   multiexp.cc

@@ -69,7 +69,7 @@ namespace
     return out;
   }
 
-  endpoint_descriptor_v2 signed_descriptor(const std::string &host = "2a01:4f8:201:6016::547")
+  endpoint_descriptor_v2 signed_descriptor(const std::string &host = "2a01:4f8:201:6016::547", uint8_t version = 1)
   {
     endpoint_descriptor_v2 out{};
     crypto::secret_key secret{};
@@ -79,6 +79,13 @@ namespace
     const auto ip = make_address(host, error);
     out.transport = error ? endpoint_transport_v2::dns : ip.is_v4()
         ? endpoint_transport_v2::tcp_ipv4 : endpoint_transport_v2::tcp_ipv6;
+    out.version = version;
+    if (version == 2)
+    {
+      out.dial_capabilities = EPOSE_DIAL_BOTH_V2;
+      out.dns_address_families = out.transport == endpoint_transport_v2::dns
+          ? EPOSE_DIAL_IPV6_V2 : 0;
+    }
     out.port = 8198;
     out.service_kind = 1;
     out.service_version = 1;
@@ -109,6 +116,8 @@ namespace
     out.service_version = d.service_version;
     out.sequence = d.sequence;
     out.expiry_epoch = d.expiry_epoch;
+    out.dial_capabilities = d.dial_capabilities;
+    out.dns_address_families = d.dns_address_families;
     out.service_public_key = epee::string_tools::pod_to_hex(d.service_public_key);
     out.signature = epee::string_tools::pod_to_hex(d.signature);
     out.descriptor_hash = epee::string_tools::pod_to_hex(commitment(d));
@@ -924,4 +933,79 @@ TEST(epose_http_client, resolver_success_after_deadline_before_timer_is_rejected
   ASSERT_TRUE(prepare_epose_http_client(client, "slow.example.org", 8198, network).accepted());
   EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(20)));
   EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
+}
+
+TEST(epose_http_client, hf18_third_party_descriptor_preserves_transport_profile)
+{
+  const auto expected = signed_descriptor("subject.example.org", 2);
+  discovery_server server(expected);
+  unsigned resolves = 0, connects = 0;
+  endpoint_descriptor_v2 actual{};
+  const auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
+      parameters(), commitment(expected), actual, server_network(server, resolves, connects));
+  ASSERT_TRUE(result.accepted()) << to_string(result.reason);
+  EXPECT_EQ(expected.version, actual.version);
+  EXPECT_EQ(expected.dial_capabilities, actual.dial_capabilities);
+  EXPECT_EQ(expected.dns_address_families, actual.dns_address_families);
+  EXPECT_EQ(commitment(expected), commitment(actual));
+  EXPECT_EQ(1u, server.request_count());
+  EXPECT_TRUE(server.valid_request());
+}
+
+TEST(epose_http_client, hf18_dns_family_intersection_filters_pinned_targets)
+{
+  const auto descriptor = signed_descriptor("subject.example.org", 2);
+  unsigned resolves = 0, connects = 0;
+  epose_network_v2 network;
+  network.resolve = async_answers([&](const std::string &, boost::system::error_code &) {
+    ++resolves;
+    return std::vector<boost::asio::ip::address>{make_address("8.8.8.8"),
+        make_address("::1"), make_address("2606:4700:4700::1111")};
+  });
+  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &)
+      -> boost::unique_future<tcp::socket> {
+    ++connects;
+    EXPECT_EQ(make_address("2606:4700:4700::1111"), endpoint.address());
+    EXPECT_EQ(descriptor.port, endpoint.port());
+    throw boost::system::system_error(boost::asio::error::connection_refused);
+  };
+  canonical_service_response_v2 response{};
+  auto result = request_epose_service_response({}, descriptor, parameters(), response,
+      network, EPOSE_DIAL_BOTH_V2);
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, result.reason);
+  EXPECT_EQ(1u, resolves);
+  EXPECT_EQ(1u, connects);
+  result = request_epose_service_response({}, descriptor, parameters(), response,
+      network, EPOSE_DIAL_IPV4_V2);
+  EXPECT_EQ(receipt_failure_reason_v2::descriptor_invalid, result.reason);
+  EXPECT_EQ(1u, resolves);
+  EXPECT_EQ(1u, connects);
+}
+
+TEST(epose_http_client, fakechain_discovery_pins_literal_loopback)
+{
+  unsigned connects = 0;
+  epose_network_v2 network;
+  network.resolve = async_answers([](const std::string &, boost::system::error_code &) {
+    ADD_FAILURE() << "Literal loopback must not be resolved";
+    return std::vector<boost::asio::ip::address>{};
+  });
+  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &)
+      -> boost::unique_future<tcp::socket> {
+    ++connects;
+    EXPECT_EQ(make_address("127.0.0.1"), endpoint.address());
+    EXPECT_EQ(8197, endpoint.port());
+    throw boost::system::system_error(boost::asio::error::connection_refused);
+  };
+  endpoint_descriptor_v2 descriptor{};
+  auto policy = parameters();
+  const auto public_result = fetch_epose_endpoint_descriptor("http://127.0.0.1:8197",
+      policy, crypto::null_hash, descriptor, network);
+  EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, public_result.reason);
+  EXPECT_EQ(0u, connects);
+  policy.nettype = FAKECHAIN;
+  const auto local_result = fetch_epose_endpoint_descriptor("http://127.0.0.1:8197",
+      policy, crypto::null_hash, descriptor, network);
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, local_result.reason);
+  EXPECT_EQ(1u, connects);
 }

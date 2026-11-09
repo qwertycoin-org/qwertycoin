@@ -23,7 +23,6 @@ namespace epose
   constexpr uint64_t EPOSE_FINALITY_DEPTH = 60;
   constexpr uint64_t EPOSE_REGISTRATION_TTL_EPOCHS = 30;
   constexpr uint64_t EPOSE_STATE_RETENTION_EPOCHS = 2;
-  constexpr uint64_t EPOSE_SERVICE_REWARD_BPS = 1000;
   constexpr uint8_t EPOSE_ADMISSION_LEADING_ZERO_BITS = 16;
   constexpr size_t EPOSE_IDENTITY_BLOB_SIZE = 249;
   constexpr size_t EPOSE_ATTESTATION_BLOB_SIZE = 234;
@@ -55,12 +54,6 @@ namespace epose
     crypto::hash observed_tip_hash{};
     bool service_ok = false;
     crypto::signature signature{};
-  };
-
-  struct reward_split
-  {
-    uint64_t miner_reward = 0;
-    uint64_t service_reward = 0;
   };
 
   uint64_t epoch_for_height(uint64_t height);
@@ -99,16 +92,5 @@ namespace epose
       uint64_t epoch,
       cryptonote::network_type nettype);
 
-  reward_split split_block_reward(uint64_t base_reward, uint64_t fees, uint64_t service_reward_bps = EPOSE_SERVICE_REWARD_BPS);
-  bool validate_service_reward_output(
-      const cryptonote::transaction &miner_tx,
-      const cryptonote::account_public_address &reward_address,
-      const crypto::secret_key &reward_view_secret_key,
-      uint64_t service_reward);
-  bool select_service_payee(
-      const std::vector<crypto::public_key> &qualified_service_nodes,
-      const crypto::hash &epoch_seed,
-      uint64_t height,
-      crypto::public_key &selected);
 } // namespace epose
 } // namespace qwertycoin

@@ -4,6 +4,9 @@
 
 #include <gtest/gtest.h>
 
+#include "epose_journal_test_helpers.h"
+#include "../epose_membership_test_access.h"
+
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -15,6 +18,8 @@
 #include "epose/record_codec_v2.h"
 #include "epose/relay_pool_v2.h"
 #include "epose/service_receipt_v2.h"
+#include "epose/state_image_v2.h"
+#include "epose/transport_committee_v2.h"
 
 namespace
 {
@@ -88,7 +93,7 @@ namespace
       const admission_lease_v2 &lease,
       uint64_t inclusion_height)
   {
-    return pipeline.apply_admission(lease, admission_context(), inclusion_height);
+    return epose_test_journal::apply_admission(pipeline, lease, admission_context(), inclusion_height);
   }
 
   membership_pipeline_v2 make_pipeline(committee_policy_v2 policy = {2, 2, 1, 1, 1, {0}})
@@ -133,7 +138,7 @@ namespace
           apply_lease(pipeline, make_lease(members.back().member, 3), 2000 + i));
     }
     EXPECT_EQ(pipeline_status_v2::accepted,
-        pipeline.freeze_membership(3, 2100, hash_text("committee-anchor")));
+        epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("committee-anchor")));
     return members;
   }
 
@@ -276,7 +281,7 @@ TEST(epose_v2, invalid_configuration_and_pre_service_epoch_fail_closed)
   EXPECT_EQ(pipeline_status_v2::invalid_epoch,
       apply_lease(pipeline, make_lease(make_member(2), 2), 1500));
   EXPECT_EQ(pipeline_status_v2::invalid_epoch,
-      pipeline.freeze_membership(2, 1380, hash_text("pre-service-anchor")));
+      epose_test_journal::freeze_membership(pipeline, 2, 1380, hash_text("pre-service-anchor")));
 }
 
 TEST(epose_v2, admission_cutoff_is_inclusive_and_post_seed_grinding_is_rejected)
@@ -289,12 +294,58 @@ TEST(epose_v2, admission_cutoff_is_inclusive_and_post_seed_grinding_is_rejected)
   EXPECT_EQ(pipeline_status_v2::too_late,
       apply_lease(pipeline, make_lease(after, 3), 2100));
   EXPECT_EQ(pipeline_status_v2::accepted,
-      pipeline.freeze_membership(3, 2100, hash_text("anchor")));
+      epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("anchor")));
   ASSERT_NE(nullptr, pipeline.snapshot(3));
   ASSERT_EQ(1u, pipeline.snapshot(3)->members.size());
   EXPECT_TRUE(key_equal(before.service_public_key, pipeline.snapshot(3)->members.front().service_public_key));
   EXPECT_EQ(pipeline_status_v2::too_late,
       apply_lease(pipeline, make_lease(after, 3), 2090));
+}
+
+TEST(epose_v2, pruned_snapshot_reconstructs_members_without_changing_state_hash)
+{
+  auto pipeline = make_pipeline();
+  const frozen_member_v2 member = make_member(1);
+  const frozen_member_v2 excluded = make_member(2);
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      apply_lease(pipeline, make_lease(member, 3), 2000));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      apply_lease(pipeline, make_lease(excluded, 3), 2001));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      epose_test_journal::freeze_membership(pipeline, 3, 2100,
+          hash_text("retained-anchor"), std::vector<frozen_member_v2>{member}));
+  ASSERT_NE(nullptr, pipeline.snapshot(3));
+  const membership_snapshot_v2 original = *pipeline.snapshot(3);
+  ASSERT_EQ(1u, original.members.size());
+  const crypto::hash original_state_hash = pipeline.state_hash();
+
+  pipeline.prune_history(6);
+  ASSERT_EQ(nullptr, pipeline.snapshot(3));
+  ASSERT_EQ(original_state_hash, pipeline.state_hash());
+  membership_snapshot_v2 restored;
+  ASSERT_TRUE(pipeline.get_snapshot(3, restored, true));
+  ASSERT_TRUE(pipeline.retain_carrier(3));
+  EXPECT_EQ(nullptr, pipeline.snapshot(3));
+  EXPECT_EQ(original.members.size(), restored.members.size());
+  EXPECT_EQ(original.members.front().service_public_key,
+      restored.members.front().service_public_key);
+  EXPECT_EQ(original.snapshot_hash, restored.snapshot_hash);
+  EXPECT_EQ(original_state_hash, pipeline.state_hash());
+}
+
+TEST(epose_v2, reconstruction_detects_tampered_lease_selection)
+{
+  auto pipeline = make_pipeline();
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      apply_lease(pipeline, make_lease(make_member(1), 3), 2000));
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("anchor")));
+  ASSERT_EQ(1u, pipeline.snapshot(3)->members.size());
+  membership_pipeline_test_access::remove_selected_leases(pipeline, 3);
+  pipeline.prune_history(6);
+  membership_snapshot_v2 restored;
+  EXPECT_FALSE(pipeline.reconstruct_epoch(3, restored, nullptr));
+  EXPECT_FALSE(pipeline.get_snapshot(3, restored, true));
 }
 
 TEST(epose_v2, admission_recomputes_randomx_and_binds_every_canonical_context)
@@ -334,14 +385,14 @@ TEST(epose_v2, admission_recomputes_randomx_and_binds_every_canonical_context)
   const admission_lease_v2 recomputed = make_lease_for(other_network_member, 3, other_network, admission_policy());
   EXPECT_TRUE(validate_admission_lease_v2(recomputed, other_network, admission_policy()));
   EXPECT_EQ(pipeline_status_v2::invalid_member,
-      pipeline.apply_admission(recomputed, other_network, 2000));
+      epose_test_journal::apply_admission(pipeline, recomputed, other_network, 2000));
 
   auto late_context = admission_context();
   late_context.height = 2000;
   late_context.block_hash = hash_text("same-height-context");
   const admission_lease_v2 late = make_lease_for(member, 3, late_context, admission_policy());
   EXPECT_EQ(pipeline_status_v2::invalid_member,
-      pipeline.apply_admission(late, late_context, 2000));
+      epose_test_journal::apply_admission(pipeline, late, late_context, 2000));
 
   auto selectable_earlier_context = admission_context();
   --selectable_earlier_context.height;
@@ -351,7 +402,7 @@ TEST(epose_v2, admission_recomputes_randomx_and_binds_every_canonical_context)
   ASSERT_TRUE(validate_admission_lease_v2(
       rerolled, selectable_earlier_context, admission_policy()));
   EXPECT_EQ(pipeline_status_v2::invalid_epoch,
-      pipeline.apply_admission(rerolled, selectable_earlier_context, 2000));
+      epose_test_journal::apply_admission(pipeline, rerolled, selectable_earlier_context, 2000));
 }
 
 TEST(epose_v2, admission_record_codec_is_canonical_validated_and_atomic)
@@ -394,8 +445,8 @@ TEST(epose_v2, snapshot_is_canonical_across_admission_arrival_order)
   for (size_t i = members.size(); i > 0; --i)
     ASSERT_EQ(pipeline_status_v2::accepted, apply_lease(second, make_lease(members[i - 1], 3), 2000 + i - 1));
   const crypto::hash anchor = hash_text("same-anchor");
-  ASSERT_EQ(pipeline_status_v2::accepted, first.freeze_membership(3, 2100, anchor));
-  ASSERT_EQ(pipeline_status_v2::accepted, second.freeze_membership(3, 2100, anchor));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(first, 3, 2100, anchor));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(second, 3, 2100, anchor));
   EXPECT_EQ(first.snapshot(3)->snapshot_hash, second.snapshot(3)->snapshot_hash);
   EXPECT_EQ(first.state_hash(), second.state_hash());
 }
@@ -424,7 +475,7 @@ TEST(epose_v2, active_population_limit_is_consensus_enforced_per_epoch)
   EXPECT_EQ(pipeline_status_v2::population_limit_exceeded,
       apply_lease(pipeline, make_lease(excess, 3), 2002));
   ASSERT_EQ(pipeline_status_v2::accepted,
-      pipeline.freeze_membership(3, 2100, hash_text("population-anchor")));
+      epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("population-anchor")));
   ASSERT_NE(nullptr, pipeline.snapshot(3));
   EXPECT_EQ(2u, pipeline.snapshot(3)->members.size());
 
@@ -459,7 +510,7 @@ TEST(epose_v2, admission_reserves_service_key_for_one_identity_per_target_epoch)
   EXPECT_EQ(pipeline_status_v2::conflicting_record, apply_lease(reverse, first_lease, 2001));
 
   ASSERT_EQ(pipeline_status_v2::accepted,
-      pipeline.freeze_membership(3, 2100, hash_text("committee-anchor")));
+      epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("committee-anchor")));
   const membership_snapshot_v2 *snapshot = pipeline.snapshot(3);
   ASSERT_NE(nullptr, snapshot);
   ASSERT_EQ(2u, snapshot->members.size());
@@ -479,7 +530,7 @@ TEST(epose_v2, admission_reserves_service_key_for_one_identity_per_target_epoch)
       pipeline.apply_authenticated_receipt(
           make_receipt(3, 0, first, verifier, *snapshot, 1), receipt_context(), 2200,
           snapshot->anchor_hash));
-  ASSERT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::close_qualification(pipeline, 3, 2819));
   const qualification_set_v2 *qualification = pipeline.qualification(3);
   ASSERT_NE(nullptr, qualification);
   ASSERT_EQ(1u, qualification->qualified_nodes.size());
@@ -518,6 +569,149 @@ TEST(epose_v2, receipt_membership_and_committee_use_only_frozen_snapshot)
       pipeline.apply_authenticated_receipt(
           make_receipt(3, 0, members[0], verifier, *pipeline.snapshot(3), 3), receipt_context(), 2200,
           pipeline.snapshot(3)->anchor_hash));
+}
+
+TEST(epose_v2, transport_committee_qualifies_ipv6_subject_and_rejects_ipv4_verifier)
+{
+  auto pipeline = make_pipeline({9, 6, 2, 2, 1, {0, 200}, 100});
+  pipeline.activate_transport_window();
+  std::vector<keyed_member> members;
+  for (size_t index = 0; index < 7; ++index)
+  {
+    members.push_back(make_keyed_member(100 + index));
+    auto &member = members.back().member;
+    member.descriptor_version = 2;
+    member.endpoint_transport = index == 0 ? 2 : 1;
+    member.dial_capabilities = index == 6 ? 1 : (index % 2 == 0 ? 2 : 3);
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        apply_lease(pipeline, make_lease(member, 3), 2000 + index));
+  }
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("committee-anchor")));
+  const auto *snapshot = pipeline.snapshot(3);
+  ASSERT_NE(nullptr, snapshot);
+  ASSERT_TRUE(snapshot->transport_aware);
+  const auto ipv4_committee = pipeline.committee(
+      3, 0, members[1].member.service_public_key, snapshot->anchor_hash);
+  ASSERT_EQ(3u, ipv4_committee.size());
+  EXPECT_NE(ipv4_committee.end(), std::find_if(
+      ipv4_committee.begin(), ipv4_committee.end(), [&](const auto &assignment) {
+        return assignment.verifier_public_key == members[6].member.service_public_key;
+      }));
+  const crypto::hash anchors[2]{snapshot->anchor_hash, hash_text("second-round-anchor")};
+  const uint64_t heights[2]{2200, 2361};
+  for (uint64_t round = 0; round < 2; ++round)
+  {
+    const auto selected = pipeline.committee(
+        3, round, members[0].member.service_public_key, anchors[round]);
+    ASSERT_EQ(5u, selected.size());
+    EXPECT_EQ(pipeline_status_v2::verifier_not_selected,
+        pipeline.apply_authenticated_receipt(
+            make_receipt(3, round, members[0], members[6], *snapshot,
+                round * 10 + 9, 1, anchors[round]),
+            receipt_context(), heights[round], anchors[round]));
+    for (size_t index = 0; index < 4; ++index)
+    {
+      const auto &verifier = find_keyed_member(members, selected[index].verifier_public_key);
+      ASSERT_EQ(pipeline_status_v2::accepted,
+          pipeline.apply_authenticated_receipt(
+              make_receipt(3, round, members[0], verifier, *snapshot,
+                  round * 10 + index, 1, anchors[round]),
+              receipt_context(), heights[round] + index, anchors[round]));
+    }
+  }
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      epose_test_journal::close_qualification(pipeline, 3, 2819));
+  ASSERT_NE(nullptr, pipeline.qualification(3));
+  EXPECT_NE(pipeline.qualification(3)->qualified_nodes.end(),
+      std::find(pipeline.qualification(3)->qualified_nodes.begin(),
+          pipeline.qualification(3)->qualified_nodes.end(),
+          members[0].member.service_public_key));
+  state_image_writer_v2 writer;
+  ASSERT_TRUE(pipeline.write_image(writer));
+  state_image_reader_v2 reader(writer.data());
+  auto restored = make_pipeline({9, 6, 2, 2, 1, {0, 200}, 100});
+  ASSERT_TRUE(restored.read_image(reader, 3));
+  EXPECT_TRUE(reader.finished());
+  EXPECT_EQ(pipeline.state_hash(), restored.state_hash());
+}
+
+TEST(epose_v2, four_compatible_verifiers_leave_round_unjudged)
+{
+  auto pipeline = make_pipeline({9, 6, 1, 1, 1, {0}, 100});
+  pipeline.activate_transport_window();
+  std::vector<keyed_member> members;
+  for (size_t index = 0; index < 6; ++index)
+  {
+    members.push_back(make_keyed_member(200 + index));
+    auto &member = members.back().member;
+    member.descriptor_version = 2;
+    member.endpoint_transport = index == 0 ? 2 : 1;
+    member.dial_capabilities = index == 5 ? 1 : 3;
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        apply_lease(pipeline, make_lease(member, 3), 2000 + index));
+  }
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("committee-anchor")));
+  const auto *snapshot = pipeline.snapshot(3);
+  ASSERT_NE(nullptr, snapshot);
+  const auto selected = pipeline.committee(
+      3, 0, members[0].member.service_public_key, snapshot->anchor_hash);
+  ASSERT_EQ(4u, selected.size());
+  for (size_t index = 0; index < selected.size(); ++index)
+  {
+    const auto &verifier = find_keyed_member(members, selected[index].verifier_public_key);
+    ASSERT_EQ(pipeline_status_v2::accepted,
+        pipeline.apply_authenticated_receipt(
+            make_receipt(3, 0, members[0], verifier, *snapshot, index),
+            receipt_context(), 2200 + index, snapshot->anchor_hash));
+  }
+  ASSERT_EQ(pipeline_status_v2::accepted,
+      epose_test_journal::close_qualification(pipeline, 3, 2819));
+  EXPECT_EQ(pipeline.qualification(3)->qualified_nodes.end(),
+      std::find(pipeline.qualification(3)->qualified_nodes.begin(),
+          pipeline.qualification(3)->qualified_nodes.end(),
+          members[0].member.service_public_key));
+}
+
+TEST(epose_v2, dns_declared_families_select_either_dial_family)
+{
+  frozen_member_v2 subject{};
+  subject.descriptor_version = 2;
+  subject.endpoint_transport = 3;
+  subject.dns_address_families = 3;
+  frozen_member_v2 ipv4{};
+  ipv4.dial_capabilities = 1;
+  frozen_member_v2 ipv6{};
+  ipv6.dial_capabilities = 2;
+  EXPECT_TRUE(transport_compatible_v2(ipv4, subject));
+  EXPECT_TRUE(transport_compatible_v2(ipv6, subject));
+  subject.dns_address_families = 2;
+  EXPECT_FALSE(transport_compatible_v2(ipv4, subject));
+  EXPECT_TRUE(transport_compatible_v2(ipv6, subject));
+  subject.endpoint_transport = 1;
+  EXPECT_TRUE(transport_compatible_v2(ipv4, subject));
+  EXPECT_FALSE(transport_compatible_v2(ipv6, subject));
+}
+
+TEST(epose_v2, version_two_admission_carries_frozen_transport_profile)
+{
+  auto member = make_member(300);
+  member.descriptor_version = 2;
+  member.endpoint_transport = 2;
+  member.dial_capabilities = 3;
+  const auto lease = make_lease(member, 3);
+  envelope_record_v2 encoded{};
+  ASSERT_EQ(record_codec_status_v2::accepted, encode_admission_lease_record_v2(
+      lease, admission_context(), admission_policy(), encoded));
+  EXPECT_EQ(2, encoded.version);
+  EXPECT_EQ(EPOSE_ADMISSION_LEASE_PAYLOAD_BYTES_HF18_V2, encoded.payload.size());
+  admission_lease_v2 decoded{};
+  ASSERT_EQ(record_codec_status_v2::accepted, decode_admission_lease_record_v2(
+      encoded, admission_context(), admission_policy(), decoded));
+  EXPECT_EQ(2, decoded.member.endpoint_transport);
+  EXPECT_EQ(3, decoded.member.dial_capabilities);
+  EXPECT_EQ(lease.lease_hash, decoded.lease_hash);
 }
 
 TEST(epose_v2, evidence_deadline_is_inclusive_and_late_receipt_is_rejected)
@@ -602,7 +796,7 @@ TEST(epose_v2, three_round_coverage_reports_partial_later_round_participation)
   EXPECT_EQ(3u, coverage[0]);
   EXPECT_EQ(1u, coverage[1]);
   EXPECT_EQ(0u, coverage[2]);
-  ASSERT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::close_qualification(pipeline, 3, 2819));
   ASSERT_NE(nullptr, pipeline.qualification(3));
   EXPECT_TRUE(pipeline.qualification(3)->qualified_nodes.empty());
 }
@@ -622,7 +816,7 @@ TEST(epose_v2, eighteen_nodes_relay_mine_and_finalize_across_two_complete_epochs
             2000 + index));
   }
   ASSERT_EQ(pipeline_status_v2::accepted,
-      pipeline.freeze_membership(3, 2100, hash_text("epoch-3-anchor")));
+      epose_test_journal::freeze_membership(pipeline, 3, 2100, hash_text("epoch-3-anchor")));
 
   const epoch_timing_v2 timing{1440, 720, 60};
   relay_record_pool_v2 relay(
@@ -707,7 +901,7 @@ TEST(epose_v2, eighteen_nodes_relay_mine_and_finalize_across_two_complete_epochs
     uint64_t deadline = 0;
     ASSERT_TRUE(timing.evidence_deadline(epoch, deadline));
     ASSERT_EQ(pipeline_status_v2::accepted,
-        pipeline.close_qualification(epoch, deadline));
+        epose_test_journal::close_qualification(pipeline, epoch, deadline));
     const qualification_set_v2 *qualification =
         pipeline.qualification(epoch);
     ASSERT_NE(nullptr, qualification);
@@ -736,10 +930,10 @@ TEST(epose_v2, eighteen_nodes_relay_mine_and_finalize_across_two_complete_epochs
         members[index].member, 4, epoch_four_context,
         admission_policy(), "epoch-4-" + std::to_string(index));
     ASSERT_EQ(pipeline_status_v2::accepted,
-        pipeline.apply_admission(lease, epoch_four_context, 2700 + index));
+        epose_test_journal::apply_admission(pipeline, lease, epoch_four_context, 2700 + index));
   }
   ASSERT_EQ(pipeline_status_v2::accepted,
-      pipeline.freeze_membership(4, 2820, hash_text("epoch-4-anchor")));
+      epose_test_journal::freeze_membership(pipeline, 4, 2820, hash_text("epoch-4-anchor")));
   run_epoch(4, hash_text("epoch-4-round-1"),
       hash_text("epoch-4-round-2"));
 }
@@ -759,12 +953,12 @@ TEST(epose_v2, qualification_closes_once_and_uses_configured_full_committee_quor
             make_receipt(3, 0, members[0], verifier, *pipeline.snapshot(3), i), receipt_context(), 2200 + i,
             pipeline.snapshot(3)->anchor_hash));
   }
-  EXPECT_EQ(pipeline_status_v2::wrong_boundary, pipeline.close_qualification(3, 2818));
-  EXPECT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  EXPECT_EQ(pipeline_status_v2::wrong_boundary, epose_test_journal::close_qualification(pipeline, 3, 2818));
+  EXPECT_EQ(pipeline_status_v2::accepted, epose_test_journal::close_qualification(pipeline, 3, 2819));
   ASSERT_NE(nullptr, pipeline.qualification(3));
   ASSERT_EQ(1u, pipeline.qualification(3)->qualified_nodes.size());
   EXPECT_TRUE(key_equal(members[0].member.service_public_key, pipeline.qualification(3)->qualified_nodes.front()));
-  EXPECT_EQ(pipeline_status_v2::qualification_already_closed, pipeline.close_qualification(3, 2819));
+  EXPECT_EQ(pipeline_status_v2::qualification_already_closed, epose_test_journal::close_qualification(pipeline, 3, 2819));
 }
 
 TEST(epose_v2, small_network_uses_available_committee_and_dynamic_quorum)
@@ -783,7 +977,7 @@ TEST(epose_v2, small_network_uses_available_committee_and_dynamic_quorum)
             make_receipt(3, 0, members[0], verifier, *pipeline.snapshot(3), i),
             receipt_context(), 2200 + i, pipeline.snapshot(3)->anchor_hash));
   }
-  EXPECT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  EXPECT_EQ(pipeline_status_v2::accepted, epose_test_journal::close_qualification(pipeline, 3, 2819));
   ASSERT_NE(nullptr, pipeline.qualification(3));
   ASSERT_EQ(1u, pipeline.qualification(3)->qualified_nodes.size());
   EXPECT_EQ(members[0].member.service_public_key,
@@ -827,7 +1021,7 @@ TEST(epose_v2, bootstrap_dynamic_quorum_prevents_one_withholder_from_qualifying_
     }
   }
 
-  ASSERT_EQ(pipeline_status_v2::accepted, pipeline.close_qualification(3, 2819));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::close_qualification(pipeline, 3, 2819));
   ASSERT_NE(nullptr, pipeline.qualification(3));
   EXPECT_EQ(4u, pipeline.qualification(3)->qualified_nodes.size());
 }
@@ -844,13 +1038,13 @@ TEST(epose_v2, snapshot_anchor_changes_committee_context_and_state_hash)
   }
   auto branch_a = parent;
   auto branch_b = parent;
-  ASSERT_EQ(pipeline_status_v2::accepted, branch_a.freeze_membership(3, 2100, hash_text("anchor-a")));
-  ASSERT_EQ(pipeline_status_v2::accepted, branch_b.freeze_membership(3, 2100, hash_text("anchor-b")));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(branch_a, 3, 2100, hash_text("anchor-a")));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(branch_b, 3, 2100, hash_text("anchor-b")));
   EXPECT_NE(branch_a.snapshot(3)->snapshot_hash, branch_b.snapshot(3)->snapshot_hash);
   EXPECT_NE(branch_a.state_hash(), branch_b.state_hash());
 
   auto branch_a_replayed = parent;
-  ASSERT_EQ(pipeline_status_v2::accepted, branch_a_replayed.freeze_membership(3, 2100, hash_text("anchor-a")));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(branch_a_replayed, 3, 2100, hash_text("anchor-a")));
   EXPECT_EQ(branch_a.snapshot(3)->snapshot_hash, branch_a_replayed.snapshot(3)->snapshot_hash);
   EXPECT_EQ(branch_a.state_hash(), branch_a_replayed.state_hash());
 }

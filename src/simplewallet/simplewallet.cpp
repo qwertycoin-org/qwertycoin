@@ -76,6 +76,10 @@
 #include "version.h"
 #include <stdexcept>
 #include "wallet/message_store.h"
+#include "wallet/contract_call_builder.h"
+#include "vm/vm.h"
+#include "cryptonote_core/contract_state.h"
+#include "vm/app_shader.h"
 #include "QrCode.hpp"
 
 #ifdef WIN32
@@ -100,7 +104,6 @@ typedef cryptonote::simple_wallet sw;
 
 #define EXTENDED_LOGS_FILE "wallet_details.log"
 
-#define OLD_AGE_WARN_THRESHOLD (30 * 86400 / DIFFICULTY_TARGET_V2) // 30 days
 
 #define LOCK_IDLE_SCOPE() \
   bool auto_refresh_enabled = m_auto_refresh_enabled.load(std::memory_order_relaxed); \
@@ -126,7 +129,7 @@ typedef cryptonote::simple_wallet sw;
 
 #define SCOPED_WALLET_UNLOCK() SCOPED_WALLET_UNLOCK_ON_BAD_PASSWORD(return true;)
 
-#define PRINT_USAGE(usage_help) fail_msg_writer() << boost::format(tr("usage: %s")) % usage_help;
+#define PRINT_USAGE(usage_help) fail_msg_writer() << boost::format(tr("usage: %s")) % (usage_help);
 
 #define LONG_PAYMENT_ID_SUPPORT_CHECK() \
   do { \
@@ -204,6 +207,11 @@ namespace
   const char* USAGE_PAYMENTS("payments <PID_1> [<PID_2> ... <PID_N>]");
   const char* USAGE_PAYMENT_ID("payment_id");
   const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <amount>) [subtractfeefrom=<D0>[,<D1>,all,...]] [<payment_id>]");
+  const char* USAGE_CONTRACT_DEPLOY("contract_deploy <wasm_file> [args=<hex>] [key_ids=<hex>[,<hex>...]] [deposit=<amount>] [gas_price=<N>] [gas_limit=<N>] [mint=<address>] [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] [<address> <amount>]");
+  const char* USAGE_CONTRACT_CALL("contract_call <contract_id> <method> [args=<hex>] [key_ids=<hex>[,<hex>...]] [external_signers=<pubkey>[,<pubkey>...]] [deposit=<amount>] [gas_price=<N>] [gas_limit=<N>] [mint=<address>] [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] [<address> <amount>]");
+  const char* USAGE_CONTRACT_DRY_RUN("contract_dry_run deploy <wasm_file> [args=<hex>] [deposit=<amount>] [mint=<address>] | contract_dry_run call <contract_id> <method> [args=<hex>] [deposit=<amount>] [mint=<address>]");
+  const char* USAGE_CONTRACT_STATE("contract_state <hex_key>");
+  const char* USAGE_INVOKE_APP_SHADER("invoke_app_shader <wasm_file> [method=<N>] [args=<key>=<value>[,<key>=<value>...]] [contract=<64-hex-id>]...");
   const char* USAGE_REGISTER_SERVICE_NODE("register_service_node [<funding_address> <amount>]");
   const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_SWEEP_ACCOUNT("sweep_account <account> [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
@@ -1078,7 +1086,7 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
       std::string msg;
       if (priority == m_wallet->get_default_priority() || (m_wallet->get_default_priority() == 0 && priority == 2))
         msg = tr(" (current)");
-      uint64_t minutes_low = nblocks_low * DIFFICULTY_TARGET_V2 / 60, minutes_high = nblocks_high * DIFFICULTY_TARGET_V2 / 60;
+      uint64_t minutes_low = nblocks_low * block_target(m_wallet->nettype()) / 60, minutes_high = nblocks_high * block_target(m_wallet->nettype()) / 60;
       if (nblocks_high == nblocks_low)
         message_writer() << (boost::format(tr("%u block (%u minutes) backlog at priority %u%s")) % nblocks_low % minutes_low % priority % msg).str();
       else
@@ -2381,7 +2389,7 @@ bool simple_wallet::welcome(const std::vector<std::string> &args)
 
 bool simple_wallet::version(const std::vector<std::string> &args)
 {
-  message_writer() << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")";
+  message_writer() << qwertycoin_wallet_banner(m_wallet->nettype());
   return true;
 }
 
@@ -3425,6 +3433,26 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::on_command, this, &simple_wallet::transfer, _1),
                            tr(USAGE_TRANSFER),
                            tr("Transfer <address> <amount>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included). The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 QWC including fees, and addr1 & addr3 would receive 2.925 & 0.975 QWC, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
+  m_cmd_binder.set_handler("contract_deploy",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::contract_deploy, _1),
+                           tr(USAGE_CONTRACT_DEPLOY),
+                           tr("Deploy the contract in <wasm_file>. The gas limit is estimated by a daemon dry-run when omitted. The transfer destination defaults to the wallet's own primary address with the smallest amount."));
+  m_cmd_binder.set_handler("contract_call",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::contract_call, _1),
+                           tr(USAGE_CONTRACT_CALL),
+                           tr("Invoke <method> of the contract <contract_id>. The gas limit is estimated by a daemon dry-run when omitted. The transfer destination defaults to the wallet's own primary address with the smallest amount."));
+  m_cmd_binder.set_handler("contract_dry_run",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::contract_dry_run, _1),
+                           tr(USAGE_CONTRACT_DRY_RUN),
+                           tr("Ask the daemon to execute a contract deployment or invocation against the current state without creating a transaction."));
+  m_cmd_binder.set_handler("contract_state",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::contract_state, _1),
+                           tr(USAGE_CONTRACT_STATE),
+                           tr("Show a contract state value, verified against the state root with a daemon-supplied proof. The key is the contract id followed by the storage tag and key, in hex."));
+  m_cmd_binder.set_handler("invoke_app_shader",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::invoke_app_shader, _1),
+                           tr(USAGE_INVOKE_APP_SHADER),
+                           tr("Run an app shader locally against the verified contract state and print the document it builds, the steps used and the contract calls it generated."));
   m_cmd_binder.set_handler("register_service_node",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::register_service_node, _1),
                            tr(USAGE_REGISTER_SERVICE_NODE),
@@ -4246,14 +4274,12 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
     m_electrum_seed.wipe();
   });
 
-  const bool testnet = tools::wallet2::has_testnet_option(vm);
-  const bool stagenet = tools::wallet2::has_stagenet_option(vm);
-  if (testnet && stagenet)
+  if (!tools::wallet2::network_selection_valid(vm))
   {
-    fail_msg_writer() << tr("Can't specify more than one of --testnet and --stagenet");
+    fail_msg_writer() << tr("Can't specify more than one of --testnet, --stagenet, --devnet and --regtest");
     return false;
   }
-  const network_type nettype = testnet ? TESTNET : stagenet ? STAGENET : MAINNET;
+  const network_type nettype = tools::wallet2::network_type_from_options(vm);
 
   epee::wipeable_string multisig_keys;
   epee::wipeable_string password;
@@ -6596,7 +6622,7 @@ bool simple_wallet::prompt_if_old(const std::vector<tools::wallet2::pending_tx> 
     {
       const tools::wallet2::transfer_details &td = m_wallet->get_transfer_details(i);
       uint64_t age = bc_height - td.m_block_height;
-      if (age > OLD_AGE_WARN_THRESHOLD)
+      if (age > 30 * 86400 / block_target(m_wallet->nettype()))
         ++n_old;
     }
     max_n_old = std::max(max_n_old, n_old);
@@ -6673,10 +6699,7 @@ void simple_wallet::check_for_inactivity_lock(bool user)
       if (show_wallet_name)
       {
         tools::msg_writer() << tr("Filename: ") << m_wallet->get_wallet_file();
-        tools::msg_writer() << tr("Network type: ") << (
-          m_wallet->nettype() == cryptonote::TESTNET ? tr("Testnet") :
-          m_wallet->nettype() == cryptonote::STAGENET ? tr("Stagenet") : tr("Mainnet")
-        );
+        tools::msg_writer() << tr("Network type: ") << tr(cryptonote::network_type_name(m_wallet->nettype()));
       }
       try
       {
@@ -6713,7 +6736,7 @@ bool simple_wallet::on_command(bool (simple_wallet::*cmd)(const std::vector<std:
   return (this->*cmd)(args);
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool called_by_mms)
+bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool called_by_mms, const boost::optional<cryptonote::tx_extra_vm_call> &contract_call, const std::vector<crypto::public_key>& external_contract_signers)
 {
 //  "transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> <amount> [<payment_id>]"
   CHECK_IF_BACKGROUND_SYNCING("cannot transfer");
@@ -6917,16 +6940,43 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
 
   SCOPED_WALLET_UNLOCK_ON_BAD_PASSWORD(return false;);
 
+  if (contract_call && !cryptonote::add_vm_call_to_tx_extra(extra, *contract_call))
+  {
+    fail_msg_writer() << tr("failed to attach the contract call to the transaction");
+    return false;
+  }
+
   try
   {
     // figure out what tx will be necessary
     auto ptx_vector = m_wallet->create_transactions_2(dsts, fake_outs_count, priority, extra,
-      m_current_subaddress_account, subaddr_indices, subtract_fee_from_outputs);
+      m_current_subaddress_account, subaddr_indices, subtract_fee_from_outputs, external_contract_signers);
 
     if (ptx_vector.empty())
     {
       fail_msg_writer() << tr("No outputs found, or daemon is not ready");
       return false;
+    }
+
+    if (!external_contract_signers.empty())
+    {
+      if (ptx_vector.size() != 1)
+      {
+        fail_msg_writer() << tr("External signers need one pending transaction");
+        return false;
+      }
+      try
+      {
+        success_msg_writer() << "Contract signature digest: "
+            << tools::wallet2::contract_signature_hash_hex(ptx_vector.front().tx, m_wallet->nettype());
+        tools::wallet2::collect_external_contract_signatures(ptx_vector.front(), m_wallet->nettype(), external_contract_signers,
+            [&](const std::string& prompt) { return input_line(prompt); });
+      }
+      catch (const std::exception& e)
+      {
+        fail_msg_writer() << e.what();
+        return false;
+      }
     }
 
     // if we need to check for backlog, check the worst case tx
@@ -7155,6 +7205,297 @@ bool simple_wallet::transfer(const std::vector<std::string> &args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+bool simple_wallet::prepare_contract_call(bool deploy, const std::vector<std::string> &args, cryptonote::tx_extra_vm_call &call, std::vector<std::string> &transfer_args, std::vector<crypto::public_key>* external_signers)
+{
+  const size_t positional_count = deploy ? 1 : 2;
+  tools::contract_call_options options;
+  std::string error;
+  transfer_args = args;
+  if (!tools::extract_contract_call_options(transfer_args, options, error))
+  {
+    fail_msg_writer() << error;
+    return false;
+  }
+  if (external_signers)
+    *external_signers = options.external_signers;
+  if (transfer_args.size() < positional_count)
+  {
+    fail_msg_writer() << tr("wrong number of arguments");
+    return false;
+  }
+
+  std::string code_hex;
+  std::string contract_id_hex;
+  uint32_t method = 0;
+  if (deploy)
+  {
+    std::string code;
+    if (!epee::file_io_utils::load_file_to_string(transfer_args[0], code) || code.empty())
+    {
+      fail_msg_writer() << tr("failed to read contract code from ") << transfer_args[0];
+      return false;
+    }
+    code_hex = epee::string_tools::buff_to_hex_nodelimer(code);
+  }
+  else
+  {
+    contract_id_hex = transfer_args[0];
+    if (!epee::string_tools::get_xtype_from_string(method, transfer_args[1]))
+    {
+      fail_msg_writer() << tr("invalid method number ") << transfer_args[1];
+      return false;
+    }
+  }
+  transfer_args.erase(transfer_args.begin(), transfer_args.begin() + positional_count);
+
+  switch (tools::build_contract_call(m_wallet->nettype(), deploy, code_hex, contract_id_hex, method, options, call))
+  {
+    case tools::contract_call_build_result::ok:
+      return true;
+    case tools::contract_call_build_result::bad_mint_address:
+      fail_msg_writer() << tr("invalid mint address ") << options.mint_address;
+      return false;
+    case tools::contract_call_build_result::bad_call:
+      break;
+  }
+  fail_msg_writer() << tr("contract call needs a deployable code file, or a hex contract id with a method, and hex args");
+  return false;
+}
+//----------------------------------------------------------------------------------------------------
+static bool approve_contract_key_prompt(const std::string& title, const crypto::hash& contract_id,
+    const crypto::hash& key_id, const boost::optional<crypto::public_key>& key, const boost::optional<uint32_t>& method,
+    const boost::optional<bool>& nested)
+{
+  std::ostringstream prompt;
+  prompt << title << "\n"
+         << sw::tr("Contract: ") << epee::string_tools::pod_to_hex(contract_id) << "\n";
+  if (method)
+    prompt << sw::tr("Method: ") << *method << "\n";
+  prompt << sw::tr("Key id: ") << epee::string_tools::pod_to_hex(key_id) << "\n";
+  if (key)
+    prompt << sw::tr("Public key: ") << epee::string_tools::pod_to_hex(*key) << "\n";
+  if (nested)
+    prompt << sw::tr("Nested call: ") << (*nested ? sw::tr("yes") : sw::tr("no")) << "\n";
+  prompt << sw::tr("Approve this key?");
+  return !std::cin.eof() && command_line::is_yes(input_line(prompt.str(), true));
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::submit_contract_call(bool deploy, const std::vector<std::string> &args)
+{
+  CHECK_IF_BACKGROUND_SYNCING("cannot call contracts");
+  if (args.empty())
+  {
+    PRINT_USAGE(deploy ? USAGE_CONTRACT_DEPLOY : USAGE_CONTRACT_CALL);
+    return true;
+  }
+  if (!try_connect_to_daemon())
+    return true;
+
+  cryptonote::tx_extra_vm_call call;
+  std::vector<std::string> transfer_args;
+  std::vector<crypto::public_key> external_signers;
+  if (!prepare_contract_call(deploy, args, call, transfer_args, &external_signers))
+    return true;
+
+  if (!external_signers.empty() && !tools::wallet2::external_contract_signers_allowed(*m_wallet))
+  {
+    fail_msg_writer() << tr("External signers require a spendable local wallet");
+    return true;
+  }
+
+  try
+  {
+    const bool estimated = call.gas_limit == 0;
+    const auto authorize = [&](const crypto::hash& contract_id, uint32_t method, const crypto::hash& key_id, const crypto::public_key& key, bool nested) {
+      return approve_contract_key_prompt(tr("Authorize contract signer"), contract_id, key_id, key, method, nested);
+    };
+    const uint64_t gas_used = m_wallet->prepare_contract_call(call, authorize, external_signers);
+    if (estimated)
+      success_msg_writer() << tr("Estimated gas used: ") << gas_used << tr(", gas limit: ") << call.gas_limit;
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("contract dry-run failed: ") << e.what();
+    return true;
+  }
+
+  if (transfer_args.empty())
+  {
+    transfer_args.push_back(m_wallet->get_address_as_str());
+    transfer_args.push_back(cryptonote::print_money(1));
+  }
+  if (deploy)
+    success_msg_writer() << tr("Contract id: ") << epee::string_tools::pod_to_hex(cryptonote::called_contract_id(call));
+  transfer_main(transfer_args, false, call, external_signers);
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::contract_deploy(const std::vector<std::string> &args)
+{
+  return submit_contract_call(true, args);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::contract_call(const std::vector<std::string> &args)
+{
+  return submit_contract_call(false, args);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::contract_dry_run(const std::vector<std::string> &args)
+{
+  if (args.empty() || (args[0] != "deploy" && args[0] != "call"))
+  {
+    PRINT_USAGE(USAGE_CONTRACT_DRY_RUN);
+    return true;
+  }
+  if (!try_connect_to_daemon())
+    return true;
+
+  const bool deploy = args[0] == "deploy";
+  cryptonote::tx_extra_vm_call call;
+  std::vector<std::string> unused_transfer_args;
+  std::vector<crypto::public_key> external_signers;
+  if (!prepare_contract_call(deploy, std::vector<std::string>(args.begin() + 1, args.end()), call, unused_transfer_args, &external_signers))
+    return true;
+  if (!external_signers.empty())
+  {
+    fail_msg_writer() << tr("external_signers is not supported by contract_dry_run");
+    return true;
+  }
+  if (!unused_transfer_args.empty())
+  {
+    fail_msg_writer() << tr("wrong number of arguments");
+    return true;
+  }
+
+  try
+  {
+    const cryptonote::COMMAND_RPC_VM_CALL_DRY_RUN::response result = m_wallet->dry_run_contract_call(call);
+    success_msg_writer() << tr("Verdict: ") << result.verdict << (result.accepted ? tr(" (accepted)") : tr(" (rejected)"));
+    success_msg_writer() << tr("Height: ") << result.height;
+    success_msg_writer() << tr("Gas used: ") << result.gas_used;
+    success_msg_writer() << tr("Fee: ") << print_money(result.fee);
+    success_msg_writer() << tr("Deposited: ") << print_money(result.deposited);
+    success_msg_writer() << tr("Withdrawn: ") << print_money(result.withdrawn);
+    if (deploy)
+      success_msg_writer() << tr("Contract id: ") << epee::string_tools::pod_to_hex(cryptonote::called_contract_id(call));
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("contract dry-run failed: ") << e.what();
+  }
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::contract_state(const std::vector<std::string> &args)
+{
+  std::string key;
+  if (args.size() != 1 || !epee::string_tools::parse_hexstr_to_binbuff(args[0], key) || key.empty())
+  {
+    PRINT_USAGE(USAGE_CONTRACT_STATE);
+    return true;
+  }
+  if (!try_connect_to_daemon())
+    return true;
+
+  try
+  {
+    crypto::hash root;
+    boost::optional<std::string> value;
+    if (!m_wallet->get_vm_state_value(key, root, value))
+    {
+      fail_msg_writer() << tr("daemon returned a contract state proof that does not verify");
+      return true;
+    }
+    success_msg_writer() << tr("State root: ") << epee::string_tools::pod_to_hex(root);
+    if (value)
+      success_msg_writer() << tr("Value: ") << epee::string_tools::buff_to_hex_nodelimer(*value);
+    else
+      success_msg_writer() << tr("No value stored under this key");
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("contract state query failed: ") << e.what();
+  }
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::invoke_app_shader(const std::vector<std::string> &args)
+{
+  constexpr const char *method_prefix = "method=";
+  constexpr const char *args_prefix = "args=";
+  constexpr const char *contract_prefix = "contract=";
+  if (args.empty())
+  {
+    PRINT_USAGE(USAGE_INVOKE_APP_SHADER);
+    return true;
+  }
+
+  uint32_t method = vm::method_first_public;
+  vm::app::arguments shader_args;
+  std::vector<crypto::hash> invoked_contracts;
+  for (size_t i = 1; i < args.size(); ++i)
+  {
+    const bool is_method = args[i].compare(0, strlen(method_prefix), method_prefix) == 0;
+    const bool is_args = args[i].compare(0, strlen(args_prefix), args_prefix) == 0;
+    const bool is_contract = args[i].compare(0, strlen(contract_prefix), contract_prefix) == 0;
+    crypto::hash contract_id{};
+    if ((is_method && !epee::string_tools::get_xtype_from_string(method, args[i].substr(strlen(method_prefix))))
+        || (is_args && !vm::app::parse_arguments(args[i].substr(strlen(args_prefix)), shader_args))
+        || (is_contract && !epee::string_tools::hex_to_pod(args[i].substr(strlen(contract_prefix)), contract_id))
+        || (!is_method && !is_args && !is_contract))
+    {
+      PRINT_USAGE(USAGE_INVOKE_APP_SHADER);
+      return true;
+    }
+    if (is_contract)
+      invoked_contracts.push_back(contract_id);
+  }
+
+  std::string wasm;
+  if (!epee::file_io_utils::load_file_to_string(args[0], wasm) || wasm.empty())
+  {
+    fail_msg_writer() << tr("failed to read app shader from ") << args[0];
+    return true;
+  }
+  if (!try_connect_to_daemon())
+    return true;
+
+  try
+  {
+    const auto authorize_key = [&](const crypto::hash& contract_id, const crypto::hash& key_id, boost::optional<crypto::public_key>&) {
+      return approve_contract_key_prompt(tr("Authorize app shader contract key derivation"), contract_id, key_id, boost::none, boost::none, boost::none);
+    };
+    const vm::app::run_result run = m_wallet->invoke_app_shader(wasm, method, shader_args, invoked_contracts, authorize_key);
+    if (run.code != vm::status::ok)
+    {
+      fail_msg_writer() << tr("app shader failed: ") << vm::app::status_name(run.code);
+      return true;
+    }
+    success_msg_writer() << vm::app::document_to_json(run.document);
+    success_msg_writer() << tr("Steps used: ") << run.steps_used;
+    for (const vm::app::pending_call &generated : run.calls)
+    {
+      const bool deploy = generated.kind == vm::call_kind::deploy;
+      success_msg_writer() << tr("Generated ") << (deploy ? tr("deploy") : tr("invoke"))
+                           << tr(": contract ") << (deploy ? std::string() : epee::string_tools::pod_to_hex(generated.contract_id))
+                           << tr(" method ") << generated.method
+                           << tr(" args ") << epee::string_tools::buff_to_hex_nodelimer(generated.args)
+                           << tr(" deposit ") << print_money(generated.deposit);
+      for (size_t i = 0; i < generated.signers.size(); ++i)
+        success_msg_writer() << tr("Signer ") << epee::string_tools::pod_to_hex(generated.signers[i])
+                             << tr(" contract ") << epee::string_tools::pod_to_hex(generated.signer_contracts[i])
+                             << tr(" method ") << generated.signer_methods[i]
+                             << tr(" key id ") << epee::string_tools::pod_to_hex(generated.signer_key_ids[i]);
+    }
+  }
+  catch (const std::exception &e)
+  {
+    fail_msg_writer() << tr("app shader failed: ") << e.what();
+  }
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+
 bool simple_wallet::register_service_node(const std::vector<std::string> &args_)
 {
   CHECK_IF_BACKGROUND_SYNCING("cannot register service node");
@@ -7993,9 +8334,27 @@ bool simple_wallet::accept_loaded_tx(const std::function<size_t()> get_num_txes,
   std::unordered_map<cryptonote::account_public_address, std::pair<std::string, uint64_t>> dests;
   int first_known_non_zero_change_index = -1;
   std::string payment_id_string = "";
+  std::ostringstream contract_details;
   for (size_t n = 0; n < get_num_txes(); ++n)
   {
     const tools::wallet2::tx_construction_data &cd = get_tx(n);
+
+    cryptonote::tx_extra_vm_call call{};
+    if (cryptonote::get_tx_vm_call(cd.extra, call) == 1)
+    {
+      const crypto::hash called_contract = cryptonote::called_contract_id(call);
+      contract_details << "\n" << tr("Contract call ") << (n + 1) << ": "
+                       << epee::string_tools::pod_to_hex(called_contract) << " " << tr("method ") << call.method;
+      for (size_t i = 0; i < call.signers.size(); ++i)
+      {
+        contract_details << "\n  " << tr("Signer ") << (i + 1) << ": " << epee::string_tools::pod_to_hex(call.signers[i]);
+        if (i < call.signer_contracts.size() && i < call.signer_methods.size() && i < call.signer_key_ids.size())
+          contract_details << " " << tr("contract ") << epee::string_tools::pod_to_hex(call.signer_contracts[i])
+                           << " " << tr("method ") << call.signer_methods[i]
+                           << " " << tr("key id ") << epee::string_tools::pod_to_hex(call.signer_key_ids[i])
+                           << " " << tr("nested ") << (i < call.signer_nested.size() && call.signer_nested[i] ? tr("yes") : tr("no"));
+      }
+    }
 
     std::vector<tx_extra_field> tx_extra_fields;
     bool has_encrypted_payment_id = false;
@@ -8128,7 +8487,7 @@ bool simple_wallet::accept_loaded_tx(const std::function<size_t()> get_num_txes,
     change_string += tr("no change");
 
   uint64_t fee = amount - amount_to_dests;
-  std::string prompt_str = (boost::format(tr("Loaded %lu transactions, for %s, fee %s, %s, %s, with min ring size %lu, %s. %sIs this okay?")) % (unsigned long)get_num_txes() % print_money(amount) % print_money(fee) % dest_string % change_string % (unsigned long)min_ring_size % payment_id_string % extra_message).str();
+  std::string prompt_str = (boost::format(tr("Loaded %lu transactions, for %s, fee %s, %s, %s, with min ring size %lu, %s. %s%s\nIs this okay?")) % (unsigned long)get_num_txes() % print_money(amount) % print_money(fee) % dest_string % change_string % (unsigned long)min_ring_size % payment_id_string % extra_message % contract_details.str()).str();
   return command_line::is_yes(input_line(prompt_str, true));
 }
 //----------------------------------------------------------------------------------------------------
@@ -8915,7 +9274,7 @@ bool simple_wallet::get_transfers(std::vector<std::string>& local_args, std::vec
         else
         {
           const uint64_t adjusted_time = m_wallet->get_daemon_adjusted_time();
-          uint64_t threshold = adjusted_time + (m_wallet->use_fork_rules(2, 0) ? CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2 : CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V1);
+          uint64_t threshold = adjusted_time + (locked_tx_allowed_delta_seconds(m_wallet->nettype(), m_wallet->use_fork_rules(2, 0) ? 2 : 1));
           if (threshold < pd.m_unlock_time)
             locked_msg = get_human_readable_timespan(std::chrono::seconds(pd.m_unlock_time - threshold));
         }
@@ -10301,9 +10660,7 @@ bool simple_wallet::wallet_info(const std::vector<std::string> &args)
   else
     type = tr("Normal");
   message_writer() << tr("Type: ") << type;
-  message_writer() << tr("Network type: ") << (
-    m_wallet->nettype() == cryptonote::TESTNET ? tr("Testnet") :
-    m_wallet->nettype() == cryptonote::STAGENET ? tr("Stagenet") : tr("Mainnet"));
+  message_writer() << tr("Network type: ") << tr(cryptonote::network_type_name(m_wallet->nettype()));
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -10708,7 +11065,7 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
       else
       {
         const uint64_t adjusted_time = m_wallet->get_daemon_adjusted_time();
-        uint64_t threshold = adjusted_time + (m_wallet->use_fork_rules(2, 0) ? CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2 : CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V1);
+        uint64_t threshold = adjusted_time + (locked_tx_allowed_delta_seconds(m_wallet->nettype(), m_wallet->use_fork_rules(2, 0) ? 2 : 1));
         if (threshold >= pd.m_unlock_time)
           success_msg_writer() << "unlocked for " << get_human_readable_timespan(std::chrono::seconds(threshold - pd.m_unlock_time));
         else

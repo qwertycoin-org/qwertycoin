@@ -174,6 +174,11 @@ namespace cryptonote {
   //-----------------------------------------------------------------------
   bool is_coinbase(const transaction& tx)
   {
+    return is_coinbase(static_cast<const transaction_prefix&>(tx));
+  }
+  //-----------------------------------------------------------------------
+  bool is_coinbase(const transaction_prefix& tx)
+  {
     if(tx.vin.size() != 1)
       return false;
 

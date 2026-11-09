@@ -5,6 +5,8 @@
 
 #include <cstdint>
 #include <deque>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "cryptonote_basic/cryptonote_basic.h"
@@ -40,6 +42,21 @@ namespace epose
     envelope_budget_v2 charged{};
   };
 
+  struct state_storage_diagnostics_v2
+  {
+    size_t state_bytes = 0;
+    uint64_t retained_epochs = 0;
+    uint64_t oldest_retained_epoch = 0;
+    crypto::hash history_root{};
+    size_t undo_entries = 0;
+    size_t undo_bytes = 0;
+    uint64_t last_snapshot_height = 0;
+    bool rebuilding = false;
+    bool fatal = false;
+    bool retry_exhausted = false;
+    crypto::hash retry_exhausted_tip{};
+  };
+
   enum class block_transition_status_v2
   {
     accepted,
@@ -51,16 +68,14 @@ namespace epose
     invalid_semantics,
     freeze_failed,
     qualification_close_failed,
+    window_transition_failed,
     verification_budget_mismatch,
     nonsequential_height,
     deep_replay_required,
-    arithmetic_overflow
+    arithmetic_overflow,
+    outside_retained_window
   };
 
-  // Canonical, fail-atomic block adapter. It performs a structural/resource
-  // pass over every transaction before any RandomX or signature verification,
-  // then applies records in miner/transaction wire order using a change journal.
-  // Any failure (including an exception) restores the state and tip metadata.
   class block_transition_v2
   {
   public:
@@ -71,7 +86,9 @@ namespace epose
         const epoch_timing_v2 &timing,
         const admission_policy_v2 &admission_policy,
         const committee_policy_v2 &committee_policy,
-        const block_transition_limits_v2 &limits);
+        const block_transition_limits_v2 &limits,
+        uint64_t retained_epochs = QWC_EPOSE_RETAINED_EPOCHS,
+        const crypto::hash &window_parameter_hash = crypto::null_hash);
 
     bool valid() const;
     block_transition_status_v2 apply_block(
@@ -84,6 +101,13 @@ namespace epose
     block_transition_status_v2 disconnect_tip(uint64_t height);
 
     const semantic_state_v2 &state() const;
+    semantic_state_v2 &preview_state();
+
+    state_storage_diagnostics_v2 state_diagnostics() const;
+    std::string serialize_state() const;
+    bool restore_state(uint64_t height, const std::string &image);
+
+    bool tip_height(uint64_t &height) const;
     size_t recent_undo_count() const;
     // Diagnostic payload/capacity only, excluding deque/allocator overhead.
     size_t undo_payload_bytes() const;

@@ -30,10 +30,13 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <cstring>
+#include <limits>
 #include "cryptonote_core/blockchain.h"
 #include "cryptonote_core/tx_pool.h"
 #include "cryptonote_core/cryptonote_core.h"
 #include "blockchain_db/testdb.h"
+#include "../common/blockchain_and_pool.h"
 
 #define LONG_TERM_BLOCK_WEIGHT_WINDOW 5000
 
@@ -50,8 +53,17 @@ namespace
 class TestDB: public cryptonote::BaseTestDB
 {
 private:
+  static crypto::hash hash_for_height(uint64_t height)
+  {
+    crypto::hash hash = crypto::null_hash;
+    hash.data[0] = 1;
+    std::memcpy(hash.data + 1, &height, sizeof(height));
+    return hash;
+  }
+
   struct block_t
   {
+    cryptonote::block block;
     size_t weight;
     uint64_t long_term_weight;
   };
@@ -67,11 +79,13 @@ public:
                         , uint64_t num_rct_outs
                         , const crypto::hash& blk_hash
                         ) override {
-    blocks.push_back({block_weight, long_term_block_weight});
+    blocks.push_back({blk, block_weight, long_term_block_weight});
   }
   virtual uint64_t height() const override { return blocks.size(); }
-  virtual size_t get_block_weight(const uint64_t &h) const override { return blocks[h].weight; }
-  virtual uint64_t get_block_long_term_weight(const uint64_t &h) const override { return blocks[h].long_term_weight; }
+  virtual cryptonote::block get_block_from_height(const uint64_t &h) const override { return blocks.at(h).block; }
+  virtual cryptonote::block get_top_block() const override { return blocks.empty() ? cryptonote::block{} : blocks.back().block; }
+  virtual size_t get_block_weight(const uint64_t &h) const override { return blocks.at(h).weight; }
+  virtual uint64_t get_block_long_term_weight(const uint64_t &h) const override { return blocks.at(h).long_term_weight; }
   virtual std::vector<uint64_t> get_block_weights(uint64_t start_height, size_t count) const override {
     std::vector<uint64_t> ret;
     ret.reserve(count);
@@ -85,18 +99,13 @@ public:
     return ret;
   }
   virtual crypto::hash get_block_hash_from_height(const uint64_t &height) const override {
-    crypto::hash hash = crypto::null_hash;
-    *(uint64_t*)&hash = height;
-    return hash;
+    return hash_for_height(height);
   }
   virtual crypto::hash top_block_hash(uint64_t *block_height = NULL) const override {
     uint64_t h = height();
-    crypto::hash top = crypto::null_hash;
-    if (h)
-      *(uint64_t*)&top = h - 1;
     if (block_height)
-      *block_height = h - 1;
-    return top;
+      *block_height = h ? h - 1 : std::numeric_limits<uint64_t>::max();
+    return h ? hash_for_height(h - 1) : crypto::null_hash;
   }
   virtual void pop_block(cryptonote::block &blk, std::vector<cryptonote::transaction> &txs) override { blocks.pop_back(); }
   virtual void set_hard_fork_version(uint64_t height, uint8_t version) override { if (height >= hf.size()) hf.resize(height + 1); hf[height] = version; }
@@ -110,9 +119,8 @@ private:
 }
 
 #define PREFIX_WINDOW(hf_version,window) \
-  std::unique_ptr<cryptonote::Blockchain> bc; \
-  cryptonote::tx_memory_pool txpool(*bc); \
-  bc.reset(new cryptonote::Blockchain(txpool)); \
+  cryptonote_test::BlockchainAndPool chain; \
+  cryptonote::Blockchain *bc = &chain.bc; \
   struct get_test_options { \
     const std::pair<uint8_t, uint64_t> hard_forks[3]; \
     const cryptonote::test_options test_options = { \
@@ -121,7 +129,7 @@ private:
     }; \
     get_test_options(): hard_forks{std::make_pair(1, (uint64_t)0), std::make_pair((uint8_t)hf_version, (uint64_t)LONG_TERM_BLOCK_WEIGHT_WINDOW), std::make_pair((uint8_t)0, (uint64_t)0)} {} \
   } opts; \
-  cryptonote::Blockchain *blockchain = bc.get(); \
+  cryptonote::Blockchain *blockchain = bc; \
   bool r = blockchain->init(new TestDB(), cryptonote::FAKECHAIN, true, &opts.test_options, 0, NULL); \
   if (!r) \
   { \

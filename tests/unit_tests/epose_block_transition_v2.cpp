@@ -358,10 +358,9 @@ TEST(epose_block_transition_v2, future_hardfork_continues_and_reorgs_same_state)
   ASSERT_EQ(block_transition_status_v2::accepted,
       apply_empty(state, source, 2, HF_VERSION_QWC_EPOSE + 1));
   const crypto::hash at_hf18 = state.state().state_hash();
-  // Empty blocks do not enter the semantic commitment.  Equality here proves
-  // that the scheduled future block version continued the existing state
-  // instead of replacing it with a version-specific empty state.
-  EXPECT_EQ(at_hf17, at_hf18);
+  EXPECT_NE(at_hf17, at_hf18);
+  EXPECT_EQ(QWC_EPOSE_ROLLING_STATE_SCHEMA,
+      state.state().state_commitment_schema());
 
   ASSERT_EQ(block_transition_status_v2::accepted, state.disconnect_tip(2));
   EXPECT_EQ(at_hf17, state.state().state_hash());

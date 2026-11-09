@@ -283,6 +283,10 @@ class BlockchainTest():
         res = daemon.generateblocks('QWC1GKRV4Wd3DCnubWiv1CBDBJWTCUcvTAZnE9ioE7pUMiqwXpce7GX5kfyaW4X8V523Rkyoa9NQ6LWj2DrEX7cE2PDLobNPxh', 3, prev_block = alt_blocks[1], starting_nonce = nonce)
         assert res.height == height + 3
         assert len(res.blocks) == 3
+        parent = alt_blocks[1]
+        for block_hash in res.blocks:
+            assert daemon.getblockheaderbyhash(block_hash).block_header.prev_hash == parent
+            parent = block_hash
         blk_hash = res.blocks[2]
         res = daemon.getblockheaderbyhash(blk_hash)
         nonce = res.block_header.nonce

@@ -22,6 +22,29 @@ namespace
   {
     return left == right;
   }
+
+  bool epoch_outside_round_window(
+      const std::vector<qwertycoin::epose::receipt_round_counters_v2> &rounds,
+      const uint64_t epoch)
+  {
+    if (rounds.empty())
+      return false;
+    const uint64_t newest_epoch = std::max_element(
+        rounds.begin(), rounds.end(), [](const auto &left, const auto &right) {
+          return left.epoch < right.epoch;
+        })->epoch;
+    return newest_epoch > 3 && epoch < newest_epoch - 3;
+  }
+
+  const char *unsettled_qualification_state(
+      const qwertycoin::epose::qualification_diagnostics_v2 &qualification)
+  {
+    if (!qualification.available)
+      return "unknown";
+    if (!qualification.finalized)
+      return "pending";
+    return nullptr;
+  }
 }
 
 namespace qwertycoin
@@ -153,22 +176,22 @@ namespace epose
   const char *qualification_state_v2(
       const qualification_diagnostics_v2 &qualification)
   {
-    if (!qualification.available)
-      return "unknown";
-    if (!qualification.finalized)
-      return "pending";
+    if (const char *unsettled = unsettled_qualification_state(qualification))
+      return unsettled;
     return qualification.qualified ? "qualified" : "not_qualified";
   }
 
   const char *qualification_unmet_rule_v2(
       const qualification_diagnostics_v2 &qualification)
   {
-    if (!qualification.available)
-      return "unknown";
-    if (!qualification.finalized)
-      return "pending";
+    if (const char *unsettled = unsettled_qualification_state(qualification))
+      return unsettled;
     if (qualification.qualified)
       return "none";
+    if (qualification.subject_in_snapshot
+        && qualification.rounds_unjudged != 0
+        && qualification.rounds_judged < qualification.rounds_required)
+      return "compatible_committee";
     return qualification.subject_in_snapshot
         ? "receipt_rounds" : "snapshot_membership";
   }
@@ -204,21 +227,14 @@ namespace epose
     if (found != rounds_.end())
       return *found;
 
-    if (!rounds_.empty())
+    if (epoch_outside_round_window(rounds_, epoch))
     {
-      const uint64_t newest_epoch = std::max_element(
-          rounds_.begin(), rounds_.end(), [](const auto &left, const auto &right) {
-            return left.epoch < right.epoch;
-          })->epoch;
-      if (newest_epoch > 3 && epoch < newest_epoch - 3)
-      {
-        // A late completion outside the bounded retention window must not
-        // resurrect old epochs or be attributed to a retained one.
-        discarded_round_ = {};
-        discarded_round_.epoch = epoch;
-        discarded_round_.round = round;
-        return discarded_round_;
-      }
+      // A late completion outside the bounded retention window must not
+      // resurrect old epochs or be attributed to a retained one.
+      discarded_round_ = {};
+      discarded_round_.epoch = epoch;
+      discarded_round_.round = round;
+      return discarded_round_;
     }
     rounds_.push_back({});
     rounds_.back().epoch = epoch;
@@ -236,17 +252,10 @@ namespace epose
       const receipt_attempt_stage_v2 stage,
       const receipt_failure_reason_v2 reason)
   {
-    if (!rounds_.empty())
+    if (epoch_outside_round_window(rounds_, epoch))
     {
-      const uint64_t newest_epoch = std::max_element(
-          rounds_.begin(), rounds_.end(), [](const auto &left, const auto &right) {
-            return left.epoch < right.epoch;
-          })->epoch;
-      if (newest_epoch > 3 && epoch < newest_epoch - 3)
-      {
-        discarded_failure_ = {epoch, round, stage, reason, 0, 0};
-        return discarded_failure_;
-      }
+      discarded_failure_ = {epoch, round, stage, reason, 0, 0};
+      return discarded_failure_;
     }
     const auto found = std::find_if(failures_.begin(), failures_.end(),
         [epoch, round, stage, reason](const receipt_failure_counter_v2 &entry) {
@@ -397,9 +406,12 @@ namespace epose
   }
 
   bool receipt_diagnostics_v2::canonical_inclusion(
-      const uint64_t epoch, const uint64_t round, const crypto::hash &slot)
+      const uint64_t epoch, const uint64_t round, const crypto::hash &slot,
+      uint64_t *attempt_id)
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (attempt_id)
+      *attempt_id = 0;
     if (std::find(canonical_slots_.begin(), canonical_slots_.end(), slot)
         != canonical_slots_.end())
       return false;
@@ -409,7 +421,12 @@ namespace epose
     ++round_locked(epoch, round).canonical_inclusions_observed;
     for (receipt_attempt_terminal_v2 &attempt : recent_attempts_)
       if (same_hash(attempt.context.slot, slot))
+      {
         attempt.canonical_inclusion_observed = true;
+        if (attempt_id)
+          *attempt_id = attempt.context.attempt_id;
+        break;
+      }
     return true;
   }
 

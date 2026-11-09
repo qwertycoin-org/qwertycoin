@@ -49,6 +49,16 @@
 namespace daemonize {
 
 namespace {
+  bool valid_alt_chain_length(const cryptonote::COMMAND_RPC_GET_ALTERNATE_CHAINS::chain_info &chain)
+  {
+    return chain.length != 0 && chain.length <= chain.height;
+  }
+
+  uint64_t alt_chain_depth(uint64_t height, uint64_t start_height)
+  {
+    return height > start_height ? height - start_height - 1 : 0;
+  }
+
   const char *get_address_type_name(epee::net_utils::address_type address_type)
   {
     switch (address_type)
@@ -1310,14 +1320,19 @@ bool t_rpc_command_executor::print_transaction_pool_stats() {
 
   std::string backlog_message;
   const uint64_t full_reward_zone = ires.block_weight_limit / 2;
-  if (res.pool_stats.bytes_total <= full_reward_zone)
+  if (full_reward_zone == 0)
+  {
+    backlog_message = "backlog unavailable";
+  }
+  else if (res.pool_stats.bytes_total <= full_reward_zone)
   {
     backlog_message = "no backlog";
   }
   else
   {
-    uint64_t backlog = (res.pool_stats.bytes_total + full_reward_zone - 1) / full_reward_zone;
-    backlog_message = (boost::format("estimated %u block (%u minutes) backlog") % backlog % (backlog * DIFFICULTY_TARGET_V2 / 60)).str();
+    const uint64_t backlog = cryptonote::divide_round_up(res.pool_stats.bytes_total, full_reward_zone);
+    const auto backlog_minutes = (boost::multiprecision::uint128_t(backlog) * ires.target / 60).str();
+    backlog_message = (boost::format("estimated %u block (%s minutes) backlog") % backlog % backlog_minutes).str();
   }
 
   tools::msg_writer() << n_transactions << " tx(es), " << res.pool_stats.bytes_total << " bytes total (min " << res.pool_stats.bytes_min << ", max " << res.pool_stats.bytes_max << ", avg " << avg_bytes << ", median " << res.pool_stats.bytes_med << ")" << std::endl
@@ -2058,10 +2073,12 @@ bool t_rpc_command_executor::alt_chain_info(const std::string &tip, size_t above
     for (size_t i = 0; i < chains.size(); ++i)
     {
       const auto &chain = chains[i];
+      if (!valid_alt_chain_length(chain))
+        continue;
       if (chain.length <= above)
         continue;
       const uint64_t start_height = (chain.height - chain.length + 1);
-      if (last_blocks > 0 && ires.height - 1 - start_height >= last_blocks)
+      if (last_blocks > 0 && alt_chain_depth(ires.height, start_height) >= last_blocks)
         continue;
       display.push_back(i);
     }
@@ -2070,7 +2087,7 @@ bool t_rpc_command_executor::alt_chain_info(const std::string &tip, size_t above
     {
       const auto &chain = chains[idx];
       const uint64_t start_height = (chain.height - chain.length + 1);
-      tools::msg_writer() << chain.length << " blocks long, from height " << start_height << " (" << (ires.height - start_height - 1)
+      tools::msg_writer() << chain.length << " blocks long, from height " << start_height << " (" << alt_chain_depth(ires.height, start_height)
           << " deep), diff " << cryptonote::difficulty_type(chain.wide_difficulty) << ": " << chain.block_hash;
     }
   }
@@ -2081,9 +2098,14 @@ bool t_rpc_command_executor::alt_chain_info(const std::string &tip, size_t above
     if (i != res.chains.end())
     {
       const auto &chain = *i;
+      if (!valid_alt_chain_length(chain))
+      {
+        tools::fail_msg_writer() << "Invalid alternate chain length";
+        return true;
+      }
       tools::success_msg_writer() << "Found alternate chain with tip " << tip;
       uint64_t start_height = (chain.height - chain.length + 1);
-      tools::msg_writer() << chain.length << " blocks long, from height " << start_height << " (" << (ires.height - start_height - 1)
+      tools::msg_writer() << chain.length << " blocks long, from height " << start_height << " (" << alt_chain_depth(ires.height, start_height)
           << " deep), diff " << cryptonote::difficulty_type(chain.wide_difficulty) << ":";
       for (const std::string &block_id: chain.block_hashes)
         tools::msg_writer() << "  " << block_id;
@@ -2108,7 +2130,7 @@ bool t_rpc_command_executor::alt_chain_info(const std::string &tip, size_t above
           return true;
         }
       }
-      if (bhres.block_headers.size() != chain.length + 1)
+      if (bhres.block_headers.empty() || bhres.block_headers.size() - 1 != chain.length)
       {
         tools::fail_msg_writer() << "Failed to get block header info for alt chain";
         return true;
@@ -2125,11 +2147,13 @@ bool t_rpc_command_executor::alt_chain_info(const std::string &tip, size_t above
       if (chain.length > 1)
       {
         tools::msg_writer() << "Time span: " << tools::get_human_readable_timespan(dt);
-        cryptonote::difficulty_type start_difficulty = bhres.block_headers.back().difficulty;
-        if (start_difficulty > 0)
-          tools::msg_writer() << "Approximated " << 100.f * DIFFICULTY_TARGET_V2 * chain.length / dt << "% of network hash rate";
+        cryptonote::difficulty_type start_difficulty(bhres.block_headers.back().wide_difficulty);
+        if (start_difficulty > 0 && dt > 0)
+          tools::msg_writer() << "Approximated " << 100.f * ires.target * chain.length / dt << "% of network hash rate";
+        else if (dt == 0)
+          tools::fail_msg_writer() << "Cannot estimate hash rate from a zero time span";
         else
-          tools::fail_msg_writer() << "Bad cmumulative difficulty reported by dameon";
+          tools::fail_msg_writer() << "Bad block difficulty reported by daemon";
       }
     }
     else

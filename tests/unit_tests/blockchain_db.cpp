@@ -28,6 +28,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/optional/optional_io.hpp>
 #include <cstdio>
 #include <iostream>
 #include <chrono>
@@ -39,6 +40,7 @@
 #include "blockchain_db/blockchain_db.h"
 #include "blockchain_db/lmdb/db_lmdb.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "epose/state_index_v2.h"
 
 using namespace cryptonote;
 using epee::string_tools::pod_to_hex;
@@ -300,6 +302,93 @@ TYPED_TEST(BlockchainDBTest, AddBlock)
   }
 }
 
+TYPED_TEST(BlockchainDBTest, EPoSESnapshotAtExistingHeightIsReplaced)
+{
+  const boost::filesystem::path path = boost::filesystem::temp_directory_path()
+      / boost::filesystem::unique_path();
+  this->set_prefix(path.string());
+  ASSERT_NO_THROW(this->m_db->open(path.string()));
+  this->get_filenames();
+  this->init_hard_fork();
+  const std::string stale = "stale";
+  epose_state_commitment_v2 commitment{};
+  commitment.schema_version = 1;
+  commitment.block_hash = get_block_hash(this->m_blocks[0].first);
+  commitment.state_hash = crypto::cn_fast_hash("state", 5);
+  commitment.parameter_set_hash = crypto::cn_fast_hash("parameters", 10);
+  qwertycoin::epose::state_snapshot_v2 snapshot{};
+  snapshot.state_schema = commitment.schema_version;
+  snapshot.parameter_set_hash = commitment.parameter_set_hash;
+  snapshot.height = 0;
+  snapshot.block_hash = commitment.block_hash;
+  snapshot.state_root = commitment.state_hash;
+  snapshot.state_image = "state";
+  const std::string current = snapshot.serialize();
+  {
+    db_wtxn_guard guard(this->m_db);
+    this->m_db->put_epose_snapshot(0, stale);
+    ASSERT_NO_THROW(this->m_db->add_block(this->m_blocks[0], t_sizes[0],
+        t_sizes[0], t_diffs[0], t_coins[0], this->m_txs[0], &commitment,
+        nullptr, nullptr, &current));
+  }
+  uint64_t height = 0;
+  std::string image;
+  ASSERT_TRUE(this->m_db->get_epose_snapshot(0, height, image));
+  EXPECT_EQ(0u, height);
+  EXPECT_EQ(current, image);
+  EXPECT_TRUE(this->m_db->get_epose_snapshot_height(0, height));
+  EXPECT_EQ(0u, height);
+}
+
+TYPED_TEST(BlockchainDBTest, EPoSEOrphanSnapshotsDoNotEvictCanonicalSnapshot)
+{
+  const boost::filesystem::path path = boost::filesystem::temp_directory_path()
+      / boost::filesystem::unique_path();
+  this->set_prefix(path.string());
+  ASSERT_NO_THROW(this->m_db->open(path.string()));
+  this->get_filenames();
+  this->init_hard_fork();
+  epose_state_commitment_v2 commitment{};
+  commitment.schema_version = 1;
+  commitment.block_hash = get_block_hash(this->m_blocks[0].first);
+  commitment.state_hash = crypto::cn_fast_hash("state", 5);
+  commitment.parameter_set_hash = crypto::cn_fast_hash("parameters", 10);
+  qwertycoin::epose::state_snapshot_v2 snapshot{};
+  snapshot.state_schema = commitment.schema_version;
+  snapshot.parameter_set_hash = commitment.parameter_set_hash;
+  snapshot.height = 0;
+  snapshot.block_hash = commitment.block_hash;
+  snapshot.state_root = commitment.state_hash;
+  snapshot.state_image = "state";
+  const std::string current = snapshot.serialize();
+  {
+    db_wtxn_guard guard(this->m_db);
+    ASSERT_NO_THROW(this->m_db->add_block(this->m_blocks[0], t_sizes[0],
+        t_sizes[0], t_diffs[0], t_coins[0], this->m_txs[0], &commitment,
+        nullptr, nullptr, &current));
+  }
+  commitment.block_hash = get_block_hash(this->m_blocks[1].first);
+  {
+    db_wtxn_guard guard(this->m_db);
+    ASSERT_NO_THROW(this->m_db->add_block(this->m_blocks[1], t_sizes[1],
+        t_sizes[1], t_diffs[1], t_coins[1], this->m_txs[1], &commitment,
+        nullptr, nullptr, nullptr));
+  }
+  snapshot.height = 1;
+  snapshot.block_hash = crypto::cn_fast_hash("orphan", 6);
+  const std::string orphan = snapshot.serialize();
+  {
+    db_wtxn_guard guard(this->m_db);
+    this->m_db->put_epose_snapshot(1, orphan);
+    this->m_db->put_epose_snapshot(2, orphan);
+  }
+  uint64_t height = 0;
+  std::string image;
+  ASSERT_TRUE(this->m_db->get_epose_snapshot(2, height, image));
+  EXPECT_EQ(0u, height);
+  EXPECT_EQ(current, image);
+}
+
 TYPED_TEST(BlockchainDBTest, EPoSEStateCommitmentSharesCanonicalBlockTransaction)
 {
   boost::filesystem::path tempPath = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
@@ -363,6 +452,346 @@ TYPED_TEST(BlockchainDBTest, EPoSEStateCommitmentSharesCanonicalBlockTransaction
         this->m_txs[0], &unsupported), std::runtime_error);
   }
   EXPECT_EQ(0u, this->m_db->height());
+}
+
+TYPED_TEST(BlockchainDBTest, VmStateFollowsCanonicalBlocks)
+{
+  boost::filesystem::path tempPath = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  const std::string dirPath = tempPath.string();
+  this->set_prefix(dirPath);
+
+  ASSERT_NO_THROW(this->m_db->open(dirPath));
+  this->get_filenames();
+  this->init_hard_fork();
+
+  vm_block_update first{};
+  first.writes = {{"a", std::string("1")}, {"b", std::string("2")}};
+  first.commitment.root = crypto::cn_fast_hash("root0", 5);
+  first.commitment.gas_used = 7;
+  first.commitment.deposited = 100;
+  vm_block_update second{};
+  second.writes = {{"a", std::string("3")}, {"b", boost::none}, {"c", std::string("4")}};
+  second.commitment.root = crypto::cn_fast_hash("root1", 5);
+  second.commitment.deposited = 100;
+  second.commitment.withdrawn = 40;
+  {
+    db_wtxn_guard guard(this->m_db);
+    ASSERT_NO_THROW(this->m_db->add_block(this->m_blocks[0], t_sizes[0], t_sizes[0], t_diffs[0], t_coins[0], this->m_txs[0], nullptr, &first));
+    ASSERT_NO_THROW(this->m_db->add_block(this->m_blocks[1], t_sizes[1], t_sizes[1], t_diffs[1], t_coins[1], this->m_txs[1], nullptr, &second));
+  }
+
+  auto state = [this]() {
+    std::map<std::string, std::string> out;
+    this->m_db->for_all_vm_state([&out](const std::string &key, const std::string &value) { out[key] = value; return true; });
+    return out;
+  };
+  const std::map<std::string, std::string> after_second{{"a", "3"}, {"c", "4"}};
+  EXPECT_EQ(after_second, state());
+
+  vm_block_commitment commitment{};
+  ASSERT_TRUE(this->m_db->get_vm_commitment(1, commitment));
+  EXPECT_EQ(second.commitment.root, commitment.root);
+  EXPECT_EQ(40u, commitment.withdrawn);
+  vm::write_set undo;
+  ASSERT_TRUE(this->m_db->get_vm_undo(1, undo));
+  const vm::write_set expected_undo{{"a", std::string("1")}, {"b", std::string("2")}, {"c", boost::none}};
+  EXPECT_EQ(expected_undo, undo);
+
+  ASSERT_NO_THROW(this->m_db->close());
+  ASSERT_NO_THROW(this->m_db->open(dirPath, DBF_RDONLY));
+  std::string value;
+  ASSERT_TRUE(this->m_db->get_vm_state_value("c", value));
+  EXPECT_EQ("4", value);
+  ASSERT_NO_THROW(this->m_db->close());
+  ASSERT_NO_THROW(this->m_db->open(dirPath));
+  this->m_db->set_hard_fork(&this->m_hardfork);
+
+  block popped{};
+  std::vector<transaction> transactions;
+  ASSERT_NO_THROW(this->m_db->pop_block(popped, transactions));
+  const std::map<std::string, std::string> after_first{{"a", "1"}, {"b", "2"}};
+  EXPECT_EQ(after_first, state());
+  EXPECT_FALSE(this->m_db->get_vm_commitment(1, commitment));
+  ASSERT_TRUE(this->m_db->get_vm_commitment(0, commitment));
+  EXPECT_EQ(7u, commitment.gas_used);
+
+  ASSERT_NO_THROW(this->m_db->pop_block(popped, transactions));
+  EXPECT_TRUE(state().empty());
+  EXPECT_FALSE(this->m_db->get_vm_commitment(0, commitment));
+}
+
+namespace
+{
+  struct exposed_lmdb : BlockchainLMDB
+  {
+    using BlockchainLMDB::add_vm_block;
+    using BlockchainLMDB::remove_vm_block;
+    using BlockchainLMDB::add_chainlock_carrier;
+    using BlockchainLMDB::remove_chainlock_carrier;
+  };
+}
+
+TEST(BlockchainLMDBChainlock, FindsCarrierByLockedHeight)
+{
+  const boost::filesystem::path dir = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  exposed_lmdb db;
+  ASSERT_NO_THROW(db.open(dir.string()));
+  chainlock_record lock{12, crypto::null_hash, false, "lock"};
+  {
+    db_wtxn_guard guard(&db);
+    db.add_chainlock_carrier(712, lock);
+  }
+  uint64_t carrier_height = 0;
+  chainlock_record found;
+  EXPECT_TRUE(db.get_chainlock_carrier(12, carrier_height, found));
+  EXPECT_EQ(carrier_height, 712u);
+  EXPECT_EQ(found.lock, lock.lock);
+  EXPECT_FALSE(db.get_chainlock_carrier(13, carrier_height, found));
+  {
+    db_wtxn_guard guard(&db);
+    db.remove_chainlock_carrier(712);
+  }
+  EXPECT_FALSE(db.get_chainlock_carrier(12, carrier_height, found));
+  db.close();
+  boost::filesystem::remove_all(dir);
+}
+
+TEST(BlockchainLMDBChainlock, ConflictingCandidatesSurviveReverseOrderAndReopen)
+{
+  const chainlock_record first{1210, crypto::cn_fast_hash("first", 5), false, "first-lock"};
+  const chainlock_record second{1210, crypto::cn_fast_hash("second", 6), false, "second-lock"};
+  const auto replay = [&](bool reverse) {
+    const boost::filesystem::path dir = boost::filesystem::temp_directory_path()
+        / boost::filesystem::unique_path();
+    exposed_lmdb db;
+    db.open(dir.string());
+    db.put_chainlock(reverse ? second : first);
+    db.put_chainlock(reverse ? first : second);
+    db.close();
+    db.open(dir.string());
+    chainlock_record found;
+    EXPECT_TRUE(db.get_chainlock(1210, first.block_hash, found));
+    EXPECT_EQ(first.lock, found.lock);
+    EXPECT_TRUE(db.get_chainlock(1210, second.block_hash, found));
+    EXPECT_EQ(second.lock, found.lock);
+    std::vector<std::pair<crypto::hash, bool>> candidates;
+    db.for_chainlocks_descending([&](const chainlock_record &record) {
+      candidates.emplace_back(record.block_hash, record.tombstoned);
+      return true;
+    });
+    db.put_chainlock({1210, first.block_hash, true, {}});
+    EXPECT_TRUE(db.get_chainlock(1210, first.block_hash, found));
+    EXPECT_TRUE(found.tombstoned);
+    EXPECT_TRUE(db.get_chainlock(1210, second.block_hash, found));
+    EXPECT_FALSE(found.tombstoned);
+    db.close();
+    boost::filesystem::remove_all(dir);
+    return candidates;
+  };
+  const auto forward = replay(false);
+  const auto backward = replay(true);
+  ASSERT_EQ(2u, forward.size());
+  EXPECT_EQ(forward, backward);
+}
+
+TEST(BlockchainLMDBChainlock, BackfillsCarrierIndexOnReopen)
+{
+  const boost::filesystem::path dir = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  exposed_lmdb db;
+  ASSERT_NO_THROW(db.open(dir.string()));
+  const std::vector<uint64_t> locked_heights{12, 18, 27};
+  {
+    db_wtxn_guard guard(&db);
+    for (const uint64_t height : locked_heights)
+      db.add_chainlock_carrier(height + 700, chainlock_record{height, crypto::null_hash, false, std::to_string(height)});
+  }
+  db.close();
+
+  MDB_env *env = nullptr;
+  MDB_txn *txn = nullptr;
+  MDB_dbi index = 0;
+  ASSERT_EQ(mdb_env_create(&env), 0);
+  ASSERT_EQ(mdb_env_set_maxdbs(env, 32), 0);
+  ASSERT_EQ(mdb_env_open(env, dir.string().c_str(), 0, 0664), 0);
+  ASSERT_EQ(mdb_txn_begin(env, nullptr, 0, &txn), 0);
+  ASSERT_EQ(mdb_dbi_open(txn, "chainlock_carriers_by_lock", 0, &index), 0);
+  ASSERT_EQ(mdb_drop(txn, index, 0), 0);
+  ASSERT_EQ(mdb_txn_commit(txn), 0);
+  mdb_env_close(env);
+
+  ASSERT_NO_THROW(db.open(dir.string()));
+  for (const uint64_t height : locked_heights)
+  {
+    uint64_t carrier_height = 0;
+    chainlock_record found;
+    ASSERT_TRUE(db.get_chainlock_carrier(height, carrier_height, found));
+    EXPECT_EQ(carrier_height, height + 700);
+    EXPECT_EQ(found.height, height);
+    EXPECT_EQ(found.lock, std::to_string(height));
+  }
+  db.close();
+  boost::filesystem::remove_all(dir);
+}
+
+TEST(BlockchainLMDBChainlock, RepairsStaleCarrierIndexOnReopen)
+{
+  const boost::filesystem::path dir = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  exposed_lmdb db;
+  ASSERT_NO_THROW(db.open(dir.string()));
+  {
+    db_wtxn_guard guard(&db);
+    db.add_chainlock_carrier(712, chainlock_record{12, crypto::null_hash, false, "first"});
+    db.add_chainlock_carrier(718, chainlock_record{18, crypto::null_hash, false, "second"});
+  }
+  db.close();
+
+  MDB_env *env = nullptr;
+  MDB_txn *txn = nullptr;
+  MDB_dbi carriers = 0, index = 0;
+  ASSERT_EQ(mdb_env_create(&env), 0);
+  ASSERT_EQ(mdb_env_set_maxdbs(env, 32), 0);
+  ASSERT_EQ(mdb_env_open(env, dir.string().c_str(), 0, 0664), 0);
+  ASSERT_EQ(mdb_txn_begin(env, nullptr, 0, &txn), 0);
+  ASSERT_EQ(mdb_dbi_open(txn, "chainlock_carriers", 0, &carriers), 0);
+  ASSERT_EQ(mdb_dbi_open(txn, "chainlock_carriers_by_lock", 0, &index), 0);
+  uint64_t removed_height = 718;
+  MDB_val removed_key{sizeof(removed_height), &removed_height};
+  ASSERT_EQ(mdb_del(txn, carriers, &removed_key, nullptr), 0);
+  ASSERT_EQ(mdb_txn_commit(txn), 0);
+  mdb_env_close(env);
+
+  ASSERT_NO_THROW(db.open(dir.string()));
+  uint64_t carrier_height = 0;
+  chainlock_record found;
+  EXPECT_FALSE(db.get_chainlock_carrier(18, carrier_height, found));
+  {
+    db_wtxn_guard guard(&db);
+    EXPECT_NO_THROW(db.add_chainlock_carrier(719, chainlock_record{18, crypto::null_hash, false, "replacement"}));
+  }
+  ASSERT_TRUE(db.get_chainlock_carrier(18, carrier_height, found));
+  EXPECT_EQ(carrier_height, 719u);
+  EXPECT_EQ(found.lock, "replacement");
+  db.close();
+
+  env = nullptr;
+  txn = nullptr;
+  ASSERT_EQ(mdb_env_create(&env), 0);
+  ASSERT_EQ(mdb_env_set_maxdbs(env, 32), 0);
+  ASSERT_EQ(mdb_env_open(env, dir.string().c_str(), 0, 0664), 0);
+  ASSERT_EQ(mdb_txn_begin(env, nullptr, 0, &txn), 0);
+  ASSERT_EQ(mdb_dbi_open(txn, "chainlock_carriers_by_lock", 0, &index), 0);
+  uint64_t locked_height = 12;
+  uint64_t wrong_carrier_height = 719;
+  MDB_val locked_key{sizeof(locked_height), &locked_height};
+  MDB_val wrong_carrier{sizeof(wrong_carrier_height), &wrong_carrier_height};
+  ASSERT_EQ(mdb_put(txn, index, &locked_key, &wrong_carrier, 0), 0);
+  ASSERT_EQ(mdb_txn_commit(txn), 0);
+  mdb_env_close(env);
+
+  ASSERT_NO_THROW(db.open(dir.string()));
+  ASSERT_TRUE(db.get_chainlock_carrier(12, carrier_height, found));
+  EXPECT_EQ(carrier_height, 712u);
+  EXPECT_EQ(found.lock, "first");
+  db.close();
+  boost::filesystem::remove_all(dir);
+}
+
+TEST(BlockchainLMDBChainlock, ReaddsAtSameHeightWithStaleIndex)
+{
+  const boost::filesystem::path dir = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  exposed_lmdb db;
+  ASSERT_NO_THROW(db.open(dir.string()));
+  {
+    db_wtxn_guard guard(&db);
+    db.add_chainlock_carrier(718, chainlock_record{18, crypto::null_hash, false, "original"});
+  }
+
+  MDB_env *env = nullptr;
+  MDB_txn *txn = nullptr;
+  MDB_dbi carriers = 0;
+  ASSERT_EQ(mdb_env_create(&env), 0);
+  ASSERT_EQ(mdb_env_set_maxdbs(env, 32), 0);
+  ASSERT_EQ(mdb_env_open(env, dir.string().c_str(), 0, 0664), 0);
+  ASSERT_EQ(mdb_txn_begin(env, nullptr, 0, &txn), 0);
+  ASSERT_EQ(mdb_dbi_open(txn, "chainlock_carriers", 0, &carriers), 0);
+  uint64_t height = 718;
+  MDB_val key{sizeof(height), &height};
+  ASSERT_EQ(mdb_del(txn, carriers, &key, nullptr), 0);
+  ASSERT_EQ(mdb_txn_commit(txn), 0);
+  mdb_env_close(env);
+
+  {
+    db_wtxn_guard guard(&db);
+    EXPECT_NO_THROW(db.add_chainlock_carrier(718,
+        chainlock_record{18, crypto::null_hash, false, "replacement"}));
+  }
+  uint64_t carrier_height = 0;
+  chainlock_record found;
+  ASSERT_TRUE(db.get_chainlock_carrier(18, carrier_height, found));
+  EXPECT_EQ(carrier_height, 718u);
+  EXPECT_EQ(found.lock, "replacement");
+  db.close();
+  boost::filesystem::remove_all(dir);
+}
+
+TEST(BlockchainLMDBVmUndo, ExpiresAfterRetentionAndSurvivesReset)
+{
+  const boost::filesystem::path dir = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  exposed_lmdb db;
+  ASSERT_NO_THROW(db.open(dir.string()));
+  vm_block_update update{};
+  update.writes = {{"k", std::string("v")}};
+  {
+    db_wtxn_guard guard(&db);
+    db.add_vm_block(0, update);
+    update.writes = {{"k", std::string("w")}};
+    db.add_vm_block(QWC_VM_UNDO_RETENTION_BLOCKS, update);
+  }
+  vm::write_set undo;
+  EXPECT_FALSE(db.get_vm_undo(0, undo));
+  EXPECT_TRUE(db.get_vm_undo(QWC_VM_UNDO_RETENTION_BLOCKS, undo));
+  vm_block_commitment commitment{};
+  EXPECT_TRUE(db.get_vm_commitment(0, commitment));
+  {
+    db_wtxn_guard guard(&db);
+    db.reset_vm_state();
+  }
+  std::string value;
+  EXPECT_FALSE(db.get_vm_state_value("k", value));
+  EXPECT_FALSE(db.get_vm_commitment(0, commitment));
+  db.close();
+  boost::filesystem::remove_all(dir);
+}
+
+TEST(BlockchainLMDBSnapshots, ReadOnlyOpenAllowsMissingSnapshotTable)
+{
+  const boost::filesystem::path path = boost::filesystem::temp_directory_path()
+      / boost::filesystem::unique_path();
+  BlockchainLMDB db;
+  ASSERT_NO_THROW(db.open(path.string()));
+  ASSERT_NO_THROW(db.close());
+
+  MDB_env *environment = nullptr;
+  ASSERT_EQ(MDB_SUCCESS, mdb_env_create(&environment));
+  ASSERT_EQ(MDB_SUCCESS, mdb_env_set_maxdbs(environment, 32));
+  ASSERT_EQ(MDB_SUCCESS, mdb_env_open(environment, path.string().c_str(), 0, 0644));
+  MDB_txn *transaction = nullptr;
+  ASSERT_EQ(MDB_SUCCESS, mdb_txn_begin(environment, nullptr, 0, &transaction));
+  MDB_dbi table = 0;
+  ASSERT_EQ(MDB_SUCCESS, mdb_dbi_open(transaction, "epose_snapshots", 0, &table));
+  ASSERT_EQ(MDB_SUCCESS, mdb_drop(transaction, table, 1));
+  ASSERT_EQ(MDB_SUCCESS, mdb_txn_commit(transaction));
+  mdb_env_close(environment);
+
+  ASSERT_NO_THROW(db.open(path.string(), DBF_RDONLY));
+  uint64_t height = 0;
+  std::string image;
+  EXPECT_FALSE(db.get_epose_snapshot(0, height, image));
+  ASSERT_NO_THROW(db.close());
+  ASSERT_NO_THROW(db.open(path.string()));
+  EXPECT_FALSE(db.get_epose_snapshot(0, height, image));
+  ASSERT_NO_THROW(db.close());
+  boost::filesystem::remove_all(path);
 }
 
 TYPED_TEST(BlockchainDBTest, RetrieveBlockData)

@@ -61,10 +61,15 @@ namespace epose
               height, committed_schema, committed_block,
               committed_state, committed_parameters))
         return replay_status_v2::commitment_missing;
-      if (committed_schema != commitment_schema_version
+      const bool rolling = is_qwc_contracts_hardfork(block.major_version);
+      const uint8_t expected_schema = rolling
+          ? QWC_EPOSE_ROLLING_STATE_SCHEMA : commitment_schema_version;
+      const crypto::hash &expected_parameters = rolling
+          ? transition.state().window_parameter_hash() : parameter_set_hash;
+      if (committed_schema != expected_schema
           || committed_block != block.block_hash
           || committed_state != transition.state().state_hash()
-          || committed_parameters != parameter_set_hash)
+          || committed_parameters != expected_parameters)
         return replay_status_v2::commitment_mismatch;
 
       if (next_summary.blocks == std::numeric_limits<size_t>::max()

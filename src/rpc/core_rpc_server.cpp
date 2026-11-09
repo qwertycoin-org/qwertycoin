@@ -32,6 +32,7 @@
 #include <boost/uuid/nil_generator.hpp>
 #include <boost/filesystem.hpp>
 #include <algorithm>
+#include "rpc/epose_rpc_status.h"
 #include "include_base_utils.h"
 #include "string_tools.h"
 using namespace epee;
@@ -57,6 +58,7 @@ using namespace epee;
 #include "rpc/rpc_handler.h"
 #include "rpc/rpc_payment_costs.h"
 #include "rpc/rpc_payment_signature.h"
+#include "rpc/chainlock_rpc.h"
 #include "core_rpc_server_error_codes.h"
 #include "epose/service_node.h"
 #include "p2p/net_node.h"
@@ -73,6 +75,7 @@ using namespace epee;
 namespace
 {
   constexpr uint64_t EPOSE_RPC_SERVICE_NODE_LIMIT = 1000;
+
   constexpr uint64_t EPOSE_RPC_TELEMETRY_VERSION = 1;
 
   bool public_key_matches_hex(const crypto::public_key &key, const std::string &hex)
@@ -81,28 +84,12 @@ namespace
     return epee::string_tools::hex_to_pod(hex, decoded) && decoded == key;
   }
 
-  cryptonote::epose_service_node_entry make_epose_service_node_entry(
-      const qwertycoin::epose::identity_descriptor_v2 &identity,
-      uint64_t epoch,
-      const std::vector<crypto::public_key> &qualified_nodes)
+  const std::vector<crypto::public_key> &latest_epose_qualified_nodes(
+      const cryptonote::Blockchain::epose_rpc_snapshot &snapshot)
   {
-    cryptonote::epose_service_node_entry entry{};
-    entry.identity_id = epee::string_tools::pod_to_hex(identity.identity_id);
-    entry.service_public_key = epee::string_tools::pod_to_hex(identity.service_public_key);
-    entry.operator_authorization_public_key =
-        epee::string_tools::pod_to_hex(identity.operator_authorization_public_key);
-    entry.reward_view_public_key = epee::string_tools::pod_to_hex(identity.reward_address.m_view_public_key);
-    entry.reward_spend_public_key = epee::string_tools::pod_to_hex(identity.reward_address.m_spend_public_key);
-    entry.endpoint_commitment = epee::string_tools::pod_to_hex(identity.endpoint_descriptor_hash);
-    entry.admission_hash.clear();
-    entry.descriptor_sequence = identity.sequence;
-    entry.effective_epoch = identity.effective_epoch;
-    entry.registration_epoch = identity.effective_epoch;
-    entry.expiry_epoch = identity.expiry_epoch;
-    entry.active = identity.effective_epoch <= epoch && epoch < identity.expiry_epoch;
-    entry.qualified = std::find(qualified_nodes.begin(), qualified_nodes.end(), identity.service_public_key) != qualified_nodes.end();
-    return entry;
+    return cryptonote::epose_epoch_qualified_nodes(snapshot);
   }
+
 }
 
 #define DEFAULT_PAYMENT_DIFFICULTY 1000
@@ -185,6 +172,8 @@ namespace
 
 namespace cryptonote
 {
+  const char EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW[] =
+      "EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW";
 
   //-----------------------------------------------------------------------------------
   void core_rpc_server::init_options(boost::program_options::options_description& desc)
@@ -304,6 +293,50 @@ namespace cryptonote
       m_rpc_payment->store();
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::check_epose_http_request(
+      const epee::net_utils::http::http_request_info& query_info,
+      epee::net_utils::http::http_response_info& response,
+      connection_context& conn_context)
+  {
+    const auto decision = m_epose_challenge_filter.check(
+        conn_context.m_remote_address.host_str(), query_info.m_URI,
+        !m_p2p.is_host_blocked(conn_context.m_remote_address, nullptr),
+        std::chrono::steady_clock::now());
+    if (decision != epose_challenge_rpc_filter::decision::allowed)
+    {
+      response.m_response_code = decision == epose_challenge_rpc_filter::decision::banned ? 403 : 429;
+      response.m_response_comment = decision == epose_challenge_rpc_filter::decision::banned
+          ? "Forbidden" : "Too Many Requests";
+      if (decision == epose_challenge_rpc_filter::decision::banned)
+      {
+        response.m_header_info.m_connection = "close";
+        if (m_epose_challenge_filter.first_ban_for_host(conn_context.m_remote_address.host_str()))
+          MDEBUG("P2P banned RPC host " << conn_context.m_remote_address.host_str());
+      }
+      return false;
+    }
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  void core_rpc_server::check_epose_http_response(
+      const epee::net_utils::http::http_request_info& query_info,
+      epee::net_utils::http::http_response_info& response,
+      const std::string& host)
+  {
+    if (query_info.m_URI != EPOSE_SERVICE_CHALLENGE_V2_URI)
+      return;
+    const bool over_budget = response.m_response_code == 200
+        && response.m_body.size() > QWC_EPOSE_CHALLENGE_RPC_MAX_RESPONSE_BYTES;
+    m_epose_challenge_filter.settle_response_bytes(host,
+        over_budget || response.m_response_code != 200 ? 0 : response.m_body.size());
+    if (over_budget)
+    {
+      response.m_body.clear();
+      response.m_response_code = 429;
+      response.m_response_comment = "Too Many Requests";
+    }
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::init(
       const boost::program_options::variables_map& vm
       , const bool restricted
@@ -315,7 +348,6 @@ namespace cryptonote
     m_bootstrap_daemon_proxy = proxy;
     m_restricted = restricted;
     m_net_server.set_threads_prefix("RPC");
-    m_net_server.set_connection_filter(&m_p2p);
 
     auto rpc_config = cryptonote::rpc_args::process(vm, true);
     if (!rpc_config)
@@ -509,7 +541,8 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::add_host_fail(const connection_context *ctx, unsigned int score)
+  bool core_rpc_server::add_host_fail(const connection_context *ctx,
+      unsigned int score, const char *reason)
   {
     if(!ctx || !ctx->m_remote_address.is_blockable() || disable_rpc_ban
        || rpc_ban_exempt_address_matches(
@@ -524,7 +557,7 @@ namespace cryptonote
       auto it = m_host_fails_score.find(ctx->m_remote_address.host_str());
       CHECK_AND_ASSERT_MES(it != m_host_fails_score.end(), false, "internal error");
       it->second = RPC_IP_FAILS_BEFORE_BLOCK/2;
-      m_p2p.block_host(ctx->m_remote_address);
+      m_p2p.block_host(ctx->m_remote_address, P2P_IP_BLOCKTIME, false, reason);
     }
     return true;
   }
@@ -591,7 +624,8 @@ namespace cryptonote
     res.mainnet = net_type == MAINNET;
     res.testnet = net_type == TESTNET;
     res.stagenet = net_type == STAGENET;
-    res.nettype = net_type == MAINNET ? "mainnet" : net_type == TESTNET ? "testnet" : net_type == STAGENET ? "stagenet" : "fakechain";
+    res.nettype = net_type == MAINNET ? "mainnet" : net_type == TESTNET ? "testnet" : net_type == STAGENET ? "stagenet" : net_type == DEVNET ? "devnet" : "fakechain";
+    res.chainlock_present = m_core.get_blockchain_storage().get_highest_main_chainlock(res.chainlock_height);
     store_difficulty(m_core.get_blockchain_storage().get_db().get_block_cumulative_difficulty(res.height - 1),
         res.cumulative_difficulty, res.wide_cumulative_difficulty, res.cumulative_difficulty_top64);
     res.block_size_limit = res.block_weight_limit = m_core.get_blockchain_storage().get_current_cumulative_block_weight_limit();
@@ -633,22 +667,28 @@ namespace cryptonote
   {
     RPC_TRACKER(get_epose_info);
     const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t epoch = blockchain.get_epose_current_epoch();
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+    const auto snapshot = blockchain.get_epose_rpc_snapshot();
+    if (epose_rpc_busy(snapshot, res))
+      return true;
+    const uint64_t epoch = snapshot.epoch;
+    const auto &service_nodes = snapshot.descriptors;
+    const auto &qualified_nodes = snapshot.qualified_nodes;
 
     res.enabled = blockchain.is_epose_enabled();
     res.protocol_version = qwertycoin::epose::EPOSE_PROTOCOL_VERSION_V2;
     res.current_epoch = epoch;
-    res.epoch_start_height = blockchain.get_epose_epoch_start_height(epoch);
-    res.epoch_end_height = blockchain.get_epose_epoch_end_height(epoch);
+    res.epoch_start_height = snapshot.start_height;
+    res.epoch_end_height = snapshot.end_height;
     res.service_node_count = service_nodes.size();
     res.qualified_count = qualified_nodes.size();
-    res.attestation_count = blockchain.get_epose_attestation_count();
-    res.state_hash = epee::string_tools::pod_to_hex(blockchain.get_epose_state_hash());
+    epose_set_qualification_context(
+        res, snapshot.qualification_epoch, snapshot.qualification_available);
+    res.attestation_count = snapshot.attestation_count;
+    res.state_hash = epee::string_tools::pod_to_hex(snapshot.state_hash);
     res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS_V2;
     res.local_service_node = m_core.is_epose_v2_service_enabled();
     res.local_service_node_key_loaded = m_core.is_epose_v2_service_ready();
+    res.local_service_node_step_failed_count = m_core.get_epose_v2_step_failed_count();
     res.local_service_node_registered = false;
     res.local_service_node_active = false;
     res.local_service_node_qualified = false;
@@ -663,6 +703,9 @@ namespace cryptonote
       res.local_service_advertised_endpoint =
           m_core.get_epose_v2_endpoint_host() + ":"
           + std::to_string(m_core.get_epose_v2_endpoint_port());
+      res.local_service_node_qualified = std::find(
+          qualified_nodes.begin(), qualified_nodes.end(), local_key)
+          != qualified_nodes.end();
       for (const auto &descriptor : service_nodes)
       {
         if (descriptor.identity_id == m_core.get_epose_v2_local_identity_id())
@@ -671,9 +714,6 @@ namespace cryptonote
           res.local_service_node_active = descriptor.effective_epoch <= epoch
               && epoch < descriptor.expiry_epoch;
           res.local_service_node_expiry_epoch = descriptor.expiry_epoch;
-          res.local_service_node_qualified = std::find(
-              qualified_nodes.begin(), qualified_nodes.end(), local_key)
-              != qualified_nodes.end();
           res.local_service_endpoint_commitment =
               epee::string_tools::pod_to_hex(
                   descriptor.endpoint_descriptor_hash);
@@ -703,6 +743,40 @@ namespace cryptonote
       res.status = "RPC authentication is required for EPoSE diagnostics";
       return true;
     }
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    qwertycoin::epose::state_storage_diagnostics_v2 storage{};
+    if (!blockchain.get_epose_state_diagnostics_v2(storage))
+    {
+      res.status = CORE_RPC_STATUS_BUSY;
+      return true;
+    }
+    res.rebuilding = storage.rebuilding;
+    res.fatal = storage.fatal;
+    res.retry_exhausted = storage.retry_exhausted;
+    res.retry_exhausted_tip = storage.retry_exhausted
+        ? epee::string_tools::pod_to_hex(storage.retry_exhausted_tip) : std::string{};
+    if (storage.fatal)
+    {
+      res.status = "FATAL: EPoSE state recovery failed";
+      return true;
+    }
+    if (storage.rebuilding)
+    {
+      res.status = "EPoSE state is rebuilding";
+      return true;
+    }
+    if (storage.retry_exhausted)
+    {
+      res.status = "EPoSE alternative chain retry limit reached";
+      return true;
+    }
+    const uint64_t diagnostics_epoch = resolve_requested_epoch(
+        req.epoch, blockchain.get_epose_current_epoch());
+    if (diagnostics_epoch < blockchain.get_epose_oldest_retained_epoch_v2())
+    {
+      res.status = EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW;
+      return true;
+    }
     qwertycoin::epose::receipt_diagnostics_snapshot_v2 operations{};
     qwertycoin::epose::qualification_diagnostics_v2 qualification{};
     if (!m_core.get_epose_v2_diagnostics(
@@ -713,6 +787,13 @@ namespace cryptonote
     }
 
     res.diagnostics_version = 2;
+    res.state_bytes = storage.state_bytes;
+    res.retained_epochs = storage.retained_epochs;
+    res.oldest_retained_epoch = storage.oldest_retained_epoch;
+    res.history_root = epee::string_tools::pod_to_hex(storage.history_root);
+    res.undo_entries = storage.undo_entries;
+    res.undo_bytes = storage.undo_bytes;
+    res.last_snapshot_height = storage.last_snapshot_height;
     res.reset_utc_ms = operations.reset_utc_ms;
     res.attempts_in_flight = operations.attempts_in_flight;
     res.relay_queue_items = operations.relay_queue_items;
@@ -814,6 +895,7 @@ namespace cryptonote
     res.rounds_required = qualification.rounds_required;
     res.rounds_passed = qualification.rounds_passed;
     res.rounds_remaining = qualification.rounds_remaining;
+    set_epose_diagnostic_transport_v2(res, qualification);
     res.canonical_unique_receipts = qualification.canonical_unique_receipts;
     res.committee_sizes = qualification.committee_sizes;
     res.required_receipts = qualification.required_receipts;
@@ -835,18 +917,22 @@ namespace cryptonote
   {
     RPC_TRACKER(get_service_nodes);
     const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t epoch = blockchain.get_epose_current_epoch();
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
+    const auto snapshot = blockchain.get_epose_rpc_snapshot();
+    if (epose_rpc_busy(snapshot, res))
+      return true;
+    const auto &qualified_nodes = latest_epose_qualified_nodes(snapshot);
+    const auto &service_nodes = snapshot.descriptors;
     const uint64_t limit = req.limit == 0 ? 100 : std::min<uint64_t>(req.limit, EPOSE_RPC_SERVICE_NODE_LIMIT);
 
     res.total_count = service_nodes.size();
+    epose_set_qualification_context(
+        res, snapshot.qualification_epoch, snapshot.qualification_available);
     res.service_nodes.reserve(std::min<uint64_t>(res.total_count, limit));
     for (const auto &identity : service_nodes)
     {
       if (res.service_nodes.size() >= limit)
         break;
-      res.service_nodes.push_back(make_epose_service_node_entry(identity, epoch, qualified_nodes));
+      res.service_nodes.push_back(make_epose_service_node_entry(identity, snapshot, qualified_nodes));
     }
     res.returned_count = res.service_nodes.size();
     res.status = CORE_RPC_STATUS_OK;
@@ -857,16 +943,20 @@ namespace cryptonote
   {
     RPC_TRACKER(get_service_node_status);
     const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t epoch = blockchain.get_epose_current_epoch();
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
+    const auto snapshot = blockchain.get_epose_rpc_snapshot();
+    if (epose_rpc_busy(snapshot, res))
+      return true;
+    const auto &qualified_nodes = latest_epose_qualified_nodes(snapshot);
+    const auto &service_nodes = snapshot.descriptors;
 
     res.found = false;
+    epose_set_qualification_context(
+        res, snapshot.qualification_epoch, snapshot.qualification_available);
     for (const auto &identity : service_nodes)
     {
       if (public_key_matches_hex(identity.service_public_key, req.service_public_key))
       {
-        res.service_node = make_epose_service_node_entry(identity, epoch, qualified_nodes);
+        res.service_node = make_epose_service_node_entry(identity, snapshot, qualified_nodes);
         res.found = true;
         break;
       }
@@ -899,10 +989,19 @@ namespace cryptonote
   {
     RPC_TRACKER(get_epose_epoch);
     const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t current_epoch = blockchain.get_epose_current_epoch();
-    const uint64_t epoch = req.epoch == 0 ? current_epoch : req.epoch;
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+    const auto snapshot = blockchain.get_epose_rpc_snapshot(req.epoch);
+    if (epose_rpc_busy(snapshot, res))
+      return true;
+    const uint64_t epoch = snapshot.epoch;
+    if (epoch < snapshot.oldest_retained_epoch)
+    {
+      res.status = EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW;
+      return true;
+    }
+    const auto &service_nodes = snapshot.descriptors;
+    const auto &qualified_nodes = req.epoch != 0
+        ? epose_epoch_qualified_nodes(snapshot)
+        : latest_epose_qualified_nodes(snapshot);
 
     uint64_t active_count = 0;
     for (const auto &identity : service_nodes)
@@ -910,11 +1009,14 @@ namespace cryptonote
         ++active_count;
 
     res.epoch = epoch;
-    res.start_height = blockchain.get_epose_epoch_start_height(epoch);
-    res.end_height = blockchain.get_epose_epoch_end_height(epoch);
+    res.start_height = snapshot.start_height;
+    res.end_height = snapshot.end_height;
     res.active_count = active_count;
     res.qualified_count = qualified_nodes.size();
-    res.status = CORE_RPC_STATUS_OK;
+    epose_set_qualification_context(
+        res, snapshot.qualification_epoch, snapshot.qualification_available);
+    res.status = epose_qualification_rpc_status(
+        snapshot.qualification_pruned);
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -933,7 +1035,8 @@ namespace cryptonote
       return true;
     }
     if (!m_core.submit_local_epose_envelope_v2(
-            envelope, res.newly_accepted, res.relayed))
+            envelope, res.newly_accepted, res.relayed,
+            epose_local_ingress_origin::rpc_submit))
     {
       res.status = "EPoSE-v2 envelope rejected or daemon not synchronized";
       return true;
@@ -978,6 +1081,8 @@ namespace cryptonote
     res.version = descriptor.version;
     res.service_public_key = epee::string_tools::pod_to_hex(descriptor.service_public_key);
     res.transport = static_cast<uint8_t>(descriptor.transport);
+    res.dial_capabilities = descriptor.dial_capabilities;
+    res.dns_address_families = descriptor.dns_address_families;
     res.host = descriptor.host;
     res.port = descriptor.port;
     res.service_kind = descriptor.service_kind;
@@ -1056,14 +1161,27 @@ namespace cryptonote
     RPC_TRACKER(get_service_rewards);
     const Blockchain &blockchain = m_core.get_blockchain_storage();
     const uint64_t height = req.height == 0 ? m_core.get_current_blockchain_height() : req.height;
+    if (epose_rpc_busy(blockchain.epose_rpc_ready(), res))
+      return true;
     uint64_t reward_source_epoch = 0;
     const bool v2_context_available =
         blockchain.get_epose_reward_source_epoch_v2(height, reward_source_epoch);
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(reward_source_epoch);
+    if (v2_context_available
+        && reward_source_epoch < blockchain.get_epose_oldest_retained_epoch_v2())
+    {
+      res.status = EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW;
+      return true;
+    }
+    std::vector<crypto::public_key> qualified_nodes;
+    const auto qualification_status = blockchain.get_epose_qualified_service_nodes(
+        reward_source_epoch, qualified_nodes);
+    if (v2_context_available
+        && qualification_status == Blockchain::epose_query_status::outside_retained_window)
+    {
+      res.status = EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW;
+      return true;
+    }
 
-    // The old endpoint's payee algorithm is v1 and must not predict a v2
-    // payment. A replacement preview will call the same coordinator reward
-    // planner as miner templates once its bounded RPC contract is approved.
     res.expected_payee_service_public_key.clear();
     res.expected_reward_view_public_key.clear();
     res.expected_reward_spend_public_key.clear();
@@ -1072,6 +1190,7 @@ namespace cryptonote
     res.protocol_version = qwertycoin::epose::EPOSE_PROTOCOL_VERSION_V2;
     res.height = height;
     res.epoch = reward_source_epoch;
+    res.qualification_epoch = v2_context_available ? reward_source_epoch : 0;
     res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS_V2;
     res.qualified_count = v2_context_available ? qualified_nodes.size() : 0;
     res.qualified_service_public_keys.clear();
@@ -1082,7 +1201,14 @@ namespace cryptonote
         res.qualified_service_public_keys.push_back(
             epee::string_tools::pod_to_hex(service_public_key));
     }
-    res.status = CORE_RPC_STATUS_OK;
+    qwertycoin::epose::coordinator_reward_plan_v2 plan{};
+    if (blockchain.preview_epose_reward_v2(height, plan))
+      epose_set_reward_preview(plan, res);
+    if (epose_service_rewards_busy(req.height, height,
+            m_core.get_current_blockchain_height(), blockchain.epose_rpc_ready(), res))
+      return true;
+    res.status = epose_qualification_rpc_status(v2_context_available
+        && blockchain.epose_qualification_pruned_v2(reward_source_epoch));
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -1100,6 +1226,7 @@ namespace cryptonote
     res.payout_epoch = 0;
     res.source_epoch = 0;
     res.qualified_count = 0;
+    res.qualification_epoch = 0;
     res.scheduled_subsidy = 0;
     res.transaction_fees = 0;
     res.miner_subsidy = 0;
@@ -1127,10 +1254,16 @@ namespace cryptonote
     }
 
     Blockchain::epose_block_reward_mapping_v2 mapping{};
+    bool outside_retained_window = false;
+    bool busy = false;
     if (!m_core.get_blockchain_storage().get_epose_block_reward_mapping_v2(
-            requested_hash, mapping))
+            requested_hash, mapping, outside_retained_window, busy))
     {
-      res.status = "Canonical EPoSE-v2 reward mapping unavailable";
+      if (epose_rpc_busy(!busy, res))
+        return true;
+      res.status = outside_retained_window
+          ? EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW
+          : "Canonical EPoSE-v2 reward mapping unavailable";
       return true;
     }
 
@@ -1148,6 +1281,7 @@ namespace cryptonote
     res.payout_epoch = mapping.payout_epoch;
     res.source_epoch = mapping.source_epoch;
     res.qualified_count = mapping.qualified_count;
+    res.qualification_epoch = mapping.source_epoch;
     res.scheduled_subsidy = mapping.allocation.scheduled_subsidy;
     res.transaction_fees = mapping.allocation.transaction_fees;
     res.miner_subsidy = mapping.allocation.miner_subsidy;
@@ -1189,6 +1323,180 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_vm_state_root(const COMMAND_RPC_GET_VM_STATE_ROOT::request& req, COMMAND_RPC_GET_VM_STATE_ROOT::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(get_vm_state_root);
+    vm_block_commitment commitment{};
+    res.active = m_core.get_blockchain_storage().get_vm_commitment_at(req.height, res.height, commitment);
+    res.root = epee::string_tools::pod_to_hex(commitment.root);
+    res.gas_used = commitment.gas_used;
+    res.deposited = commitment.deposited;
+    res.withdrawn = commitment.withdrawn;
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_vm_call_dry_run(const COMMAND_RPC_VM_CALL_DRY_RUN::request& req, COMMAND_RPC_VM_CALL_DRY_RUN::response& res, const connection_context *ctx)
+  {
+    RPC_TRACKER(vm_call_dry_run);
+    if (m_restricted && !QWC_VM_DRY_RUN_ON_RESTRICTED_RPC)
+    {
+      res.status = "Restricted";
+      return true;
+    }
+    const Blockchain &chain = m_core.get_blockchain_storage();
+    if (!is_qwc_contracts_hardfork(chain.get_current_hard_fork_version()))
+    {
+      res.status = "Contracts are not active";
+      return true;
+    }
+    cryptonote::blobdata extra;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(req.extra, extra))
+    {
+      res.status = "Invalid extra";
+      return true;
+    }
+    transaction tx{};
+    tx.version = 2;
+    tx.extra.assign(extra.begin(), extra.end());
+    tx_extra_vm_call call{};
+    const size_t calls = get_tx_vm_call(tx.extra, call);
+    const uint64_t gas_limit = calls == 1 ? call.gas_limit : 0;
+    if (!vm_dry_run_gas_allowed(gas_limit, m_restricted))
+    {
+      res.status = RESTRICTED_VM_DRY_RUN_GAS_STATUS;
+      return true;
+    }
+    if (m_restricted)
+      CHECK_PAYMENT_MIN1(req, res, vm_dry_run_cost(gas_limit), false);
+    uint64_t floor = 0;
+    if (calls == 1 && !contract_call_fee_floor(call, floor))
+    {
+      res.status = "Invalid fee";
+      return true;
+    }
+    res.fee = req.fee ? req.fee : floor;
+    contract_effects effects{};
+    const contract_call_verdict verdict = chain.dry_run_contract_tx(tx, res.fee, effects, false, &res.height);
+    res.verdict = contract_call_verdict_name(verdict);
+    res.accepted = verdict == contract_call_verdict::executed;
+    res.gas_used = effects.gas_used;
+    res.deposited = effects.deposited;
+    res.withdrawn = effects.withdrawn;
+    for (const crypto::public_key& key : effects.required_signers)
+      res.required_signers.push_back(epee::string_tools::pod_to_hex(key));
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_vm_state_proof(const COMMAND_RPC_GET_VM_STATE_PROOF::request& req, COMMAND_RPC_GET_VM_STATE_PROOF::response& res, const connection_context *ctx) try
+  {
+    RPC_TRACKER(get_vm_state_proof);
+    const uint64_t chain_height = m_core.get_current_blockchain_height();
+    if (vm_proof_outside_retention(req.height, chain_height))
+    {
+      res.status = vm_proof_rpc_status(vm_proof_result::outside_retention);
+      return true;
+    }
+    if (!vm_proof_depth_allowed(req.height, chain_height, m_restricted && ctx && !m_rpc_payment))
+    {
+      res.status = RESTRICTED_VM_PROOF_DEPTH_STATUS;
+      return true;
+    }
+    CHECK_PAYMENT_MIN1(req, res, vm_proof_cost(req.height, chain_height), false);
+    std::string key;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(req.key, key))
+    {
+      res.status = "Invalid key";
+      return true;
+    }
+    const Blockchain &chain = m_core.get_blockchain_storage();
+    crypto::hash root{};
+    boost::optional<std::string> value;
+    vm::state_proof proof;
+    const vm_proof_result result = chain.get_vm_state_proof_at(req.height, key, res.height, root, value, proof);
+    if (result != vm_proof_result::ok)
+    {
+      res.status = vm_proof_rpc_status(result);
+      return true;
+    }
+    fill_vm_state_proof_response(res.height, root, value, proof, res);
+    return true;
+  }
+  catch (...)
+  {
+    res.status = VM_PROOF_FAILED_STATUS;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_chainlock(const COMMAND_RPC_GET_CHAINLOCK::request& req, COMMAND_RPC_GET_CHAINLOCK::response& res, const connection_context *ctx) try
+  {
+    RPC_TRACKER(get_chainlock);
+    if (m_restricted && ctx && req.height != 0)
+    {
+      res.status = "Height lookup unavailable on restricted RPC";
+      return true;
+    }
+    CHECK_PAYMENT_MIN1(req, res, COST_PER_BLOCK, false);
+    chainlock_proof proof;
+    const bool admin_reconstruction = chainlock_reconstruction_allowed(m_restricted, ctx != nullptr);
+    const chainlock_proof_result result = m_core.get_blockchain_storage().get_chainlock_proof(
+        req.height, proof, admin_reconstruction);
+    if (result != chainlock_proof_result::ok)
+    {
+      res.status = chainlock_rpc_status(result);
+      return true;
+    }
+    fill_chainlock_response(proof, res);
+    return true;
+  }
+  catch (...)
+  {
+    res.status = CHAINLOCK_PROOF_FAILED_STATUS;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_chainlock_quorum_inputs(const COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS::request& req,
+      COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS::response& res, const connection_context *ctx) try
+  {
+    RPC_TRACKER(get_chainlock_quorum_inputs);
+    if (req.limit == 0 || req.limit > 256)
+    {
+      res.status = "Invalid page limit";
+      return true;
+    }
+    CHECK_PAYMENT_MIN1(req, res, COST_PER_BLOCK, false);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const uint64_t epoch = resolve_requested_epoch(req.epoch, blockchain.get_epose_current_epoch());
+    if (epoch == 0)
+    {
+      res.status = QUORUM_INPUTS_INVALID_EPOCH_STATUS;
+      return true;
+    }
+    const bool reconstruct = blockchain.chainlock_quorum_inputs_require_reconstruction(epoch);
+    const bool admin_reconstruction = chainlock_reconstruction_allowed(m_restricted, ctx != nullptr);
+    if (!chainlock_quorum_inputs_allowed(reconstruct, !admin_reconstruction))
+    {
+      res.status = QUORUM_INPUTS_UNAVAILABLE_STATUS;
+      return true;
+    }
+    chainlock_quorum_inputs inputs;
+    if (!blockchain.get_chainlock_quorum_inputs(
+            epoch, inputs, req.offset, req.limit, reconstruct))
+    {
+      res.status = QUORUM_INPUTS_UNAVAILABLE_STATUS;
+      return true;
+    }
+    fill_chainlock_quorum_inputs_response(inputs, req.offset, res);
+    return true;
+  }
+  catch (...)
+  {
+    res.status = QUORUM_INPUTS_UNAVAILABLE_STATUS;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+
   bool core_rpc_server::on_get_net_stats(const COMMAND_RPC_GET_NET_STATS::request& req, COMMAND_RPC_GET_NET_STATS::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_net_stats);
@@ -1342,7 +1650,7 @@ namespace cryptonote
       if(!m_core.find_blockchain_supplement(req.start_height, req.block_ids, bs, res.current_height, res.start_height, req.prune, !req.no_miner_tx, max_blocks, COMMAND_RPC_GET_BLOCKS_FAST_MAX_TX_COUNT))
       {
         res.status = "Failed";
-        add_host_fail(ctx);
+        add_host_fail(ctx, 1, "invalid_get_blocks_request");
         return true;
       }
 
@@ -1478,7 +1786,7 @@ namespace cryptonote
     if(!m_core.get_blockchain_storage().find_blockchain_supplement(req.block_ids, res.m_block_ids, NULL, res.start_height, res.current_height, false))
     {
       res.status = "Failed";
-      add_host_fail(ctx);
+      add_host_fail(ctx, 1, "invalid_get_hashes_request");
       return true;
     }
 
@@ -1954,10 +2262,24 @@ namespace cryptonote
     }
     res.sanity_check_failed = false;
 
+    if (skip_validation)
+    {
+      transaction tx;
+      crypto::hash tx_hash;
+      if (parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash)
+          && m_core.get_blockchain_storage().have_tx(tx_hash))
+      {
+        res.status = "Failed";
+        res.reason = "double spend";
+        res.double_spend = true;
+        return true;
+      }
+    }
+
     if (!skip_validation)
     {
       tx_verification_context tvc{};
-      if(!m_core.handle_incoming_tx(tx_blob, tvc, (req.do_not_relay ? relay_method::none : relay_method::local), false) || tvc.m_verifivation_failed)
+      if(!m_core.handle_incoming_tx(tx_blob, tvc, (req.do_not_relay ? relay_method::none : relay_method::local), false, true) || tvc.m_verifivation_failed)
       {
         res.status = "Failed";
         std::string reason = "";
@@ -1981,6 +2303,13 @@ namespace cryptonote
           add_reason(reason, "tx-extra too big");
         if ((res.nonzero_unlock_time = tvc.m_nonzero_unlock_time))
           add_reason(reason, "tx unlock time is not zero");
+        if ((res.window_early = tvc.m_window_early))
+          add_reason(reason, "tx height window opens too far ahead");
+        if ((res.window_expired = tvc.m_window_expired))
+          add_reason(reason, "tx height window expired");
+        if ((res.contract_call_rejected = tvc.m_contract_call_rejected))
+          add_reason(reason, "tx contract call rejected");
+        res.reason = reason;
         const std::string punctuation = reason.empty() ? "" : ": ";
         if (tvc.m_verifivation_failed)
         {
@@ -2091,7 +2420,7 @@ namespace cryptonote
     res.is_background_mining_enabled = lMiner.get_is_background_mining_enabled();
     store_difficulty(m_core.get_blockchain_storage().get_difficulty_for_next_block(), res.difficulty, res.wide_difficulty, res.difficulty_top64);
     
-    res.block_target = m_core.get_blockchain_storage().get_current_hard_fork_version() < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+    res.block_target = m_core.get_blockchain_storage().get_difficulty_target();
     if ( lMiner.is_mining() ) {
       res.speed = lMiner.get_speed();
       res.threads_count = lMiner.get_threads_count();
@@ -2888,7 +3217,6 @@ namespace cryptonote
     {
       bool r = on_getblocktemplate(template_req, template_res, error_resp, ctx);
       res.status = template_res.status;
-      template_req.prev_block.clear();
       
       if (!r) return false;
 
@@ -2925,7 +3253,8 @@ namespace cryptonote
       if (!r) return false;
 
       res.blocks.push_back(epee::string_tools::pod_to_hex(get_block_hash(b)));
-      template_req.prev_block = res.blocks.back();
+      if (!req.prev_block.empty())
+        template_req.prev_block = res.blocks.back();
       res.height = template_res.height;
     }
 
@@ -3466,9 +3795,12 @@ namespace cryptonote
         na = epee::net_utils::ipv4_network_address{i->ip, 0};
       }
       if (i->ban)
-        m_p2p.block_host(na, i->seconds);
+        m_p2p.block_host(na, i->seconds, false, "rpc_set_bans");
       else
+      {
         m_p2p.unblock_host(na);
+        m_epose_challenge_filter.clear_ban_for_host(na.host_str());
+      }
     }
 
     res.status = CORE_RPC_STATUS_OK;
@@ -4327,16 +4659,18 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  const command_line::arg_descriptor<std::string, false, true, 2> core_rpc_server::arg_rpc_bind_port = {
+  const command_line::arg_descriptor<std::string, false, true, 3> core_rpc_server::arg_rpc_bind_port = {
       "rpc-bind-port"
     , "Port for RPC server"
     , std::to_string(config::RPC_DEFAULT_PORT)
-    , {{ &cryptonote::arg_testnet_on, &cryptonote::arg_stagenet_on }}
-    , [](std::array<bool, 2> testnet_stagenet, bool defaulted, std::string val)->std::string {
-        if (testnet_stagenet[0] && defaulted)
+    , {{ &cryptonote::arg_testnet_on, &cryptonote::arg_stagenet_on, &cryptonote::arg_devnet_on }}
+    , [](std::array<bool, 3> testnet_stagenet_devnet, bool defaulted, std::string val)->std::string {
+        if (testnet_stagenet_devnet[0] && defaulted)
           return std::to_string(config::testnet::RPC_DEFAULT_PORT);
-        else if (testnet_stagenet[1] && defaulted)
+        else if (testnet_stagenet_devnet[1] && defaulted)
           return std::to_string(config::stagenet::RPC_DEFAULT_PORT);
+        else if (testnet_stagenet_devnet[2] && defaulted)
+          return std::to_string(config::devnet::RPC_DEFAULT_PORT);
         return val;
       }
     };

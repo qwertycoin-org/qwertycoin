@@ -36,6 +36,7 @@
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.inl"
 #include "unit_tests_utils.h"
+#include "heap_usage.h"
 #include <condition_variable>
 
 #define MAKE_IPV4_ADDRESS(a,b,c,d) epee::net_utils::ipv4_network_address{MAKE_IP(a,b,c,d),0}
@@ -79,6 +80,7 @@ public:
   bool handle_incoming_epose_payloads(const std::vector<cryptonote::blobdata>& registration_blobs, const std::vector<cryptonote::blobdata>& attestation_blobs, std::vector<cryptonote::blobdata>& accepted_registration_blobs, std::vector<cryptonote::blobdata>& accepted_attestation_blobs) { accepted_registration_blobs = registration_blobs; accepted_attestation_blobs = attestation_blobs; return true; }
   bool handle_incoming_epose_envelopes_v2(const std::vector<cryptonote::blobdata>& envelopes, std::vector<cryptonote::blobdata>& accepted_envelopes) { accepted_envelopes = envelopes; return true; }
   bool handle_incoming_epose_endpoints_v2(const std::vector<cryptonote::blobdata>& descriptors, std::vector<cryptonote::blobdata>& accepted_descriptors) { accepted_descriptors = descriptors; return true; }
+  cryptonote::Blockchain::chainlock_ingress handle_incoming_chainlock(const cryptonote::blobdata&, cryptonote::blobdata&) { return cryptonote::Blockchain::chainlock_ingress::ignored; }
   bool handle_single_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *b, cryptonote::block_verification_context& bvc, cryptonote::pool_supplement& extra_block_txs, bool update_miner_blocktemplate = true) { return true; }
   bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, bool update_miner_blocktemplate = true) { return true; }
   bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, cryptonote::pool_supplement& extra_block_txs, bool update_miner_blocktemplate = true) { return true; }
@@ -295,6 +297,30 @@ TEST(ban, add)
   ASSERT_TRUE(is_blocked(server,MAKE_IPV4_ADDRESS(1,2,3,4), &t));
   ASSERT_FALSE(is_blocked(server,MAKE_IPV4_ADDRESS(1,2,3,5)));
   ASSERT_TRUE(t >= 4);
+}
+
+TEST(p2p_memory_soak, failed_hosts_have_bounded_heap_growth)
+{
+  test_core pr_core;
+  cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+  Server server(cprotocol);
+  cprotocol.set_p2p_endpoint(&server);
+  auto &endpoint = static_cast<nodetool::i_p2p_endpoint<cryptonote::cryptonote_connection_context> &>(server);
+
+  size_t warmed_heap = 0;
+  for (uint32_t height = 0; height < 720 * 12; ++height)
+  {
+    const uint32_t second = (height >> 16) & 255;
+    const uint32_t third = (height >> 8) & 255;
+    const uint32_t fourth = height & 255;
+    const auto address = MAKE_IPV4_ADDRESS(11, second, third, fourth);
+    ASSERT_TRUE(endpoint.add_host_fail(address));
+    if (height == 720 * 3 - 1)
+      warmed_heap = test_heap_usage::in_use();
+  }
+#if defined(__APPLE__) || defined(__GLIBC__)
+  EXPECT_LE(test_heap_usage::in_use(), warmed_heap + 256 * 1024);
+#endif
 }
 
 TEST(ban, limit)
@@ -680,10 +706,10 @@ TEST(cryptonote_protocol_handler, race_condition)
         core_protocol->on_connection_close(context);
     }
     virtual ~net_node_t() override {}
-    virtual bool add_host_fail(const address_t&, unsigned int = {}) override {
+    virtual bool add_host_fail(const address_t&, unsigned int = {}, const char * = "unspecified") override {
       return {};
     }
-    virtual bool block_host(address_t address, time_t = {}, bool = {}) override {
+    virtual bool block_host(address_t address, time_t = {}, bool = {}, const char * = "manual") override {
       return {};
     }
     virtual bool drop_connection(const contexts::basic& context) override {

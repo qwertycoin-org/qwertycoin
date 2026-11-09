@@ -69,6 +69,10 @@ namespace cryptonote
       return 16 * 1024;
     case cryptonote::NOTIFY_NEW_EPOSE_ENVELOPES_V2::ID:
       return CRYPTONOTE_MAX_TX_SIZE;
+    case cryptonote::NOTIFY_NEW_EPOSE_ENDPOINTS_V2::ID:
+      return QWC_EPOSE_ENDPOINTS_V2_P2P_MAX_PACKET_SIZE;
+    case cryptonote::NOTIFY_CHAINLOCK_V1::ID:
+      return QWC_CHAINLOCK_P2P_MAX_PACKET_SIZE;
     default:
       break;
     };

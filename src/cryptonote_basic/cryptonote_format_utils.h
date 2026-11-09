@@ -37,6 +37,8 @@
 #include "include_base_utils.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
+#include <cstring>
+#include <memory>
 #include <unordered_map>
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -71,12 +73,12 @@ namespace cryptonote
     return true;
   }
 
-  bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2 = false);
+  bool parse_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2 = false, bool allow_contract_fields = true);
   // Consensus callers use the atomic variant. The historical parser above is
   // intentionally tolerant and preserves a successfully decoded metadata
   // prefix for wallet refresh/rescan compatibility.
-  bool parse_tx_extra_strict(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2 = false);
-  bool sort_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<uint8_t> &sorted_tx_extra, bool allow_partial = false, bool allow_epose_v2 = false);
+  bool parse_tx_extra_strict(const std::vector<uint8_t>& tx_extra, std::vector<tx_extra_field>& tx_extra_fields, bool allow_epose_v2 = false, bool allow_contract_fields = false);
+  bool sort_tx_extra(const std::vector<uint8_t>& tx_extra, std::vector<uint8_t> &sorted_tx_extra, bool allow_partial = false, bool allow_epose_v2 = false, bool allow_contract_fields = true);
   crypto::public_key get_tx_pub_key_from_extra(const std::vector<uint8_t>& tx_extra, size_t pk_index = 0);
   crypto::public_key get_tx_pub_key_from_extra(const transaction_prefix& tx, size_t pk_index = 0);
   crypto::public_key get_tx_pub_key_from_extra(const transaction& tx, size_t pk_index = 0);
@@ -88,6 +90,22 @@ namespace cryptonote
   bool add_additional_tx_pub_keys_to_extra(std::vector<uint8_t>& tx_extra, const std::vector<crypto::public_key>& additional_pub_keys);
   bool add_extra_nonce_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& extra_nonce);
   bool add_epose_v2_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& envelope);
+  bool add_height_window_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_height_window& window);
+  size_t get_tx_height_window(const std::vector<uint8_t>& tx_extra, tx_extra_height_window& window);
+  bool add_vm_state_root_to_tx_extra(std::vector<uint8_t>& tx_extra, const crypto::hash& root);
+  size_t get_tx_vm_state_root(const std::vector<uint8_t>& tx_extra, crypto::hash& root);
+  bool add_vm_call_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_vm_call& call);
+  size_t get_tx_vm_call(const std::vector<uint8_t>& tx_extra, tx_extra_vm_call& call);
+  bool get_contract_signing_prefix_hash(const transaction_prefix& tx, crypto::hash& hash);
+  bool get_contract_ring_hash(const transaction_prefix& tx, crypto::hash& hash, uint8_t major_version);
+  bool get_contract_signature_hash(const transaction& tx, network_type network, uint64_t fee, const crypto::hash& called_contract, crypto::hash& hash);
+  bool contract_signers_unique(const std::vector<crypto::public_key>& signers);
+  bool add_chainlock_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& lock);
+  size_t get_tx_chainlock(const std::vector<uint8_t>& tx_extra, blobdata& lock);
+  bool check_contract_extra_fields(const std::vector<tx_extra_field>& fields, contract_extra_scope scope);
+  bool contract_call_before_activation(size_t vm_calls, uint8_t major_version);
+  bool check_tx_contract_extra(const transaction_prefix& tx, uint8_t major_version, contract_extra_scope scope);
+  size_t get_tx_extra_size_limit(const transaction_prefix& tx, uint8_t major_version);
   bool add_mm_merkle_root_to_tx_extra(std::vector<uint8_t>& tx_extra, const crypto::hash& mm_merkle_root, size_t mm_merkle_tree_depth);
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type);
   void set_payment_id_to_tx_extra_nonce(blobdata& extra_nonce, const crypto::hash& payment_id);
@@ -102,7 +120,22 @@ namespace cryptonote
   {
     subaddress_index index;
     crypto::key_derivation derivation;
+    size_t derivation_index;
   };
+  struct output_key_source
+  {
+    crypto::public_key tx_key;
+    std::vector<crypto::public_key> additional_keys;
+    size_t derivation_index;
+  };
+  template<typename Key>
+  bool is_contract_mint_output(bool miner_tx, const Key &tx_key, const std::vector<Key> &additional_keys, size_t output_count, size_t output_index)
+  {
+    return miner_tx && additional_keys.size() == output_count && output_index < output_count
+        && memcmp(std::addressof(additional_keys[output_index]), std::addressof(tx_key), sizeof(Key)) != 0;
+  }
+  output_key_source make_output_key_source(bool miner_tx, const crypto::public_key &tx_key, const std::vector<crypto::public_key> &additional_keys, size_t output_count, size_t output_index);
+  boost::optional<subaddress_receive_info> is_out_to_acc_or_mint_precomp(const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, const crypto::public_key& out_key, const crypto::key_derivation& derivation, const std::vector<crypto::key_derivation>& additional_derivations, size_t output_index, size_t output_count, bool miner_tx, hw::device &hwdev, const boost::optional<crypto::view_tag>& view_tag_opt = boost::optional<crypto::view_tag>());
   boost::optional<subaddress_receive_info> is_out_to_acc_precomp(const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, const crypto::public_key& out_key, const crypto::key_derivation& derivation, const std::vector<crypto::key_derivation>& additional_derivations, size_t output_index, hw::device &hwdev, const boost::optional<crypto::view_tag>& view_tag_opt = boost::optional<crypto::view_tag>());
   bool lookup_acc_outs(const account_keys& acc, const transaction& tx, const crypto::public_key& tx_pub_key, const std::vector<crypto::public_key>& additional_tx_public_keys, std::vector<size_t>& outs, uint64_t& money_transfered);
   bool lookup_acc_outs(const account_keys& acc, const transaction& tx, std::vector<size_t>& outs, uint64_t& money_transfered);
@@ -126,6 +159,7 @@ namespace cryptonote
   bool get_pruned_transaction_hash(const transaction& t, const crypto::hash &pruned_data_hash, crypto::hash& res);
 
   blobdata get_block_hashing_blob(const block& b);
+  bool get_miner_tx_branch(const block& b, std::vector<crypto::hash>& branch);
   bool calculate_block_hash(const block& b, crypto::hash& res, const blobdata_ref *blob = NULL);
   bool get_block_hash(const block& b, crypto::hash& res);
   crypto::hash get_block_hash(const block& b);

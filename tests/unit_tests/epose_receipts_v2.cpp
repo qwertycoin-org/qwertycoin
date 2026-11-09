@@ -4,6 +4,8 @@
 
 #include <gtest/gtest.h>
 
+#include "epose_journal_test_helpers.h"
+
 #include <cstring>
 #include <string>
 
@@ -270,10 +272,10 @@ TEST(epose_receipts_v2, authenticated_receipt_is_accepted_by_frozen_membership_p
     members.push_back(make_member(keys[index], index + 1));
     const admission_lease_v2 lease = make_admission(members.back(), 3);
     ASSERT_EQ(pipeline_status_v2::accepted,
-        pipeline.apply_admission(lease, admission_context(), 2000 + index));
+        epose_test_journal::apply_admission(pipeline, lease, admission_context(), 2000 + index));
   }
   const crypto::hash anchor = hash_text("anchor");
-  ASSERT_EQ(pipeline_status_v2::accepted, pipeline.freeze_membership(3, 2100, anchor));
+  ASSERT_EQ(pipeline_status_v2::accepted, epose_test_journal::freeze_membership(pipeline, 3, 2100, anchor));
   const auto selected = pipeline.committee(3, 0, keys[0].public_key, anchor);
   ASSERT_EQ(2u, selected.size());
   const auto verifier = std::find_if(keys.begin(), keys.end(), [&](const key_pair &candidate) {

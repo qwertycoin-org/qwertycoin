@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/resource_policy_v2.h"
+#include "epose/transport_profile_v2.h"
+#include "epose/hash_transcript.h"
 #include "epose/record_codec_v2.h"
 
 #include <algorithm>
@@ -12,29 +14,12 @@
 
 namespace
 {
-  template <typename T>
-  void append_bytes(std::string &out, const T &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(T));
-  }
-
-  void append_u8(std::string &out, uint8_t value) { out.push_back(static_cast<char>(value)); }
-  void append_u16(std::string &out, uint16_t value)
-  {
-    out.push_back(static_cast<char>(value & 0xff));
-    out.push_back(static_cast<char>((value >> 8) & 0xff));
-  }
-  void append_u64(std::string &out, uint64_t value)
-  {
-    for (unsigned shift = 0; shift < 64; shift += 8)
-      out.push_back(static_cast<char>((value >> shift) & 0xff));
-  }
-  void append_network(std::string &out, cryptonote::network_type nettype)
-  {
-    for (const auto byte : cryptonote::get_config(nettype).NETWORK_ID)
-      append_u8(out, byte);
-  }
-  crypto::hash fast_hash(const std::string &blob) { return crypto::cn_fast_hash(blob.data(), blob.size()); }
+  using qwertycoin::epose::transcript::append_bytes;
+  using qwertycoin::epose::transcript::append_u8;
+  using qwertycoin::epose::transcript::append_u16_le;
+  using qwertycoin::epose::transcript::append_u64_le;
+  using qwertycoin::epose::transcript::append_network;
+  using qwertycoin::epose::transcript::hash_blob;
 
   template <typename T>
   bool read_bytes(const std::string &blob, size_t &offset, T &value)
@@ -160,14 +145,19 @@ namespace epose
     append_u8(blob, descriptor.version);
     append_bytes(blob, descriptor.service_public_key);
     append_u8(blob, static_cast<uint8_t>(descriptor.transport));
-    append_u64(blob, descriptor.host.size());
+    append_u64_le(blob, descriptor.host.size());
     blob.append(descriptor.host);
-    append_u16(blob, descriptor.port);
+    append_u16_le(blob, descriptor.port);
     append_u8(blob, descriptor.service_kind);
     append_u8(blob, descriptor.service_version);
-    append_u64(blob, descriptor.sequence);
-    append_u64(blob, descriptor.expiry_epoch);
-    return fast_hash(blob);
+    append_u64_le(blob, descriptor.sequence);
+    append_u64_le(blob, descriptor.expiry_epoch);
+    if (descriptor.version == 2)
+    {
+      append_u8(blob, descriptor.dial_capabilities);
+      append_u8(blob, descriptor.dns_address_families);
+    }
+    return hash_blob(blob);
   }
 
   bool sign_endpoint_descriptor_v2(
@@ -295,13 +285,23 @@ namespace epose
       const endpoint_descriptor_v2 &descriptor)
   {
     if (nettype == cryptonote::UNDEFINED || genesis_hash == crypto::null_hash
-        || parameter_set_hash == crypto::null_hash || descriptor.version != 1
+        || parameter_set_hash == crypto::null_hash
+        || (descriptor.version != 1 && descriptor.version != 2)
         || descriptor.service_public_key == crypto::null_pkey
         || !crypto::check_key(descriptor.service_public_key) || descriptor.port == 0
         || descriptor.service_kind == 0 || descriptor.service_version == 0
         || (descriptor.transport != endpoint_transport_v2::tcp_ipv4
             && descriptor.transport != endpoint_transport_v2::tcp_ipv6
             && descriptor.transport != endpoint_transport_v2::dns))
+      return resource_status_v2::invalid_descriptor;
+
+    if ((descriptor.version == 1
+            && (descriptor.dial_capabilities != EPOSE_DIAL_IPV4_V2
+                || descriptor.dns_address_families != 0))
+        || (descriptor.version == 2
+            && !valid_transport_profile_v2(
+                static_cast<uint8_t>(descriptor.transport),
+                descriptor.dial_capabilities, descriptor.dns_address_families)))
       return resource_status_v2::invalid_descriptor;
 
     boost::system::error_code error;
@@ -317,7 +317,8 @@ namespace epose
           || (descriptor.transport == endpoint_transport_v2::tcp_ipv4 && !parsed.is_v4())
           || (descriptor.transport == endpoint_transport_v2::tcp_ipv6 && !parsed.is_v6()))
         return resource_status_v2::noncanonical_host;
-      if (!public_probe_address_v2(descriptor.host))
+      if (!public_probe_address_v2(descriptor.host)
+          && !(nettype == cryptonote::FAKECHAIN && parsed.is_loopback()))
         return resource_status_v2::prohibited_address;
     }
     if (!crypto::check_signature(hash_endpoint_descriptor_v2(nettype, genesis_hash, parameter_set_hash, descriptor),
@@ -343,13 +344,18 @@ namespace epose
     append_u8(blob, descriptor.version);
     append_bytes(blob, descriptor.service_public_key);
     append_u8(blob, static_cast<uint8_t>(descriptor.transport));
-    append_u16(blob, static_cast<uint16_t>(descriptor.host.size()));
+    append_u16_le(blob, static_cast<uint16_t>(descriptor.host.size()));
     blob.append(descriptor.host);
-    append_u16(blob, descriptor.port);
+    append_u16_le(blob, descriptor.port);
     append_u8(blob, descriptor.service_kind);
     append_u8(blob, descriptor.service_version);
-    append_u64(blob, descriptor.sequence);
-    append_u64(blob, descriptor.expiry_epoch);
+    append_u64_le(blob, descriptor.sequence);
+    append_u64_le(blob, descriptor.expiry_epoch);
+    if (descriptor.version == 2)
+    {
+      append_u8(blob, descriptor.dial_capabilities);
+      append_u8(blob, descriptor.dns_address_families);
+    }
     append_bytes(blob, descriptor.signature);
     return resource_status_v2::accepted;
   }
@@ -379,8 +385,13 @@ namespace epose
         || !read_u8(blob, offset, next.service_kind)
         || !read_u8(blob, offset, next.service_version)
         || !read_u64(blob, offset, next.sequence)
-        || !read_u64(blob, offset, next.expiry_epoch)
-        || !read_bytes(blob, offset, next.signature)
+        || !read_u64(blob, offset, next.expiry_epoch))
+      return resource_status_v2::invalid_descriptor;
+    if (next.version == 2
+        && (!read_u8(blob, offset, next.dial_capabilities)
+            || !read_u8(blob, offset, next.dns_address_families)))
+      return resource_status_v2::invalid_descriptor;
+    if (!read_bytes(blob, offset, next.signature)
         || offset != blob.size())
       return resource_status_v2::invalid_descriptor;
     const resource_status_v2 status = validate_endpoint_descriptor_v2(

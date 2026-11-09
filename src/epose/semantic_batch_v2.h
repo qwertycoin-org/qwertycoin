@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "epose/envelope_v2.h"
@@ -38,6 +39,7 @@ namespace epose
     size_t receipt_records = 0;
     size_t payment_proof_records = 0;
     verification_counters_v2 verifications{};
+    lifecycle_status_v2 rejected_lifecycle = lifecycle_status_v2::accepted;
   };
 
   enum class semantic_status_v2
@@ -54,7 +56,8 @@ namespace epose
     invalid_payment_proof,
     payment_proof_wrong_carrier,
     duplicate_payment_proof,
-    arithmetic_overflow
+    arithmetic_overflow,
+    outside_retained_window
   };
 
   class semantic_state_v2
@@ -66,7 +69,9 @@ namespace epose
         const crypto::hash &parameter_set_hash,
         const epoch_timing_v2 &timing,
         const admission_policy_v2 &admission_policy,
-        const committee_policy_v2 &committee_policy);
+        const committee_policy_v2 &committee_policy,
+        uint64_t retained_epochs = QWC_EPOSE_RETAINED_EPOCHS,
+        const crypto::hash &window_parameter_hash = crypto::null_hash);
 
     // Checkpoints must be rolled back once, in reverse order, on this state.
     // Mutations must receive the journal; these are not reusable snapshots.
@@ -74,6 +79,10 @@ namespace epose
     {
       lifecycle_registry_v2::undo_journal lifecycle;
       membership_pipeline_v2::undo_journal membership;
+      crypto::hash prior_history_root{};
+      uint64_t prior_next_fold_epoch = 0;
+      uint64_t prior_open_epoch = 0;
+      bool prior_window_active = false;
     };
     undo_journal checkpoint() const;
     void rollback(const undo_journal &undo) noexcept;
@@ -87,16 +96,32 @@ namespace epose
         undo_journal *block_undo = nullptr);
     pipeline_status_v2 freeze_membership(
         uint64_t epoch, uint64_t height, const crypto::hash &anchor_hash,
-        undo_journal *undo = nullptr);
+        undo_journal *undo);
     pipeline_status_v2 close_qualification(
-        uint64_t epoch, uint64_t height, undo_journal *undo = nullptr);
+        uint64_t epoch, uint64_t height, undo_journal *undo);
+    bool reconstruct_chainlock_membership(uint64_t epoch,
+        membership_snapshot_v2 &snapshot, qualification_set_v2 &qualification) const;
+    bool chainlock_membership_stored(uint64_t epoch) const;
+    bool retain_chainlock_epoch(uint64_t epoch, undo_journal *undo);
+    bool carrier_retained(uint64_t epoch) const;
+    bool membership_history_needs_pruning(uint64_t current_epoch) const;
+    bool prune_membership_history(uint64_t current_epoch, undo_journal *undo);
+    bool advance_window(uint64_t open_epoch, undo_journal *undo);
 
     const lifecycle_registry_v2 &lifecycle() const;
     const membership_pipeline_v2 &membership() const;
+    membership_pipeline_v2 &preview_membership();
     cryptonote::network_type nettype() const;
     const crypto::hash &genesis_hash() const;
     const crypto::hash &parameter_set_hash() const;
+    const crypto::hash &window_parameter_hash() const;
+    const crypto::hash &history_root() const;
+    uint64_t retained_epochs() const;
+    uint8_t state_commitment_schema() const;
+    size_t state_bytes() const;
     crypto::hash state_hash() const;
+    std::string serialize_state() const;
+    bool restore_state(const std::string &image);
 
   private:
     cryptonote::network_type nettype_;
@@ -106,6 +131,12 @@ namespace epose
     admission_policy_v2 admission_policy_{};
     lifecycle_registry_v2 lifecycle_;
     membership_pipeline_v2 membership_;
+    crypto::hash window_parameter_hash_{};
+    crypto::hash history_root_{};
+    uint64_t retained_epochs_ = 0;
+    uint64_t next_fold_epoch_ = 0;
+    uint64_t open_epoch_ = 0;
+    bool window_active_ = false;
     bool valid_ = false;
   };
 } // namespace epose

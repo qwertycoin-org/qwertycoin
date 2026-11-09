@@ -9,12 +9,20 @@
 #include <vector>
 
 #include "crypto/crypto.h"
+#include "cryptonote_config.h"
 
 namespace qwertycoin
 {
 namespace epose
 {
   constexpr uint32_t EPOSE_STATE_INDEX_SCHEMA_V2 = 1;
+
+  constexpr bool requires_boundary_snapshot(uint8_t schema, uint64_t height,
+      uint64_t epoch_length)
+  {
+    return schema == QWC_EPOSE_ROLLING_STATE_SCHEMA
+        && epoch_length != 0 && height % epoch_length == 0;
+  }
 
   struct state_checkpoint_v2
   {
@@ -24,6 +32,29 @@ namespace epose
     crypto::hash state_hash{};
     crypto::hash payload_hash{};
   };
+
+  enum class state_index_status_v2;
+
+  struct state_snapshot_v2
+  {
+    uint8_t state_schema = 0;
+    crypto::hash parameter_set_hash{};
+    uint64_t height = 0;
+    crypto::hash block_hash{};
+    crypto::hash state_root{};
+    std::string state_image;
+
+    std::string serialize() const;
+    state_index_status_v2 restore(const std::string &image,
+        const crypto::hash &expected_parameter_set_hash);
+    bool matches(uint8_t expected_schema, uint64_t expected_height,
+        const crypto::hash &expected_block_hash,
+        const crypto::hash &expected_state_root) const;
+  };
+
+  bool snapshot_matches_image(const char *data, size_t size,
+      uint8_t schema, const crypto::hash &parameters, uint64_t height,
+      const crypto::hash &block_hash, const crypto::hash &state_root);
 
   enum class state_index_status_v2
   {

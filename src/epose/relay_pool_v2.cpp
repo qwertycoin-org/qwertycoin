@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/relay_pool_v2.h"
+#include "epose/relay_hardening_v2.h"
 
 #include <algorithm>
 #include <cstring>
 #include <map>
 #include <utility>
+#include <boost/scope_exit.hpp>
 
 #include "epose/compiled_profile_v2.h"
 #include "epose/record_codec_v2.h"
@@ -82,6 +84,36 @@ namespace
         sizeof(receipt.challenge.anchor_hash));
     return context;
   }
+
+  bool canonical_enrollment_record(
+      const qwertycoin::epose::envelope_record_v2 &record,
+      const qwertycoin::epose::semantic_state_v2 &state)
+  {
+    using namespace qwertycoin::epose;
+    lifecycle_record_v2 lifecycle{};
+    if (decode_lifecycle_record_structure_v2(record, lifecycle)
+            == record_codec_status_v2::accepted)
+      return state.lifecycle().contains(lifecycle);
+    admission_lease_v2 admission{};
+    return decode_admission_lease_record_structure_v2(record, admission)
+            == record_codec_status_v2::accepted
+        && state.membership().contains_admission(admission);
+  }
+
+  qwertycoin::epose::pipeline_status_v2 preview_receipt(
+      qwertycoin::epose::semantic_state_v2 &semantic,
+      const qwertycoin::epose::authenticated_service_receipt_v2 &receipt,
+      const qwertycoin::epose::receipt_context_v2 &context,
+      uint64_t inclusion_height,
+      const crypto::hash &anchor)
+  {
+    auto &membership = semantic.preview_membership();
+    auto undo = membership.checkpoint();
+    membership.record_receipt_size(receipt.challenge.epoch, &undo);
+    BOOST_SCOPE_EXIT_ALL(&) { membership.rollback(undo); };
+    return membership.apply_authenticated_receipt(
+        receipt, context, inclusion_height, anchor);
+  }
 }
 
 namespace qwertycoin
@@ -102,13 +134,21 @@ namespace epose
       relay_policy_v2 &policy)
   {
     policy = {};
+    const char *genesis_hex = nullptr;
+    const char *parameter_set_hex = nullptr;
     crypto::hash expected_genesis{};
     crypto::hash expected_parameters{};
-    if (nettype != cryptonote::MAINNET
-        || !epee::string_tools::hex_to_pod(MAINNET_FINAL_GENESIS_HASH_V2, expected_genesis)
-        || !epee::string_tools::hex_to_pod(
-            MAINNET_FINAL_PARAMETER_SET_HASH_V2, expected_parameters)
-        || genesis_hash != expected_genesis
+    if (nettype == cryptonote::FAKECHAIN)
+    {
+      expected_genesis = genesis_hash;
+      parameter_set_hex = FAKECHAIN_PARAMETER_SET_HASH_V2;
+    }
+    else if (!compiled_profile_hashes_v2(nettype, genesis_hex, parameter_set_hex)
+        || !epee::string_tools::hex_to_pod(genesis_hex, expected_genesis)
+        || genesis_hash != expected_genesis)
+      return false;
+    if (expected_genesis == crypto::null_hash
+        || !epee::string_tools::hex_to_pod(parameter_set_hex, expected_parameters)
         || parameter_set_hash != expected_parameters)
       return false;
 
@@ -120,8 +160,10 @@ namespace epose
         256, 32768,
         64, 64,
         8192, 8192};
+    if (nettype == cryptonote::FAKECHAIN)
+      policy.mining_template = {4, 3072, 2, 2, 1536, 1536};
     policy.receipt_slot_dedup_height =
-        QWC_EPOSE_RELAY_HARDENING_HEIGHT;
+        qwertycoin::epose::relay_hardening_height_v2(nettype);
     return policy.valid();
   }
 
@@ -299,32 +341,25 @@ namespace epose
     compact_receipt_slots(current_height);
   }
 
+  void relay_record_pool_v2::prune_canonical_enrollment(const semantic_state_v2 &canonical_state)
+  {
+    std::vector<crypto::hash> canonical_enrollment;
+    for (const auto &stored : records_)
+      if (canonical_enrollment_record(stored.record, canonical_state))
+        canonical_enrollment.push_back(stored.id);
+    erase_confirmed(canonical_enrollment);
+  }
+
   void relay_record_pool_v2::prune_unusable_receipts(
       const uint64_t current_height,
-      const semantic_state_v2 &canonical_state,
+      semantic_state_v2 &canonical_state,
       const canonical_context_source_v2 &contexts)
   {
     prune_expired(current_height);
-    std::vector<crypto::hash> canonical_lifecycles;
-    for (const auto &stored : records_)
-    {
-      lifecycle_record_v2 lifecycle{};
-      if (decode_lifecycle_record_structure_v2(stored.record, lifecycle)
-              == record_codec_status_v2::accepted
-          && canonical_state.lifecycle().contains(lifecycle))
-        canonical_lifecycles.push_back(stored.id);
-      admission_lease_v2 admission{};
-      if (decode_admission_lease_record_structure_v2(stored.record, admission)
-              == record_codec_status_v2::accepted
-          && canonical_state.membership().contains_admission(admission))
-        canonical_lifecycles.push_back(stored.id);
-    }
-    erase_confirmed(canonical_lifecycles);
+    prune_canonical_enrollment(canonical_state);
     if (current_height < receipt_slot_dedup_height_ || records_.empty())
       return;
     std::vector<crypto::hash> remove;
-    // One isolated preview for the sweep; each probe is journaled and undone.
-    semantic_state_v2 next = canonical_state;
     for (const stored_record_v2 &stored : records_)
     {
       if (stored.record.type
@@ -338,6 +373,12 @@ namespace epose
         continue;
       }
       const service_challenge_v2 &challenge = receipt.challenge;
+      if (canonical_state.membership().read_epoch(challenge.epoch)
+          != pipeline_status_v2::accepted)
+      {
+        remove.push_back(stored.id);
+        continue;
+      }
       if (canonical_state.membership().has_receipt_slot(
               challenge.epoch, challenge.round,
               challenge.subject_public_key, challenge.verifier_public_key))
@@ -346,13 +387,13 @@ namespace epose
         remove.push_back(stored.id);
         continue;
       }
-      auto undo = next.checkpoint();
+      auto undo = canonical_state.checkpoint();
+      BOOST_SCOPE_EXIT_ALL(&) { canonical_state.rollback(undo); };
       semantic_apply_summary_v2 summary{};
       const semantic_transaction_context_v2 transaction{
           current_height, true, nullptr, nullptr};
-      const semantic_status_v2 status = next.apply_transaction(
+      const semantic_status_v2 status = canonical_state.apply_transaction(
           {stored.record}, transaction, contexts, summary, &undo);
-      next.rollback(undo);
       if (status != semantic_status_v2::accepted
           && status != semantic_status_v2::context_unavailable)
       {
@@ -400,6 +441,8 @@ namespace epose
       const semantic_state_v2 *canonical_state)
   {
     selected.clear();
+    if (canonical_state)
+      prune_canonical_enrollment(*canonical_state);
     prune_expired(current_height);
     std::vector<relay_item_v2> items;
     const resource_status_v2 status =
@@ -426,15 +469,6 @@ namespace epose
     std::vector<bool> included(next.size());
     size_t bytes = 0;
     const auto add_group = [&](const std::vector<size_t> &group) {
-      if (canonical_state)
-        for (auto i : group)
-        {
-          admission_lease_v2 admission{};
-          if (decode_admission_lease_record_structure_v2(next[i].record, admission)
-                  == record_codec_status_v2::accepted
-              && canonical_state->membership().contains_admission(admission))
-            return false;
-        }
       size_t group_bytes = 0, group_items = 0;
       for (auto i : group)
         if (!included[i])
@@ -556,46 +590,77 @@ namespace epose
       uint64_t inclusion_height,
       const envelope_limits_v2 &envelope_limits,
       const relay_policy_v2 &policy,
-      const semantic_state_v2 &canonical_state,
+      semantic_state_v2 &canonical_state,
       const canonical_context_source_v2 &contexts,
       relay_record_pool_v2 &pool,
-      std::vector<std::string> &accepted)
+      std::vector<std::string> &accepted,
+      relay_ingress_trace_v2 *trace)
   {
     accepted.clear();
+    if (trace != nullptr)
+      *trace = {};
+    size_t envelope_index = 0;
+    const auto reject = [&](const relay_ingress_status_v2 status,
+                            const relay_ingress_rejection_v2 rejection,
+                            const semantic_status_v2 semantic =
+                                semantic_status_v2::accepted,
+                            const lifecycle_status_v2 lifecycle =
+                                lifecycle_status_v2::accepted) {
+      if (trace != nullptr)
+        *trace = {rejection, semantic, lifecycle, envelope_index};
+      return status;
+    };
     if (!envelope_limits.valid() || !policy.valid()
         || !canonical_state.valid() || !pool.valid()
         || envelopes.size() > policy.queue.max_items)
-      return relay_ingress_status_v2::invalid_configuration;
+      return reject(
+          relay_ingress_status_v2::invalid_configuration,
+          relay_ingress_rejection_v2::invalid_pool_or_policy);
 
+    std::vector<envelope_record_v2> received_records;
+    std::vector<bool> canonical_enrollment;
     size_t total_bytes = 0;
     for (const std::string &encoded : envelopes)
     {
+      envelope_index = static_cast<size_t>(&encoded - envelopes.data());
       if (encoded.size() > envelope_limits.max_envelope_bytes
           || encoded.size() > policy.queue.max_bytes
           || total_bytes > policy.queue.max_bytes - encoded.size())
-        return relay_ingress_status_v2::invalid_batch;
+        return reject(
+            relay_ingress_status_v2::invalid_batch,
+            relay_ingress_rejection_v2::envelope_budget);
       total_bytes += encoded.size();
-    }
-
-    relay_record_pool_v2 next_pool = pool;
-    next_pool.prune_unusable_receipts(
-        inclusion_height, canonical_state, contexts);
-    semantic_state_v2 semantic = canonical_state;
-    std::vector<std::string> next_accepted;
-    next_accepted.reserve(envelopes.size());
-    std::vector<envelope_record_v2> received_records;
-    std::vector<bool> forward(envelopes.size(), false);
-    for (const std::string &encoded : envelopes)
-    {
       std::vector<envelope_record_v2> records;
       envelope_budget_v2 ignored{};
       if (parse_envelope_v2(encoded, envelope_limits, records, ignored)
               != envelope_status_v2::accepted
           || records.size() != 1)
-        return relay_ingress_status_v2::invalid_batch;
+        return reject(
+            relay_ingress_status_v2::invalid_batch,
+            relay_ingress_rejection_v2::envelope_parse);
 
-      const size_t index = received_records.size();
+      canonical_enrollment.push_back(canonical_enrollment_record(records.front(), canonical_state));
       received_records.push_back(records.front());
+    }
+
+    relay_record_pool_v2 next_pool = pool;
+    next_pool.prune_unusable_receipts(
+        inclusion_height, canonical_state, contexts);
+    semantic_state_v2 &semantic = canonical_state;
+    std::vector<semantic_state_v2::undo_journal> preview_undo;
+    preview_undo.reserve(envelopes.size());
+    BOOST_SCOPE_EXIT_ALL(&) {
+      for (auto it = preview_undo.rbegin(); it != preview_undo.rend(); ++it)
+        semantic.rollback(*it);
+    };
+    std::vector<std::string> next_accepted;
+    next_accepted.reserve(envelopes.size());
+    std::vector<bool> forward(envelopes.size(), false);
+    for (const std::string &encoded : envelopes)
+    {
+      envelope_index = static_cast<size_t>(&encoded - envelopes.data());
+      const size_t index = envelope_index;
+      const std::vector<envelope_record_v2> records{received_records[index]};
       if (inclusion_height >= policy.receipt_slot_dedup_height
           && records.front().type
           == static_cast<uint8_t>(record_type_v2::service_receipt))
@@ -604,19 +669,30 @@ namespace epose
         if (decode_service_receipt_record_structure_v2(
                 records.front(), receipt)
             != record_codec_status_v2::accepted)
-          return relay_ingress_status_v2::invalid_batch;
+          return reject(
+              relay_ingress_status_v2::invalid_batch,
+              relay_ingress_rejection_v2::receipt_structure);
         const service_challenge_v2 &challenge = receipt.challenge;
+        if (semantic.membership().read_epoch(challenge.epoch)
+            != pipeline_status_v2::accepted)
+          return reject(relay_ingress_status_v2::outside_retained_window,
+              relay_ingress_rejection_v2::receipt_window_unavailable,
+              semantic_status_v2::outside_retained_window);
         crypto::hash canonical_anchor{};
         uint64_t first_inclusion = 0;
         uint64_t last_inclusion = 0;
-        if (!contexts.round_anchor(
-                challenge.epoch, challenge.round, canonical_anchor)
-            || !receipt_inclusion_window_v2(
+        if (!receipt_inclusion_window_v2(
                 canonical_state.membership().timing(),
                 canonical_state.membership().committee_policy(),
                 challenge.epoch, challenge.round,
                 first_inclusion, last_inclusion))
-          return relay_ingress_status_v2::invalid_batch;
+          return reject(
+              relay_ingress_status_v2::invalid_batch,
+              relay_ingress_rejection_v2::receipt_window_unavailable);
+        if (!contexts.round_anchor(challenge.epoch, challenge.round, canonical_anchor))
+          return reject(relay_ingress_status_v2::context_unavailable,
+              relay_ingress_rejection_v2::receipt_window_unavailable,
+              semantic_status_v2::context_unavailable);
         const receipt_context_v2 receipt_context{
             canonical_state.nettype(), canonical_state.genesis_hash(),
             canonical_state.parameter_set_hash()};
@@ -628,18 +704,20 @@ namespace epose
         // without admitting or forwarding it.
         if (inclusion_height > last_inclusion)
         {
-          membership_pipeline_v2 validation = semantic.membership();
           const pipeline_status_v2 late_status =
-              validation.apply_authenticated_receipt(
-                  receipt, receipt_context, first_inclusion,
-                  canonical_anchor);
+              preview_receipt(semantic, receipt, receipt_context,
+                  first_inclusion, canonical_anchor);
           if (late_status == pipeline_status_v2::accepted
               || late_status == pipeline_status_v2::idempotent_duplicate
               || late_status == pipeline_status_v2::receipt_slot_conflict
               || late_status
                   == pipeline_status_v2::qualification_already_closed)
-            return relay_ingress_status_v2::expired;
-          return relay_ingress_status_v2::invalid_batch;
+            return reject(
+                relay_ingress_status_v2::expired,
+                relay_ingress_rejection_v2::receipt_window_closed);
+          return reject(
+              relay_ingress_status_v2::invalid_batch,
+              relay_ingress_rejection_v2::receipt_late_unauthenticated);
         }
 
         if (semantic.membership().has_receipt_slot(
@@ -647,41 +725,39 @@ namespace epose
                 challenge.subject_public_key,
                 challenge.verifier_public_key))
         {
-          membership_pipeline_v2 validation = semantic.membership();
           const pipeline_status_v2 race_status =
-              validation.apply_authenticated_receipt(
-                  receipt, receipt_context, first_inclusion,
-                  canonical_anchor);
+              preview_receipt(semantic, receipt, receipt_context,
+                  first_inclusion, canonical_anchor);
           if (race_status == pipeline_status_v2::idempotent_duplicate
               || race_status == pipeline_status_v2::receipt_slot_conflict)
             continue;
-          return relay_ingress_status_v2::invalid_batch;
+          return reject(
+              relay_ingress_status_v2::invalid_batch,
+              relay_ingress_rejection_v2::receipt_slot_unauthenticated);
         }
       }
 
       semantic_apply_summary_v2 summary{};
       const semantic_transaction_context_v2 transaction{
           inclusion_height, false, nullptr, nullptr};
+
       auto undo = semantic.checkpoint();
-      const auto semantic_status = semantic.apply_transaction(
+      bool retained = false;
+      BOOST_SCOPE_EXIT_ALL(&) { if (!retained) semantic.rollback(undo); };
+      const semantic_status_v2 semantic_status = semantic.apply_transaction(
           records, transaction, contexts, summary, &undo);
       if (semantic_status == semantic_status_v2::context_unavailable)
-        return relay_ingress_status_v2::context_unavailable;
+        return reject(relay_ingress_status_v2::context_unavailable,
+            relay_ingress_rejection_v2::semantic_rejected, semantic_status);
       if (semantic_status != semantic_status_v2::accepted)
-        return relay_ingress_status_v2::invalid_batch;
+        return reject(
+            semantic_status == semantic_status_v2::outside_retained_window
+                ? relay_ingress_status_v2::outside_retained_window
+                : relay_ingress_status_v2::invalid_batch,
+            relay_ingress_rejection_v2::semantic_rejected, semantic_status,
+            summary.rejected_lifecycle);
 
-      // Authenticate before suppressing a canonical replay. A duplicate remains
-      // consensus-valid, but must not reoccupy scarce carrier space.
-      lifecycle_record_v2 lifecycle{};
-      if (decode_lifecycle_record_structure_v2(records.front(), lifecycle)
-              == record_codec_status_v2::accepted
-          && canonical_state.lifecycle().contains(lifecycle))
-        continue;
-
-      admission_lease_v2 admission{};
-      if (decode_admission_lease_record_structure_v2(records.front(), admission)
-              == record_codec_status_v2::accepted
-          && canonical_state.membership().contains_admission(admission))
+      if (canonical_enrollment[index])
         continue;
 
       relay_record_pool_v2 tentative = next_pool;
@@ -690,26 +766,35 @@ namespace epose
       if (queue_status == relay_record_status_v2::expired)
       {
         pool.record_ingress_rejection(queue_status);
-        return relay_ingress_status_v2::expired;
+        return reject(
+            relay_ingress_status_v2::expired,
+            relay_ingress_rejection_v2::queue_expired);
       }
       if (queue_status == relay_record_status_v2::full)
       {
         pool.record_ingress_rejection(queue_status);
-        return relay_ingress_status_v2::capacity_exhausted;
+        return reject(
+            relay_ingress_status_v2::capacity_exhausted,
+            relay_ingress_rejection_v2::queue_full);
       }
       if (queue_status != relay_record_status_v2::accepted
           && queue_status != relay_record_status_v2::idempotent_duplicate
           && queue_status != relay_record_status_v2::receipt_slot_variant)
-        return relay_ingress_status_v2::invalid_batch;
+        return reject(
+            relay_ingress_status_v2::invalid_batch,
+            relay_ingress_rejection_v2::queue_rejected);
 
       if (queue_status == relay_record_status_v2::receipt_slot_variant)
       {
         semantic.rollback(undo);
+        retained = true;
         next_pool = std::move(tentative);
         continue;
       }
       if (queue_status == relay_record_status_v2::idempotent_duplicate)
       {
+        preview_undo.push_back(std::move(undo));
+        retained = true;
         // The duplicate is already pending locally, but it still belongs in
         // this batch's semantic preview.  Otherwise a following admission or
         // lifecycle record could lose a valid in-order dependency merely
@@ -723,6 +808,8 @@ namespace epose
           forward[index] = true;
         continue;
       }
+      preview_undo.push_back(std::move(undo));
+      retained = true;
       next_pool = std::move(tentative);
       forward[index] = true;
     }

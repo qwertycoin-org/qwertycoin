@@ -3,6 +3,7 @@
 set(epose_sources
   attestation_pool.cpp
   block_transition_v2.cpp
+  chainlock_v1.cpp
   replay_v2.cpp
   canonical_service_v2.cpp
   coordinator_v2.cpp
@@ -28,11 +29,13 @@ set(epose_sources
 set(epose_headers
   attestation_pool.h
   block_transition_v2.h
+  chainlock_v1.h
   canonical_service_v2.h
   coordinator_v2.h
   diagnostics_v2.h
   chain_state.h
   envelope_v2.h
+  hash_transcript.h
   lifecycle_v2.h
   membership_v2.h
   record_codec_v2.h

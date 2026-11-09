@@ -32,6 +32,7 @@
 //#include <Winsock2.h>
 //#include <Ws2tcpip.h>
 #include <atomic>
+#include <cstdint>
 #include <string>
 #include <boost/version.hpp>
 #include <boost/asio/io_context.hpp>
@@ -63,6 +64,14 @@ namespace net_utils
 {
 	struct direct_connect
 	{
+		using resolve_handler = std::function<void(
+			const boost::system::error_code&,
+			boost::asio::ip::tcp::resolver::results_type)>;
+		uint8_t allowed_families = 0;
+		std::function<bool(const boost::asio::ip::tcp::endpoint&)> endpoint_allowed;
+		size_t max_resolved_endpoints = 0;
+		std::function<void(boost::asio::ip::tcp::resolver&, const std::string&,
+			const std::string&, resolve_handler)> start_resolve;
 		boost::unique_future<boost::asio::ip::tcp::socket>
 			operator()(const std::string& addr, const std::string& port, boost::asio::steady_timer&) const;
 	};

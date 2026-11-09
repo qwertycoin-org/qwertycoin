@@ -57,6 +57,13 @@ namespace crypto {
   static_assert(sizeof(hash) == HASH_SIZE, "Invalid structure size");
   static_assert(sizeof(hash8) == 8, "Invalid structure size");
 
+  struct rx_thread_state_guard {
+    rx_thread_state_guard() = default;
+    rx_thread_state_guard(const rx_thread_state_guard &) = delete;
+    rx_thread_state_guard &operator=(const rx_thread_state_guard &) = delete;
+    ~rx_thread_state_guard() { rx_slow_hash_free_state(); }
+  };
+
   /*
     Cryptonight hash functions
   */

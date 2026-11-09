@@ -27,6 +27,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "blockchain_utility_network.h"
 #include "bootstrap_file.h"
 #include "blocksdat_file.h"
 #include "common/command_line.h"
@@ -69,6 +70,7 @@ int main(int argc, char* argv[])
   command_line::add_arg(desc_cmd_sett, arg_output_file);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_testnet_on);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_stagenet_on);
+  blockchain_utilities::add_devnet_option(desc_cmd_sett);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_regtest_on);
   command_line::add_arg(desc_cmd_sett, arg_log_level);
   command_line::add_arg(desc_cmd_sett, arg_block_start);
@@ -160,13 +162,13 @@ int main(int argc, char* argv[])
   const network_type net_type = core::get_network_type_from_args(vm);
   r = core_storage->init(db, net_type);
 
+  CHECK_AND_ASSERT_MES(r, 1, "Failed to initialize source blockchain storage");
+
   if (core_storage->get_blockchain_pruning_seed() && !opt_blocks_dat)
   {
     LOG_PRINT_L0("Blockchain is pruned, cannot export");
     return 1;
   }
-
-  CHECK_AND_ASSERT_MES(r, 1, "Failed to initialize source blockchain storage");
   LOG_PRINT_L0("Source blockchain storage initialized OK");
   LOG_PRINT_L0("Exporting blockchain raw data...");
 

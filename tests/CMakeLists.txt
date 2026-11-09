@@ -76,12 +76,20 @@ file(COPY data DESTINATION .) # Copy data directory from source root to build ro
 if (CMAKE_BUILD_TYPE STREQUAL "fuzz" OR OSSFUZZ)
   add_subdirectory(fuzz)
 else ()
+  set(QWC_CHAINLOCK_REPLAY_ARCHIVE "$ENV{QWC_CHAINLOCK_REPLAY_ARCHIVE}" CACHE FILEPATH "Chainlock archive replay input")
+  if (EXISTS "${QWC_CHAINLOCK_REPLAY_ARCHIVE}" AND NOT IS_DIRECTORY "${QWC_CHAINLOCK_REPLAY_ARCHIVE}")
+    set(QWC_CHAINLOCK_REPLAY_AVAILABLE TRUE)
+    set(QWC_CHAINLOCK_REPLAY_TEST_ENVIRONMENT
+      "QWC_CHAINLOCK_REPLAY_ARCHIVE=${QWC_CHAINLOCK_REPLAY_ARCHIVE}"
+      "QWC_CHAINLOCK_REPLAY_TEST_BINARY=$<TARGET_FILE:epose_unit_tests>")
+  endif ()
   add_subdirectory(core_tests)
   add_subdirectory(fuzz)
   add_subdirectory(crypto)
   add_subdirectory(functional_tests)
   add_subdirectory(performance_tests)
   add_subdirectory(unit_tests)
+  add_subdirectory(vm_bench)
   add_subdirectory(difficulty)
   add_subdirectory(block_weight)
   add_subdirectory(hash)
@@ -151,6 +159,13 @@ target_link_libraries(qwertycoin-wallet-crypto-bench cncrypto)
 
 add_test(NAME wallet-crypto-bench COMMAND qwertycoin-wallet-crypto-bench)
 
+find_program(PYTHON3_FOUND python3 REQUIRED)
+add_test(
+  NAME    no_window_fragments
+  COMMAND ${PYTHON3_FOUND} "${CMAKE_CURRENT_SOURCE_DIR}/check_no_window_fragments.py" "${CMAKE_SOURCE_DIR}")
+add_test(
+  NAME    no_window_fragments_rejects_bad_files
+  COMMAND ${PYTHON3_FOUND} "${CMAKE_CURRENT_SOURCE_DIR}/test_check_no_window_fragments.py")
 
 set(enabled_tests
     core_tests

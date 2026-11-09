@@ -1,0 +1,68 @@
+{
+  "activation": {
+    "hardfork_version": 18,
+    "height": null,
+    "required_epoch_alignment": 720
+  },
+  "chainlock": {
+    "lock_max_age_blocks": 720,
+    "quorum_max": 50,
+    "quorum_min_active_nodes": 10,
+    "threshold_percent": 68,
+    "threshold_rounding": "ceil"
+  },
+  "commitments": {
+    "parameter_set_sha256": "e56242016ea9903587373837b1d4290633504c8636489c931d99b91fcf84cdaf"
+  },
+  "contracts": {
+    "block_gas_limit": 50000000,
+    "gas_cost_table": {
+      "call_far": 10000,
+      "check_signature": 100000,
+      "cycle": 20,
+      "cycle_call": 50,
+      "cycle_div": 50,
+      "cycle_mem": 30,
+      "cycle_mul": 30,
+      "deploy": 100000,
+      "deploy_per_byte": 12,
+      "funds_lock": 5000,
+      "hash_op": 1000,
+      "hash_write": 100,
+      "hash_write_per_byte": 5,
+      "hdr_info": 10000,
+      "heap_op": 1000,
+      "host_call_base": 100,
+      "load_var": 2000,
+      "load_var_per_byte": 1,
+      "local_word": 2,
+      "log": 1000,
+      "log_per_byte": 1,
+      "mem_op_per_byte": 1,
+      "save_var": 5000,
+      "save_var_per_byte": 2
+    },
+    "tx_extra_max_bytes": 65536,
+    "tx_gas_cap": 10000000,
+    "vm_undo_retention_blocks": 2160
+  },
+  "epose": {
+    "min_compatible_committee": 5,
+    "retained_epochs": 8
+  },
+  "manifest_kind": "reservation",
+  "mint": {
+    "unlock_blocks": 60
+  },
+  "policy": {
+    "wallet_default_window_blocks": 720,
+    "wallet_default_window_rounding": 100,
+    "window_pool_lead_blocks": 10
+  },
+  "schema_version": 1,
+  "status": "not-activatable",
+  "undecided": [],
+  "window": {
+    "unlock_delay_blocks": 10
+  }
+}

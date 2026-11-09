@@ -35,6 +35,7 @@
 #include "misc_log_ex.h"
 #include "string_tools.h"
 #include "version.h"
+#include "wallet/wallet2.h"
 
 #if defined(WIN32)
 #include <crtdbg.h>
@@ -148,7 +149,7 @@ namespace wallet_args
 
       if (command_line::get_arg(vm, command_line::arg_help))
       {
-        Print(print) << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")" << ENDL;
+        Print(print) << qwertycoin_wallet_banner(tools::wallet2::network_type_from_options(vm)) << ENDL;
         Print(print) << wallet_args::tr("This is the command line Qwertycoin wallet. It needs to connect to a Qwertycoin\n"
 												  "daemon to work correctly.") << ENDL;
         Print(print) << wallet_args::tr("Usage:") << ENDL << "  " << usage;
@@ -158,7 +159,7 @@ namespace wallet_args
       }
       else if (command_line::get_arg(vm, command_line::arg_version))
       {
-        Print(print) << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")";
+        Print(print) << qwertycoin_wallet_banner(tools::wallet2::network_type_from_options(vm));
         should_terminate = true;
         return true;
       }
@@ -209,7 +210,7 @@ namespace wallet_args
     if (!command_line::is_arg_defaulted(vm, arg_max_concurrency))
       tools::set_max_concurrency(command_line::get_arg(vm, arg_max_concurrency));
 
-    Print(print) << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")";
+    Print(print) << qwertycoin_wallet_banner(tools::wallet2::network_type_from_options(vm));
 
     if (!command_line::is_arg_defaulted(vm, arg_log_level))
       MINFO("Setting log level = " << command_line::get_arg(vm, arg_log_level));

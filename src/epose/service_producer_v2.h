@@ -4,6 +4,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include "epose/relay_pool_v2.h"
 #include <cstddef>
@@ -20,6 +21,12 @@ namespace qwertycoin
 {
 namespace epose
 {
+  bool receipt_launch_allowed_v2(
+      uint8_t block_version,
+      bool has_previous_attempt,
+      std::chrono::steady_clock::duration elapsed,
+      std::chrono::steady_clock::duration interval);
+
   // Non-consensus launch-worker bound.  At the 18-bit launch target this is
   // 64 times the mean search space, leaving a negligible exhaustion tail
   // while the asynchronous worker remains cancellable at epoch/reorg changes.
@@ -33,6 +40,9 @@ namespace epose
     endpoint_transport_v2 endpoint_transport = endpoint_transport_v2::tcp_ipv4;
     std::string endpoint_host;
     uint16_t endpoint_port = 0;
+    uint8_t endpoint_version = 1;
+    uint8_t dial_capabilities = 1;
+    uint8_t dns_address_families = 0;
     uint64_t target_epoch = 0;
     uint64_t expiry_epoch = 0;
   };
@@ -46,7 +56,8 @@ namespace epose
     signing_failed,
     admission_search_exhausted,
     cancelled,
-    encoding_failed
+    encoding_failed,
+    deregistered
   };
 
   struct service_enrollment_v2
@@ -62,6 +73,15 @@ namespace epose
     admission_lease_v2 admission{};
     std::vector<envelope_record_v2> records;
   };
+
+  service_producer_status_v2 build_service_admission_v2(
+      const consensus_parameters_v2 &parameters,
+      const identity_descriptor_v2 &descriptor,
+      uint64_t target_epoch,
+      const crypto::hash &admission_context_hash,
+      uint64_t max_nonce_attempts,
+      service_enrollment_v2 &enrollment,
+      const std::atomic<bool> *cancel = nullptr);
 
   // Public signed work only; bounded parsing on load. The caller must still
   // validate against canonical lifecycle state before relaying restored work.
@@ -201,5 +221,20 @@ namespace epose
       uint64_t max_nonce_attempts,
       service_enrollment_v2 &enrollment,
       const std::atomic<bool> *cancel = nullptr);
+
+  service_producer_status_v2 build_service_enrollment_v2(
+      const consensus_parameters_v2 &parameters,
+      const service_enrollment_config_v2 &configuration,
+      const lifecycle_record_v2 *latest_record,
+      const crypto::hash &admission_context_hash,
+      uint64_t max_nonce_attempts,
+      service_enrollment_v2 &enrollment,
+      const std::atomic<bool> *cancel = nullptr);
+
+  bool service_enrollment_inputs_match_v2(
+      uint64_t epoch, const crypto::hash &descriptor_hash,
+      const crypto::hash &context_hash, uint64_t pending_epoch,
+      const crypto::hash &pending_descriptor_hash,
+      const crypto::hash &pending_context_hash);
 } // namespace epose
 } // namespace qwertycoin

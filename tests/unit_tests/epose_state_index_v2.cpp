@@ -56,6 +56,49 @@ TEST(epose_state_index_v2, connect_is_contiguous_idempotent_and_bounded)
   EXPECT_EQ(4u, index.retained_checkpoints());
 }
 
+TEST(epose_state_index_v2, boundary_snapshot_rejects_corruption_and_wrong_chain)
+{
+  state_snapshot_v2 snapshot{};
+  snapshot.state_schema = 2;
+  snapshot.parameter_set_hash = hash_text("parameters");
+  snapshot.height = 720;
+  snapshot.block_hash = hash_text("block");
+  snapshot.state_root = hash_text("state");
+  snapshot.state_image = "canonical-state-image";
+  const std::string image = snapshot.serialize();
+  ASSERT_FALSE(image.empty());
+  state_snapshot_v2 restored{};
+  ASSERT_EQ(state_index_status_v2::accepted,
+      restored.restore(image, snapshot.parameter_set_hash));
+  EXPECT_TRUE(restored.matches(2, 720, snapshot.block_hash, snapshot.state_root));
+  EXPECT_FALSE(restored.matches(2, 720, hash_text("other-block"), snapshot.state_root));
+  EXPECT_FALSE(restored.matches(2, 720, snapshot.block_hash, hash_text("other-state")));
+  EXPECT_FALSE(restored.matches(1, 720, snapshot.block_hash, snapshot.state_root));
+  std::string corrupt = image;
+  corrupt[corrupt.size() / 2] ^= 1;
+  EXPECT_EQ(state_index_status_v2::corrupt_image,
+      restored.restore(corrupt, snapshot.parameter_set_hash));
+  EXPECT_EQ(state_index_status_v2::corrupt_image,
+      restored.restore(image.substr(0, image.size() - 1), snapshot.parameter_set_hash));
+  EXPECT_EQ(state_index_status_v2::wrong_parameter_set,
+      restored.restore(image, hash_text("other-parameters")));
+  EXPECT_TRUE(restored.matches(2, 720, snapshot.block_hash, snapshot.state_root));
+}
+
+TEST(epose_state_index_v2, schema_one_boundary_has_no_snapshot_and_failed_serialization_is_optional)
+{
+  EXPECT_FALSE(requires_boundary_snapshot(1, 12, 12));
+  EXPECT_FALSE(requires_boundary_snapshot(1, 24, 12));
+  EXPECT_TRUE(requires_boundary_snapshot(QWC_EPOSE_ROLLING_STATE_SCHEMA, 24, 12));
+  state_snapshot_v2 snapshot{};
+  snapshot.state_schema = QWC_EPOSE_ROLLING_STATE_SCHEMA;
+  snapshot.parameter_set_hash = hash_text("parameters");
+  snapshot.height = 24;
+  snapshot.block_hash = hash_text("block");
+  snapshot.state_root = hash_text("state");
+  EXPECT_TRUE(snapshot.serialize().empty());
+}
+
 TEST(epose_state_index_v2, invalid_connect_never_mutates_committed_state)
 {
   const auto history = chain(3);

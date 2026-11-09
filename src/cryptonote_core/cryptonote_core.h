@@ -52,6 +52,7 @@
 #include "epose/canonical_service_v2.h"
 #include "epose/diagnostics_v2.h"
 #include "epose/service_producer_v2.h"
+#include "epose_warning_throttle.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
 #include "warnings.h"
@@ -71,11 +72,14 @@ namespace cryptonote
      const size_t long_term_block_weight_window;
    };
 
-  extern const command_line::arg_descriptor<std::string, false, true, 3> arg_data_dir;
+  extern const command_line::arg_descriptor<std::string, false, true, 4> arg_data_dir;
   extern const command_line::arg_descriptor<bool, false> arg_testnet_on;
   extern const command_line::arg_descriptor<bool, false> arg_stagenet_on;
+  extern const command_line::arg_descriptor<bool, false> arg_devnet_on;
   extern const command_line::arg_descriptor<bool, false> arg_regtest_on;
   extern const command_line::arg_descriptor<difficulty_type> arg_fixed_difficulty;
+  extern const command_line::arg_descriptor<uint64_t> arg_regtest_fork_height;
+  extern const command_line::arg_descriptor<bool> arg_regtest_epose_v2;
   extern const command_line::arg_descriptor<bool> arg_offline;
   extern const command_line::arg_descriptor<size_t> arg_block_download_max_size;
   extern const command_line::arg_descriptor<bool> arg_sync_pruned_blocks;
@@ -146,7 +150,7 @@ namespace cryptonote
       *
       * @return true if the transaction was accepted, false otherwise
       */
-     bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, relay_method tx_relay, bool relayed);
+     bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, relay_method tx_relay, bool relayed, bool reject_mined = false);
 
      bool handle_incoming_epose_payloads(
        const std::vector<blobdata>& registration_blobs,
@@ -159,14 +163,24 @@ namespace cryptonote
      bool handle_incoming_epose_endpoints_v2(
        const std::vector<blobdata>& descriptors,
        std::vector<blobdata>& accepted_descriptors);
+     Blockchain::chainlock_ingress handle_incoming_chainlock(
+       const blobdata& lock,
+       blobdata& relay_blob);
      bool submit_local_epose_envelope_v2(
        const blobdata& envelope,
        bool& newly_accepted,
-       bool& relayed);
+       bool& relayed,
+       epose_local_ingress_origin origin);
+     qwertycoin::epose::relay_ingress_status_v2 admit_local_epose_envelopes_v2(
+       const std::vector<blobdata> &envelopes,
+       std::vector<blobdata> &accepted,
+       epose_local_ingress_origin origin);
      bool submit_local_epose_envelopes_v2(
        const std::vector<blobdata>& envelopes,
        bool& newly_accepted,
-       bool& relayed);
+       bool& relayed,
+       epose_local_ingress_origin origin,
+       bool *ingress_expired = nullptr);
 
     /**
       * @brief handles a single incoming block
@@ -291,6 +305,7 @@ namespace cryptonote
          const crypto::hash *required_hash = nullptr) const;
      bool is_epose_v2_service_enabled() const { return m_epose_v2_service_enabled; }
      bool is_epose_v2_service_ready() const { return m_epose_v2_service_ready; }
+     uint64_t get_epose_v2_step_failed_count() const { return m_epose_v2_step_failed_count.load(std::memory_order_relaxed); }
      crypto::hash get_epose_v2_local_identity_id() const { return m_epose_v2_identity_id; }
      crypto::public_key get_epose_v2_local_service_public_key() const { return m_epose_v2_keystore.service_public_key; }
      const std::string& get_epose_v2_reward_address_string() const { return m_epose_v2_reward_address_string; }
@@ -338,11 +353,13 @@ namespace cryptonote
      /**
       * @brief resolves the network type based on command line arguments
       * @param vm variables map
-      * @return network type corresponding to arg_{testnet,stagenet,regtest}_on, defaulting to MAINNET
-      * @throw std::runtime_error if more than 1 of arg_{testnet,stagenet,regtest}_on is present
-      * @throw boost::bad_any_cast if arg_{testnet,stagenet,regtest}_on weren't added to vm
+      * @return network type corresponding to arg_{testnet,stagenet,devnet,regtest}_on, defaulting to MAINNET
+      * @throw std::runtime_error if more than 1 of arg_{testnet,stagenet,devnet,regtest}_on is present
+      * @throw boost::bad_any_cast if arg_{testnet,stagenet,devnet,regtest}_on weren't added to vm
       */
      static network_type get_network_type_from_args(const boost::program_options::variables_map& vm);
+
+     static uint64_t get_regtest_fork_height_from_args(const boost::program_options::variables_map& vm);
 
      /**
       * @brief initializes the core as needed
@@ -357,7 +374,7 @@ namespace cryptonote
       *
       * @return false if one of the init steps fails, otherwise true
       */
-     bool init(const boost::program_options::variables_map& vm, const test_options *test_options = NULL, const GetCheckpointsCallback& get_checkpoints = nullptr, bool allow_dns = true);
+     bool init(const boost::program_options::variables_map& vm, const test_options *test_options = NULL, const GetCheckpointsCallback& get_checkpoints = nullptr, bool allow_dns = true, const qwertycoin::epose::consensus_parameters_v2 *epose_test_parameters = nullptr);
 
      /**
       * @copydoc Blockchain::reset_and_set_genesis_block
@@ -548,6 +565,8 @@ namespace cryptonote
       * @note see tx_memory_pool::have_tx
       */
      bool pool_has_tx(const crypto::hash &txid) const;
+
+     bool pool_has_expired_window_tx(const crypto::hash &txid) const;
 
      /**
       * @copydoc tx_memory_pool::get_transactions
@@ -1019,6 +1038,7 @@ namespace cryptonote
      static bool check_tx_inputs_keyimages_domain(const transaction& tx);
 
    private:
+     friend class BlockchainRecoveryHarness;
 
      /**
       * @copydoc add_new_tx(transaction&, tx_verification_context&, bool)
@@ -1085,8 +1105,12 @@ namespace cryptonote
 
      bool init_epose_service_node_config(const boost::program_options::variables_map& vm);
      bool init_epose_v2_service_runtime();
+     void queue_chainlock_signing(uint64_t height, epee::span<const block> blocks);
+     void sign_queued_chainlock();
+     void relay_chainlock_blob(blobdata blob);
      bool update_epose_v2_service_producer();
      bool update_epose_v2_receipt_producer();
+     std::chrono::seconds epose_v2_attempt_interval() const;
      void maybe_log_epose_v2_diagnostic_summary(
          uint64_t epoch, uint64_t round, uint64_t height, bool force);
      bool build_epose_v2_configured_endpoint(
@@ -1176,8 +1200,14 @@ namespace cryptonote
      std::string m_epose_v2_reward_address_string;
      std::string m_epose_v2_endpoint_host;
      uint16_t m_epose_v2_endpoint_port = 0;
+     uint8_t m_epose_v2_dial_families = 1;
+     uint8_t m_epose_v2_dns_families = 1;
      std::vector<std::string> m_epose_v2_discovery_endpoints;
      qwertycoin::epose::service_keystore_v2 m_epose_v2_keystore;
+     std::mutex m_chainlock_queue_mutex;
+     boost::optional<std::pair<uint64_t, crypto::hash>> m_chainlock_queued_tip;
+     std::mutex m_chainlock_signer_mutex;
+     qwertycoin::epose::chainlock_signer_state_v1 m_chainlock_signer_state;
      cryptonote::account_public_address m_epose_v2_reward_address{};
      mutable std::mutex m_epose_v2_endpoint_mutex;
      qwertycoin::epose::endpoint_descriptor_v2 m_epose_v2_endpoint{};
@@ -1191,8 +1221,29 @@ namespace cryptonote
          m_epose_v2_last_current_endpoint_relay{};
      crypto::hash m_epose_v2_identity_id{};
      uint64_t m_epose_v2_pending_epoch = std::numeric_limits<uint64_t>::max();
+     crypto::hash m_epose_v2_pending_descriptor_hash{};
+     crypto::hash m_epose_v2_pending_context_hash{};
      std::vector<blobdata> m_epose_v2_pending_envelopes;
      std::chrono::steady_clock::time_point m_epose_v2_last_submission{};
+     std::atomic<uint64_t> m_epose_v2_last_ingress_rejection_epoch{
+         std::numeric_limits<uint64_t>::max()};
+     std::atomic<uint64_t> m_epose_v2_last_receipt_rejection_epoch{
+         std::numeric_limits<uint64_t>::max()};
+     std::atomic<uint64_t> m_epose_v2_last_rpc_rejection_epoch{
+         std::numeric_limits<uint64_t>::max()};
+     std::atomic<uint64_t> m_epose_v2_step_failed_count{0};
+     std::atomic<uint64_t> m_epose_v2_last_current_endpoint_warning_epoch{
+         std::numeric_limits<uint64_t>::max()};
+     std::atomic<uint64_t> m_epose_v2_last_target_endpoint_warning_epoch{
+         std::numeric_limits<uint64_t>::max()};
+     std::atomic<uint64_t> m_epose_v2_last_enrollment_warning_epoch{
+         std::numeric_limits<uint64_t>::max()};
+     std::atomic<uint64_t> m_epose_v2_last_service_update_failure_epoch{
+         std::numeric_limits<uint64_t>::max()};
+     std::function<bool()> m_epose_idle_service_update_hook;
+     std::function<uint64_t()> m_epose_idle_epoch_hook;
+     std::function<void()> m_epose_idle_service_warning_hook;
+     bool m_epose_v2_identity_deregistered = false;
      std::atomic<bool> m_epose_v2_producer_cancel{false};
      std::future<std::pair<
          qwertycoin::epose::service_producer_status_v2,

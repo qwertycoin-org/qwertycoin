@@ -49,11 +49,13 @@
 
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_core/cryptonote_core.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_core/tx_pool.h"
 #include "cryptonote_core/blockchain.h"
 #include "blockchain_db/testdb.h"
 
 #include "chaingen.h"
+#include "vm/hdr_info_hf18.h"
 #include "device/device.hpp"
 using namespace std;
 
@@ -257,6 +259,56 @@ void test_generator::add_block(const cryptonote::block& blk, size_t txs_weight, 
 {
   const size_t block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
   m_blocks_info[get_block_hash(blk)] = block_info(blk.prev_id, already_generated_coins + block_reward, block_weight);
+  m_contract_states[get_block_hash(blk)] = contract_block_state{get_contract_state(blk.prev_id), blk.timestamp};
+}
+
+const vm::state_tree& test_generator::get_contract_state(const crypto::hash& blk_id) const
+{
+  static const vm::state_tree empty;
+  const auto it = m_contract_states.find(blk_id);
+  return it == m_contract_states.end() ? empty : it->second.state;
+}
+
+bool test_generator::execute_contracts(const crypto::hash& prev_id, uint64_t height, const std::list<cryptonote::transaction>& txs,
+    contract_block_state& next, cryptonote::miner_contract_outputs& outputs, cryptonote::contract_effects& effects) const
+{
+  next.state = get_contract_state(prev_id);
+  cryptonote::contract_block_context context;
+  context.height = height;
+  context.parent.height = height - 1;
+  context.parent.hash = prev_id;
+  const auto info = m_blocks_info.find(prev_id);
+  context.parent.prev = info == m_blocks_info.end() ? crypto::null_hash : info->second.prev_id;
+  const auto parent = m_contract_states.find(prev_id);
+  context.parent.timestamp = parent == m_contract_states.end() ? 0 : parent->second.timestamp;
+  context.hdr_info_active = true;
+  const vm::parent_header anchor = context.parent;
+  context.headers = [this, anchor](uint64_t requested, vm::parent_header& result) {
+    const auto no_main = [](uint64_t, vm::parent_header&) { return false; };
+    const auto read_hash = [this](const crypto::hash& hash, uint64_t at, vm::parent_header& header) {
+      const auto info = m_blocks_info.find(hash);
+      const auto state = m_contract_states.find(hash);
+      if (info == m_blocks_info.end() || state == m_contract_states.end())
+        return false;
+      header = {at, hash, info->second.prev_id, state->second.timestamp};
+      return true;
+    };
+    return vm::resolve_ancestor_header(anchor, requested, result, no_main, read_hash);
+  };
+
+  cryptonote::contract_block_executor executor(next.state, context);
+  for (const transaction& tx : txs)
+  {
+    uint64_t fee = 0;
+    CHECK_AND_ASSERT_MES(get_tx_fee(tx, fee), false, "wrong transaction passed to execute_contracts");
+    executor.execute(tx, fee);
+  }
+  const vm::write_set writes = executor.writes();
+  next.state.apply(writes);
+  effects = executor.effects();
+  outputs.state_root = next.state.get_root();
+  outputs.mints = effects.mints;
+  return true;
 }
 
 bool test_generator::construct_block(cryptonote::block& blk, uint64_t height, const crypto::hash& prev_id,
@@ -289,10 +341,17 @@ bool test_generator::construct_block(cryptonote::block& blk, uint64_t height, co
   }
 
   blk.miner_tx = AUTO_VAL_INIT(blk.miner_tx);
+  const bool contracts = hf_ver && is_qwc_contracts_hardfork(hf_ver.get());
+  contract_block_state contract_next;
+  cryptonote::miner_contract_outputs contract_outputs;
+  cryptonote::contract_effects contract_effects;
+  if (contracts && !execute_contracts(prev_id, height, tx_list, contract_next, contract_outputs, contract_effects))
+    return false;
+  total_fee -= contract_effects.deposited;
   size_t target_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
   while (true)
   {
-    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, target_block_weight, total_fee, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), 10, hf_ver ? hf_ver.get() : 1))
+    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, target_block_weight, total_fee, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), 10, hf_ver ? hf_ver.get() : 1, nullptr, contracts ? &contract_outputs : nullptr))
       return false;
 
     size_t actual_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
@@ -336,8 +395,10 @@ bool test_generator::construct_block(cryptonote::block& blk, uint64_t height, co
   //blk.tree_root_hash = get_tx_tree_hash(blk);
 
   fill_nonce(blk, get_test_difficulty(hf_ver), height);
-  const uint64_t block_reward = get_outs_money_amount(blk.miner_tx) - total_fee;
+  const uint64_t block_reward = get_outs_money_amount(blk.miner_tx) - total_fee - contract_effects.withdrawn;
   add_block(blk, txs_weight, block_weights, already_generated_coins, block_reward, hf_ver ? hf_ver.get() : 1);
+  if (contracts)
+    m_contract_states[get_block_hash(blk)].state = std::move(contract_next.state);
 
   return true;
 }
@@ -372,7 +433,8 @@ bool test_generator::construct_block_manually(block& blk, const block& prev_bloc
                                               const transaction& miner_tx/* = transaction()*/,
                                               const std::vector<crypto::hash>& tx_hashes/* = std::vector<crypto::hash>()*/,
                                               size_t txs_weight/* = 0*/, size_t max_outs/* = 0*/, uint8_t hf_version/* = 1*/,
-                                              uint64_t fees/* = 0*/)
+                                              uint64_t fees/* = 0*/, const std::list<cryptonote::transaction>& contract_txs,
+                                              const cryptonote::blobdata& chainlock)
 {
   blk.major_version = actual_params & bf_major_ver ? major_ver : CURRENT_BLOCK_MAJOR_VERSION;
   blk.minor_version = actual_params & bf_minor_ver ? minor_ver : CURRENT_BLOCK_MINOR_VERSION;
@@ -387,15 +449,23 @@ bool test_generator::construct_block_manually(block& blk, const block& prev_bloc
   uint64_t already_generated_coins = get_already_generated_coins(prev_block);
   std::vector<size_t> block_weights;
   get_last_n_block_weights(block_weights, get_block_hash(prev_block), CRYPTONOTE_REWARD_BLOCKS_WINDOW);
+  const bool contracts = !(actual_params & bf_miner_tx) && is_qwc_contracts_hardfork(hf_version);
+  contract_block_state contract_next;
+  cryptonote::contract_effects contract_effects;
   if (actual_params & bf_miner_tx)
   {
     blk.miner_tx = miner_tx;
   }
   else
   {
+    cryptonote::miner_contract_outputs contract_outputs;
+    if (contracts && !execute_contracts(blk.prev_id, height, contract_txs, contract_next, contract_outputs, contract_effects))
+      return false;
+    contract_outputs.chainlock = chainlock;
+    fees -= contract_effects.deposited;
     size_t current_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
     // TODO: This will work, until size of constructed block is less then CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE
-    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, current_block_weight, fees, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), max_outs, hf_version))
+    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, current_block_weight, fees, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), max_outs, hf_version, nullptr, contracts ? &contract_outputs : nullptr))
       return false;
   }
 
@@ -404,8 +474,10 @@ bool test_generator::construct_block_manually(block& blk, const block& prev_bloc
   difficulty_type a_diffic = actual_params & bf_diffic ? diffic : get_test_difficulty(hf_version);
   fill_nonce(blk, a_diffic, height);
 
-  const uint64_t block_reward = get_outs_money_amount(blk.miner_tx) - fees;
+  const uint64_t block_reward = get_outs_money_amount(blk.miner_tx) - fees - contract_effects.withdrawn;
   add_block(blk, txs_weight, block_weights, already_generated_coins, block_reward, hf_version);
+  if (contracts)
+    m_contract_states[get_block_hash(blk)].state = std::move(contract_next.state);
 
   return true;
 }
@@ -1098,7 +1170,101 @@ bool construct_tx_rct(const cryptonote::account_keys& sender_account_keys, std::
   std::vector<crypto::secret_key> additional_tx_keys;
   std::vector<tx_destination_entry> destinations_copy = destinations;
   rct::RCTConfig rct_config = {range_proof_type, bp_version};
-  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, tx_key, additional_tx_keys, rct, rct_config);
+  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, tx_key, additional_tx_keys, FAKECHAIN, rct, rct_config);
+}
+
+bool construct_zero_output_tx_v1(const account_keys& sender,
+    const tx_source_entry& source, const tx_extra_vm_call& call, transaction& tx)
+{
+  std::vector<uint8_t> extra;
+  if (!add_vm_call_to_tx_extra(extra, call))
+    return false;
+  tx_destination_entry destination{};
+  destination.addr = sender.m_account_address;
+  std::vector<tx_source_entry> sources{source};
+  return construct_tx_rct(sender, sources, {destination}, boost::none,
+      std::move(extra), tx, false);
+}
+
+bool construct_signed_zero_output_call_v1(const account_keys& sender,
+    const tx_source_entry& source, tx_extra_vm_call call,
+    const crypto::hash& contract_id,
+    transaction& tx)
+{
+  if (source.amount < QWC_VM_TX_GAS_CAP
+      || source.amount % QWC_VM_TX_GAS_CAP != 0)
+    return false;
+  crypto::public_key signer{};
+  crypto::secret_key secret{};
+  if (!derive_contract_key(sender, contract_id, crypto::null_hash, signer, secret))
+    return false;
+  call.gas_price = source.amount / QWC_VM_TX_GAS_CAP;
+  call.signers.push_back(signer);
+  call.signatures.emplace_back();
+  call.signer_contracts.push_back(contract_id);
+  call.signer_methods.push_back(call.method);
+  call.signer_key_ids.push_back(crypto::null_hash);
+  call.signer_nested.push_back(0);
+  return construct_zero_output_tx_v1(sender, source, call, tx);
+}
+
+bool resign_constructed_tx_v1(transaction& tx, const account_keys& sender,
+    const tx_source_entry& source)
+{
+  if (tx.version != 1 || tx.vin.size() != 1 || source.real_output >= source.outputs.size())
+    return false;
+  tx_extra_vm_call call{};
+  const size_t calls = get_tx_vm_call(tx.extra, call);
+  if (calls > 1)
+    return false;
+  if (calls == 1)
+  {
+    uint64_t fee = 0;
+    if (!get_tx_fee(tx, fee) || !sign_contract_call(tx, sender, FAKECHAIN, fee))
+      return false;
+  }
+  crypto::hash ring_hash{};
+  if (calls == 1)
+  {
+    if (!get_contract_ring_hash(tx, ring_hash, HF_VERSION_QWC_CONTRACTS))
+      return false;
+  }
+  else
+    get_transaction_prefix_hash(tx, ring_hash);
+  std::unordered_map<crypto::public_key, subaddress_index> subaddresses;
+  subaddresses[sender.m_account_address.m_spend_public_key] = {0, 0};
+  const crypto::public_key& real_key = reinterpret_cast<const crypto::public_key&>(
+      source.outputs[source.real_output].second.dest);
+  keypair ephemeral{};
+  crypto::key_image image{};
+  if (!generate_key_image_helper(sender, subaddresses, real_key,
+          source.real_out_tx_key, source.real_out_additional_tx_keys,
+          source.real_output_in_tx_index, ephemeral, image,
+          hw::get_device("default")))
+    return false;
+  const auto& input = boost::get<txin_to_key>(tx.vin.front());
+  if (image != input.k_image)
+    return false;
+  std::vector<crypto::public_key> keys;
+  std::vector<const crypto::public_key*> key_ptrs;
+  keys.reserve(source.outputs.size());
+  key_ptrs.reserve(source.outputs.size());
+  for (const auto& output : source.outputs)
+    keys.push_back(rct::rct2pk(output.second.dest));
+  for (const auto& key : keys)
+    key_ptrs.push_back(&key);
+  tx.signatures.assign(1, std::vector<crypto::signature>(keys.size()));
+  crypto::generate_ring_signature(ring_hash, image, key_ptrs, ephemeral.sec,
+      source.real_output, tx.signatures.front().data());
+  tx.invalidate_hashes();
+  return true;
+}
+
+void push_unsubmitted_tx(std::vector<test_event_entry>& events, const transaction& tx)
+{
+  SET_EVENT_VISITOR_SETT(events, event_visitor_settings::skip_transactions);
+  events.push_back(tx);
+  SET_EVENT_VISITOR_SETT(events, 0);
 }
 
 transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,

@@ -44,6 +44,7 @@
 #include "p2p/net_node.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
 #include "rpc_payment.h"
+#include "epose_challenge_rpc_filter.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "daemon.rpc"
@@ -57,7 +58,7 @@ namespace cryptonote
   {
   public:
 
-    static const command_line::arg_descriptor<std::string, false, true, 2> arg_rpc_bind_port;
+    static const command_line::arg_descriptor<std::string, false, true, 3> arg_rpc_bind_port;
     static const command_line::arg_descriptor<std::string> arg_rpc_restricted_bind_port;
     static const command_line::arg_descriptor<bool> arg_restricted_rpc;
     static const command_line::arg_descriptor<std::string> arg_rpc_ssl;
@@ -97,7 +98,16 @@ namespace cryptonote
       );
     network_type nettype() const { return m_core.get_nettype(); }
 
-    CHAIN_HTTP_TO_MAP2(connection_context); //forward http requests to uri map
+    CHAIN_HTTP_TO_MAP2_FILTERED_POST(connection_context,
+        check_epose_http_request(query_info, response, m_conn_context),
+        check_epose_http_response(query_info, response, m_conn_context.m_remote_address.host_str()));
+
+    bool check_epose_http_request(const epee::net_utils::http::http_request_info& query_info,
+        epee::net_utils::http::http_response_info& response,
+        connection_context& conn_context);
+    void check_epose_http_response(const epee::net_utils::http::http_request_info& query_info,
+        epee::net_utils::http::http_response_info& response,
+        const std::string& host);
 
     BEGIN_URI_MAP2()
       MAP_URI_AUTO_JON2("/get_height", on_get_height, COMMAND_RPC_GET_HEIGHT)
@@ -141,9 +151,14 @@ namespace cryptonote
       MAP_URI_AUTO_JON2("/get_epose_epoch", on_get_epose_epoch, COMMAND_RPC_GET_EPOSE_EPOCH)
       MAP_URI_AUTO_JON2_IF("/submit_epose_envelope", on_submit_epose_envelope, COMMAND_RPC_SUBMIT_EPOSE_ENVELOPE, !m_restricted)
       MAP_URI_AUTO_JON2("/get_epose_service_endpoint_v2", on_get_epose_service_endpoint_v2, COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2)
-      MAP_URI_AUTO_JON2("/epose_service_challenge_v2", on_epose_service_challenge_v2, COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2)
+      MAP_URI_AUTO_JON2(EPOSE_SERVICE_CHALLENGE_V2_URI, on_epose_service_challenge_v2, COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2)
       MAP_URI_AUTO_JON2("/get_service_rewards", on_get_service_rewards, COMMAND_RPC_GET_SERVICE_REWARDS)
       MAP_URI_AUTO_JON2("/get_epose_block_reward", on_get_epose_block_reward, COMMAND_RPC_GET_EPOSE_BLOCK_REWARD)
+      MAP_URI_AUTO_JON2("/get_vm_state_root", on_get_vm_state_root, COMMAND_RPC_GET_VM_STATE_ROOT)
+      MAP_URI_AUTO_JON2("/vm_call_dry_run", on_vm_call_dry_run, COMMAND_RPC_VM_CALL_DRY_RUN)
+      MAP_URI_AUTO_JON2("/get_vm_state_proof", on_get_vm_state_proof, COMMAND_RPC_GET_VM_STATE_PROOF)
+      MAP_URI_AUTO_JON2("/get_chainlock", on_get_chainlock, COMMAND_RPC_GET_CHAINLOCK)
+      MAP_URI_AUTO_JON2("/get_chainlock_quorum_inputs", on_get_chainlock_quorum_inputs, COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS)
       MAP_URI_AUTO_JON2_IF("/get_net_stats", on_get_net_stats, COMMAND_RPC_GET_NET_STATS, !m_restricted)
       MAP_URI_AUTO_JON2("/get_limit", on_get_limit, COMMAND_RPC_GET_LIMIT)
       MAP_URI_AUTO_JON2_IF("/set_limit", on_set_limit, COMMAND_RPC_SET_LIMIT, !m_restricted)
@@ -186,6 +201,11 @@ namespace cryptonote
         MAP_JON_RPC("get_epose_epoch",           on_get_epose_epoch,            COMMAND_RPC_GET_EPOSE_EPOCH)
         MAP_JON_RPC("get_service_rewards",       on_get_service_rewards,        COMMAND_RPC_GET_SERVICE_REWARDS)
         MAP_JON_RPC("get_epose_block_reward",    on_get_epose_block_reward,     COMMAND_RPC_GET_EPOSE_BLOCK_REWARD)
+        MAP_JON_RPC("get_vm_state_root",         on_get_vm_state_root,          COMMAND_RPC_GET_VM_STATE_ROOT)
+        MAP_JON_RPC("vm_call_dry_run",           on_vm_call_dry_run,            COMMAND_RPC_VM_CALL_DRY_RUN)
+        MAP_JON_RPC("get_vm_state_proof",        on_get_vm_state_proof,         COMMAND_RPC_GET_VM_STATE_PROOF)
+        MAP_JON_RPC("get_chainlock",              on_get_chainlock,              COMMAND_RPC_GET_CHAINLOCK)
+        MAP_JON_RPC("get_chainlock_quorum_inputs", on_get_chainlock_quorum_inputs, COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS)
         MAP_JON_RPC_WE("hard_fork_info",         on_hard_fork_info,             COMMAND_RPC_HARD_FORK_INFO)
         MAP_JON_RPC_WE_IF("set_bans",            on_set_bans,                   COMMAND_RPC_SETBANS, !m_restricted)
         MAP_JON_RPC_WE_IF("get_bans",            on_get_bans,                   COMMAND_RPC_GETBANS, !m_restricted)
@@ -238,6 +258,11 @@ namespace cryptonote
     bool on_epose_service_challenge_v2(const COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::request& req, COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::response& res, const connection_context *ctx = NULL);
     bool on_get_service_rewards(const COMMAND_RPC_GET_SERVICE_REWARDS::request& req, COMMAND_RPC_GET_SERVICE_REWARDS::response& res, const connection_context *ctx = NULL);
     bool on_get_epose_block_reward(const COMMAND_RPC_GET_EPOSE_BLOCK_REWARD::request& req, COMMAND_RPC_GET_EPOSE_BLOCK_REWARD::response& res, const connection_context *ctx = NULL);
+    bool on_get_vm_state_root(const COMMAND_RPC_GET_VM_STATE_ROOT::request& req, COMMAND_RPC_GET_VM_STATE_ROOT::response& res, const connection_context *ctx = NULL);
+    bool on_vm_call_dry_run(const COMMAND_RPC_VM_CALL_DRY_RUN::request& req, COMMAND_RPC_VM_CALL_DRY_RUN::response& res, const connection_context *ctx = NULL);
+    bool on_get_vm_state_proof(const COMMAND_RPC_GET_VM_STATE_PROOF::request& req, COMMAND_RPC_GET_VM_STATE_PROOF::response& res, const connection_context *ctx = NULL);
+    bool on_get_chainlock(const COMMAND_RPC_GET_CHAINLOCK::request& req, COMMAND_RPC_GET_CHAINLOCK::response& res, const connection_context *ctx = NULL);
+    bool on_get_chainlock_quorum_inputs(const COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS::request& req, COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS::response& res, const connection_context *ctx = NULL);
     bool on_get_net_stats(const COMMAND_RPC_GET_NET_STATS::request& req, COMMAND_RPC_GET_NET_STATS::response& res, const connection_context *ctx = NULL);
     bool on_save_bc(const COMMAND_RPC_SAVE_BC::request& req, COMMAND_RPC_SAVE_BC::response& res, const connection_context *ctx = NULL);
     bool on_get_peer_list(const COMMAND_RPC_GET_PEER_LIST::request& req, COMMAND_RPC_GET_PEER_LIST::response& res, const connection_context *ctx = NULL);
@@ -302,7 +327,8 @@ namespace cryptonote
 private:
     bool check_core_busy();
     bool check_core_ready();
-    bool add_host_fail(const connection_context *ctx, unsigned int score = 1);
+    bool add_host_fail(const connection_context *ctx, unsigned int score = 1,
+        const char *reason = "unspecified");
     
     //utils
     uint64_t get_block_reward(const block& blk);
@@ -338,6 +364,7 @@ private:
     std::unique_ptr<rpc_payment> m_rpc_payment;
     bool disable_rpc_ban;
     bool m_rpc_payment_allow_free_loopback;
+    epose_challenge_rpc_filter m_epose_challenge_filter;
   };
 }
 

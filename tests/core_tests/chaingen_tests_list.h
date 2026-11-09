@@ -44,6 +44,18 @@
 #include "multisig.h"
 #include "bulletproofs.h"
 #include "bulletproof_plus.h"
+#include "height_window.h"
+#include "contracts.h"
+#include "chainlock.h"
+#include "chainlock_age.h"
+#include "chainlock_reorg.h"
+#include "chainlock_speculative.h"
+#include "contracts_deep_reorg.h"
+#include "contracts_hdr_info.h"
+#include "chainlock_rpc.h"
+#include "chainlock_production_inputs.h"
+#include "vm_state_proof_rpc.h"
+#include "vm_state_proof_restore.h"
 #include "rct2.h"
 /************************************************************************/
 /*                                                                      */

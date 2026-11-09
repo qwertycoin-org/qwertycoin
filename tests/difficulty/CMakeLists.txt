@@ -48,3 +48,20 @@ add_test(
 add_test(
   NAME    wide_difficulty
   COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/wide_difficulty.py" "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gen_wide_data.py" "${CMAKE_CURRENT_BINARY_DIR}/difficulty-tests" "${CMAKE_CURRENT_BINARY_DIR}/wide_data.txt")
+
+add_test(
+  NAME difficulty_target_call_sites
+  COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/target_call_sites.py")
+
+add_test(
+  NAME difficulty_target_dependencies
+  COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/target_dependencies.py")
+
+add_custom_target(check_difficulty_target_call_sites ALL
+  COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/target_call_sites.py"
+  COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/target_dependencies.py")
+
+add_dependencies(unit_tests check_difficulty_target_call_sites)
+if(NOT IOS)
+  add_dependencies(unit_tests daemon simplewallet wallet_rpc_server)
+endif()

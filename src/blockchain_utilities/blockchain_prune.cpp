@@ -28,6 +28,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "blockchain_utility_network.h"
 #include <array>
 #include <lmdb.h>
 #include <boost/algorithm/string.hpp>
@@ -463,6 +464,7 @@ int main(int argc, char* argv[])
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_data_dir);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_testnet_on);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_stagenet_on);
+  blockchain_utilities::add_devnet_option(desc_cmd_sett);
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_regtest_on);
   command_line::add_arg(desc_cmd_sett, arg_log_level);
   command_line::add_arg(desc_cmd_sett, arg_db_sync_mode);
@@ -617,6 +619,13 @@ int main(int argc, char* argv[])
   copy_table(env0, env1, "txpool_blob", 0, MDB_NODUPDATA, BlockchainLMDB::compare_hash32);
   copy_table(env0, env1, "hf_versions", MDB_INTEGERKEY, MDB_APPEND);
   copy_table(env0, env1, "properties", 0, 0, BlockchainLMDB::compare_string);
+  copy_table(env0, env1, "epose_state_v2", MDB_INTEGERKEY, MDB_APPEND);
+  copy_table(env0, env1, "vm_state", 0, 0);
+  copy_table(env0, env1, "vm_undo", MDB_INTEGERKEY, MDB_APPEND);
+  copy_table(env0, env1, "vm_commitment", MDB_INTEGERKEY, MDB_APPEND);
+  copy_table(env0, env1, "chainlock_carriers", MDB_INTEGERKEY, MDB_APPEND);
+  copy_table(env0, env1, "chainlocks", MDB_INTEGERKEY, MDB_APPEND);
+  copy_table(env0, env1, "chainlock_candidates", 0, MDB_APPEND);
   if (already_pruned)
   {
     copy_table(env0, env1, "txs_prunable", MDB_INTEGERKEY, MDB_APPEND, BlockchainLMDB::compare_uint64);

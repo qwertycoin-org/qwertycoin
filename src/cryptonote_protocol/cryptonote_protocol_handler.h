@@ -93,6 +93,7 @@ namespace cryptonote
       HANDLE_NOTIFY_T2(NOTIFY_NEW_EPOSE_PAYLOADS, &cryptonote_protocol_handler::handle_notify_new_epose_payloads)
       HANDLE_NOTIFY_T2(NOTIFY_NEW_EPOSE_ENVELOPES_V2, &cryptonote_protocol_handler::handle_notify_new_epose_envelopes_v2)
       HANDLE_NOTIFY_T2(NOTIFY_NEW_EPOSE_ENDPOINTS_V2, &cryptonote_protocol_handler::handle_notify_new_epose_endpoints_v2)
+      HANDLE_NOTIFY_T2(NOTIFY_CHAINLOCK_V1, &cryptonote_protocol_handler::handle_notify_chainlock_v1)
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_GET_OBJECTS, &cryptonote_protocol_handler::handle_request_get_objects)
       HANDLE_NOTIFY_T2(NOTIFY_RESPONSE_GET_OBJECTS, &cryptonote_protocol_handler::handle_response_get_objects)
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_CHAIN, &cryptonote_protocol_handler::handle_request_chain)
@@ -144,6 +145,7 @@ namespace cryptonote
     int handle_notify_new_epose_payloads(int command, NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_epose_envelopes_v2(int command, NOTIFY_NEW_EPOSE_ENVELOPES_V2::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_epose_endpoints_v2(int command, NOTIFY_NEW_EPOSE_ENDPOINTS_V2::request& arg, cryptonote_connection_context& context);
+    int handle_notify_chainlock_v1(int command, NOTIFY_CHAINLOCK_V1::request& arg, cryptonote_connection_context& context);
     int handle_request_get_objects(int command, NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote_connection_context& context);
     int handle_response_get_objects(int command, NOTIFY_RESPONSE_GET_OBJECTS::request& arg, cryptonote_connection_context& context);
     int handle_request_chain(int command, NOTIFY_REQUEST_CHAIN::request& arg, cryptonote_connection_context& context);
@@ -158,16 +160,21 @@ namespace cryptonote
     virtual bool relay_epose_payloads(NOTIFY_NEW_EPOSE_PAYLOADS::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone);
     virtual bool relay_epose_envelopes_v2(NOTIFY_NEW_EPOSE_ENVELOPES_V2::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone);
     virtual bool relay_epose_endpoints_v2(NOTIFY_NEW_EPOSE_ENDPOINTS_V2::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone);
+    virtual bool relay_chainlock(NOTIFY_CHAINLOCK_V1::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone);
     //----------------------------------------------------------------------------------
     //bool get_payload_sync_data(HANDSHAKE_DATA::request& hshd, cryptonote_connection_context& context);
+    template<class t_notify>
+    bool relay_notify_to_flagged_peers(const typename t_notify::request& arg, const boost::uuids::uuid& source, epee::net_utils::zone zone, uint32_t required_flags, size_t reserve);
     bool should_drop_connection(cryptonote_connection_context& context, uint32_t next_stripe);
     bool request_missing_objects(cryptonote_connection_context& context, bool check_having_blocks, bool force_next_span = false);
     size_t get_synchronizing_connections_count();
     bool on_connection_synchronized();
     bool should_download_next_span(cryptonote_connection_context& context, bool standby);
     bool should_ask_for_pruned_data(cryptonote_connection_context& context, uint64_t first_block_height, uint64_t nblocks, bool check_block_weights) const;
-    void drop_connection(cryptonote_connection_context &context, bool add_fail, bool flush_all_spans);
-    void drop_connection_with_score(cryptonote_connection_context &context, unsigned int score, bool flush_all_spans);
+    void drop_connection(cryptonote_connection_context &context, bool add_fail, bool flush_all_spans, const char *reason);
+    void drop_connection(cryptonote_connection_context &context, bool flush_all_spans);
+    void drop_connection_with_score(cryptonote_connection_context &context, unsigned int score, bool flush_all_spans,
+        const char *reason);
     void drop_connection(const boost::uuids::uuid&);
     void drop_connections(const epee::net_utils::network_address address);
     bool kick_idle_peers();

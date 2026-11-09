@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <vector>
 
+#include <boost/optional.hpp>
+
 #include "crypto/crypto.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_config.h"
@@ -42,6 +44,8 @@ namespace epose
     invalid_output_allocation,
     invalid_payment_proof
   };
+
+  const char *reward_status_name_v2(reward_status_v2 status);
 
   struct reward_allocation_v2
   {
@@ -100,12 +104,14 @@ namespace epose
     crypto::public_key transaction_public_key{};
     crypto::hash coinbase_commitment{};
     std::vector<service_payment_output_v2> outputs;
+    boost::optional<uint32_t> service_output_start;
   };
 
   struct scoped_payment_proof_v2
   {
     crypto::public_key derivation{};
     crypto::signature proof{};
+    boost::optional<uint32_t> service_output_start;
   };
 
   class validated_service_payment_v2
@@ -141,6 +147,21 @@ namespace epose
     cryptonote::account_public_address reward_address{};
     uint64_t service_reward = 0;
   };
+
+  bool service_payout_due_v2(
+      uint8_t major_version,
+      bool has_qualified_payee,
+      uint64_t service_reward);
+
+  size_t coinbase_reward_output_end_v2(const cryptonote::transaction &coinbase);
+
+  reward_status_v2 collect_service_output_run_v2(
+      const cryptonote::transaction &coinbase,
+      const crypto::key_derivation &derivation,
+      const crypto::public_key &reward_spend_public_key,
+      uint32_t service_output_start,
+      uint64_t service_reward,
+      std::vector<service_payment_output_v2> &outputs);
 
   crypto::hash hash_service_payment_context_v2(
       const service_payment_context_v2 &context,
@@ -202,6 +223,7 @@ namespace epose
       size_t max_envelopes_per_transaction,
       const envelope_limits_v2 &limits,
       const service_payment_expectation_v2 &expected,
+      uint32_t service_output_start,
       service_payment_context_v2 &context);
 } // namespace epose
 } // namespace qwertycoin

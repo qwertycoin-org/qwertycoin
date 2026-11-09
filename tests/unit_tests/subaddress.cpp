@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
+#include <limits>
 #include <boost/filesystem.hpp>
 #include <boost/optional/optional_io.hpp>
 #include "gtest/gtest.h"
@@ -70,6 +71,17 @@ class WalletSubaddress : public ::testing::Test
     uint32_t minor_index = 0;
     const cryptonote::subaddress_index subaddress_index = {major_index, minor_index};
 };
+
+TEST_F(WalletSubaddress, RejectMaximumMinorIndex)
+{
+  EXPECT_THROW(w1.expand_subaddresses({0, std::numeric_limits<uint32_t>::max()}), tools::error::wallet_internal_error);
+  EXPECT_EQ(test_label, w1.get_subaddress_label(subaddress_index));
+}
+
+TEST_F(WalletSubaddress, RejectMaximumMajorIndex)
+{
+  EXPECT_THROW(w1.expand_subaddresses({std::numeric_limits<uint32_t>::max(), 0}), tools::error::wallet_internal_error);
+}
 
 TEST_F(WalletSubaddress, GetSubaddressLabel)
 {

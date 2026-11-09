@@ -42,13 +42,14 @@
 using namespace cryptonote;
 
 // Do RCT expansion, then do post-expansion sanity checks, then do full non-semantics verification.
-static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mix_ring)
+static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mix_ring, uint8_t hf_version)
 {
     // Pruned transactions can not be expanded and verified because they are missing RCT data
     VER_ASSERT(!tx.pruned, "Pruned transaction will not pass verRctNonSemanticsSimple");
 
     // Calculate prefix hash
-    const crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx);
+    crypto::hash tx_prefix_hash;
+    VER_ASSERT(get_contract_ring_hash(tx, tx_prefix_hash, hf_version), "Failed to calculate ring hash");
 
     // Expand mixring, tx inputs, tx key images, prefix hash message, etc into the RCT sig
     const bool exp_res = Blockchain::expand_transaction_2(tx, tx_prefix_hash, mix_ring);
@@ -87,7 +88,7 @@ static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mi
 }
 
 // Create a unique identifier for pair of tx blob + mix ring
-static crypto::hash calc_tx_mixring_hash(const transaction& tx, const rct::ctkeyM& mix_ring)
+crypto::hash cryptonote::rct_verification_cache_key(const transaction& tx, const rct::ctkeyM& mix_ring)
 {
     std::stringstream ss;
 
@@ -177,6 +178,18 @@ static bool ver_non_input_consensus_templated(TxForwardIt tx_begin, TxForwardIt 
         if (!Blockchain::check_tx_outputs(tx, tvc, hf_version) || tvc.m_verifivation_failed)
             return false;
 
+        if (!check_tx_contract_extra(tx, hf_version, contract_extra_scope::transaction))
+        {
+            tvc.m_verifivation_failed = true;
+            return false;
+        }
+        if (is_qwc_contracts_hardfork(hf_version) && tx.extra.size() > get_tx_extra_size_limit(tx, hf_version)) // H-10
+        {
+            tvc.m_verifivation_failed = true;
+            tvc.m_tx_extra_too_big = true;
+            return false;
+        }
+
         // We only want to check RingCT semantics if this is actually a RingCT transaction
         if (tx.version >= 2)
             rvv.push_back(&tx.rct_signatures);
@@ -202,9 +215,9 @@ uint64_t get_transaction_weight_limit(const uint8_t hf_version)
 {
     // from v8, limit a tx to 50% of the minimum block weight
     if (hf_version >= HF_VERSION_PER_BYTE_FEE)
-        return get_min_block_weight(hf_version) / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+        return get_min_block_weight(hf_version) / 2 - get_coinbase_blob_reserved_size(hf_version);
     else
-        return get_min_block_weight(hf_version) - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+        return get_min_block_weight(hf_version) - get_coinbase_blob_reserved_size(hf_version);
 }
 
 bool ver_rct_non_semantics_simple_cached
@@ -212,7 +225,8 @@ bool ver_rct_non_semantics_simple_cached
     transaction& tx,
     const rct::ctkeyM& mix_ring,
     rct_ver_cache_t& cache,
-    const std::uint8_t rct_type_to_cache
+    const std::uint8_t rct_type_to_cache,
+    const std::uint8_t hf_version
 )
 {
     // Hello future Monero dev! If you got this assert, read the following carefully:
@@ -232,14 +246,16 @@ bool ver_rct_non_semantics_simple_cached
     // Don't cache older (or newer) rctSig types
     // This cache only makes sense when it caches data from mempool first,
     // so only "current fork version-enabled" RCT types need to be cached
-    if (tx.rct_signatures.type != rct_type_to_cache)
+    tx_extra_vm_call call{};
+    if ((!is_qwc_contracts_hardfork(hf_version) && get_tx_vm_call(tx.extra, call) != 0)
+        || tx.rct_signatures.type != rct_type_to_cache)
     {
         MDEBUG("RCT cache: tx " << get_transaction_hash(tx) << " skipped");
-        return expand_tx_and_ver_rct_non_sem(tx, mix_ring);
+        return expand_tx_and_ver_rct_non_sem(tx, mix_ring, hf_version);
     }
 
     // Generate unique hash for tx+mix_ring pair
-    const crypto::hash tx_mixring_hash = calc_tx_mixring_hash(tx, mix_ring);
+    const crypto::hash tx_mixring_hash = rct_verification_cache_key(tx, mix_ring);
 
     // Search cache for successful verification of same TX + mix ring combination
     if (cache.has(tx_mixring_hash))
@@ -250,7 +266,7 @@ bool ver_rct_non_semantics_simple_cached
 
     // We had a cache miss, so now we must expand the mix ring and do full verification
     MDEBUG("RCT cache: tx " << get_transaction_hash(tx) << " missed");
-    if (!expand_tx_and_ver_rct_non_sem(tx, mix_ring))
+    if (!expand_tx_and_ver_rct_non_sem(tx, mix_ring, hf_version))
     {
         return false;
     }

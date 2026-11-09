@@ -6,7 +6,10 @@ set(vm_sources
   bvm2/common.cpp
   bvm2/wasm_interpreter.cpp
   bvm2/bvm2.cpp
-  host_api.cpp)
+  app_shader.cpp
+  host_api.cpp
+  state_tree.cpp
+  vm.cpp)
 
 monero_find_all_headers(vm_headers "${CMAKE_CURRENT_SOURCE_DIR}")
 

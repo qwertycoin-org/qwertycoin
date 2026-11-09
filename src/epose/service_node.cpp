@@ -15,33 +15,21 @@
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "epose/service_epoch.h"
+#include "epose/hash_transcript.h"
 
 namespace
 {
-  void append_u8(std::string &out, uint8_t value)
-  {
-    out.push_back(static_cast<char>(value));
-  }
-
-  void append_u64_le(std::string &out, uint64_t value)
-  {
-    for (unsigned int shift = 0; shift < 64; shift += 8)
-      out.push_back(static_cast<char>((value >> shift) & 0xff));
-  }
+  using qwertycoin::epose::transcript::append_u8;
+  using qwertycoin::epose::transcript::append_u64_le;
+  using qwertycoin::epose::transcript::append_network;
+  using qwertycoin::epose::transcript::hash_blob;
+  using qwertycoin::epose::transcript::append_bytes;
+  using qwertycoin::epose::transcript::bytes_equal;
+  using qwertycoin::epose::transcript::bytes_less;
 
   void append_bool(std::string &out, bool value)
   {
     append_u8(out, value ? 1 : 0);
-  }
-
-  void append_hash(std::string &out, const crypto::hash &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(value));
-  }
-
-  void append_public_key(std::string &out, const crypto::public_key &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(value));
   }
 
   void append_secret_key(std::string &out, const crypto::secret_key &value)
@@ -51,13 +39,13 @@ namespace
 
   void append_address_public(std::string &out, const cryptonote::account_public_address &address)
   {
-    append_public_key(out, address.m_spend_public_key);
-    append_public_key(out, address.m_view_public_key);
+    append_bytes(out, address.m_spend_public_key);
+    append_bytes(out, address.m_view_public_key);
   }
 
   void append_registered_reward(std::string &out, const qwertycoin::epose::service_node_identity &identity)
   {
-    append_public_key(out, identity.reward_address.m_spend_public_key);
+    append_bytes(out, identity.reward_address.m_spend_public_key);
     append_secret_key(out, identity.reward_view_secret_key);
   }
 
@@ -96,38 +84,6 @@ namespace
       return false;
     value = raw == 1;
     return true;
-  }
-
-  void append_network(std::string &out, cryptonote::network_type nettype)
-  {
-    const auto &network_id = cryptonote::get_config(nettype).NETWORK_ID;
-    for (const auto byte : network_id)
-      out.push_back(static_cast<char>(byte));
-  }
-
-  crypto::hash hash_blob(const std::string &blob)
-  {
-    return crypto::cn_fast_hash(blob.data(), blob.size());
-  }
-
-  bool public_key_equal(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) == 0;
-  }
-
-  bool public_key_less(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) < 0;
-  }
-
-  std::vector<uint64_t> decompose_service_reward_amount(uint64_t amount)
-  {
-    std::vector<uint64_t> out_amounts;
-    cryptonote::decompose_amount_into_digits(amount, 0,
-      [&out_amounts](uint64_t a_chunk) { out_amounts.push_back(a_chunk); },
-      [&out_amounts](uint64_t a_dust) { out_amounts.push_back(a_dust); });
-    std::sort(out_amounts.begin(), out_amounts.end());
-    return out_amounts;
   }
 
   int count_leading_zero_bits(const crypto::hash &hash)
@@ -206,13 +162,13 @@ namespace epose
     std::string blob;
     blob.reserve(EPOSE_IDENTITY_BLOB_SIZE);
     append_u8(blob, identity.version);
-    append_public_key(blob, identity.service_public_key);
+    append_bytes(blob, identity.service_public_key);
     append_registered_reward(blob, identity);
-    append_hash(blob, identity.endpoint_commitment);
+    append_bytes(blob, identity.endpoint_commitment);
     append_u64_le(blob, identity.registration_epoch);
     append_u64_le(blob, identity.expiry_epoch);
     append_u64_le(blob, identity.admission_nonce);
-    append_hash(blob, identity.admission_hash);
+    append_bytes(blob, identity.admission_hash);
     blob.append(reinterpret_cast<const char *>(&identity.signature), sizeof(identity.signature));
     return blob;
   }
@@ -289,14 +245,14 @@ namespace epose
     std::string blob("QWC_EPOSE_REGISTRATION_V1");
     append_network(blob, nettype);
     append_u8(blob, identity.version);
-    append_public_key(blob, identity.service_public_key);
+    append_bytes(blob, identity.service_public_key);
     append_address_public(blob, identity.reward_address);
     append_secret_key(blob, identity.reward_view_secret_key);
-    append_hash(blob, identity.endpoint_commitment);
+    append_bytes(blob, identity.endpoint_commitment);
     append_u64_le(blob, identity.registration_epoch);
     append_u64_le(blob, identity.expiry_epoch);
     append_u64_le(blob, identity.admission_nonce);
-    append_hash(blob, identity.admission_hash);
+    append_bytes(blob, identity.admission_hash);
     return hash_blob(blob);
   }
 
@@ -316,7 +272,7 @@ namespace epose
     crypto::public_key derived_reward_view_public_key{};
     if (!crypto::secret_key_to_public_key(identity.reward_view_secret_key, derived_reward_view_public_key))
       return false;
-    if (!public_key_equal(derived_reward_view_public_key, identity.reward_address.m_view_public_key))
+    if (!bytes_equal(derived_reward_view_public_key, identity.reward_address.m_view_public_key))
       return false;
     if (identity.expiry_epoch <= identity.registration_epoch)
       return false;
@@ -329,12 +285,12 @@ namespace epose
   {
     std::string blob("QWC_EPOSE_ADMISSION_V1");
     append_network(blob, nettype);
-    append_public_key(blob, identity.service_public_key);
+    append_bytes(blob, identity.service_public_key);
     append_address_public(blob, identity.reward_address);
     append_secret_key(blob, identity.reward_view_secret_key);
-    append_hash(blob, identity.endpoint_commitment);
+    append_bytes(blob, identity.endpoint_commitment);
     append_u64_le(blob, identity.registration_epoch);
-    append_hash(blob, previous_epoch_hash);
+    append_bytes(blob, previous_epoch_hash);
     append_u64_le(blob, identity.admission_nonce);
     crypto::hash admission_hash{};
     crypto::rx_slow_hash(previous_epoch_hash.data, blob.data(), blob.size(), admission_hash.data);
@@ -359,12 +315,12 @@ namespace epose
     std::string blob("QWC_EPOSE_ATTESTATION_V1");
     append_network(blob, nettype);
     append_u8(blob, attestation.version);
-    append_public_key(blob, attestation.verifier_public_key);
-    append_public_key(blob, attestation.subject_public_key);
+    append_bytes(blob, attestation.verifier_public_key);
+    append_bytes(blob, attestation.subject_public_key);
     append_u64_le(blob, attestation.epoch);
-    append_hash(blob, attestation.challenge_hash);
-    append_hash(blob, attestation.response_hash);
-    append_hash(blob, attestation.observed_tip_hash);
+    append_bytes(blob, attestation.challenge_hash);
+    append_bytes(blob, attestation.response_hash);
+    append_bytes(blob, attestation.observed_tip_hash);
     append_bool(blob, attestation.service_ok);
     return hash_blob(blob);
   }
@@ -374,12 +330,12 @@ namespace epose
     std::string blob;
     blob.reserve(EPOSE_ATTESTATION_BLOB_SIZE);
     append_u8(blob, attestation.version);
-    append_public_key(blob, attestation.verifier_public_key);
-    append_public_key(blob, attestation.subject_public_key);
+    append_bytes(blob, attestation.verifier_public_key);
+    append_bytes(blob, attestation.subject_public_key);
     append_u64_le(blob, attestation.epoch);
-    append_hash(blob, attestation.challenge_hash);
-    append_hash(blob, attestation.response_hash);
-    append_hash(blob, attestation.observed_tip_hash);
+    append_bytes(blob, attestation.challenge_hash);
+    append_bytes(blob, attestation.response_hash);
+    append_bytes(blob, attestation.observed_tip_hash);
     append_bool(blob, attestation.service_ok);
     blob.append(reinterpret_cast<const char *>(&attestation.signature), sizeof(attestation.signature));
     return blob;
@@ -461,7 +417,7 @@ namespace epose
       return false;
     if (!attestation.service_ok)
       return false;
-    if (public_key_equal(attestation.verifier_public_key, attestation.subject_public_key))
+    if (bytes_equal(attestation.verifier_public_key, attestation.subject_public_key))
       return false;
     if (!crypto::check_key(attestation.verifier_public_key) || !crypto::check_key(attestation.subject_public_key))
       return false;
@@ -513,11 +469,11 @@ namespace epose
       std::vector<crypto::public_key> voters;
       for (const service_attestation &attestation : attestations)
       {
-        if (attestation.epoch != epoch || !public_key_equal(attestation.subject_public_key, node.service_public_key))
+        if (attestation.epoch != epoch || !bytes_equal(attestation.subject_public_key, node.service_public_key))
           continue;
         if (!verify_attestation_signature(attestation, nettype))
           continue;
-        if (std::find_if(voters.begin(), voters.end(), [&](const crypto::public_key &voter) { return public_key_equal(voter, attestation.verifier_public_key); }) == voters.end())
+        if (std::find_if(voters.begin(), voters.end(), [&](const crypto::public_key &voter) { return bytes_equal(voter, attestation.verifier_public_key); }) == voters.end())
           voters.push_back(attestation.verifier_public_key);
       }
 
@@ -525,102 +481,10 @@ namespace epose
         qualified.push_back(node.service_public_key);
     }
 
-    std::sort(qualified.begin(), qualified.end(), public_key_less);
-    qualified.erase(std::unique(qualified.begin(), qualified.end(), public_key_equal), qualified.end());
+    std::sort(qualified.begin(), qualified.end(), bytes_less<crypto::public_key>);
+    qualified.erase(std::unique(qualified.begin(), qualified.end(), bytes_equal<crypto::public_key>), qualified.end());
     return qualified;
   }
 
-  reward_split split_block_reward(uint64_t base_reward, uint64_t fees, uint64_t service_reward_bps)
-  {
-    if (service_reward_bps > 10000)
-      throw std::invalid_argument("EPoSE service reward basis points exceed 100%");
-    if (base_reward > std::numeric_limits<uint64_t>::max() - fees)
-      throw std::overflow_error("EPoSE total reward overflow");
-
-    const uint64_t total = base_reward + fees;
-    const uint64_t service_reward = total / 10000 * service_reward_bps + (total % 10000) * service_reward_bps / 10000;
-    return {total - service_reward, service_reward};
-  }
-
-  bool validate_service_reward_output(
-      const cryptonote::transaction &miner_tx,
-      const cryptonote::account_public_address &reward_address,
-      const crypto::secret_key &reward_view_secret_key,
-      uint64_t service_reward)
-  {
-    if (service_reward == 0)
-      return false;
-
-    const crypto::public_key tx_public_key = cryptonote::get_tx_pub_key_from_extra(miner_tx);
-    if (tx_public_key == crypto::null_pkey)
-      return false;
-
-    crypto::key_derivation derivation{};
-    if (!crypto::generate_key_derivation(tx_public_key, reward_view_secret_key, derivation))
-      return false;
-
-    std::vector<crypto::public_key> output_public_keys;
-    output_public_keys.reserve(miner_tx.vout.size());
-    std::vector<uint64_t> matching_amounts;
-    for (size_t output_index = 0; output_index < miner_tx.vout.size(); ++output_index)
-    {
-      const cryptonote::tx_out &out = miner_tx.vout[output_index];
-      crypto::public_key output_public_key{};
-      if (!cryptonote::get_output_public_key(out, output_public_key))
-        return false;
-      for (const crypto::public_key &seen_output_public_key : output_public_keys)
-      {
-        if (public_key_equal(output_public_key, seen_output_public_key))
-          return false;
-      }
-      output_public_keys.push_back(output_public_key);
-
-      crypto::public_key expected_output_public_key{};
-      if (!crypto::derive_public_key(derivation, output_index, reward_address.m_spend_public_key, expected_output_public_key))
-        return false;
-
-      if (public_key_equal(output_public_key, expected_output_public_key))
-        matching_amounts.push_back(out.amount);
-    }
-
-    std::sort(matching_amounts.begin(), matching_amounts.end());
-    return matching_amounts == decompose_service_reward_amount(service_reward);
-  }
-
-  bool select_service_payee(
-      const std::vector<crypto::public_key> &qualified_service_nodes,
-      const crypto::hash &epoch_seed,
-      uint64_t height,
-      crypto::public_key &selected)
-  {
-    if (qualified_service_nodes.empty())
-      return false;
-
-    struct ranked_node
-    {
-      crypto::hash rank;
-      crypto::public_key key;
-    };
-
-    std::vector<ranked_node> ranked;
-    ranked.reserve(qualified_service_nodes.size());
-    for (const crypto::public_key &key : qualified_service_nodes)
-    {
-      std::string blob("QWC_EPOSE_PAYOUT_V1");
-      append_hash(blob, epoch_seed);
-      append_public_key(blob, key);
-      ranked.push_back({hash_blob(blob), key});
-    }
-
-    std::sort(ranked.begin(), ranked.end(), [](const ranked_node &left, const ranked_node &right) {
-      const int hash_cmp = std::memcmp(&left.rank, &right.rank, sizeof(left.rank));
-      if (hash_cmp != 0)
-        return hash_cmp < 0;
-      return public_key_less(left.key, right.key);
-    });
-
-    selected = ranked[height % ranked.size()].key;
-    return true;
-  }
 } // namespace epose
 } // namespace qwertycoin

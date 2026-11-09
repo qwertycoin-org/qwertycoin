@@ -42,8 +42,11 @@
 #include <boost/multi_index/global_fun.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <atomic>
 #include <functional>
+#include <list>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <unordered_map>
@@ -61,19 +64,78 @@
 #include "cryptonote_basic/difficulty.h"
 #include "cryptonote_tx_utils.h"
 #include "tx_verification_utils.h"
+#include "contract_state.h"
 #include "cryptonote_basic/verification_context.h"
 #include "crypto/hash.h"
 #include "checkpoints/checkpoints.h"
 #include "cryptonote_basic/hardfork.h"
 #include "blockchain_db/blockchain_db.h"
+#include "alternative_child_index.h"
+#include "epose_retry_priority.h"
 #include "epose/chain_state.h"
 #include "epose/coordinator_v2.h"
 #include "epose/relay_pool_v2.h"
+#include "epose/chainlock_v1.h"
+#include "vm/state_tree.h"
 
 namespace tools { class Notify; }
+struct blockchain_test_access;
 
 namespace cryptonote
 {
+  enum class vm_proof_result { ok, busy, rebuilding, outside_retention, unavailable };
+
+  class historical_vm_proof_guard
+  {
+  public:
+    historical_vm_proof_guard(std::atomic<bool> &in_flight, bool historical)
+      : m_in_flight(in_flight), m_acquired(!historical || !in_flight.exchange(true)), m_historical(historical) {}
+    ~historical_vm_proof_guard() { if (m_acquired && m_historical) m_in_flight.store(false); }
+    historical_vm_proof_guard(const historical_vm_proof_guard&) = delete;
+    historical_vm_proof_guard& operator=(const historical_vm_proof_guard&) = delete;
+    bool acquired() const { return m_acquired; }
+
+  private:
+    std::atomic<bool> &m_in_flight;
+    bool m_acquired;
+    bool m_historical;
+  };
+
+  struct chainlock_proof
+  {
+    uint64_t height = 0;
+    crypto::hash block_id{};
+    block locked_block;
+    std::vector<crypto::hash> miner_tx_branch;
+    crypto::hash vm_state_root{};
+    blobdata lock_blob;
+    uint64_t lock_carrier_height = 0;
+    qwertycoin::epose::chainlock_quorum_v1 quorum;
+  };
+
+  enum class chainlock_proof_result { ok, no_lock, height_not_locked, rebuilding };
+  struct chainlock_quorum_inputs
+  {
+    uint64_t epoch = 0;
+    qwertycoin::epose::epoch_timing_v2 timing;
+    qwertycoin::epose::chainlock_context_v1 context;
+    uint64_t previous_epoch_start_height = 0;
+    crypto::hash previous_epoch_start_block_id{};
+    uint64_t epoch_start_height = 0;
+    crypto::hash epoch_start_block_id{};
+    uint64_t snapshot_height = 0;
+    crypto::hash snapshot_block_id{};
+    crypto::hash snapshot_hash{};
+    uint64_t qualification_height = 0;
+    crypto::hash qualification_block_id{};
+    crypto::hash qualification_hash{};
+    std::vector<crypto::public_key> snapshot_members;
+    std::vector<crypto::public_key> qualified_members;
+    uint64_t snapshot_total = 0;
+    uint64_t qualification_total = 0;
+    bool test_override = false;
+  };
+
   class tx_memory_pool;
   struct test_options;
 
@@ -106,6 +168,9 @@ namespace cryptonote
   /************************************************************************/
   class Blockchain
   {
+    friend class BlockchainRecoveryHarness;
+    friend class BlockchainCleanupHarness;
+    friend class core;
   public:
     struct epose_block_reward_mapping_v2
     {
@@ -339,6 +404,16 @@ namespace cryptonote
      * @return the hash
      */
     crypto::hash get_tail_id() const;
+
+    crypto::hash get_vm_state_root() const;
+    contract_call_verdict dry_run_contract_tx(const transaction &tx, uint64_t fee, contract_effects &effects, bool verify_signatures = true, uint64_t *height = nullptr, const std::function<void()> &after_snapshot = {}) const;
+    bool get_vm_tip_commitment(uint64_t &height, vm_block_commitment &commitment) const;
+    bool get_vm_commitment_at(boost::optional<uint64_t> requested_height, uint64_t &height, vm_block_commitment &commitment) const;
+    bool get_vm_state_proof(const std::string &key, crypto::hash &root, boost::optional<std::string> &value, vm::state_proof &proof) const;
+    vm_proof_result get_vm_state_proof_at(boost::optional<uint64_t> requested_height, const std::string &key, uint64_t &height, crypto::hash &root, boost::optional<std::string> &value, vm::state_proof &proof) const;
+    chainlock_proof_result get_chainlock_proof(uint64_t requested_height, chainlock_proof &result,
+        bool allow_reconstruct = false) const;
+    bool get_vm_minted(uint64_t height, uint8_t version, uint64_t &minted) const;
 
     /**
      * @brief get the height and hash of the most recent block on the blockchain
@@ -658,7 +733,7 @@ namespace cryptonote
      *
      * @return false if any input is invalid, otherwise true
      */
-    bool check_tx_inputs(transaction& tx, uint64_t& pmax_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false) const;
+    bool check_tx_inputs(transaction& tx, uint64_t& pmax_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block, uint8_t tx_rules_version) const;
 
     /**
      * @brief get fee quantization mask
@@ -956,19 +1031,52 @@ namespace cryptonote
     bool is_epose_enabled() const;
     bool is_epose_enabled_at_height(uint64_t height) const;
     uint64_t get_epose_current_epoch() const;
+    bool epose_rpc_ready() const;
+    struct epose_rpc_snapshot
+    {
+      uint64_t epoch = 0;
+      bool ready = false;
+      std::vector<qwertycoin::epose::identity_descriptor_v2> descriptors;
+      qwertycoin::epose::membership_snapshot_v2 frozen_membership{};
+      bool frozen_membership_available = false;
+      uint64_t round_count = 0;
+      size_t committee_size = 0;
+      size_t min_compatible_committee = 0;
+      uint64_t qualification_epoch = 0;
+      bool qualification_available = false;
+      std::vector<crypto::public_key> qualified_nodes;
+      uint64_t attestation_count = 0;
+      crypto::hash state_hash{};
+      uint64_t oldest_retained_epoch = 0;
+      uint64_t start_height = 0;
+      uint64_t end_height = 0;
+      bool qualification_pruned = false;
+    };
+    epose_rpc_snapshot get_epose_rpc_snapshot(uint64_t requested_epoch = 0) const;
     uint64_t get_epose_epoch_start_height(uint64_t epoch) const;
     uint64_t get_epose_epoch_end_height(uint64_t epoch) const;
     bool get_epose_reward_source_epoch_v2(uint64_t height, uint64_t &epoch) const;
+    bool preview_epose_reward_v2(uint64_t height,
+        qwertycoin::epose::coordinator_reward_plan_v2 &plan) const;
     bool get_epose_block_reward_mapping_v2(
         const crypto::hash &block_hash,
-        epose_block_reward_mapping_v2 &mapping) const;
+        epose_block_reward_mapping_v2 &mapping,
+        bool &outside_retained_window,
+        bool &busy) const;
     std::vector<qwertycoin::epose::service_node_identity> get_epose_service_nodes() const;
     std::vector<qwertycoin::epose::service_attestation> get_epose_attestations() const;
-    std::vector<crypto::public_key> get_epose_qualified_service_nodes(uint64_t epoch) const;
-    std::vector<qwertycoin::epose::identity_descriptor_v2> get_epose_identity_descriptors_v2(uint64_t epoch) const;
-    bool get_epose_membership_snapshot_v2(uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const;
-    bool get_epose_qualification_v2(uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const;
+    enum class epose_query_status { found, absent, outside_retained_window };
+    epose_query_status get_epose_qualified_service_nodes(uint64_t epoch, std::vector<crypto::public_key> &nodes) const;
+    epose_query_status get_epose_latest_closed_qualification_epoch(uint64_t &epoch) const;
+    epose_query_status get_epose_identity_descriptors_v2(uint64_t epoch, std::vector<qwertycoin::epose::identity_descriptor_v2> &descriptors) const;
+    bool get_epose_latest_lifecycle_record_v2(const crypto::hash &identity_id, qwertycoin::epose::lifecycle_record_v2 &record) const;
+    epose_query_status get_epose_membership_snapshot_v2(uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const;
+    epose_query_status get_epose_qualification_v2(uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const;
+    bool epose_qualification_pruned_v2(uint64_t epoch) const;
     bool get_epose_consensus_parameters_v2(qwertycoin::epose::consensus_parameters_v2 &parameters) const;
+    uint64_t get_epose_oldest_retained_epoch_v2() const;
+    bool get_epose_state_diagnostics_v2(
+        qwertycoin::epose::state_storage_diagnostics_v2 &diagnostics) const;
     bool has_epose_admission_v2(const crypto::hash &identity_id, uint64_t target_epoch) const;
     std::vector<qwertycoin::epose::verifier_assignment_v2> get_epose_committee_v2(
         uint64_t epoch, uint64_t round,
@@ -987,9 +1095,28 @@ namespace cryptonote
     crypto::hash get_epose_epoch_context_hash(uint64_t epoch) const;
     qwertycoin::epose::relay_ingress_status_v2 submit_epose_relay_envelopes_v2(
         const std::vector<blobdata> &envelopes,
-        std::vector<blobdata> &accepted);
+        std::vector<blobdata> &accepted,
+        qwertycoin::epose::relay_ingress_trace_v2 *trace = nullptr);
     qwertycoin::epose::relay_pool_diagnostics_v2
         get_epose_relay_pool_diagnostics_v2() const;
+
+    enum class chainlock_ingress { rejected, ignored, accepted };
+    chainlock_ingress handle_incoming_chainlock(const blobdata &blob, blobdata &relay_blob);
+    std::vector<blobdata> retry_pending_chainlocks();
+    bool get_chainlock_context(qwertycoin::epose::chainlock_context_v1 &context) const;
+    bool get_chainlock_epoch(uint64_t height, uint64_t &epoch) const;
+    bool get_chainlock_quorum(uint64_t epoch, qwertycoin::epose::chainlock_quorum_v1 &quorum) const;
+    uint64_t chainlock_quorum_selection_count() const { return m_chainlock_quorum_selections.load(); }
+    bool get_chainlock_quorum_inputs(uint64_t epoch, chainlock_quorum_inputs &inputs,
+        uint64_t offset = 0, uint64_t limit = UINT64_MAX,
+        bool allow_reconstruct = false) const;
+    bool chainlock_quorum_inputs_require_reconstruction(uint64_t epoch) const;
+    bool get_highest_main_chainlock(uint64_t &height) const;
+    bool get_highest_main_chainlock(uint64_t &height, crypto::hash &block_hash) const;
+    bool canonical_chainlock_supersedes(uint64_t height) const;
+    void prune_irrecoverable_alternatives();
+    void prune_after_canonical_advance(uint64_t previous_height);
+    bool set_chainlock_test_quorum(const qwertycoin::epose::epoch_timing_v2 &timing, std::vector<crypto::public_key> candidates);
 
     /**
      * @brief returns the earliest block a given version may activate
@@ -1142,6 +1269,17 @@ namespace cryptonote
      * @return a vector of chains
      */
     std::vector<std::pair<block_extended_info,std::vector<crypto::hash>>> get_alternative_chains() const;
+    struct alternative_tip
+    {
+      crypto::hash hash;
+      difficulty_type cumulative_difficulty;
+      uint64_t split_height;
+      bool potential_lock;
+      crypto::hash lock_source;
+    };
+    std::vector<alternative_tip> get_alternative_tips(size_t *operation_count = nullptr) const;
+    crypto::hash best_alternative_descendant(const crypto::hash &ancestor,
+        size_t *operation_count = nullptr) const;
 
     void add_txpool_tx(const crypto::hash &txid, const cryptonote::blobdata &blob, const txpool_tx_meta_t &meta);
     void update_txpool_tx(const crypto::hash &txid, const txpool_tx_meta_t &meta);
@@ -1214,6 +1352,30 @@ namespace cryptonote
 
 #ifndef IN_UNIT_TESTS
   private:
+    struct chainlock_selection_inputs
+    {
+      uint64_t epoch = 0;
+      qwertycoin::epose::chainlock_context_v1 context{};
+      crypto::hash anchor_hash{};
+      uint64_t anchor_height = 0;
+      const qwertycoin::epose::membership_snapshot_v2 *snapshot = nullptr;
+      const qwertycoin::epose::qualification_set_v2 *qualification = nullptr;
+      boost::optional<qwertycoin::epose::membership_snapshot_v2> restored_snapshot;
+      boost::optional<qwertycoin::epose::qualification_set_v2> restored_qualification;
+      const std::vector<crypto::public_key> *test_candidates = nullptr;
+    };
+    enum class chainlock_membership_restore { unavailable, restored };
+    chainlock_membership_restore get_chainlock_selection_inputs(uint64_t epoch,
+        chainlock_selection_inputs &inputs,
+        boost::unique_lock<epee::critical_section> *blockchain_lock = nullptr,
+        bool allow_reconstruct = false) const;
+    bool select_chainlock_quorum(const chainlock_selection_inputs &inputs,
+        qwertycoin::epose::chainlock_quorum_v1 &quorum) const;
+    chainlock_membership_restore restore_chainlock_membership(uint64_t epoch,
+        boost::unique_lock<epee::critical_section> &blockchain_lock,
+        qwertycoin::epose::membership_snapshot_v2 &snapshot,
+        qwertycoin::epose::qualification_set_v2 &qualification) const;
+
 #endif
 
     // TODO: evaluate whether or not each of these typedefs are left over from blockchain_storage
@@ -1222,6 +1384,8 @@ namespace cryptonote
     typedef std::vector<block_extended_info> blocks_container;
 
     typedef std::unordered_map<crypto::hash, block_extended_info> blocks_ext_by_hash;
+    void load_alternative_blocks(blocks_ext_by_hash &blocks,
+        alternative_child_index &children) const;
 
 
     BlockchainDB* m_db;
@@ -1297,26 +1461,30 @@ namespace cryptonote
     uint64_t m_btc_seed_height;
     bool m_btc_valid;
 
-
     bool m_batch_success;
+    bool m_epose_rpc_batch_open = false;
+
+    struct returned_pool_tx
+    {
+      transaction tx;
+      blobdata blob;
+      crypto::hash id;
+      size_t weight;
+      uint8_t rules_version;
+    };
+    std::vector<returned_pool_tx> m_returned_pool_txs;
 
     TxpoolNotifyCallback m_txpool_notifier;
     mutable std::mutex m_txpool_notifier_mutex;
-
-    /* `boost::function` is used because the implementation never allocates if
-       the callable object has a single `std::shared_ptr` or `std::weap_ptr`
-       internally. Whereas, the libstdc++ `std::function` will allocate. */
 
     std::vector<BlockNotifyCallback> m_block_notifiers;
     std::vector<MinerNotifyCallback> m_miner_notifiers;
     std::shared_ptr<tools::Notify> m_reorg_notify;
 
-    // for prepare_handle_incoming_blocks
     uint64_t m_prepare_height;
     uint64_t m_prepare_nblocks;
     std::vector<block> *m_prepare_blocks;
 
-    // cache for verifying transaction RCT non semantics
     mutable rct_ver_cache_t m_rct_ver_cache;
 
     std::unique_ptr<qwertycoin::epose::chain_state> m_epose_state;
@@ -1324,18 +1492,107 @@ namespace cryptonote
     std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> m_epose_v2;
     qwertycoin::epose::consensus_parameters_v2 m_epose_v2_parameters{};
     qwertycoin::epose::relay_policy_v2 m_epose_v2_relay_policy{};
+
     std::unique_ptr<qwertycoin::epose::relay_record_pool_v2> m_epose_v2_relay_pool;
+    bool m_epose_rebuild_deferred = false;
+    bool m_epose_rebuild_retry_scheduled = false;
+    bool m_epose_rebuild_fatal = false;
+    bool m_epose_switch_busy = false;
+    bool m_epose_switch_mutated = false;
+    bool m_epose_retry_best_chain = false;
+    mutable std::atomic<size_t> m_alternative_ancestor_walks{0};
+    bool m_alternative_prune_pending = false;
+    std::function<void(size_t)> m_alternative_prune_removal_hook;
+    std::map<crypto::hash, unsigned> m_epose_retry_chain_attempts;
+    crypto::hash m_epose_retry_exhausted_tip{};
+    std::function<void(const std::function<void()> &)> m_epose_recovery_intake;
+    mutable uint64_t m_epose_state_validation_generation = 0;
+    mutable uint64_t m_epose_state_validation_height = std::numeric_limits<uint64_t>::max();
+    mutable crypto::hash m_epose_state_validation_tip{};
+    mutable uint64_t m_epose_state_validation_checked_generation = std::numeric_limits<uint64_t>::max();
+    mutable uint64_t m_epose_state_validation_coordinator_generation = std::numeric_limits<uint64_t>::max();
+    mutable bool m_epose_state_validation_result = false;
+    uint64_t m_epose_preflight_runs = 0;
+    unsigned m_epose_rebuild_attempts = 0;
+    std::function<bool(bool)> m_epose_rebuild_injection;
+    std::atomic<bool> m_epose_rebuild_shutdown{false};
+    boost::asio::steady_timer m_epose_rebuild_timer;
 
     bool is_epose_enabled_for_height(uint64_t height) const;
-    bool get_epose_service_reward_for_block(uint64_t height, uint64_t total_reward, account_public_address &reward_address, crypto::secret_key &reward_view_secret_key, uint64_t &service_reward) const;
-    bool validate_epose_service_reward(const block &b, uint64_t height, uint64_t total_reward) const;
-    bool plan_epose_reward_v2(uint64_t height, const crypto::hash &parent_hash, uint64_t scheduled_subsidy, uint64_t fees, qwertycoin::epose::coordinator_reward_plan_v2 &plan) const;
+    bool plan_epose_reward_v2(uint8_t major_version, uint64_t height, const crypto::hash &parent_hash, uint64_t scheduled_subsidy, uint64_t fees, qwertycoin::epose::coordinator_reward_plan_v2 &plan) const;
+    std::function<void(const qwertycoin::epose::coordinator_reward_plan_v2 &)> m_epose_template_plan_observer;
+    std::function<crypto::secret_key(uint64_t)> m_template_tx_key_override;
+    bool next_template_reward_inputs_v2(uint64_t height, size_t &median_weight,
+        uint64_t &already_generated_coins) const;
     bool select_epose_template_records_v2(
         uint64_t height,
         std::vector<qwertycoin::epose::envelope_record_v2> &records);
-    bool apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height, uint64_t scheduled_subsidy, uint64_t fees, epose_state_commitment_v2 &commitment, std::vector<qwertycoin::epose::envelope_record_v2> &confirmed_records);
+    bool apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height, size_t block_weight, uint64_t scheduled_subsidy, uint64_t fees, uint64_t contract_mints, epose_state_commitment_v2 &commitment, std::vector<qwertycoin::epose::envelope_record_v2> &confirmed_records);
     void rollback_epose_block(uint64_t popped_height);
-    bool rebuild_epose_state();
+    bool rebuild_epose_state(bool full_rebuild = false, uint64_t target_height = std::numeric_limits<uint64_t>::max(), std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> *scratch = nullptr);
+    bool epose_state_at_tip() const;
+    enum class epose_preflight_result { accepted, invalid, busy };
+    epose_preflight_result preflight_epose_chain(const std::list<block_extended_info> &alt_chain, std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> &scratch, crypto::hash &failed_block, uint64_t anchor_height = std::numeric_limits<uint64_t>::max(), std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> *anchor_state = nullptr);
+    bool try_rebuild_epose_state(bool full_rebuild = false);
+    void schedule_epose_recovery();
+    bool retry_best_epose_chain();
+    bool switch_to_alternative_blockchain_with_batch(std::list<block_extended_info> &alt_chain);
+    template <typename Result, typename Query>
+    Result query_epose_v2_at_tip(Result fallback, Query &&query) const;
+    template <typename Record, typename Lookup>
+    bool copy_epose_record_v2(Record &record, Lookup &&lookup) const;
+    template <typename Query>
+    epose_query_status query_epose_epoch_v2_at_tip(uint64_t epoch, Query &&query) const;
+    template <typename Record, typename Lookup>
+    epose_query_status copy_epose_epoch_record_v2(uint64_t epoch, Record &record, Lookup &&lookup) const;
+    template <typename Step>
+    static epose_preflight_result guard_epose_preflight_step(const char *failure_message, Step &&step);
+    bool abandon_epose_switch(std::list<block>& disconnected_chain, uint64_t rollback_height, const char *rollback_failure_message);
+    bool record_alternative_switch_result(bool switched, block_verification_context &bvc);
+
+    struct chainlock_test_quorum
+    {
+      qwertycoin::epose::epoch_timing_v2 timing;
+      std::vector<crypto::public_key> candidates;
+    };
+    enum class alt_chainlock_verdict { difficulty, blocked, switch_verified, switch_speculative };
+    struct alt_chainlock_evaluation
+    {
+      alt_chainlock_verdict verdict;
+      uint64_t verified_height = 0;
+      crypto::hash verified_hash{};
+    };
+    boost::optional<chainlock_test_quorum> m_chainlock_test_quorum;
+    mutable std::atomic<uint64_t> m_chainlock_quorum_selections{0};
+    mutable std::map<std::pair<blobdata, blobdata>, uint64_t> m_chainlock_verification_cache;
+    mutable uint64_t m_chainlock_signature_verifications = 0;
+    std::map<std::pair<uint64_t, crypto::hash>, qwertycoin::epose::chainlock_v1> m_chainlock_partials;
+    std::vector<blobdata> m_chainlock_pending;
+
+    bool get_chainlock_timing(qwertycoin::epose::epoch_timing_v2 &timing) const;
+    bool chainlock_quorum_shared(uint64_t epoch, uint64_t split_height) const;
+    bool verify_complete_chainlock(const qwertycoin::epose::chainlock_v1 &lock, bool check_signatures) const;
+    bool get_alt_chainlock_quorum(const qwertycoin::epose::chainlock_v1 &lock, const std::list<block_extended_info> &alt_chain, qwertycoin::epose::chainlock_quorum_v1 &quorum);
+    bool verify_alt_chainlock(const qwertycoin::epose::chainlock_v1 &lock, const std::list<block_extended_info> &alt_chain);
+    bool validate_block_chainlock(const block &bl, uint64_t height, bool check_signatures, chainlock_record &carrier, bool &has_carrier) const;
+    bool select_template_chainlock(uint64_t height, blobdata &blob) const;
+    void tombstone_main_chainlocks_from(uint64_t height);
+    alt_chainlock_evaluation evaluate_alt_chainlocks(const std::list<block_extended_info> &alt_chain);
+    friend struct ::blockchain_test_access;
+    void prune_chainlock_partials();
+
+    mutable vm::state_tree m_vm_state;
+    mutable std::atomic<bool> m_historical_vm_proof_in_flight{false};
+    mutable bool m_vm_state_stale = false;
+    std::function<void()> m_vm_restore_hook;
+    vm::header_provider m_header_provider_override;
+
+    bool get_contract_block_context(uint64_t height, contract_block_context &context) const;
+    bool make_vm_commitment(uint64_t height, const contract_effects &effects, vm_block_commitment &commitment) const;
+    crypto::hash get_vm_state_root_after(const vm::write_set &writes);
+    void with_restored_vm_state(const vm::write_set &restore, const std::function<void()> &operation) const;
+    bool load_vm_state();
+    bool rebuild_vm_state();
 
     /**
      * @brief collects the keys for all outputs being "spent" as an input
@@ -1402,7 +1659,7 @@ namespace cryptonote
      *
      * @return false if any validation step fails, otherwise true
      */
-    bool check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height = NULL) const;
+    bool check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height, uint8_t tx_rules_version) const;
 
     /**
      * @brief performs a blockchain reorganization according to the longest chain rule
@@ -1416,7 +1673,7 @@ namespace cryptonote
      *
      * @return false if the reorganization fails, otherwise true
      */
-    bool switch_to_alternative_blockchain(std::list<block_extended_info>& alt_chain, bool discard_disconnected_chain);
+    bool switch_to_alternative_blockchain(std::list<block_extended_info>& alt_chain, bool discard_disconnected_chain, bool invalidate_failed_block = false);
 
     /**
      * @brief removes the most recent block from the blockchain
@@ -1525,7 +1782,7 @@ namespace cryptonote
      *
      * @return false if anything is found wrong with the miner transaction, otherwise true
      */
-    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version);
+    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t minted, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version);
 
     /**
      * @brief reverts the blockchain to its previous state following a failed switch

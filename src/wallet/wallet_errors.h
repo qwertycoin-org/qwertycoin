@@ -175,6 +175,18 @@ namespace tools
       }
     };
     //----------------------------------------------------------------------------------------------------
+    struct invalid_contract_signature_encoding : public wallet_internal_error
+    {
+      explicit invalid_contract_signature_encoding(std::string&& loc)
+        : wallet_internal_error(std::move(loc), "Invalid contract signature encoding") {}
+    };
+    //----------------------------------------------------------------------------------------------------
+    struct invalid_external_contract_signer : public wallet_internal_error
+    {
+      explicit invalid_external_contract_signer(std::string&& loc, const std::string& message)
+        : wallet_internal_error(std::move(loc), message) {}
+    };
+    //----------------------------------------------------------------------------------------------------
     struct unexpected_txin_type : public wallet_internal_error
     {
       explicit unexpected_txin_type(std::string&& loc, const cryptonote::transaction& tx)

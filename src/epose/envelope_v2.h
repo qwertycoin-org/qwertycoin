@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_basic/tx_extra.h"
 
 namespace qwertycoin
 {
@@ -161,7 +162,8 @@ namespace epose
       size_t max_envelopes_per_transaction,
       const envelope_limits_v2 &limits,
       std::vector<envelope_record_v2> &records,
-      envelope_budget_v2 &budget);
+      envelope_budget_v2 &budget,
+      cryptonote::contract_extra_scope scope = cryptonote::contract_extra_scope::coinbase);
 
   // Canonically removes every record of one type while preserving unrelated
   // tx_extra fields and the order/envelope grouping of all remaining records.

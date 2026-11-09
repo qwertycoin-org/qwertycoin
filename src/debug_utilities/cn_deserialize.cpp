@@ -34,6 +34,7 @@
 #include "cryptonote_core/blockchain.h"
 #include "common/command_line.h"
 #include "version.h"
+#include "debug_version_banner.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "debugtools.deserialize"
@@ -103,7 +104,7 @@ int main(int argc, char* argv[])
 
   if (command_line::get_arg(vm, command_line::arg_help))
   {
-    std::cout << "Qwertycoin '" << QWERTYCOIN_RELEASE_NAME << "' (v" << QWERTYCOIN_VERSION_FULL << ")" << ENDL << ENDL;
+    debug_utilities::print_version_banner();
     std::cout << desc_options << std::endl;
     return 1;
   }

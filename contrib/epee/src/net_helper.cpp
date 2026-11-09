@@ -1,90 +1,82 @@
 #include "net/net_helper.h"
+#include <algorithm>
+#include <vector>
+#include <boost/asio/connect.hpp>
 
 namespace epee
 {
 namespace net_utils
 {
+	#include "net_helper_transport_v2.h"
 	namespace
 	{
 		struct new_connection
 		{
 			boost::promise<boost::asio::ip::tcp::socket> result_;
 			boost::asio::ip::tcp::socket socket_;
+			boost::asio::ip::tcp::resolver resolver_;
+			std::atomic<bool> settled_{false};
 
 			template<typename T>
 			explicit new_connection(T&& executor)
-			  : result_(), socket_(std::forward<T>(executor))
+			  : result_(), socket_(executor), resolver_(executor)
 			{}
+
+			void fail(const boost::system::error_code &error)
+			{
+				if (!settled_.exchange(true))
+					result_.set_exception(boost::system::system_error{error});
+			}
+
+			void succeed()
+			{
+				if (!settled_.exchange(true))
+					result_.set_value(std::move(socket_));
+			}
 		};
 	}
 
 	boost::unique_future<boost::asio::ip::tcp::socket>
 	direct_connect::operator()(const std::string& addr, const std::string& port, boost::asio::steady_timer& timeout) const
 	{
-		// Get a list of endpoints corresponding to the server name.
-		//////////////////////////////////////////////////////////////////////////
-		boost::asio::ip::tcp::resolver resolver(MONERO_GET_EXECUTOR(timeout));
-
-		bool try_ipv6 = false;
-		boost::asio::ip::tcp::resolver::results_type results{};
-		boost::system::error_code resolve_error;
-
-		try
-		{
-			results = resolver.resolve(
-				boost::asio::ip::tcp::v4(), addr, port, boost::asio::ip::tcp::resolver::canonical_name, resolve_error
-			);
-
-			if (results.empty())
-			{
-				// if IPv4 resolution fails, try IPv6.  Unintentional outgoing IPv6 connections should only
-				// be possible if for some reason a hostname was given and that hostname fails IPv4 resolution,
-				// so at least for now there should not be a need for a flag "using ipv6 is ok"
-				try_ipv6 = true;
-			}
-
-		}
-		catch (const boost::system::system_error& e)
-		{
-			if (resolve_error != boost::asio::error::host_not_found &&
-					resolve_error != boost::asio::error::host_not_found_try_again)
-			{
-				throw;
-			}
-			try_ipv6 = true;
-		}
-
-		if (try_ipv6)
-		{
-			results = resolver.resolve(
-				boost::asio::ip::tcp::v6(), addr, port, boost::asio::ip::tcp::resolver::canonical_name
-			);
-			if (results.empty())
-				throw boost::system::system_error{boost::asio::error::fault, "Failed to resolve " + addr};
-		}
-
-		//////////////////////////////////////////////////////////////////////////
-
-
 		const auto shared = std::make_shared<new_connection>(MONERO_GET_EXECUTOR(timeout));
 		timeout.async_wait([shared] (boost::system::error_code error)
 		{
-			if (error != boost::system::errc::operation_canceled && shared && shared->socket_.is_open())
+			if (!error && !shared->settled_.exchange(true))
 			{
-				shared->socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-				shared->socket_.close();
+				shared->resolver_.cancel();
+				boost::system::error_code ignored;
+				shared->socket_.cancel(ignored);
+				shared->socket_.close(ignored);
+				shared->result_.set_exception(
+					boost::system::system_error{boost::asio::error::timed_out});
 			}
 		});
-		shared->socket_.async_connect(*results.begin(), [shared] (boost::system::error_code error)
-		{
-			if (shared)
-			{
-				if (error)
-					shared->result_.set_exception(boost::system::system_error{error});
-				else
-					shared->result_.set_value(std::move(shared->socket_));
-			}
-		});
+		resolve_handler on_resolved = [shared, addr, families = allowed_families,
+			allowed = endpoint_allowed, limit = max_resolved_endpoints](
+			const boost::system::error_code &error,
+			boost::asio::ip::tcp::resolver::results_type results) {
+			if (shared->settled_.load())
+				return;
+			if (error)
+				return shared->fail(error);
+			auto endpoints = direct_connect_endpoints_v2(results, addr, families, allowed, limit);
+			if (endpoints.empty())
+				return shared->fail(boost::asio::error::host_not_found);
+			boost::asio::async_connect(shared->socket_, endpoints,
+				[shared](const boost::system::error_code &connect_error,
+					const boost::asio::ip::tcp::endpoint &) {
+					if (connect_error)
+						shared->fail(connect_error);
+					else
+						shared->succeed();
+				});
+		};
+		if (start_resolve)
+			start_resolve(shared->resolver_, addr, port, std::move(on_resolved));
+		else
+			shared->resolver_.async_resolve(addr, port,
+				boost::asio::ip::tcp::resolver::canonical_name, std::move(on_resolved));
 		return shared->result_.get_future();
 	}
 }

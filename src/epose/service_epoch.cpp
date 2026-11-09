@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "epose/service_epoch.h"
+#include "epose/hash_transcript.h"
 
 #include <algorithm>
 #include <cstring>
@@ -10,48 +11,12 @@
 
 namespace
 {
-  void append_u64_le(std::string &out, uint64_t value)
-  {
-    for (unsigned int shift = 0; shift < 64; shift += 8)
-      out.push_back(static_cast<char>((value >> shift) & 0xff));
-  }
-
-  void append_hash(std::string &out, const crypto::hash &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(value));
-  }
-
-  void append_public_key(std::string &out, const crypto::public_key &value)
-  {
-    out.append(reinterpret_cast<const char *>(&value), sizeof(value));
-  }
-
-  void append_network(std::string &out, cryptonote::network_type nettype)
-  {
-    const auto &network_id = cryptonote::get_config(nettype).NETWORK_ID;
-    for (const auto byte : network_id)
-      out.push_back(static_cast<char>(byte));
-  }
-
-  crypto::hash hash_blob(const std::string &blob)
-  {
-    return crypto::cn_fast_hash(blob.data(), blob.size());
-  }
-
-  bool public_key_equal(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) == 0;
-  }
-
-  bool public_key_less(const crypto::public_key &left, const crypto::public_key &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) < 0;
-  }
-
-  bool hash_less(const crypto::hash &left, const crypto::hash &right)
-  {
-    return std::memcmp(&left, &right, sizeof(left)) < 0;
-  }
+  using qwertycoin::epose::transcript::append_u64_le;
+  using qwertycoin::epose::transcript::append_network;
+  using qwertycoin::epose::transcript::hash_blob;
+  using qwertycoin::epose::transcript::append_bytes;
+  using qwertycoin::epose::transcript::bytes_equal;
+  using qwertycoin::epose::transcript::bytes_less;
 
   crypto::hash calculate_selection_score(
       const crypto::hash &epoch_seed,
@@ -65,9 +30,9 @@ namespace
     blob.append("QWC_EPOSE_SELECT_V1");
     append_network(blob, nettype);
     append_u64_le(blob, epoch);
-    append_hash(blob, epoch_seed);
-    append_public_key(blob, subject_public_key);
-    append_public_key(blob, candidate_public_key);
+    append_bytes(blob, epoch_seed);
+    append_bytes(blob, subject_public_key);
+    append_bytes(blob, candidate_public_key);
     return hash_blob(blob);
   }
 }
@@ -86,7 +51,7 @@ namespace epose
     blob.append("QWC_EPOSE_SEED_V1");
     append_network(blob, nettype);
     append_u64_le(blob, epoch);
-    append_hash(blob, seed_block_hash);
+    append_bytes(blob, seed_block_hash);
     return hash_blob(blob);
   }
 
@@ -103,7 +68,7 @@ namespace epose
 
     for (const service_node_identity &candidate : registered_nodes)
     {
-      if (!identity_active_in_epoch(candidate, epoch) || public_key_equal(candidate.service_public_key, subject_public_key))
+      if (!identity_active_in_epoch(candidate, epoch) || bytes_equal(candidate.service_public_key, subject_public_key))
         continue;
 
       assignments.push_back({
@@ -112,15 +77,15 @@ namespace epose
     }
 
     std::sort(assignments.begin(), assignments.end(), [](const verifier_assignment &left, const verifier_assignment &right) {
-      if (hash_less(left.selection_score, right.selection_score))
+      if (bytes_less(left.selection_score, right.selection_score))
         return true;
-      if (hash_less(right.selection_score, left.selection_score))
+      if (bytes_less(right.selection_score, left.selection_score))
         return false;
-      return public_key_less(left.verifier_public_key, right.verifier_public_key);
+      return bytes_less(left.verifier_public_key, right.verifier_public_key);
     });
 
     assignments.erase(std::unique(assignments.begin(), assignments.end(), [](const verifier_assignment &left, const verifier_assignment &right) {
-      return public_key_equal(left.verifier_public_key, right.verifier_public_key);
+      return bytes_equal(left.verifier_public_key, right.verifier_public_key);
     }), assignments.end());
 
     if (assignments.size() > committee_size)
@@ -141,9 +106,9 @@ namespace epose
     blob.append("QWC_EPOSE_CHAL_V1");
     append_u64_le(blob, epoch);
     append_u64_le(blob, round);
-    append_hash(blob, epoch_seed);
-    append_public_key(blob, subject_public_key);
-    append_public_key(blob, verifier_public_key);
+    append_bytes(blob, epoch_seed);
+    append_bytes(blob, subject_public_key);
+    append_bytes(blob, verifier_public_key);
     return hash_blob(blob);
   }
 
@@ -158,10 +123,10 @@ namespace epose
     blob.reserve(16 + sizeof(crypto::hash) * 2 + sizeof(crypto::public_key) * 2 + sizeof(uint64_t));
     blob.append("QWC_EPOSE_RESP_V1");
     append_u64_le(blob, epoch);
-    append_hash(blob, challenge_hash);
-    append_hash(blob, observed_tip_hash);
-    append_public_key(blob, subject_public_key);
-    append_public_key(blob, verifier_public_key);
+    append_bytes(blob, challenge_hash);
+    append_bytes(blob, observed_tip_hash);
+    append_bytes(blob, subject_public_key);
+    append_bytes(blob, verifier_public_key);
     return hash_blob(blob);
   }
 } // namespace epose
