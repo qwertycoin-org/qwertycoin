@@ -205,7 +205,7 @@ class Daemon(object):
             'client': client,
         })
 
-    def get_chainlock_quorum_inputs(self, epoch, offset = 0, limit = 128, client = ""):
+    def get_chainlock_quorum_inputs(self, epoch = (1 << 64) - 1, offset = 0, limit = 128, client = ""):
         return self.rpc.send_request('/get_chainlock_quorum_inputs', {
             'epoch': epoch,
             'offset': offset,

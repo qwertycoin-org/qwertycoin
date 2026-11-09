@@ -1715,7 +1715,7 @@ namespace cryptonote
       uint64_t limit;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_access_request_base)
-        KV_SERIALIZE(epoch)
+        KV_SERIALIZE_OPT(epoch, std::numeric_limits<uint64_t>::max())
         KV_SERIALIZE_OPT(offset, (uint64_t)0)
         KV_SERIALIZE_OPT(limit, (uint64_t)128)
       END_KV_SERIALIZE_MAP()

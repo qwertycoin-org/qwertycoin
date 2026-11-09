@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <limits>
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/blockchain.h"
@@ -18,6 +19,13 @@ namespace cryptonote
   constexpr const char* VM_PROOF_FAILED_STATUS = "Failed to build VM state proof";
   constexpr const char* CHAINLOCK_PROOF_FAILED_STATUS = "Failed to build ChainLock proof";
   constexpr const char* QUORUM_INPUTS_UNAVAILABLE_STATUS = "Quorum inputs unavailable";
+  constexpr const char* QUORUM_INPUTS_INVALID_EPOCH_STATUS = "Invalid epoch";
+  constexpr uint64_t CURRENT_EPOCH_REQUEST = std::numeric_limits<uint64_t>::max();
+
+  inline uint64_t resolve_requested_epoch(uint64_t requested_epoch, uint64_t current_epoch)
+  {
+    return requested_epoch == CURRENT_EPOCH_REQUEST ? current_epoch : requested_epoch;
+  }
 
   inline bool chainlock_reconstruction_allowed(bool restricted_rpc, bool has_context)
   {

@@ -76,11 +76,13 @@ daemon_client.get_chainlock()
 daemon_client.get_chainlock(17, 'client')
 daemon_client.get_chainlock_quorum_inputs(5)
 daemon_client.get_chainlock_quorum_inputs(5, 2, 9, 'client')
+daemon_client.get_chainlock_quorum_inputs()
 if recorder.calls != [
   ('/get_chainlock', {'height': 0, 'client': ''}),
   ('/get_chainlock', {'height': 17, 'client': 'client'}),
   ('/get_chainlock_quorum_inputs', {'epoch': 5, 'offset': 0, 'limit': 128, 'client': ''}),
   ('/get_chainlock_quorum_inputs', {'epoch': 5, 'offset': 2, 'limit': 9, 'client': 'client'}),
+  ('/get_chainlock_quorum_inputs', {'epoch': (1 << 64) - 1, 'offset': 0, 'limit': 128, 'client': ''}),
 ]:
   print('Error: chainlock RPC wrapper route or arguments differ')
   error = True

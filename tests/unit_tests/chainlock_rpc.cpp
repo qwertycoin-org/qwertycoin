@@ -168,6 +168,21 @@ TEST(chainlock_rpc, quorum_inputs_accepts_optional_payment_client)
   EXPECT_EQ(request.client, "paid-client");
 }
 
+TEST(chainlock_rpc, quorum_inputs_epoch_defaults_to_current)
+{
+  COMMAND_RPC_GET_CHAINLOCK_QUORUM_INPUTS::request request;
+  ASSERT_TRUE(epee::serialization::load_t_from_json(request, "{}"));
+  EXPECT_EQ(request.epoch, CURRENT_EPOCH_REQUEST);
+  EXPECT_EQ(request.offset, 0u);
+  EXPECT_EQ(request.limit, 128u);
+  EXPECT_EQ(resolve_requested_epoch(request.epoch, 57), 57u);
+  ASSERT_TRUE(epee::serialization::load_t_from_json(request, "{\"epoch\":3}"));
+  EXPECT_EQ(resolve_requested_epoch(request.epoch, 57), 3u);
+  ASSERT_TRUE(epee::serialization::load_t_from_json(request, "{\"epoch\":0}"));
+  EXPECT_EQ(resolve_requested_epoch(request.epoch, 57), 0u);
+  EXPECT_STREQ(QUORUM_INPUTS_INVALID_EPOCH_STATUS, "Invalid epoch");
+}
+
 TEST(chainlock_rpc, pruned_quorum_inputs_require_unrestricted_rpc)
 {
   EXPECT_TRUE(chainlock_reconstruction_allowed(false, true));

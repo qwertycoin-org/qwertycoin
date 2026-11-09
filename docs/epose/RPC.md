@@ -243,6 +243,8 @@ block's `block_id`, `block_hashing_blob`, `miner_tx_blob`,
 `/get_chainlock_quorum_inputs` provides paginated membership and qualification
 keys plus the epoch timing, anchor, and source block IDs needed to derive the
 ordered quorum independently. See [the light-client derivation](../chainlock-light-client.md).
+An omitted `epoch` selects the current epoch, and an explicit `0` returns
+`Invalid epoch`.
 Pruned ChainLock membership can be reconstructed only through unrestricted RPC.
 `/get_vm_state_proof` accepts a hex `key` and optional `height`.
 `/get_vm_state_root` also accepts an optional `height`. For both calls,

@@ -33,9 +33,11 @@ class ChainlockDaemonMethods(unittest.TestCase):
     def test_get_chainlock_quorum_inputs(self):
         self.assertIs(self.daemon.get_chainlock_quorum_inputs(7), self.daemon.rpc.response)
         self.assertIs(self.daemon.get_chainlock_quorum_inputs(7, 3, 4, 'review'), self.daemon.rpc.response)
+        self.assertIs(self.daemon.get_chainlock_quorum_inputs(), self.daemon.rpc.response)
         self.assertEqual(self.daemon.rpc.requests, [
             ('/get_chainlock_quorum_inputs', {'epoch': 7, 'offset': 0, 'limit': 128, 'client': ''}),
             ('/get_chainlock_quorum_inputs', {'epoch': 7, 'offset': 3, 'limit': 4, 'client': 'review'}),
+            ('/get_chainlock_quorum_inputs', {'epoch': (1 << 64) - 1, 'offset': 0, 'limit': 128, 'client': ''}),
         ])
 
 

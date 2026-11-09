@@ -770,8 +770,8 @@ namespace cryptonote
       res.status = "EPoSE alternative chain retry limit reached";
       return true;
     }
-    const uint64_t diagnostics_epoch = req.epoch == std::numeric_limits<uint64_t>::max()
-        ? blockchain.get_epose_current_epoch() : req.epoch;
+    const uint64_t diagnostics_epoch = resolve_requested_epoch(
+        req.epoch, blockchain.get_epose_current_epoch());
     if (diagnostics_epoch < blockchain.get_epose_oldest_retained_epoch_v2())
     {
       res.status = EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW;
@@ -1466,8 +1466,14 @@ namespace cryptonote
       return true;
     }
     CHECK_PAYMENT_MIN1(req, res, COST_PER_BLOCK, false);
-    const bool reconstruct = m_core.get_blockchain_storage()
-        .chainlock_quorum_inputs_require_reconstruction(req.epoch);
+    const Blockchain &blockchain = m_core.get_blockchain_storage();
+    const uint64_t epoch = resolve_requested_epoch(req.epoch, blockchain.get_epose_current_epoch());
+    if (epoch == 0)
+    {
+      res.status = QUORUM_INPUTS_INVALID_EPOCH_STATUS;
+      return true;
+    }
+    const bool reconstruct = blockchain.chainlock_quorum_inputs_require_reconstruction(epoch);
     const bool admin_reconstruction = chainlock_reconstruction_allowed(m_restricted, ctx != nullptr);
     if (!chainlock_quorum_inputs_allowed(reconstruct, !admin_reconstruction))
     {
@@ -1475,8 +1481,8 @@ namespace cryptonote
       return true;
     }
     chainlock_quorum_inputs inputs;
-    if (!m_core.get_blockchain_storage().get_chainlock_quorum_inputs(
-            req.epoch, inputs, req.offset, req.limit, reconstruct))
+    if (!blockchain.get_chainlock_quorum_inputs(
+            epoch, inputs, req.offset, req.limit, reconstruct))
     {
       res.status = QUORUM_INPUTS_UNAVAILABLE_STATUS;
       return true;
