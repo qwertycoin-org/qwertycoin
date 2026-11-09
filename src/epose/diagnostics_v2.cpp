@@ -86,6 +86,7 @@ namespace epose
       case receipt_failure_reason_v2::lease_exhausted: return "lease_exhausted";
       case receipt_failure_reason_v2::dns_slot_busy: return "dns_slot_busy";
       case receipt_failure_reason_v2::recv_too_slow: return "recv_too_slow";
+      case receipt_failure_reason_v2::connect_unreachable: return "connect_unreachable";
     }
     return "unknown";
   }
@@ -459,6 +460,34 @@ namespace epose
       ++found->count;
   }
 
+  void receipt_dial_family_counters_v2::add(const receipt_dial_family_counters_v2 &other)
+  {
+    const auto sum = [](uint64_t &total, const uint64_t value) {
+      total = value > std::numeric_limits<uint64_t>::max() - total
+          ? std::numeric_limits<uint64_t>::max() : total + value;
+    };
+    sum(attempts, other.attempts);
+    sum(connected, other.connected);
+    sum(refused, other.refused);
+    sum(unreachable, other.unreachable);
+    sum(timed_out, other.timed_out);
+    sum(failed, other.failed);
+    sum(abandoned, other.abandoned);
+    sum(prohibited, other.prohibited);
+  }
+
+  void receipt_dial_counters_v2::add(const receipt_dial_counters_v2 &other)
+  {
+    ipv4.add(other.ipv4);
+    ipv6.add(other.ipv6);
+  }
+
+  void receipt_diagnostics_v2::dialed(const receipt_dial_counters_v2 &counters)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    dial_.add(counters);
+  }
+
   receipt_diagnostics_snapshot_v2 receipt_diagnostics_v2::snapshot() const
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -469,6 +498,7 @@ namespace epose
     result.failures = failures_;
     result.failure_totals = failure_totals_;
     result.skips = skips_;
+    result.dial = dial_;
     result.recent_attempts.assign(
         recent_attempts_.begin(), recent_attempts_.end());
     return result;

@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <limits>
 #include <set>
 #include <string>
 #include <utility>
@@ -75,7 +76,8 @@ TEST(epose_diagnostics_v2, reason_codes_are_stable_unique_and_machine_readable)
       receipt_failure_reason_v2::dns_timeout,
       receipt_failure_reason_v2::lease_exhausted,
       receipt_failure_reason_v2::dns_slot_busy,
-      receipt_failure_reason_v2::recv_too_slow};
+      receipt_failure_reason_v2::recv_too_slow,
+      receipt_failure_reason_v2::connect_unreachable};
   std::set<std::string> names;
   for (const auto reason : reasons)
   {
@@ -171,6 +173,40 @@ TEST(epose_diagnostics_v2, failure_totals_count_each_stage_and_reason)
       receipt_failure_reason_v2::lease_exhausted));
   EXPECT_EQ(0u, count(receipt_attempt_stage_v2::local_lease,
       receipt_failure_reason_v2::transport_timeout));
+}
+
+TEST(epose_diagnostics_v2, dial_counters_sum_and_saturate)
+{
+  receipt_diagnostics_v2 diagnostics;
+  receipt_dial_counters_v2 dial{};
+  dial.ipv4.attempts = 2;
+  dial.ipv4.abandoned = 1;
+  dial.ipv4.prohibited = 3;
+  dial.ipv6.attempts = 1;
+  dial.ipv6.connected = 1;
+  diagnostics.dialed(dial);
+  dial.ipv4.refused = 1;
+  dial.ipv6.unreachable = 1;
+  dial.ipv6.timed_out = 1;
+  dial.ipv6.failed = 1;
+  diagnostics.dialed(dial);
+  auto snapshot = diagnostics.snapshot();
+  EXPECT_EQ(4u, snapshot.dial.ipv4.attempts);
+  EXPECT_EQ(2u, snapshot.dial.ipv4.abandoned);
+  EXPECT_EQ(6u, snapshot.dial.ipv4.prohibited);
+  EXPECT_EQ(1u, snapshot.dial.ipv4.refused);
+  EXPECT_EQ(0u, snapshot.dial.ipv4.connected);
+  EXPECT_EQ(2u, snapshot.dial.ipv6.attempts);
+  EXPECT_EQ(2u, snapshot.dial.ipv6.connected);
+  EXPECT_EQ(1u, snapshot.dial.ipv6.unreachable);
+  EXPECT_EQ(1u, snapshot.dial.ipv6.timed_out);
+  EXPECT_EQ(1u, snapshot.dial.ipv6.failed);
+  receipt_dial_counters_v2 huge{};
+  huge.ipv6.attempts = std::numeric_limits<uint64_t>::max();
+  diagnostics.dialed(huge);
+  snapshot = diagnostics.snapshot();
+  EXPECT_EQ(std::numeric_limits<uint64_t>::max(), snapshot.dial.ipv6.attempts);
+  EXPECT_EQ(4u, snapshot.dial.ipv4.attempts);
 }
 
 TEST(epose_diagnostics_v2, every_injected_failure_survives_the_step_runner)

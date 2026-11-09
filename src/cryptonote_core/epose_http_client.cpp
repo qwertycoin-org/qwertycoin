@@ -73,13 +73,38 @@ namespace
     return [resolver] { resolver->cancel(); };
   }
 
+  bool unreachable_connect_error(const boost::system::error_code &error)
+  {
+    return error == boost::asio::error::host_unreachable
+        || error == boost::asio::error::network_unreachable
+        || error == boost::asio::error::network_down
+        || error == boost::asio::error::address_family_not_supported;
+  }
+
   receipt_failure_reason_v2 classify_connect_error(const boost::system::error_code &error)
   {
     if (error == boost::asio::error::connection_refused)
       return receipt_failure_reason_v2::connection_refused;
     if (error == boost::asio::error::timed_out)
       return receipt_failure_reason_v2::connect_timeout;
+    if (unreachable_connect_error(error))
+      return receipt_failure_reason_v2::connect_unreachable;
     return receipt_failure_reason_v2::transport_failure;
+  }
+
+  // Higher says more about the peer: refused, unreachable, other, timed_out;
+  // 0 for no error.
+  int connect_error_rank(const boost::system::error_code &error)
+  {
+    if (!error)
+      return 0;
+    if (error == boost::asio::error::connection_refused)
+      return 4;
+    if (unreachable_connect_error(error))
+      return 3;
+    if (error == boost::asio::error::timed_out)
+      return 1;
+    return 2;
   }
 
   std::string lower_ascii(std::string value)
@@ -357,110 +382,347 @@ namespace
     };
   }
 
-  epose_network_v2::cancel_operation sequential_epose_dial_v2(
-      const std::vector<boost::asio::ip::address> &addresses, const uint16_t port,
-      boost::asio::io_context &io, const steady::time_point deadline,
-      const epose_network_v2::connect_function &connect,
+  epose_dial_budget_v2::epose_dial_budget_v2(const size_t limit) : limit_(limit)
+  {
+  }
+
+  size_t epose_dial_budget_v2::in_use() const
+  {
+    return in_use_;
+  }
+
+  bool epose_dial_budget_v2::try_acquire()
+  {
+    if (in_use_ >= limit_ || !waiters_.empty())
+      return false;
+    ++in_use_;
+    return true;
+  }
+
+  void epose_dial_budget_v2::release()
+  {
+    if (!waiters_.empty())
+    {
+      // The unit passes on: in_use_ is unchanged.
+      auto waiter = std::move(waiters_.front());
+      waiters_.erase(waiters_.begin());
+      waiter.second(waiter.first);
+      return;
+    }
+    if (in_use_ != 0)
+      --in_use_;
+  }
+
+  uint64_t epose_dial_budget_v2::wait(std::function<void(uint64_t)> wake)
+  {
+    const uint64_t id = ++next_waiter_;
+    waiters_.emplace_back(id, std::move(wake));
+    return id;
+  }
+
+  void epose_dial_budget_v2::leave(const uint64_t id)
+  {
+    waiters_.erase(std::remove_if(waiters_.begin(), waiters_.end(),
+        [id](const std::pair<uint64_t, std::function<void(uint64_t)>> &waiter) {
+          return waiter.first == id;
+        }), waiters_.end());
+  }
+
+  std::vector<boost::asio::ip::address> epose_happy_eyeballs_order_v2(
+      const std::vector<boost::asio::ip::address> &addresses, const bool prefer_v6)
+  {
+    std::vector<boost::asio::ip::address> preferred;
+    std::vector<boost::asio::ip::address> other;
+    for (const auto &address : addresses)
+      (address.is_v6() == prefer_v6 ? preferred : other).push_back(address);
+    std::vector<boost::asio::ip::address> ordered;
+    ordered.reserve(addresses.size());
+    for (size_t i = 0; i < preferred.size() || i < other.size(); ++i)
+    {
+      if (i < preferred.size())
+        ordered.push_back(preferred[i]);
+      if (i < other.size())
+        ordered.push_back(other[i]);
+    }
+    return ordered;
+  }
+
+  epose_network_v2::cancel_operation happy_eyeballs_epose_dial_v2(
+      epose_network_v2::dial_request request, boost::asio::io_context &io,
       epose_network_v2::connect_handler complete)
   {
+    using qwertycoin::epose::receipt_dial_family_counters_v2;
+    struct attempt
+    {
+      uint64_t id = 0;
+      boost::asio::ip::address address;
+      epose_network_v2::cancel_operation cancel;
+    };
+    // The job's own unit covers one live attempt; between events
+    // extras <= max(live.size() - 1, 0), so no borrowed unit sits idle.
     struct dial : std::enable_shared_from_this<dial>
     {
-      std::vector<boost::asio::ip::address> addresses;
-      uint16_t port = 0;
+      epose_network_v2::dial_request request;
       boost::asio::io_context &io;
-      steady::time_point deadline;
-      epose_network_v2::connect_function connect;
+      boost::asio::steady_timer timer;
       epose_network_v2::connect_handler complete;
-      epose_network_v2::cancel_operation current;
-      size_t index = 0;
-      uint64_t attempt = 0;
+      std::vector<attempt> live;
+      size_t next = 0;       // next candidate in request.addresses
+      size_t extras = 0;     // budget units held
+      uint64_t last_attempt = 0;
+      uint64_t timer_id = 0;
+      uint64_t waiter = 0;   // budget waiter id, 0 = none
       bool done = false;
-      boost::system::error_code last = boost::asio::error::host_not_found;
 
-      explicit dial(boost::asio::io_context &context) : io(context) {}
+      dial(epose_network_v2::dial_request value, boost::asio::io_context &context,
+          epose_network_v2::connect_handler handler)
+        : request(std::move(value)), io(context), timer(context), complete(std::move(handler)) {}
 
-      void finish(const boost::system::error_code &error, boost::asio::ip::tcp::socket socket)
+      receipt_dial_family_counters_v2 &family(const boost::asio::ip::address &address)
       {
-        if (done)
-          return;
-        done = true;
-        current = {};
-        auto handler = std::move(complete);
-        complete = {};
-        handler(error, std::move(socket));
+        return address.is_v6() ? request.counters->ipv6 : request.counters->ipv4;
       }
 
-      void next()
+      std::vector<attempt>::iterator find(uint64_t id)
       {
-        if (done)
-          return;
-        if (steady::now() >= deadline)
+        return std::find_if(live.begin(), live.end(),
+            [id](const attempt &entry) { return entry.id == id; });
+      }
+
+      // Skips (and counts) candidates the dial policy forbids; true while a
+      // dialable candidate remains.
+      bool more()
+      {
+        while (next < request.addresses.size()
+            && !public_epose_dial_address(request.addresses[next]))
         {
-          finish(boost::asio::error::timed_out, boost::asio::ip::tcp::socket(io));
-          return;
+          ++family(request.addresses[next]).prohibited;
+          request.report->prohibited = true;
+          ++next;
         }
-        if (index >= addresses.size())
+        return next < request.addresses.size();
+      }
+
+      void leave_budget()
+      {
+        if (waiter != 0)
+          request.budget->leave(waiter);
+        waiter = 0;
+      }
+
+      // Returns every extra unit the live attempts do not use.
+      void settle()
+      {
+        while (extras > 0 && extras >= live.size())
         {
-          finish(last, boost::asio::ip::tcp::socket(io));
-          return;
+          --extras;
+          request.budget->release();
         }
-        const boost::asio::ip::tcp::endpoint endpoint(addresses[index++], port);
-        const uint64_t id = ++attempt;
+      }
+
+      // Starts the next candidate on a unit the dial already holds and
+      // restarts the attempt delay from now.
+      bool launch()
+      {
+        if (!more())
+          return false;
+        if (steady::now() >= request.deadline)
+        {
+          request.report->expired = true; // a candidate is left undialed
+          return false;
+        }
+        leave_budget();
+        const auto address = request.addresses[next++];
+        const uint64_t id = ++last_attempt;
+        ++family(address).attempts;
+        live.push_back({id, address, {}});
         auto self = shared_from_this();
+        const auto failed = [self, id](const boost::system::error_code &code) {
+          boost::asio::post(self->io, [self, id, code] {
+            self->finished(id, code, boost::asio::ip::tcp::socket(self->io));
+          });
+        };
         try
         {
-          auto cancel = connect(endpoint, io, deadline,
+          auto cancel = request.connect(boost::asio::ip::tcp::endpoint(address, request.port),
+              io, request.deadline,
               [self, id](boost::system::error_code error, boost::asio::ip::tcp::socket socket) {
-                self->connected(id, error, std::move(socket));
+                // Always on a fresh handler, so no completion re-enters launch().
+                const auto shared = std::make_shared<boost::asio::ip::tcp::socket>(std::move(socket));
+                boost::asio::post(self->io, [self, id, error, shared] {
+                  self->finished(id, error, std::move(*shared));
+                });
               });
-          if (!done && id == attempt)
-            current = std::move(cancel);
+          const auto found = find(id);
+          if (found != live.end())
+            found->cancel = std::move(cancel);
         }
         catch (const boost::system::system_error &e)
         {
-          if (done || id != attempt)
-            return;
-          last = e.code();
-          boost::asio::post(io, [self] { self->next(); });
+          failed(e.code());
         }
+        catch (...)
+        {
+          failed(boost::system::errc::make_error_code(boost::system::errc::io_error));
+        }
+        arm();
+        return true;
       }
 
-      void connected(uint64_t id, const boost::system::error_code &error,
+      // Connection attempt delay from the latest start, clipped to the
+      // deadline; an attempt never starts at or after it.
+      void arm()
+      {
+        const uint64_t id = ++timer_id;
+        if (!more())
+        {
+          timer.cancel();
+          return;
+        }
+        const auto now = steady::now();
+        timer.expires_at(request.deadline - now <= request.attempt_delay
+            ? request.deadline : now + request.attempt_delay);
+        auto self = shared_from_this();
+        timer.async_wait([self, id](const boost::system::error_code &error) {
+          if (error || id != self->timer_id)
+            return;
+          self->delay_elapsed();
+        });
+      }
+
+      void delay_elapsed()
+      {
+        if (waiter != 0 || !more())
+          return;
+        if (steady::now() >= request.deadline)
+        {
+          request.report->expired = true;
+          return;
+        }
+        // Without a budget or at the cap the next attempt waits for a failure.
+        if (!request.budget || extras >= request.extra_limit)
+          return;
+        if (request.budget->try_acquire())
+        {
+          ++extras;
+          launch();
+          settle();
+          return;
+        }
+        auto self = shared_from_this();
+        waiter = request.budget->wait([self](uint64_t id) {
+          boost::asio::post(self->io, [self, id] { self->granted(id); });
+        });
+      }
+
+      // A unit passed on from the budget's queue; this dial owns it now.
+      void granted(uint64_t id)
+      {
+        if (waiter == id)
+          waiter = 0;
+        ++extras;
+        if (!done)
+          launch();
+        settle();
+      }
+
+      void finished(uint64_t id, const boost::system::error_code &error,
           boost::asio::ip::tcp::socket socket)
       {
-        if (done || id != attempt)
+        const auto found = find(id);
+        if (done || found == live.end())
         {
           boost::system::error_code ignored;
           socket.close(ignored);
           return;
         }
-        current = {};
+        const auto address = found->address;
+        live.erase(found);
+        auto &counters = family(address);
+        if (error == boost::asio::error::timed_out && steady::now() >= request.deadline)
+          request.report->expired = true; // the attempt ran into the deadline
         if (!error)
         {
+          ++counters.connected;
+          request.report->connected = true;
+          request.report->winner = address;
           finish({}, std::move(socket));
           return;
         }
-        last = error;
-        next();
+        boost::system::error_code ignored;
+        socket.close(ignored);
+        if (error == boost::asio::error::connection_refused)
+          ++counters.refused;
+        else if (unreachable_connect_error(error))
+          ++counters.unreachable;
+        else if (error == boost::asio::error::timed_out)
+          ++counters.timed_out;
+        else
+          ++counters.failed;
+        if (connect_error_rank(error) > connect_error_rank(request.report->failure))
+          request.report->failure = error;
+        // The failed attempt's unit starts the next candidate at once.
+        if (!launch() && live.empty())
+        {
+          fail();
+          return;
+        }
+        settle();
+      }
+
+      void fail()
+      {
+        boost::system::error_code error = request.report->failure;
+        if (!error)
+        {
+          if (steady::now() >= request.deadline)
+            error = boost::asio::error::timed_out;
+          else if (request.report->prohibited)
+            error = boost::asio::error::access_denied;
+          else
+            error = boost::asio::error::host_not_found;
+        }
+        finish(error, boost::asio::ip::tcp::socket(io));
+      }
+
+      // Every live attempt is counted abandoned and cancelled.
+      void stop()
+      {
+        ++timer_id;
+        timer.cancel();
+        leave_budget();
+        auto losers = std::move(live);
+        live.clear();
+        for (auto &loser : losers)
+        {
+          ++family(loser.address).abandoned;
+          if (loser.cancel)
+            loser.cancel();
+        }
+        settle();
+      }
+
+      void finish(const boost::system::error_code &error, boost::asio::ip::tcp::socket socket)
+      {
+        done = true;
+        stop();
+        auto handler = std::move(complete);
+        complete = {};
+        if (handler)
+          handler(error, std::move(socket));
       }
     };
-    const auto pending = std::make_shared<dial>(io);
-    pending->addresses = addresses;
-    pending->port = port;
-    pending->deadline = deadline;
-    pending->connect = connect ? connect
-        : epose_network_v2::connect_function(&connect_epose_address);
-    pending->complete = std::move(complete);
-    pending->next();
+    if (!request.connect)
+      request.connect = epose_network_v2::connect_function(&connect_epose_address);
+    const auto pending = std::make_shared<dial>(std::move(request), io, std::move(complete));
+    if (!pending->launch())
+      pending->fail();
     return [pending] {
       if (pending->done)
         return;
       pending->done = true;
       pending->complete = {};
-      auto cancel = std::move(pending->current);
-      pending->current = {};
-      if (cancel)
-        cancel();
+      pending->stop();
     };
   }
 
@@ -532,16 +794,53 @@ namespace detail
     struct resolved_host
     {
       uint64_t epoch = 0;
-      std::vector<boost::asio::ip::address> addresses; // filtered and ordered
+      std::vector<boost::asio::ip::address> addresses; // filtered, resolver order
     };
     // Last successful resolution per host, all from resolved_epoch; see
     // EPOSE_V2_RESOLVED_HOST_ENTRIES.
     std::map<std::string, resolved_host> resolved_hosts;
     uint64_t resolved_epoch = 0;
     std::vector<std::weak_ptr<receipt_job>> jobs;
+    const std::shared_ptr<epose_dial_budget_v2> dial_budget;
+    // Last winning family per host (EPOSE_V2_DIAL_PREFERENCE_ENTRIES);
+    // preference_age orders the hosts oldest recorded first.
+    struct family_preference
+    {
+      bool v6 = false;
+      uint64_t recorded = 0;
+    };
+    std::map<std::string, family_preference> preferences;
+    std::map<uint64_t, std::string> preference_age;
+    uint64_t preference_clock = 0;
+    const size_t preference_entries;
 
-    epose_receipt_client_state(epose_network_v2 hooks, size_t limit)
-      : work(boost::asio::make_work_guard(io)), network(std::move(hooks)), capacity(limit) {}
+    epose_receipt_client_state(epose_network_v2 hooks, size_t limit, size_t extra_attempts,
+        size_t preference_bound)
+      : work(boost::asio::make_work_guard(io)), network(std::move(hooks)), capacity(limit),
+        dial_budget(std::make_shared<epose_dial_budget_v2>(extra_attempts)),
+        preference_entries(preference_bound) {}
+
+    bool prefers_v6(const std::string &host) const
+    {
+      const auto found = preferences.find(host);
+      return found != preferences.end() && found->second.v6;
+    }
+
+    void prefer(const std::string &host, bool v6)
+    {
+      const auto found = preferences.find(host);
+      if (found != preferences.end())
+        preference_age.erase(found->second.recorded);
+      else if (preferences.size() >= preference_entries && !preference_age.empty())
+      {
+        preferences.erase(preference_age.begin()->second);
+        preference_age.erase(preference_age.begin());
+      }
+      auto &entry = preferences[host];
+      entry.v6 = v6;
+      entry.recorded = ++preference_clock;
+      preference_age[entry.recorded] = host;
+    }
 
     void release()
     {
@@ -604,15 +903,12 @@ namespace detail
     }
   };
 
-  // Drops addresses the dial policy forbids and orders the rest IPv4 first,
-  // preserving resolver order within each family.
+  // Drops addresses the dial policy forbids, preserving resolver order.
   std::vector<boost::asio::ip::address> dial_order(std::vector<boost::asio::ip::address> found)
   {
     found.erase(std::remove_if(found.begin(), found.end(),
         [](const boost::asio::ip::address &address) { return !public_epose_dial_address(address); }),
         found.end());
-    std::stable_partition(found.begin(), found.end(),
-        [](const boost::asio::ip::address &address) { return address.is_v4(); });
     return found;
   }
 
@@ -641,6 +937,19 @@ namespace detail
     std::shared_ptr<bool> dns_completed; // this exchange's lookup resume ran
     uint64_t lookup_waiter = 0;          // id in client.lookup_waiters, 0 = none
     std::vector<boost::asio::ip::address> addresses;
+    // Connect attempts of the owning job, shared by its exchanges.
+    std::shared_ptr<qwertycoin::epose::receipt_dial_counters_v2> dial_counters =
+        std::make_shared<qwertycoin::epose::receipt_dial_counters_v2>();
+    std::shared_ptr<epose_dial_report_v2> dial_report; // of the current dial
+
+    // dial_order, counting each removed address as prohibited.
+    std::vector<boost::asio::ip::address> checked(std::vector<boost::asio::ip::address> found)
+    {
+      for (const auto &address : found)
+        if (!public_epose_dial_address(address))
+          ++(address.is_v6() ? dial_counters->ipv6 : dial_counters->ipv4).prohibited;
+      return dial_order(std::move(found));
+    }
     std::shared_ptr<boost::asio::ip::tcp::socket> socket;
     std::string request;
     std::vector<char> chunk;
@@ -708,19 +1017,19 @@ namespace detail
             receipt_failure_reason_v2::deadline_expired});
         return;
       }
-      // DNS and address fallback share this deadline; no slot wait is charged.
+      // DNS and every dial attempt share this deadline; no slot wait is charged.
       arm(deadlines.stage(deadlines.connect));
       boost::system::error_code error;
       const auto literal = boost::asio::ip::make_address(host, error);
       if (!error)
       {
-        if (!public_epose_dial_address(literal))
+        addresses = checked({literal});
+        if (addresses.empty())
         {
           finish({receipt_attempt_stage_v2::network_connect,
               receipt_failure_reason_v2::address_prohibited});
           return;
         }
-        addresses.push_back(literal);
         begin_connect();
         return;
       }
@@ -850,7 +1159,7 @@ namespace detail
             receipt_failure_reason_v2::dns_resolution_failed});
         return;
       }
-      found = dial_order(std::move(found));
+      found = checked(std::move(found));
       if (found.empty())
       {
         finish({receipt_attempt_stage_v2::network_connect,
@@ -864,15 +1173,25 @@ namespace detail
     void begin_connect()
     {
       state = phase::connect;
+      addresses = epose_happy_eyeballs_order_v2(addresses, client.prefers_v6(host));
       const uint64_t id = stage_id;
       auto self = shared_from_this();
       auto *owner = &client;
-      const epose_network_v2::connect_function connect = client.network.connect
-          ? client.network.connect
-          : epose_network_v2::connect_function(&connect_epose_address);
       const epose_network_v2::dialer dial = client.network.dial
           ? client.network.dial
-          : epose_network_v2::dialer(&sequential_epose_dial_v2);
+          : epose_network_v2::dialer(&happy_eyeballs_epose_dial_v2);
+      epose_network_v2::dial_request request{};
+      request.addresses = addresses;
+      request.port = port;
+      request.deadline = deadline;
+      request.attempt_delay = deadlines.connect_attempt_delay;
+      request.connect = client.network.connect
+          ? client.network.connect
+          : epose_network_v2::connect_function(&connect_epose_address);
+      request.budget = client.dial_budget;
+      dial_report = std::make_shared<epose_dial_report_v2>();
+      request.report = dial_report;
+      request.counters = dial_counters;
       const epose_network_v2::connect_handler complete =
           [self, id, owner](boost::system::error_code error, boost::asio::ip::tcp::socket connected) {
         const auto shared = std::make_shared<boost::asio::ip::tcp::socket>(std::move(connected));
@@ -882,7 +1201,7 @@ namespace detail
       };
       try
       {
-        auto cancel = dial(addresses, port, client.io, deadline, connect, complete);
+        auto cancel = dial(std::move(request), client.io, complete);
         if (state == phase::connect && id == stage_id)
           cancel_op = std::move(cancel);
       }
@@ -911,8 +1230,17 @@ namespace detail
       // deadline; only a connection that arrives too late is a timeout.
       if (error)
       {
+        if (error == boost::asio::error::access_denied
+            && dial_report->prohibited && !dial_report->failure)
+        {
+          finish({receipt_attempt_stage_v2::network_connect,
+              receipt_failure_reason_v2::address_prohibited});
+          return;
+        }
         const auto reason = classify_connect_error(error);
+        // As in timed_out(): a dial the deadline cut short ran out of time.
         finish(reason == receipt_failure_reason_v2::connect_timeout
+                || dial_report->expired
             ? expired(receipt_attempt_stage_v2::network_connect, reason)
             : receipt_step_result_v2{receipt_attempt_stage_v2::network_connect, reason});
         return;
@@ -926,7 +1254,21 @@ namespace detail
         return;
       }
       socket = connected_socket;
+      remember_family();
       begin_send();
+    }
+
+    // Records the winning family when the candidates offered both.
+    void remember_family()
+    {
+      if (!dial_report->connected)
+        return;
+      const bool v4 = std::any_of(addresses.begin(), addresses.end(),
+          [](const boost::asio::ip::address &address) { return address.is_v4(); });
+      const bool v6 = std::any_of(addresses.begin(), addresses.end(),
+          [](const boost::asio::ip::address &address) { return address.is_v6(); });
+      if (v4 && v6)
+        client.prefer(host, dial_report->winner.is_v6());
     }
 
     void begin_send()
@@ -1215,9 +1557,12 @@ namespace detail
         break;
       case phase::connect:
       {
+        // A failed attempt says more than a pending one; the round deadline
+        // still wins over every reason.
         auto cancel = std::move(cancel_op);
-        finish(expired(receipt_attempt_stage_v2::network_connect,
-            receipt_failure_reason_v2::connect_timeout));
+        const auto failure = dial_report->failure;
+        finish(expired(receipt_attempt_stage_v2::network_connect, failure
+            ? classify_connect_error(failure) : receipt_failure_reason_v2::connect_timeout));
         if (cancel)
           cancel();
         break;
@@ -1261,6 +1606,8 @@ namespace detail
     boost::optional<receipt_step_result_v2> best;
     size_t next_url = 0;
     std::shared_ptr<http_exchange> current;
+    std::shared_ptr<qwertycoin::epose::receipt_dial_counters_v2> dial =
+        std::make_shared<qwertycoin::epose::receipt_dial_counters_v2>();
     bool finished = false;
 
     receipt_job(epose_receipt_client_state &owner,
@@ -1275,7 +1622,8 @@ namespace detail
       auto exchange = std::move(current);
       current.reset();
       if (exchange)
-        exchange->abort();
+        exchange->abort(); // counts its abandoned attempts first
+      out.dial = *dial;
       out.result = result;
       if (!result.accepted())
         out.response = {};
@@ -1307,6 +1655,7 @@ namespace detail
     {
       const auto pending = std::make_shared<http_exchange>(client, host, port, uri,
           std::move(body), limit, request.deadlines, request.challenge.epoch);
+      pending->dial_counters = dial;
       auto self = shared_from_this();
       pending->done = [self, next](receipt_step_result_v2 result, std::string payload) {
         if (self->finished)
@@ -1497,8 +1846,10 @@ namespace detail
   }
 
   epose_receipt_client_v2::epose_receipt_client_v2(
-      epose_network_v2 network, const size_t capacity)
-    : state_(std::make_shared<detail::epose_receipt_client_state>(std::move(network), capacity))
+      epose_network_v2 network, const size_t capacity, const size_t extra_attempts,
+      const size_t preference_entries)
+    : state_(std::make_shared<detail::epose_receipt_client_state>(
+          std::move(network), capacity, extra_attempts, preference_entries))
   {
     auto *state = state_.get();
     worker_ = std::thread([state] {

@@ -1113,6 +1113,7 @@ namespace cryptonote
       const epose_v2_receipt_job &finished, const bool track_retries)
   {
     const epose_receipt_exchange_v2 exchange = finished.handle->wait();
+    m_epose_v2_receipt_diagnostics.dialed(exchange.dial);
     using qwertycoin::epose::receipt_attempt_stage_v2;
     using qwertycoin::epose::receipt_failure_reason_v2;
     using qwertycoin::epose::receipt_job_end_v2;

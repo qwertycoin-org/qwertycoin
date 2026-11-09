@@ -402,10 +402,12 @@ TEST(epose_service_producer_v2, busy_receipt_attempt_backs_off_escalating_and_bo
 TEST(epose_service_producer_v2, every_receipt_outcome_maps_to_its_retry_transition)
 {
   // Every reason the client, the verifier or local submission can report.
-  // Adding a reason after recv_too_slow must extend this table.
+  // A reason that needs its own transition must extend the expectations.
   using reason = receipt_failure_reason_v2;
   using action = receipt_retry_action_v2;
-  const auto last = static_cast<uint8_t>(reason::recv_too_slow);
+  const auto last = static_cast<uint8_t>(receipt_failure_reason_v2_last);
+  static_assert(receipt_failure_reason_v2_last == reason::connect_unreachable,
+      "a new reason: review its retry transition, then move this assert");
   for (uint8_t value = 0; value <= last; ++value)
   {
     const auto r = static_cast<reason>(value);

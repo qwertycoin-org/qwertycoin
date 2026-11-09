@@ -80,8 +80,14 @@ namespace epose
     dns_slot_busy,
     // The peer delivered its response below the receive progress floor, or
     // not within the total receive bound derived from it.
-    recv_too_slow
+    recv_too_slow,
+    // Every connect attempt failed, none refused, at least one unreachable
+    // (host, network or an address family the local stack cannot use).
+    connect_unreachable
   };
+  // Move with every reason appended above.
+  constexpr receipt_failure_reason_v2 receipt_failure_reason_v2_last =
+      receipt_failure_reason_v2::connect_unreachable;
 
   enum class receipt_attempt_outcome_v2 : uint8_t
   {
@@ -175,6 +181,31 @@ namespace epose
     uint64_t count = 0;
   };
 
+  // Connect attempts of one address family. Each attempt ends as exactly one
+  // of connected, refused, unreachable, timed_out, failed or abandoned
+  // (cancelled); prohibited counts candidates skipped without dialing.
+  struct receipt_dial_family_counters_v2
+  {
+    uint64_t attempts = 0;
+    uint64_t connected = 0;
+    uint64_t refused = 0;
+    uint64_t unreachable = 0;
+    uint64_t timed_out = 0;
+    uint64_t failed = 0;
+    uint64_t abandoned = 0;
+    uint64_t prohibited = 0;
+
+    void add(const receipt_dial_family_counters_v2 &other);
+  };
+
+  struct receipt_dial_counters_v2
+  {
+    receipt_dial_family_counters_v2 ipv4{};
+    receipt_dial_family_counters_v2 ipv6{};
+
+    void add(const receipt_dial_counters_v2 &other);
+  };
+
   struct receipt_round_counters_v2
   {
     uint64_t epoch = 0;
@@ -225,6 +256,8 @@ namespace epose
     std::vector<receipt_failure_total_v2> failure_totals;
     std::vector<receipt_skip_counter_v2> skips;
     std::vector<receipt_attempt_terminal_v2> recent_attempts;
+    // Lifetime connect attempts per address family over every finished job.
+    receipt_dial_counters_v2 dial{};
   };
 
   struct receipt_diagnostic_effect_v2
@@ -280,6 +313,8 @@ namespace epose
         uint64_t epoch, uint64_t round, const crypto::hash &slot);
     void transport_retry(uint64_t epoch, uint64_t round, bool relayed);
     void skipped(receipt_scheduler_skip_v2 reason);
+    // Adds one finished job's connect attempts to the lifetime totals.
+    void dialed(const receipt_dial_counters_v2 &counters);
     receipt_diagnostics_snapshot_v2 snapshot() const;
 
   private:
@@ -313,6 +348,7 @@ namespace epose
     receipt_failure_counter_v2 discarded_failure_{};
     std::vector<receipt_failure_total_v2> failure_totals_;
     std::vector<receipt_skip_counter_v2> skips_;
+    receipt_dial_counters_v2 dial_{};
     std::deque<receipt_attempt_terminal_v2> recent_attempts_;
     std::vector<uint64_t> active_attempt_ids_;
     std::vector<slot_state> slots_;
