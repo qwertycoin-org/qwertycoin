@@ -52,6 +52,9 @@ namespace cryptonote
     const qwertycoin::epose::envelope_limits_v2 *limits = nullptr;
     const std::vector<qwertycoin::epose::envelope_record_v2> *carrier_records = nullptr;
     qwertycoin::epose::service_payment_context_v2 *generated_context = nullptr;
+    network_type nettype = MAINNET;
+    crypto::hash genesis_hash{};
+    crypto::hash parameter_set_hash{};
   };
 
   //---------------------------------------------------------------

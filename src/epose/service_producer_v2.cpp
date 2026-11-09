@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <limits>
+#include <boost/filesystem.hpp>
+#include "file_io_utils.h"
 
 namespace
 {
@@ -373,6 +375,90 @@ namespace epose
     return entries_.size();
   }
 
+  std::vector<std::string> filter_envelope_delivery_v2(
+      relay_delivery_limiter_v2 &limiter,
+      const std::vector<std::string> &envelopes, uint64_t peer_id,
+      uint64_t now_ms, bool origin)
+  {
+    std::vector<std::string> delivery;
+    bool enrollment_dependency_filtered = false;
+    for (const auto &envelope : envelopes)
+    {
+      // Only classify the already validated one-record relay envelope here.
+      // Use its byte size as the structural bound, not a consensus policy.
+      const envelope_limits_v2 limits{envelope.size(), 1, envelope.size(),
+          2, 1, {0, 1, 1, 1, 1, 1}};
+      std::vector<envelope_record_v2> records;
+      envelope_budget_v2 budget{};
+      const bool enrollment = parse_envelope_v2(envelope, limits, records, budget)
+              == envelope_status_v2::accepted && records.size() == 1
+          && (records.front().type == static_cast<uint8_t>(record_type_v2::identity_descriptor)
+              || records.front().type == static_cast<uint8_t>(record_type_v2::descriptor_lifecycle)
+              || records.front().type == static_cast<uint8_t>(record_type_v2::admission_lease));
+      // Only the origin's enrollment is already paced as a complete set by
+      // the producer. Local receipts use the same bound as received receipts.
+      if (origin && enrollment)
+      {
+        delivery.push_back(envelope);
+        continue;
+      }
+      // Do not send a dependent enrollment suffix after filtering a possible
+      // prerequisite. Independent receipts are still considered individually.
+      if (enrollment && enrollment_dependency_filtered)
+        continue;
+      const auto hash = crypto::cn_fast_hash(envelope.data(), envelope.size());
+      std::string key(reinterpret_cast<const char *>(&hash), sizeof(hash));
+      key.append(reinterpret_cast<const char *>(&peer_id), sizeof(peer_id));
+      if (limiter.allow(key, now_ms))
+        delivery.push_back(envelope);
+      else if (enrollment)
+        enrollment_dependency_filtered = true;
+    }
+    return delivery;
+  }
+
+  relay_ingress_status_v2 redeliver_pending_enrollment_v2(
+      const std::string &path, const consensus_parameters_v2 &parameters,
+      const std::vector<std::string> &envelopes, uint64_t height, bool confirmed,
+      const std::function<relay_ingress_status_v2(const std::vector<std::string> &,
+          std::vector<std::string> &)> &submit,
+      const std::function<void(const std::vector<std::string> &)> &relay,
+      bool &save_failed, bool &newly_accepted)
+  {
+    save_failed = newly_accepted = false;
+    if (confirmed)
+      return relay_ingress_status_v2::expired;
+    std::vector<envelope_record_v2> records;
+    for (const auto &envelope : envelopes)
+    {
+      std::vector<envelope_record_v2> decoded;
+      envelope_budget_v2 budget{};
+      if (parse_envelope_v2(envelope, parameters.limits.envelope, decoded, budget)
+              != envelope_status_v2::accepted || decoded.size() != 1)
+        return relay_ingress_status_v2::invalid_batch;
+      records.push_back(decoded.front());
+    }
+    admission_lease_v2 admission{};
+    uint64_t cutoff = 0;
+    if (records.empty()
+        || decode_admission_lease_record_structure_v2(records.back(), admission)
+            != record_codec_status_v2::accepted
+        || !parameters.timing.enrollment_cutoff(admission.target_epoch, cutoff))
+      return relay_ingress_status_v2::invalid_batch;
+    if (height >= cutoff)
+      return relay_ingress_status_v2::expired;
+    save_failed = !save_pending_enrollment_v2(path, parameters, records);
+    std::vector<std::string> accepted;
+    const auto status = submit(envelopes, accepted);
+    if (status != relay_ingress_status_v2::accepted)
+      return status;
+    newly_accepted = !accepted.empty();
+    // Always send the original complete set, including canonical/pending
+    // prerequisites omitted from the pool's newly accepted output.
+    relay(envelopes);
+    return status;
+  }
+
   service_producer_status_v2 build_initial_service_enrollment_v2(
       const consensus_parameters_v2 &parameters,
       const service_enrollment_config_v2 &configuration,
@@ -462,6 +548,80 @@ namespace epose
     return service_producer_status_v2::accepted;
   }
 
+  bool save_pending_enrollment_v2(const std::string &path,
+      const consensus_parameters_v2 &parameters,
+      const std::vector<envelope_record_v2> &records)
+  {
+    if (records.empty() || records.size() > 2)
+      return false;
+    std::string encoded;
+    envelope_budget_v2 budget{};
+    if (encode_envelope_v2(records, parameters.limits.envelope, encoded, budget)
+        != envelope_status_v2::accepted)
+      return false;
+    if (encoded.size() > 4096)
+      return false;
+    std::string existing;
+    if (epee::file_io_utils::load_file_to_string(path, existing, 4096) && existing == encoded)
+      return true;
+    const std::string temporary = path + ".tmp";
+    if (!epee::file_io_utils::save_string_to_file(temporary, encoded))
+      return false;
+    boost::system::error_code error;
+    boost::filesystem::rename(temporary, path, error);
+    if (!error)
+      return true;
+    boost::filesystem::remove(temporary, error);
+    return false;
+  }
+
+  bool load_pending_enrollment_v2(const std::string &path,
+      const consensus_parameters_v2 &parameters,
+      const crypto::hash &identity, uint64_t target_epoch,
+      uint64_t inclusion_height, const crypto::hash &context_hash,
+      std::vector<envelope_record_v2> &records)
+  {
+    records.clear();
+    uint64_t cutoff = 0, context_height = 0;
+    if (!parameters.valid() || target_epoch < parameters.admission.context_epoch_offset
+        || !parameters.timing.enrollment_cutoff(target_epoch, cutoff)
+        || inclusion_height > cutoff
+        || !parameters.timing.epoch_start(target_epoch - parameters.admission.context_epoch_offset, context_height)
+        || inclusion_height <= context_height || context_hash == crypto::null_hash)
+      return false;
+    std::string encoded;
+    // A registration/update and admission are well below this fixed local cap.
+    if (!epee::file_io_utils::load_file_to_string(path, encoded, 4096))
+      return false;
+    std::vector<envelope_record_v2> loaded;
+    envelope_budget_v2 budget{};
+    if (parse_envelope_v2(encoded, parameters.limits.envelope, loaded, budget)
+            != envelope_status_v2::accepted
+        || loaded.empty() || loaded.size() > 2)
+      return false;
+    admission_lease_v2 admission{};
+    const admission_context_v2 context{parameters.nettype, parameters.genesis_hash,
+        parameters.parameter_set_hash, context_height, context_hash};
+    if (decode_admission_lease_record_v2(loaded.back(), context, parameters.admission, admission)
+            != record_codec_status_v2::accepted
+        || admission.target_epoch != target_epoch || admission.member.identity_id != identity)
+      return false;
+    if (loaded.size() == 2)
+    {
+      lifecycle_record_v2 lifecycle{};
+      if (decode_lifecycle_record_v2(loaded.front(), parameters.nettype,
+              parameters.genesis_hash, parameters.parameter_set_hash, lifecycle)
+              != record_codec_status_v2::accepted
+          || lifecycle.next_descriptor.identity_id != identity
+          || hash_identity_descriptor_v2(parameters.nettype, parameters.genesis_hash,
+              parameters.parameter_set_hash, lifecycle.next_descriptor)
+              != admission.member.descriptor_hash)
+        return false;
+    }
+    records.swap(loaded);
+    return true;
+  }
+
   service_producer_status_v2 build_service_renewal_enrollment_v2(
       const consensus_parameters_v2 &parameters,
       const service_enrollment_config_v2 &configuration,
@@ -494,9 +654,24 @@ namespace epose
             configuration.keystore.service_public_key,
             configuration.keystore.service_secret_key)
         || current_descriptor.sequence == std::numeric_limits<uint64_t>::max()
-        || target_epoch <= current_descriptor.effective_epoch
+        || target_epoch < current_descriptor.effective_epoch
         || target_epoch > std::numeric_limits<uint64_t>::max() - 2)
       return service_producer_status_v2::invalid_configuration;
+
+    // A restart after lifecycle-only inclusion must reuse the committed
+    // descriptor. A second lifecycle for the same effective epoch is invalid.
+    if (target_epoch == current_descriptor.effective_epoch)
+    {
+      envelope_record_v2 admission_record{};
+      const auto status = build_admission(parameters, current_descriptor,
+          target_epoch, admission_context_hash, max_nonce_attempts,
+          enrollment.admission, admission_record, cancel);
+      if (status == service_producer_status_v2::accepted)
+        enrollment.records.push_back(std::move(admission_record));
+      else
+        enrollment = {};
+      return status;
+    }
 
     const service_producer_status_v2 endpoint_status = build_endpoint(
         parameters, configuration, current_descriptor.sequence + 1,

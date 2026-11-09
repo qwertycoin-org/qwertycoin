@@ -28,6 +28,8 @@
 // 
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include "epose/record_codec_v2.h"
+#include "epose/resource_policy_v2.h"
 #include <unordered_set>
 #include <random>
 #include <limits>
@@ -256,6 +258,17 @@ namespace cryptonote
       CHECK_AND_ASSERT_MES(max_outs >= out_amounts.size(), false, "max_out exceeded");
     }
 
+    // The existing proof verifier counts every output derived with the primary
+    // transaction key to the payee. Use the already supported per-output keys
+    // for the miner allocation when both addresses coincide. This keeps the
+    // unchanged verifier's service total exact and both allocations spendable.
+    const bool separate_miner_key = service_payment_v2 != nullptr
+        && service_payment_v2->expectation != nullptr
+        && miner_address.m_view_public_key == service_reward_address->m_view_public_key
+        && miner_address.m_spend_public_key == service_reward_address->m_spend_public_key;
+    const keypair miner_txkey = separate_miner_key
+        ? keypair::generate(hw::get_device("default")) : txkey;
+
     uint64_t summary_amounts = 0;
     for (size_t no = 0; no < out_amounts.size(); no++)
     {
@@ -265,7 +278,7 @@ namespace cryptonote
           false, "Miner output sum overflow");
       summary_amounts += amount;
 
-      bool r = add_miner_output(tx, amount, miner_address, txkey.sec, no, hard_fork_version);
+      bool r = add_miner_output(tx, amount, miner_address, miner_txkey.sec, no, hard_fork_version);
       CHECK_AND_ASSERT_MES(r, false, "failed to add miner output");
     }
 
@@ -278,6 +291,15 @@ namespace cryptonote
           summary_amounts <= std::numeric_limits<uint64_t>::max() - service_reward,
           false, "Service output sum overflow");
       summary_amounts += service_reward;
+    }
+
+    if (separate_miner_key)
+    {
+      std::vector<crypto::public_key> additional_keys(tx.vout.size(), txkey.pub);
+      std::fill_n(additional_keys.begin(), out_amounts.size(), miner_txkey.pub);
+      CHECK_AND_ASSERT_MES(add_additional_tx_pub_keys_to_extra(tx.extra, additional_keys)
+          && sort_tx_extra(tx.extra, tx.extra), false,
+          "failed to add separate miner transaction keys");
     }
 
     if (service_payment_v2 != nullptr)
@@ -300,10 +322,82 @@ namespace cryptonote
         && service_payment_v2->carrier_records != nullptr
         && !service_payment_v2->carrier_records->empty())
     {
+      using namespace qwertycoin::epose;
+      const auto &candidates = *service_payment_v2->carrier_records;
+      std::vector<envelope_record_v2> selected;
+      // Measure actual serialization, including nonce, additional keys, envelope
+      // framing and the fixed-size proof. Never remove an enrollment predecessor
+      // while keeping its dependent successor.
+      const auto add_if_fits = [&](const std::vector<envelope_record_v2> &group) {
+        auto trial = selected;
+        trial.insert(trial.end(), group.begin(), group.end());
+        auto extra = tx.extra;
+        envelope_budget_v2 budget{};
+        if (append_transaction_envelope_v2(trial, hard_fork_version,
+                service_payment_v2->max_envelopes_per_transaction,
+                *service_payment_v2->limits, extra, budget) != envelope_status_v2::accepted)
+          return false;
+        if (service_payment_v2->expectation != nullptr)
+        {
+          const envelope_record_v2 proof{
+              static_cast<uint8_t>(record_type_v2::service_payment_proof),
+              EPOSE_PAYMENT_PROOF_RECORD_VERSION_V2,
+              std::string(EPOSE_PAYMENT_PROOF_PAYLOAD_BYTES_V2, 0)};
+          if (append_transaction_envelope_v2({proof}, hard_fork_version,
+                  service_payment_v2->max_envelopes_per_transaction,
+                  *service_payment_v2->limits, extra, budget) != envelope_status_v2::accepted)
+            return false;
+        }
+        if (extra.size() > MAX_TX_EXTRA_SIZE)
+          return false;
+        selected.swap(trial);
+        return true;
+      };
+      const auto is_receipt = [](const envelope_record_v2 &record) {
+        return record.type == static_cast<uint8_t>(record_type_v2::service_receipt);
+      };
+      const auto groups = enrollment_template_groups_v2(candidates, service_payment_v2->nettype,
+          service_payment_v2->genesis_hash, service_payment_v2->parameter_set_hash);
+      std::vector<bool> included(candidates.size());
+      const auto add_group = [&](const std::vector<size_t> &indices) {
+        std::vector<envelope_record_v2> group;
+        for (auto i : indices)
+          if (!included[i])
+            group.push_back(candidates[i]);
+        if (!add_if_fits(group))
+          return false;
+        for (auto i : indices)
+          included[i] = true;
+        return true;
+      };
+      // A pair may exceed the space left by a receipt. Reserve evidence when
+      // possible, but never split a pair or indefinitely starve enrollment.
+      auto reserved = std::find_if(candidates.begin(), candidates.end(), is_receipt);
+      if (reserved != candidates.end())
+        add_group({static_cast<size_t>(reserved - candidates.begin())});
+      for (const auto &group : groups)
+      {
+        if (is_receipt(candidates[group.back()]))
+          continue;
+        if (!add_group(group)
+            && candidates[group.back()].type == static_cast<uint8_t>(record_type_v2::admission_lease)
+            && reserved != candidates.end() && selected.size() == 1
+            && included[reserved - candidates.begin()])
+        {
+          selected.clear();
+          included[reserved - candidates.begin()] = false;
+          if (!add_group(group))
+            add_group({static_cast<size_t>(reserved - candidates.begin())});
+        }
+      }
+      for (size_t i = 0; i < candidates.size(); ++i)
+        if (is_receipt(candidates[i]))
+          add_group({i});
+
       qwertycoin::epose::envelope_budget_v2 carrier_budget{};
       CHECK_AND_ASSERT_MES(
-          qwertycoin::epose::append_transaction_envelope_v2(
-              *service_payment_v2->carrier_records, hard_fork_version,
+          selected.empty() || qwertycoin::epose::append_transaction_envelope_v2(
+              selected, hard_fork_version,
               service_payment_v2->max_envelopes_per_transaction,
               *service_payment_v2->limits, tx.extra, carrier_budget)
               == qwertycoin::epose::envelope_status_v2::accepted,

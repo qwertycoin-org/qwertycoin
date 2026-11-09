@@ -140,6 +140,8 @@ namespace epose
     void rollback(const undo_journal &undo) noexcept;
 
     bool valid() const;
+    // Local relay/template policy only; canonical duplicate acceptance is unchanged.
+    bool contains(const lifecycle_record_v2 &record) const;
 
     lifecycle_status_v2 apply(
         const lifecycle_record_v2 &record,
