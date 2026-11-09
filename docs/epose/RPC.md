@@ -46,8 +46,36 @@ points, and local producer flags. The local progression fields mean:
 - `local_service_node_registered`: the identity has a canonical descriptor;
 - `local_service_node_active`: the descriptor is effective in the current
   epoch;
-- `local_service_node_qualified`: the service key is in the current closed or
-  visible qualification view.
+- `local_service_node_qualified`: the service key is in the latest closed,
+  retained qualification set identified by `qualification_epoch`.
+
+`local_service_node_step_failed_count` is a restart-local producer failure
+counter. RPC envelope submissions do not increment it.
+
+`qualified_count` and `local_service_node_qualified` refer to
+`qualification_epoch`: the current epoch after its evidence deadline,
+otherwise the preceding epoch. `qualification_available` is false when no
+closed qualification set is retained; in that case `qualification_epoch`,
+`qualified_count`, and `local_service_node_qualified` are zero, zero, and false.
+Every other `get_epose_info` field refers to the current epoch.
+
+Under the contracts-version rolling window, `get_epose_epoch`, historical
+reward preview, historical block-reward mapping, and `get_epose_diagnostics` return
+`EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW` for a requested epoch older than the
+retained floor.
+
+For epochs whose membership bucket has folded, `get_epose_qualified_service_nodes`,
+`get_epose_membership_snapshot_v2`, `get_epose_qualification_v2`, and
+`get_epose_committee_v2` read the archived membership bucket while it is within
+the ChainLock carrier retention window measured from the tip epoch. They return
+the archived keys, snapshot,
+qualification, or committee. After the bucket is evicted, the membership
+getters return empty or unavailable. `get_epose_epoch` and
+`get_epose_block_reward` use the status `Qualification pruned` when their
+requested qualification exists but is pruned. Its qualification getter returns
+unavailable and its qualified-node getter returns an empty vector. An epoch older than
+the retained floor returns `EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW` from those
+RPC handlers before qualification lookup.
 
 Starting a producer does not make the later flags immediately true.
 
@@ -59,10 +87,30 @@ curl -s -X POST http://127.0.0.1:8197/get_service_nodes \
   -d '{"limit":25}'
 ```
 
-The response includes `total_count` and `returned_count`. Identity entries
+The response includes `total_count`, `returned_count`,
+`qualification_epoch`, and `qualification_available`. Identity entries
 contain public keys, public reward-address components, endpoint commitment,
-descriptor sequence/epochs, and active/qualified flags. No secret key is
+descriptor sequence/epochs, and active/qualified flags. The active flag uses
+the current epoch; the qualified flag uses `qualification_epoch`. No secret key is
 returned.
+
+`get_service_node_status` uses the same epoch rule for its qualified flag and
+returns `qualification_epoch` and `qualification_available`. For
+`get_epose_epoch`, an omitted or zero epoch
+keeps the current epoch boundaries and active count while its qualified count
+uses the latest closed qualification. An explicit epoch returns that epoch's
+qualification set. Both responses include `qualification_epoch` and
+`qualification_available`. The latter is false when no retained closed set
+exists for a default request or when the requested explicit epoch has no
+retained qualification set. An available set may contain zero qualified nodes.
+
+`get_service_rewards` and `get_epose_block_reward` also include
+`qualification_epoch`. Their qualified counts remain tied to the reward source
+epoch for the requested height or canonical block.
+`get_service_rewards` previews the next block height through the EPoSe-v2
+coordinator reward plan for an empty block with zero transaction fees. `preview_available` is true
+when the plan succeeds. `service_reward_active` and the expected public payee
+keys reflect that plan. Historical or future heights have no preview.
 
 ## Endpoint discovery and challenges
 
@@ -93,7 +141,10 @@ canonical block blob and subject signature. The caller must independently
 validate the block bytes and produce the selected-verifier signature; an HTTP
 success response is not consensus evidence by itself.
 
-Apply normal request-body, connection, concurrency, and rate limits at the edge.
+The challenge route remains available to P2P-banned hosts and has a per-address
+bucket of eight requests that refills by one request per second. Other RPC
+routes reject P2P-banned hosts. Apply normal request-body and connection limits
+at the edge.
 
 ## Reward views
 
@@ -175,3 +226,52 @@ retention/reset behavior, and the operator troubleshooting sequence.
 - Never log or publish a keystore, wallet seed, wallet private key, or raw
   secret-bearing configuration. Current EPoSE RPC schemas contain public
   protocol data only.
+`get_epose_diagnostics` also returns `state_bytes`, `retained_epochs`,
+`oldest_retained_epoch`, `history_root`, `undo_entries`, `undo_bytes`, and
+`last_snapshot_height`. The byte counts are estimates, and
+`last_snapshot_height` is the newest persisted boundary image at or below the
+canonical tip, or zero if absent.
+
+## ChainLocked VM state proofs
+
+`/get_chainlock` accepts `{"height": 0}` for the highest accepted lock carried
+on the main chain, or a specific locked block height on unrestricted RPC.
+Restricted RPC accepts only `height: 0`. It returns the locked
+block's `block_id`, `block_hashing_blob`, `miner_tx_blob`,
+`miner_tx_branch`, coinbase `vm_state_root`, serialized `lock_blob`,
+`lock_carrier_height`, `quorum_epoch`, ordered `quorum` keys, and `threshold`.
+`/get_chainlock_quorum_inputs` provides paginated membership and qualification
+keys plus the epoch timing, anchor, and source block IDs needed to derive the
+ordered quorum independently. See [the light-client derivation](../chainlock-light-client.md).
+Pruned ChainLock membership can be reconstructed only through unrestricted RPC.
+`/get_vm_state_proof` accepts a hex `key` and optional `height`.
+`/get_vm_state_root` also accepts an optional `height`. For both calls,
+an omitted height selects the tip, and an explicit `0` selects genesis.
+Request and response heights are block indices.
+Historical proof requests use the VM undo journal; heights older than the
+retained journal return `Height outside VM undo retention`. Both calls are
+available on restricted RPC.
+Restricted `vm_call_dry_run` charges RPC credits in proportion to requested
+gas and rejects calls above `QWC_VM_RESTRICTED_DRY_RUN_GAS_CAP`.
+
+A light client should hash the serialized miner transaction, fold it with
+`miner_tx_branch` in miner position zero, and compare the result with the
+Merkle root in `block_hashing_blob`. Hash the length-prefixed hashing blob to
+recover `block_id`. Read tag `0x07` from the miner transaction and compare its
+root with `vm_state_root`. Decode `lock_blob`, confirm its height, block hash,
+and epoch match the response. Require the epoch to equal
+`lock.height / epoch_length` by integer division using locally pinned network
+parameters; fetch quorum inputs for that derived epoch. Compare all RPC timing,
+network, genesis, and parameter commitments with the pinned values. Then
+independently authenticate the ordered quorum
+from the epoch membership and qualification snapshot, and verify exactly
+`threshold` distinct CryptoNote signatures indexed by its signer bitmap over
+`hash_chainlock_message_v1` using the network, genesis hash, and parameter set
+hash. Authenticate the carrier block at `lock_carrier_height` and its coinbase
+`0x09` field against `lock_blob`. Finally verify the VM proof from
+`/get_vm_state_proof` against the locked `vm_state_root`. The RPC's quorum and
+carrier height are discovery data; clients must authenticate them against their
+trusted chain view.
+
+`tools/chainlock.py --parameters network.json --height 0 --key <hex>` fetches both responses and checks
+that their roots agree.

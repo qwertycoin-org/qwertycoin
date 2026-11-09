@@ -1,7 +1,7 @@
 # ADR-0005: EPoSE v2 Persistent Index Boundary
 
-- **Status:** Indexed-journal primitive implemented; LMDB integration required
-- **Date:** 2026-09-06
+- **Status:** Boundary semantic images integrated with LMDB and validated; pruned-node support pending
+- **Date:** 2026-10-31
 - **Scope:** CO-08, non-activating
 
 ## Decision
@@ -22,17 +22,24 @@ EPoSE state root, and the hash of canonical EPoSE payload bytes. The index:
 - rebuilds from canonical checkpoint history and produces the same root after
   A → B → A fork replacement as fresh replay.
 
-## Required LMDB integration
+[ADR-0011](ADR-0011-ROLLING-EPOCH-WINDOW.md) defines the eight-epoch semantic
+window. The boundary image uses the index's schema and checksum framing and
+contains canonical lifecycle and membership state. LMDB retains images inside
+the three-epoch disconnect horizon and the newest earlier canonical image.
 
-The primitive is deliberately not attached to the current HF17 database. The
-activation implementation must add versioned LMDB tables for checkpoint/meta,
-canonical lifecycle/evidence records, and undo data. Updates must occur in the
-same LMDB write transaction as the corresponding block connect/disconnect.
+## LMDB integration
 
-A stored image/root is never trusted on its own. On startup, schema, parameter
-set, last-applied height/hash, and canonical blockchain tip must agree. Missing
-or corrupt data triggers explicit rebuild from blocks. It must never produce an
-empty qualified set as a silent fallback.
+The `epose_snapshots` table stores images at epoch boundaries. A block
+connection writes its image in the same LMDB transaction as the block and its
+state commitment. A block disconnection removes an image for the popped height
+in the same transaction. State images contain the semantic state; the canonical
+block table remains the source for replay and validation.
+
+A stored image/root is never trusted on its own. On startup and deep reorg,
+schema, parameter set, height, canonical block hash, checksum, canonical image,
+and recomputed state root must agree with the stored block commitment. Missing
+or corrupt data triggers explicit rebuild from blocks. Replay after a loaded
+image also falls back to a full rebuild if any block transition disagrees.
 
 ## Crash and deep-reorg rule
 

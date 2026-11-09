@@ -81,8 +81,9 @@ curl --netrc-file /secure/path/qwertycoind-rpc.netrc \
 ```
 
 `recent_limit` defaults to 50 and is capped at 100. Optional `epoch` selects
-the chain-derived qualification epoch; omitted means current. The response
-contains:
+the chain-derived qualification epoch; omitted means current. An explicit
+`EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW` status is returned when the requested
+epoch has been folded under the contracts-version window. The response contains:
 
 - additive schema identifier `diagnostics_version=2`;
 - current relay queue items and bytes;
@@ -102,6 +103,13 @@ contains:
 - committee sizes and dynamically derived quorum per round;
 - passed/required rounds and `pending`, `qualified`, `not_qualified`, or
   `unknown` qualification state.
+
+`get_epose_diagnostics` also reports `state_bytes`, `retained_epochs`,
+`oldest_retained_epoch`, `history_root`, `undo_entries`, `undo_bytes`, and
+`last_snapshot_height`. Byte counts estimate the allocated semantic objects
+and undo states; shared epoch buckets can appear in more than one state, so
+`undo_bytes` is an upper estimate. `last_snapshot_height` is the newest
+persisted boundary image at or below the canonical tip, or zero if absent.
 
 The relay counters are restart-local aggregate queue observations. In
 particular, `relay_canonical_receipts` counts pending receipt records removed

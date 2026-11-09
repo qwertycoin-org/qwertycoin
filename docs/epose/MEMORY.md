@@ -3,11 +3,11 @@
 ## Scope and reference
 
 Audited reference: `1e479cc9feda48e07dd07ba6abcb89ca3934b5e2`
-(`qwertycoin-org/qwertycoin`, v2.0.4 baseline). This change is a local
-representation optimization, **not** a consensus activation or pruning rule.
-RandomX still determines block production and chain selection. Reward rules,
-record authentication, wire encodings, parameter hash, DB schema and canonical
-state commitments are unchanged. No hard fork or migration is required.
+(`qwertycoin-org/qwertycoin`, v2.0.4 baseline). The schema-1 journal is a
+local representation optimization. The contracts fork adds the rolling-window
+schema-2 commitment described below. RandomX still determines block
+production and chain selection. Reward rules and record authentication remain
+unchanged.
 
 Existing solutions preflight: reuse the existing append-only lifecycle/receipt
 containers, deterministic boundary transitions and bounded undo horizon, with
@@ -36,6 +36,12 @@ Growing containers:
 
 - `lifecycle_registry_v2::histories_`: every identity, including expired and
   deregistered identities; each identity owns all its lifecycle records.
+- Expiry-only folds release an identity's keys for re-registration; explicit
+  deregistration permanently retires its operator and service keys.
+- Schema-2 lifecycle records have a maximum 30-epoch lease from their effective
+  epoch; schema-1 records retain their original lease rule.
+- A fold batches retired-key additions, sorts and deduplicates them once, and
+  compacts retired-key storage only when the set grows.
 - `membership_pipeline_v2::leases_`: one stored lease per identity/target epoch;
   higher sequence replaces an existing slot, new epochs append slots.
 - `receipts_`: accepted receipt-slot hashes/metadata across all epochs (not full
@@ -46,17 +52,18 @@ Growing containers:
 Other paths reviewed:
 
 - `state_hash()`: lifecycle sorts pointers; membership previously sorted full
-  lease/receipt copies. Membership now sorts pointers with the **identical**
-  comparator and serializes the identical fields. The full canonical byte string
-  still exists temporarily; hashing remains history-sized CPU and memory.
-- `relay_pool_v2.cpp`: relay admission retains one isolated semantic preview and
-  a bounded queue candidate. Per-record semantic candidates are replaced with
-  journals (slot variants undo their preview). Receipt pruning now reuses one
-  isolated preview and rolls each probe back. Exceptional late-receipt
-  classifications still copy a membership pipeline.
-- `Blockchain::select_epose_template_records_v2`: one isolated semantic preview
-  remains; redundant per-selection copies are removed. In-order dependencies
-  and exclusion of failed records are preserved by transactional application.
+  lease/receipt copies. Schema 1 sorts pointers with the identical comparator
+  and serializes identical fields. Schema 2 uses cached closed-epoch digests
+  and recomputes the open bucket's transcript.
+- `relay_pool_v2.cpp`: relay admission checkpoints the canonical semantic
+  state under the blockchain lock and rolls accepted envelope previews back
+  in reverse order. Slot variants roll back their own preview. Receipt pruning
+  rolls each probe back. Late and same-slot receipt classification uses a
+  receipt-length journal and does not copy the membership pipeline.
+- `Blockchain::select_epose_template_records_v2`: a checkpoint on the canonical
+  state previews selections and rolls them back before returning. In-order
+  dependencies and exclusion of failed records are preserved by transactional
+  application.
 - RPC getters in `blockchain.cpp` copy requested descriptors, memberships or
   qualified lists, not the coordinator or undo history. `get_service_nodes`
   materializes active descriptors before limiting its response;
@@ -69,11 +76,11 @@ Other paths reviewed:
   intentional peak is retained for failure recovery, not silently discarded.
 - LMDB `add/remove/get_epose_state_commitment_v2` stores schema, block hash,
   state hash and parameter hash in the canonical block write transaction.
-  There is no persistent materialized historical lifecycle/receipt index today.
-  Startup, deep reorg and successful DB-batch abort recovery rebuild from the
-  canonical chain (`cleanup_handle_incoming_blocks`), checking commitments.
+  Epoch-boundary semantic images are written in that transaction. Startup and
+  deep reorg validate image bindings, then replay canonical blocks and check
+  commitments. A failed image falls back to an earlier image or full replay.
 
-### Commitment serialization
+### Schema-1 commitment serialization
 
 The hash constructors and their domain separators are retained:
 
@@ -94,90 +101,63 @@ The hash constructors and their domain separators are retained:
   are unchanged. No digest of a pruned set or alternate incremental digest is
   introduced.
 
-## Necessary retention
+## Rolling retention and recovery
 
-All five historical container types enter the existing `state_hash()`.
-The table separates the recent *validation working set* from the current
-commitment/historical-query requirement. Persistence today means original
-on-chain records and per-block commitments, with deterministic replay; it does
-not mean an existing random-access historical-state index.
+[ADR-0011](review/ADR-0011-ROLLING-EPOCH-WINDOW.md) defines the fork-gated
+schema-2 memory bound. The open epoch and eight closed epochs remain in the
+membership pipeline. At each boundary, older epoch buckets are folded in order
+into a committed history root. Closed-bucket transcript digests are cached, so
+state-changing blocks recompute the open bucket only. Schema 1 keeps its original
+full-history commitment and behavior until the contracts fork.
 
-| Data | Last necessary logical access | RAM required today | Persistence / possible eviction condition | Reorg behavior |
-| --- | --- | --- | --- | --- |
-| Lifecycle records/descriptors | Future authorized admissions, reward binding for source epoch, service-key interval conflicts, exact idempotence, latest sequence and terminal deregistration, historical RPC and every state hash | Complete canonical history, including a descriptor created before a proposed window but still active inside it | On-chain records; no age-only deletion. An archive index must preserve latest/terminal identity facts, every relevant half-open key interval and predecessor descriptor spanning the retained range | Reverse appended records/new identities; deep replay reconstructs the exact history |
-| Admission leases | Target-epoch enrollment cutoff/freeze; upcoming leases whose canonical admission context is available; then historical commitment | All canonical slots, including future leases regardless of age | On-chain records; possible cold backing only after preserving slot replacement, duplicate checks and exact hash ordering | Restore prior lease plus inclusion height for replacements; truncate new slots |
-| Membership snapshots | Receipt authentication/committee selection through the inclusive evidence deadline, next-epoch payout source, historical epoch/round RPC, every state hash | All snapshots including old verifier assignments | Derived by replay; cold backing must support historical query/commitment reads before releasing values | Erase only snapshots inserted by disconnected blocks; refreeze on reconnect |
-| Receipt hashes/metadata | Slot idempotence/conflicts in the admissible round window and qualification close; later historical receipt coverage and every state hash | All accepted slot metadata | Original signed records on-chain; old metadata could move to indexed cold storage only with exact canonical serialization and historical query access | Truncate appended receipt slots; qualification close undone separately |
-| Qualification sets | Source epoch is payout epoch minus one, used throughout the next epoch; then historical reward queries and every state hash | All closed sets | Derived by replay; archive access required for old queries and hashes | Erase only sets closed by disconnected blocks; close again using canonical receipts |
-| Undo journals | Disconnect of any of the last 2160 accepted blocks | Fixed per-block metadata plus actual changes in that window; not historic state copies | Not persisted; evict oldest **only after** accepting a new block | Inside horizon LIFO journal; outside horizon return `deep_replay_required` without altering state |
-| Relay records/diagnostics | Local transport deadlines / bounded template selection | Existing queue item/byte limits and local counters | Never authoritative; expiry/dedup rules unchanged | Revalidate against canonical contexts; never restore relay as consensus state |
-| Hash/RPC/template/replay temporaries | End of call or rebuild | Call-scoped allocations, sometimes history-sized | None; destruct after use | Canonical caller locking and replay verification unchanged |
+Lifecycle folding removes expired or deregistered identities before the retained
+floor and older records of live identities. Each live identity keeps one
+baseline record before the floor and all later effective records. Explicitly
+retired identity and service-key hashes remain in a sorted committed vector;
+expiry-only keys may be reused. Future schema-2 records are limited to eight
+epochs ahead and 30-epoch leases. Future-dated schema-1 records accepted before
+the fork remain until their effective epochs pass.
 
-Receipt windows are derived by `receipt_inclusion_window_v2`: round 0 starts at
-epoch start, later rounds at round-anchor height + 1; nonfinal rounds end before
-the next anchor. The final round ends at `evidence_deadline`, which is inclusive.
-Membership freezes at `committee_anchor` before that block's records; its cutoff
-is anchor - 1. Qualification closes after the deadline block's records. Reward
-planning reads the settled previous source epoch throughout the payout epoch.
-
-### Current epoch plus seven previous epochs
-
-Eight epochs comfortably cover ordinary recent receipt and payout lookups, and
-the 2160-block undo horizon is three 720-block epochs. But eight is **not a valid
-global deletion rule**: old records still enter every state hash; old identities
-can authorize current/future descriptors; active predecessor descriptors can
-predate the window; service-key conflict checks inspect historical validity
-intervals; admissions can target future epochs; RPC requests can address older
-epochs. A fixed recent window alone therefore cannot preserve present behavior.
-
-No history pruning is implemented here. A genuinely bounded resident history
-would require a separate, explicitly designed LMDB-backed historical store:
-
-1. Versioned identity/sequence records, an interval index by service key,
-   identity/target-epoch lease slots, epoch membership/qualification values and
-   `(epoch, round, subject, verifier)` receipt-slot metadata, plus exact canonical
-   ordering indexes for the existing hash serialization.
-2. Atomic updates with block/commitment writes and inverse operations on reorg;
-   deterministic, resumable rebuild and consistency checks against canonical
-   records and existing commitments. DB batch abort must discard uncommitted
-   index/cache generations together.
-3. Bounded read-through caches pinned for validation/admission/payout, including
-   active predecessor descriptors and future leases; streaming the **same**
-   canonical bytes from historical indexes to the existing hash construction.
-   This needs serialization-equivalence tests, not a substitute incremental hash.
-4. Historical RPCs must read indexed cold data without full-chain scans, and deep
-   replay/restart must operate correctly with an empty cache.
-
-That is separate storage work, with migration/rebuild/rollback tests. Replacing
-the commitment with a Merkle or different incremental digest would be a protocol
-change and is explicitly outside this optimization.
+The bounded resident state includes retained buckets, live baselines, the
+retired-key vector and removed records owned by fold journals within the
+2160-block disconnect horizon. Old member and qualified-key vectors may be
+pruned after two epochs; ChainLock reconstructs them from retained archived
+records and verifies their commitments. The archive is limited by the
+ChainLock lookback and disconnect horizon. Boundary images persist canonical
+semantic state in LMDB with the block transaction. Startup and deep reorg
+validate image bindings and replay canonical blocks; invalid images trigger
+an earlier image or full replay. Historical RPC reads outside the retained
+window report `EPOSE_HISTORY_OUTSIDE_RETAINED_WINDOW`.
 
 ## Journal design and failure behavior
 
-The block journal checkpoints initial identity/lease/receipt lengths and previous
-tip metadata. It owns only old lengths for modified lifecycle histories, prior
-values/inclusion heights of replaced leases, and inserted snapshot/qualification
-epoch keys. Newly appended records are undone by truncation. Repeated mutations
-are logged in order and undone in reverse. No pointer into a reallocating vector
-is retained. Boundary-only blocks are journaled too.
+The block journal records lifecycle appends, service-index insertions, folded
+and trimmed histories, lease replacements and appends, receipt appends,
+snapshot and qualification insertions, folded epoch buckets, and prior window
+metadata. Removed histories and buckets remain owned by their fold entries.
+Repeated mutations are undone in reverse order. Boundary-only blocks are
+journaled too. Retired-key storage includes the canonical vector capacity and
+keys held in retained fold journals; 32 bytes per retired key alone is not a
+complete bound.
 
 Retained undo is proportional to the undo window plus the changes inside it,
-not the history preceding it. The single canonical state still grows with all
-historical records; this optimization does not claim a hard bound on total RAM.
+including histories and buckets removed by folds. Schema 1 keeps its full
+history; schema 2 keeps the rolling window and permanent retired-key vector.
+The journal alone does not impose a hard bound on total RAM.
 
 Each nonempty transaction uses a nested checkpoint. On failure or exception its
 scope guard restores it, without appending partial logical entries to the block
 journal. On success all destination journal vectors reserve before any entries
-are merged; stored entry types are fixed-size, nonthrowing values. Mutations log
+are merged; entries have nonthrowing moves. Mutations log
 before potentially throwing allocations. A block scope guard restores earlier
 successful transactions and boundary transitions on any later failure. The
 oldest undo is not evicted until the entire block is accepted. Empty transactions
 still execute the original configuration/height checks but allocate no journal.
 
-Rollback truncation releases removed objects and their owned nested vectors;
-erasing maps and evicting journals releases their allocations. Outer lifecycle,
-lease and receipt vectors retain high-water capacity after truncation, as
-reported by `memory_usage()`. No `shrink_to_fit` occurs during a `noexcept`
+Rollback truncation releases appended objects and their owned nested vectors;
+evicting fold journals releases removed histories and epoch buckets. Live
+vectors can retain high-water capacity after truncation, as reported by
+`memory_usage()`. No `shrink_to_fit` occurs during a `noexcept`
 rollback: it could allocate/throw. Allocators may retain freed pages, so lower
 logical ownership is **not** a promise that process RSS immediately falls.
 Diagnostic payload accounting includes vector capacity and map values, excludes
@@ -222,58 +202,3 @@ python3 tests/epose/memory_compare.py \
 
 Native macOS/Windows, production replay, and a persistent cold-history cache are
 not proven by the Linux-only synthetic probe; those remain distinct gates/work.
-
-### Local build resource qualification
-
-The Debian 12 / GCC 12.2 / CMake 3.25.1 container has a 3.5-GiB cgroup memory
-limit shared with other processes. The unchanged `core_rpc_server.cpp` compiler
-was OOM-killed at default Release flags and again with `-O0` alone; the unchanged
-`daemon.cpp` and `rpc_command_executor.cpp` also exceeded available compiler memory. The local validation build
-therefore uses one compiler and build-directory-only source overrides for those
-three files: `-O0 -g0 --param=ggc-min-expand=5
---param=ggc-min-heapsize=4096`. EPoSE and the probes retain the normal `-Ofast`,
-`-DNDEBUG`, native-architecture build flags. The override is not a source or CI
-change, and this is not evidence of an EPoSE runtime failure. A default-flags
-daemon build remains a separate required CI gate; do not describe the local
-daemon result as an entirely default Release build.
-
-The local focused suite completed **282/282 tests**, with no disabled tests,
-failures or errors (109.446 seconds). This includes all six new regressions and
-the 360-fast-epoch/6480-block workload with a constant 2160-entry rolling undo
-payload, full-window parent-hash restoration and deep-replay signaling.
-
-The local daemon also compiled and linked successfully with the qualified
-low-memory overrides above. No production daemon was started or changed.
-
-### Independent reference comparison
-
-Identical probe source was built against the unmodified EPoSE implementation at
-the pinned reference and against this change, using the same pinned dependencies
-and toolchain. `EPOSE_MEMORY_BASELINE` excludes only the new diagnostic calls.
-The reference worktree adds only the probe/CMake target; dependency sources are
-reused at their unchanged pinned revisions. No production code is substituted
-into the reference EPoSE library.
-
-The POSIX helper compared **all 591 individual block hashes**, all 32 epoch
-receipt counts and the final trace. Both binaries accepted all blocks, stored
-1152 receipts, qualified all four identities each epoch, and restored each of
-36 disconnected parents. Their trace is identical:
-
-```text
-5755eda11e4e2642ec4288ca68f0671601edd16d32a1e3c645d4f8953580409c
-```
-
-| Single synthetic 32-epoch run | Snapshot reference | Journal implementation |
-| --- | ---: | ---: |
-| Child-process peak RSS (KiB) | 343304 | 275820 |
-| Wall time (seconds, observational only) | 33.375 | 34.340 |
-| Canonical block hashes compared | 591 | 591 |
-| Verified disconnects | 36 | 36 |
-
-Peak RSS decreased by 67484 KiB (about **19.7%**, 335.3 to 269.4 MiB) even
-though the common RandomX cache dominates this small workload. The journal's
-epoch-32 measured undo payload was 85616 bytes (83.6 KiB); canonical state
-payload/capacity accounting was 344064 bytes. This workload does not fill the
-2160-block horizon; the separate 6480-block regression exercises the full rolling
-window. These are one-run diagnostic observations, not latency statistics, a
-speedup claim, an allocator-overhead census, or a mainnet memory forecast.

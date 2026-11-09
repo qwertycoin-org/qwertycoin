@@ -70,6 +70,15 @@ Required EPoSE-v2 options:
 - `--epose-v2-discovery-endpoint` bootstraps signed endpoint discovery and may
   be repeated. It is not an allowlist and does not grant admission.
 
+From HF18, set `--epose-v2-dial-families` to `v4`, `v6`, or `dual` for the
+outbound transports this daemon can use as a verifier. The default is `v4`.
+The daemon confirms each configured family with an outbound connection test
+before signing its endpoint descriptor. This setting is independent of the
+restricted RPC listener's address family. For a DNS endpoint, set
+`--epose-v2-dns-families` to the union of its published A and AAAA families;
+the default is `v4`. An IPv6-only DNS service with IPv6 outbound access uses
+`--epose-v2-dial-families v6 --epose-v2-dns-families v6`.
+
 `--confirm-external-bind` is required when the restricted listener binds to a
 non-loopback address. The example intentionally keeps unrestricted RPC local.
 
@@ -152,8 +161,27 @@ curl -s http://127.0.0.1:8197/get_epose_service_endpoint_v2
   validation;
 - `local_service_node_registered`: the identity descriptor is canonical;
 - `local_service_node_active`: the descriptor is active for the current epoch;
-- `local_service_node_qualified`: the service key is in the current qualified
-  set.
+- `local_service_node_qualified`: the service key is in the latest closed,
+  retained qualification set identified by `qualification_epoch`.
+
+`local_service_node_step_failed_count` counts producer step failures since the
+daemon started; RPC envelope submissions do not change it.
+
+`qualified_count` and `local_service_node_qualified` refer to
+`qualification_epoch`. `qualification_available` is false when no closed
+qualification set is retained; then `qualification_epoch` and `qualified_count`
+are zero, and `local_service_node_qualified` is false. Every other
+`get_epose_info` field refers to the current epoch.
+
+`get_service_nodes` and `get_service_node_status` return the same
+`qualification_epoch` and `qualification_available` context for their qualified
+flags. With no retained closed set, `qualification_available` is false and
+`qualification_epoch` is zero. `get_epose_epoch` uses that context when its
+requested epoch is omitted or zero. For an explicit epoch,
+`qualification_available` reports whether that epoch's qualification set is
+retained and unpruned, even if it contains no qualified nodes. A pruned
+qualification set is unavailable and has no qualified nodes in the response;
+the response status reports pruning.
 
 The normal progression is `ready -> registered -> active -> qualified`, but it
 is governed by chain height, enrollment cutoffs, the two-epoch warm-up,
