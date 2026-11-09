@@ -1324,7 +1324,13 @@ namespace cryptonote
     std::unique_ptr<qwertycoin::epose::consensus_coordinator_v2> m_epose_v2;
     qwertycoin::epose::consensus_parameters_v2 m_epose_v2_parameters{};
     qwertycoin::epose::relay_policy_v2 m_epose_v2_relay_policy{};
+    // Guarded by its own mutex; lock order is m_blockchain_lock before it.
     std::unique_ptr<qwertycoin::epose::relay_record_pool_v2> m_epose_v2_relay_pool;
+    // Immutable copy of the canonical EPoSE-v2 state for relay admission,
+    // made once per tip under m_blockchain_lock and verified against off it.
+    std::shared_ptr<const qwertycoin::epose::semantic_state_v2> m_epose_v2_relay_state;
+    crypto::hash m_epose_v2_relay_state_tip{};
+    uint64_t m_epose_v2_relay_state_height = 0;
 
     bool is_epose_enabled_for_height(uint64_t height) const;
     bool get_epose_service_reward_for_block(uint64_t height, uint64_t total_reward, account_public_address &reward_address, crypto::secret_key &reward_view_secret_key, uint64_t &service_reward) const;
@@ -1336,6 +1342,7 @@ namespace cryptonote
     bool apply_epose_block(const block &bl, const std::vector<std::pair<transaction, blobdata>> &txs, uint64_t height, uint64_t scheduled_subsidy, uint64_t fees, epose_state_commitment_v2 &commitment, std::vector<qwertycoin::epose::envelope_record_v2> &confirmed_records);
     void rollback_epose_block(uint64_t popped_height);
     bool rebuild_epose_state();
+    void note_epose_relay_tip_changed();
 
     /**
      * @brief collects the keys for all outputs being "spent" as an input

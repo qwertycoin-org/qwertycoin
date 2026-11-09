@@ -184,6 +184,16 @@ namespace epose
     uint64_t relay_canonical_receipts = 0;
     uint64_t relay_capacity_rejections = 0;
     uint64_t relay_template_selected_receipts = 0;
+    // Relay admission and prune cost.
+    uint64_t relay_admissions = 0;
+    uint64_t relay_duplicates_short_circuited = 0;
+    uint64_t relay_verifications = 0;
+    uint64_t relay_cache_hits = 0;
+    uint64_t relay_cache_invalidations = 0;
+    uint64_t relay_prune_runs = 0;
+    uint64_t relay_prune_rechecked_receipts = 0;
+    uint64_t relay_verification_microseconds = 0;
+    uint64_t relay_pool_lock_microseconds = 0;
     std::vector<receipt_round_counters_v2> rounds;
     std::vector<receipt_failure_counter_v2> failures;
     std::vector<receipt_skip_counter_v2> skips;

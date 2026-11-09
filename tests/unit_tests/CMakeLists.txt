@@ -220,6 +220,8 @@ monero_add_minimal_executable(epose_unit_tests
   epose_service_keystore_v2.cpp
   epose_service_producer_v2.cpp
   epose_relay_pool_v2.cpp
+  epose_relay_pool_incremental_v2.cpp
+  epose_relay_pool_reference_v2.cpp
   epose_semantic_batch_v2.cpp
   epose_state_index_v2.cpp
   epose_v2.cpp

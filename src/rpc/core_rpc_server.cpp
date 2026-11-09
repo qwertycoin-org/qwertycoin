@@ -727,6 +727,15 @@ namespace cryptonote
     res.relay_capacity_rejections = operations.relay_capacity_rejections;
     res.relay_template_selected_receipts =
         operations.relay_template_selected_receipts;
+    res.relay_admissions = operations.relay_admissions;
+    res.relay_duplicates_short_circuited = operations.relay_duplicates_short_circuited;
+    res.relay_verifications = operations.relay_verifications;
+    res.relay_cache_hits = operations.relay_cache_hits;
+    res.relay_cache_invalidations = operations.relay_cache_invalidations;
+    res.relay_prune_runs = operations.relay_prune_runs;
+    res.relay_prune_rechecked_receipts = operations.relay_prune_rechecked_receipts;
+    res.relay_verification_microseconds = operations.relay_verification_microseconds;
+    res.relay_pool_lock_microseconds = operations.relay_pool_lock_microseconds;
     for (const auto &entry : operations.rounds)
     {
       epose_diagnostic_round_entry converted{};

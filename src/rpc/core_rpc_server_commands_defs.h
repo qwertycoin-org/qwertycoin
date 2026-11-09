@@ -1021,6 +1021,15 @@ namespace cryptonote
       uint64_t relay_canonical_receipts;
       uint64_t relay_capacity_rejections;
       uint64_t relay_template_selected_receipts;
+      uint64_t relay_admissions;
+      uint64_t relay_duplicates_short_circuited;
+      uint64_t relay_verifications;
+      uint64_t relay_cache_hits;
+      uint64_t relay_cache_invalidations;
+      uint64_t relay_prune_runs;
+      uint64_t relay_prune_rechecked_receipts;
+      uint64_t relay_verification_microseconds;
+      uint64_t relay_pool_lock_microseconds;
       std::vector<epose_diagnostic_round_entry> rounds;
       std::vector<epose_diagnostic_failure_entry> failures;
       std::vector<epose_diagnostic_skip_entry> skips;
@@ -1054,6 +1063,15 @@ namespace cryptonote
         KV_SERIALIZE(relay_canonical_receipts)
         KV_SERIALIZE(relay_capacity_rejections)
         KV_SERIALIZE(relay_template_selected_receipts)
+        KV_SERIALIZE_OPT(relay_admissions, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_duplicates_short_circuited, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_verifications, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_cache_hits, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_cache_invalidations, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_prune_runs, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_prune_rechecked_receipts, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_verification_microseconds, (uint64_t)0)
+        KV_SERIALIZE_OPT(relay_pool_lock_microseconds, (uint64_t)0)
         KV_SERIALIZE(rounds)
         KV_SERIALIZE(failures)
         KV_SERIALIZE(skips)

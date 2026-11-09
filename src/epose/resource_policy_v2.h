@@ -259,6 +259,10 @@ namespace epose
         const relay_template_limits_v2 &limits,
         std::vector<relay_item_v2> &selected) const;
     bool erase(const crypto::hash &id);
+    // Erase and report the item and its position so a local batch commit can
+    // put it back exactly with restore().
+    bool take(const crypto::hash &id, relay_item_v2 &item, size_t &index);
+    void restore(size_t index, const relay_item_v2 &item);
     size_t size() const;
     size_t bytes() const;
     size_t size(relay_class_v2 record_class) const;

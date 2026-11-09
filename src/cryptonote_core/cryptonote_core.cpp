@@ -2096,6 +2096,15 @@ namespace cryptonote
     operations.relay_capacity_rejections = relay.capacity_rejections;
     operations.relay_template_selected_receipts =
         relay.template_selected_receipts;
+    operations.relay_admissions = relay.admissions;
+    operations.relay_duplicates_short_circuited = relay.duplicates_short_circuited;
+    operations.relay_verifications = relay.verifications;
+    operations.relay_cache_hits = relay.cache_hits;
+    operations.relay_cache_invalidations = relay.cache_invalidations;
+    operations.relay_prune_runs = relay.prune_runs;
+    operations.relay_prune_rechecked_receipts = relay.prune_rechecked_receipts;
+    operations.relay_verification_microseconds = relay.verification_microseconds;
+    operations.relay_pool_lock_microseconds = relay.pool_lock_microseconds;
     qualification = {};
     if (!m_epose_v2_service_ready)
       return true;
