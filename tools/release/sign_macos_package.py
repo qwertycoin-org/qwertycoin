@@ -183,8 +183,7 @@ def main():
         for path in bundles:
             run(['codesign', '--verify', '--deep', '--strict', '-R', '=' + requirement, str(path)])
         privacy_scan(output, tokens)
-    evidence = {'schema': 1, 'organization': args.organization, 'team_id': args.team_id,
-                'certificate_sha256': hashlib.sha256(args.certificate.read_bytes()).hexdigest(),
+    evidence = {'schema': 1, 'certificate_policy': 'matched',
                 'macho_files_verified': len(signed_binaries), 'bundles_verified': len(bundles),
                 'hardened_runtime': True, 'secure_timestamp': True,
                 'personal_token_scan': 'passed', 'notarization': 'not-submitted'}
