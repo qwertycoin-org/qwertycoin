@@ -1,0 +1,154 @@
+name: qwc/core-macos-signing
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Exact release version (vX.Y.Z or vX.Y.Z-rcN)"
+        required: true
+        type: string
+      expected_revision:
+        description: "Exact 40-character source commit used by the candidate build"
+        required: true
+        type: string
+      source_run_id:
+        description: "Successful macOS release-candidate workflow run ID (first attempt)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: qwc-core-macos-signing
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.repository == 'qwertycoin-org/qwertycoin' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      request: ${{ steps.request.outputs.request }}
+      name: ${{ steps.request.outputs.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify trusted native build and immutable artifact
+        id: request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_REVISION: ${{ inputs.expected_revision }}
+          SOURCE_RUN: ${{ inputs.source_run_id }}
+        run: >-
+          python3 tools/release/macos_ci.py preflight --kind core
+          --tag "$RELEASE_TAG" --revision "$SOURCE_REVISION" --run-id "$SOURCE_RUN"
+          --work "$RUNNER_TEMP/signing-request"
+
+  sign:
+    needs: preflight
+    environment: macos-signing
+    runs-on: macos-15
+    timeout-minutes: 70
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Restore trusted signing request
+        env:
+          REQUEST_JSON: ${{ needs.preflight.outputs.request }}
+        run: python3 tools/release/macos_ci.py request --work "$RUNNER_TEMP/qwc-sign"
+      - name: Download candidate with mandatory digest verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 tools/release/macos_ci.py fetch --work "$RUNNER_TEMP/qwc-sign"
+          --incoming "$RUNNER_TEMP/unsigned"
+      - name: Sign and notarize using temporary keychain
+        env:
+          APPLE_SIGNING_CERT_DER: ${{ secrets.APPLE_SIGNING_CERT_DER }}
+          APPLE_SIGNING_CERT_SHA256: ${{ secrets.APPLE_SIGNING_CERT_SHA256 }}
+          APPLE_SIGNING_ORGANIZATION: ${{ secrets.APPLE_SIGNING_ORGANIZATION }}
+          APPLE_SIGNING_TEAM_ID: ${{ secrets.APPLE_SIGNING_TEAM_ID }}
+          PRIVATE_IDENTITY_TOKENS: ${{ secrets.PRIVATE_IDENTITY_TOKENS }}
+          APPLE_SIGNING_CERT_P12: ${{ secrets.APPLE_SIGNING_CERT_P12 }}
+          APPLE_SIGNING_CERT_PASSWORD: ${{ secrets.APPLE_SIGNING_CERT_PASSWORD }}
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: >-
+          python3 tools/release/macos_ci.py sign --work "$RUNNER_TEMP/qwc-sign"
+          --incoming "$RUNNER_TEMP/unsigned" --output "$RUNNER_TEMP/signed"
+      - name: Remove temporary credentials even after failure
+        if: always()
+        run: python3 tools/release/macos_ci.py cleanup --work "$RUNNER_TEMP/qwc-sign"
+      - name: Upload candidate for independent verification (not release-ready)
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unverified-signed-${{ needs.preflight.outputs.name }}
+          path: |
+            ${{ runner.temp }}/signed/*.dmg
+            ${{ runner.temp }}/signed/SHA256SUMS
+            ${{ runner.temp }}/signed/SIGNING-EVIDENCE.json
+          if-no-files-found: error
+          retention-days: 1
+
+  verify:
+    needs: [preflight, sign]
+    environment: macos-verification
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Restore trusted signing request
+        env:
+          REQUEST_JSON: ${{ needs.preflight.outputs.request }}
+        run: python3 tools/release/macos_ci.py request --work "$RUNNER_TEMP/qwc-verify"
+      - name: Download exact signed candidate with mandatory digest verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED_ARTIFACT_ID: ${{ needs.sign.outputs.artifact_id }}
+          SIGNED_ARTIFACT_DIGEST: ${{ needs.sign.outputs.artifact_digest }}
+        run: >-
+          python3 tools/release/macos_ci.py fetch-signed --work "$RUNNER_TEMP/qwc-verify"
+          --incoming "$RUNNER_TEMP/signed"
+      - name: Independently verify mounted and copied package
+        env:
+          APPLE_SIGNING_CERT_DER: ${{ secrets.APPLE_SIGNING_CERT_DER }}
+          APPLE_SIGNING_CERT_SHA256: ${{ secrets.APPLE_SIGNING_CERT_SHA256 }}
+          APPLE_SIGNING_ORGANIZATION: ${{ secrets.APPLE_SIGNING_ORGANIZATION }}
+          APPLE_SIGNING_TEAM_ID: ${{ secrets.APPLE_SIGNING_TEAM_ID }}
+          PRIVATE_IDENTITY_TOKENS: ${{ secrets.PRIVATE_IDENTITY_TOKENS }}
+        run: >-
+          python3 tools/release/verify_macos_ci.py --incoming "$RUNNER_TEMP/signed"
+          --request "$RUNNER_TEMP/qwc-verify/request.json" --output "$RUNNER_TEMP/verified"
+      - name: Upload verified release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-signed-${{ needs.preflight.outputs.name }}
+          path: |
+            ${{ runner.temp }}/verified/*.dmg
+            ${{ runner.temp }}/verified/SHA256SUMS
+            ${{ runner.temp }}/verified/SIGNING-EVIDENCE.json
+            ${{ runner.temp }}/verified/VERIFICATION.json
+          if-no-files-found: error
+          retention-days: 7
