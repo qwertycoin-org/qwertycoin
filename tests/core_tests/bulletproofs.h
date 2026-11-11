@@ -95,7 +95,7 @@ private:
 
 template<>
 struct get_test_options<gen_bp_tx_validation_base> {
-  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(12, 73), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(12, 1 + RCT_TEST_MINER_BLOCKS + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW), std::make_pair(0, 0)};
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };
@@ -103,7 +103,7 @@ struct get_test_options<gen_bp_tx_validation_base> {
 
 template<uint8_t test_version = HF_VERSION_CLSAG>
 struct get_bp_versioned_test_options: public get_test_options<gen_bp_tx_validation_base> {
-  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(test_version, 73), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(test_version, 1 + RCT_TEST_MINER_BLOCKS + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW), std::make_pair(0, 0)};
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };

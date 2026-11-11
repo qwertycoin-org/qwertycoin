@@ -1086,6 +1086,15 @@ endif()
 # boost::asio::ip::make_address is used in daemon/RPC/common and EPoSE input
 # validation. It is the non-deprecated API available from Boost 1.66 onward.
 set(BOOST_MIN_VER 1.66)
+if(EXISTS "${CMAKE_SOURCE_DIR}/flake.nix")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/flake.nix"
+    "${CMAKE_SOURCE_DIR}/flake.lock"
+    "${CMAKE_SOURCE_DIR}/nix/boost-asio-errno.patch")
+endif()
+if(DEFINED ENV{QWC_NIX_BOOST_INCLUDE_DIR})
+  set(Boost_INCLUDE_DIR "$ENV{QWC_NIX_BOOST_INCLUDE_DIR}" CACHE PATH "Boost include directory" FORCE)
+endif()
 find_package(Boost ${BOOST_MIN_VER} QUIET REQUIRED)
 
 if(NOT Boost_FOUND)
@@ -1130,6 +1139,7 @@ add_definitions(-DBOOST_NO_AUTO_PTR)
 add_definitions(-DBOOST_UUID_DISABLE_ALIGNMENT) # This restores UUID's std::has_unique_object_representations property
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+add_definitions(-DQWC_BOOST_INCLUDE_DIR=\"${Boost_INCLUDE_DIR}\")
 if(MINGW)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
   set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32)

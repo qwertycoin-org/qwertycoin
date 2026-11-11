@@ -4,8 +4,14 @@ ARG BASE_IMAGE=docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5c
 ARG CA_CERTIFICATES_VERSION=20250419~deb12u2
 FROM ${BASE_IMAGE} AS certificates
 
+ARG DEBIAN_SNAPSHOT=20261101T000000Z
 ARG CA_CERTIFICATES_VERSION
 RUN set -eu; \
+    rm -f /etc/apt/sources.list.d/debian.sources; \
+    printf '%s\n' \
+      "deb [check-valid-until=no signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}/ bookworm main" \
+      "deb [check-valid-until=no signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}/ bookworm-security main" \
+      > /etc/apt/sources.list; \
     apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends --yes \
       "ca-certificates=${CA_CERTIFICATES_VERSION}"; \

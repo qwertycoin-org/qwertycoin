@@ -1,0 +1,28 @@
+Vendored Beam bvm2 contract processor
+
+Upstream:  https://github.com/BeamMW/beam
+Commit:    daf7191567b746953e6e7a8d72d4396b6d4c94f5
+Paths:     bvm/ and utility/ (subset)
+License:   Apache License 2.0, see LICENSE-APACHE and the repository NOTICE
+
+Modified (each carries a "Modified by the Qwertycoin developers" line under the upstream header):
+  bvm2.h bvm2.cpp bvm2_opcodes.h bvm2_shared.h common.h common.cpp
+  wasm_interpreter.h wasm_interpreter.cpp byteorder.h containers.h
+
+Ported (H-19, H-21):
+  wasm interpreter and compiler, integer only (H-22)
+  contract processor: far calls, heap, vars, logs, hashing, CryptoNote signature check
+  FundsLock / FundsUnlock against the call deposit
+  AddSig key collection with subgroup checks, deduplication, and caller provenance
+  parent header host call: parent hash, parent header, current height
+  app shader compile kind (Common + App tables, no Contract table), App::IHost, document and variable-read host calls (wallet-side only)
+  app generated call signer requests, DerivePk, and wallet authorization
+
+Not ported:
+  asset emission and asset ownership
+  Lelantus, shielded pools, DH, secp256k1 and elliptic curve host calls
+  bridge, PBFT, sidechain and DAO vault host calls
+  Beam wallet manager, kernel and tx integration
+
+Integration lives one level up in src/vm (host_api, gas, limits, state_tree, vm).
+Call signature wire format and wallet flow: docs/CONTRACT_SIGNATURES.md.
