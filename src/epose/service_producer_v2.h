@@ -12,9 +12,11 @@
 #include <vector>
 
 #include "epose/coordinator_v2.h"
+#include "epose/diagnostics_v2.h"
 #include "epose/record_codec_v2.h"
 #include "epose/resource_policy_v2.h"
 #include "epose/service_keystore_v2.h"
+#include "epose/tip_view_v2.h"
 
 namespace qwertycoin
 {
@@ -89,6 +91,7 @@ namespace epose
       bool in_flight = false;
       bool has_envelope = false;
       uint32_t transport_attempts = 0;
+      uint32_t busy = 0;
     };
 
     receipt_retry_tracker_v2(
@@ -103,6 +106,13 @@ namespace epose
     bool can_attempt(const crypto::hash &slot, uint64_t now_ms) const;
     bool start(const crypto::hash &slot, uint64_t now_ms);
     void failed(const crypto::hash &slot, uint64_t now_ms);
+    // Ends an attempt that never reached the peer: no failure, no backoff.
+    void released(const crypto::hash &slot);
+    // Ends an attempt turned away by the resolver slot (dns_slot_busy): no
+    // failure is counted, but each consecutive busy outcome doubles a delay
+    // from base_backoff_ms up to min(max_backoff_ms, limit_ms). Any other
+    // outcome resets the busy count.
+    void busy(const crypto::hash &slot, uint64_t now_ms, uint64_t limit_ms);
     void submitted(const crypto::hash &slot, uint64_t now_ms,
         const std::string &envelope = {});
     bool transport_retry(const crypto::hash &slot, uint64_t now_ms,
@@ -121,6 +131,7 @@ namespace epose
       std::string envelope;
       uint32_t transport_attempts = 0;
       uint32_t transport_window_attempts = 0;
+      uint32_t busy = 0;
     };
 
     size_t max_entries_ = 0;
@@ -134,6 +145,52 @@ namespace epose
     bool context_set_ = false;
     std::vector<entry> entries_;
   };
+
+  // What one finished receipt attempt does to its slot in the retry tracker.
+  enum class receipt_retry_action_v2 : uint8_t
+  {
+    none = 0,  // not recorded
+    submitted, // reason none: the envelope was submitted locally
+    released,  // lease_exhausted
+    busy,      // dns_slot_busy
+    failed     // every other reason, cancelled and local submission included
+  };
+
+  // track_retries is false only for outcomes recorded from core::stop(),
+  // which must not touch the idle thread's tracker.
+  receipt_retry_action_v2 receipt_retry_action_for_v2(
+      receipt_failure_reason_v2 reason, bool track_retries);
+
+  // Applies receipt_retry_action_for_v2 to `slot` and returns it.
+  // busy_limit_ms bounds the dns_slot_busy delay; envelope is retained on
+  // submission for transport retries.
+  receipt_retry_action_v2 apply_receipt_outcome_v2(
+      receipt_retry_tracker_v2 &retries, bool track_retries,
+      const crypto::hash &slot, receipt_failure_reason_v2 reason,
+      uint64_t now_ms, uint64_t busy_limit_ms,
+      const std::string &envelope = {});
+
+  // How core sees a finished receipt job end.
+  enum class receipt_job_end_v2 : uint8_t
+  {
+    attempt_failed,
+    submission_rejected,
+    submitted,
+    harvested_expired // the chain passed the deadline before the job finished
+  };
+
+  struct receipt_job_terminal_v2
+  {
+    receipt_attempt_outcome_v2 outcome = receipt_attempt_outcome_v2::failure;
+    receipt_attempt_stage_v2 stage = receipt_attempt_stage_v2::none;
+    receipt_failure_reason_v2 reason = receipt_failure_reason_v2::none;
+  };
+
+  // The terminal core records; its reason is also the one given to the retry
+  // tracker. attempt is read only for attempt_failed and past_deadline only
+  // for submission_rejected.
+  receipt_job_terminal_v2 receipt_job_terminal_for_v2(receipt_job_end_v2 end,
+      const receipt_step_result_v2 &attempt, bool past_deadline);
 
   // Per-peer transport limiter for re-delivering an already authenticated
   // envelope. The caller's key must use stable peer identity rather than a
@@ -201,5 +258,21 @@ namespace epose
       uint64_t max_nonce_attempts,
       service_enrollment_v2 &enrollment,
       const std::atomic<bool> *cancel = nullptr);
+
+  // The local identity at `target_epoch`, as one published tip view states
+  // it. Without a view the EPoSE-v2 state is inconsistent with the database:
+  // known is false, and the producer must wait instead of reading "unknown"
+  // as "not enrolled" and starting an initial enrollment.
+  struct local_enrollment_v2
+  {
+    bool known = false;
+    bool enrolled = false;
+    identity_descriptor_v2 descriptor{};
+    bool admitted = false;
+  };
+
+  local_enrollment_v2 read_local_enrollment_v2(
+      const epose_tip_view *view, const crypto::hash &identity_id,
+      uint64_t target_epoch);
 } // namespace epose
 } // namespace qwertycoin

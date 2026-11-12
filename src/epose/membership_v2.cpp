@@ -406,14 +406,13 @@ namespace epose
     usage.receipts = receipts_.size();
     usage.snapshots = snapshots_.size();
     usage.qualifications = qualifications_.size();
-    usage.vector_payload_bytes = leases_.capacity() * sizeof(stored_lease)
-        + receipts_.capacity() * sizeof(stored_receipt);
+    usage.vector_payload_bytes = leases_.payload_bytes() + receipts_.payload_bytes();
     usage.map_value_bytes = snapshots_.size() * sizeof(decltype(snapshots_)::value_type)
         + qualifications_.size() * sizeof(decltype(qualifications_)::value_type);
     for (const auto &entry : snapshots_)
-      usage.vector_payload_bytes += entry.second.members.capacity() * sizeof(frozen_member_v2);
+      usage.vector_payload_bytes += entry.second->members.capacity() * sizeof(frozen_member_v2);
     for (const auto &entry : qualifications_)
-      usage.vector_payload_bytes += entry.second.qualified_nodes.capacity() * sizeof(crypto::public_key);
+      usage.vector_payload_bytes += entry.second->qualified_nodes.capacity() * sizeof(crypto::public_key);
     return usage;
   }
 
@@ -424,10 +423,11 @@ namespace epose
 
   void membership_pipeline_v2::rollback(const undo_journal &undo) noexcept
   {
+    // Truncate first: restore() relies on the checkpoint's chunk layout.
+    leases_.truncate(undo.leases_size);
+    receipts_.truncate(undo.receipts_size);
     for (auto it = undo.replaced_leases.rbegin(); it != undo.replaced_leases.rend(); ++it)
-      leases_[it->index] = {it->lease, it->inclusion_height};
-    leases_.resize(undo.leases_size);
-    receipts_.resize(undo.receipts_size);
+      leases_.restore(it->index, {it->lease, it->inclusion_height}, it->previous_chunk);
     for (uint64_t epoch : undo.inserted_snapshots)
       snapshots_.erase(epoch);
     for (uint64_t epoch : undo.inserted_qualifications)
@@ -497,8 +497,9 @@ namespace epose
         return pipeline_status_v2::conflicting_record;
     }
 
-    for (stored_lease &stored : leases_)
+    for (size_t index = 0; index < leases_.size(); ++index)
     {
+      const stored_lease &stored = leases_[index];
       if (stored.lease.target_epoch != lease.target_epoch
           || stored.lease.member.identity_id != lease.member.identity_id)
         continue;
@@ -506,10 +507,12 @@ namespace epose
         return pipeline_status_v2::idempotent_duplicate;
       if (lease.member.sequence > stored.lease.member.sequence)
       {
+        lease_change change{index, stored.lease, stored.inclusion_height, nullptr};
         if (undo != nullptr)
-          undo->replaced_leases.push_back({
-              static_cast<size_t>(&stored - leases_.data()), stored.lease, stored.inclusion_height});
-        stored = {lease, inclusion_height};
+          undo->replaced_leases.reserve(undo->replaced_leases.size() + 1);
+        change.previous_chunk = leases_.replace(index, {lease, inclusion_height});
+        if (undo != nullptr)
+          undo->replaced_leases.push_back(std::move(change));
         return pipeline_status_v2::accepted;
       }
       return pipeline_status_v2::conflicting_record;
@@ -617,7 +620,8 @@ namespace epose
     frozen.snapshot_hash = hash_blob(blob);
     if (undo != nullptr)
       undo->inserted_snapshots.push_back(epoch);
-    snapshots_.emplace(epoch, std::move(frozen));
+    auto shared = std::make_shared<const membership_snapshot_v2>(std::move(frozen));
+    snapshots_.emplace(epoch, std::move(shared));
     return pipeline_status_v2::accepted;
   }
 
@@ -811,20 +815,21 @@ namespace epose
     closed.qualification_hash = hash_blob(blob);
     if (undo != nullptr)
       undo->inserted_qualifications.push_back(epoch);
-    qualifications_.emplace(epoch, std::move(closed));
+    auto shared = std::make_shared<const qualification_set_v2>(std::move(closed));
+    qualifications_.emplace(epoch, std::move(shared));
     return pipeline_status_v2::accepted;
   }
 
   const membership_snapshot_v2 *membership_pipeline_v2::snapshot(uint64_t epoch) const
   {
     const auto found = snapshots_.find(epoch);
-    return found == snapshots_.end() ? nullptr : &found->second;
+    return found == snapshots_.end() ? nullptr : found->second.get();
   }
 
   const qualification_set_v2 *membership_pipeline_v2::qualification(uint64_t epoch) const
   {
     const auto found = qualifications_.find(epoch);
-    return found == qualifications_.end() ? nullptr : &found->second;
+    return found == qualifications_.end() ? nullptr : found->second.get();
   }
 
   size_t membership_pipeline_v2::receipt_count() const
@@ -922,7 +927,7 @@ namespace epose
     }
     append_u64_le(blob, snapshots_.size());
     for (const auto &entry : snapshots_)
-      append_bytes(blob, entry.second.snapshot_hash);
+      append_bytes(blob, entry.second->snapshot_hash);
     std::vector<const stored_receipt *> receipts;
     receipts.reserve(receipts_.size());
     for (const auto &stored : receipts_)
@@ -954,7 +959,7 @@ namespace epose
     }
     append_u64_le(blob, qualifications_.size());
     for (const auto &entry : qualifications_)
-      append_bytes(blob, entry.second.qualification_hash);
+      append_bytes(blob, entry.second->qualification_hash);
     return hash_blob(blob);
   }
 } // namespace epose

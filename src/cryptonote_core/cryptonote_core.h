@@ -34,6 +34,7 @@
 #include <ctime>
 #include <future>
 #include <limits>
+#include <memory>
 #include <mutex>
 
 #include <boost/function.hpp>
@@ -52,6 +53,7 @@
 #include "epose/canonical_service_v2.h"
 #include "epose/diagnostics_v2.h"
 #include "epose/service_producer_v2.h"
+#include "cryptonote_core/epose_receipt_scheduler_v2.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
 #include "warnings.h"
@@ -66,6 +68,9 @@ enum { HAVE_BLOCK_MAIN_CHAIN, HAVE_BLOCK_ALT_CHAIN, HAVE_BLOCK_INVALID };
 
 namespace cryptonote
 {
+   class epose_receipt_job_v2;
+   struct epose_receipt_request_v2;
+
    struct test_options {
      const std::pair<uint8_t, uint64_t> *hard_forks;
      const size_t long_term_block_weight_window;
@@ -289,6 +294,11 @@ namespace cryptonote
      bool get_epose_v2_endpoint_descriptor(
          qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
          const crypto::hash *required_hash = nullptr) const;
+     // As above, against one tip view; takes no chain lock.
+     bool get_epose_v2_endpoint_descriptor(
+         qwertycoin::epose::endpoint_descriptor_v2 &descriptor,
+         const crypto::hash *required_hash,
+         const qwertycoin::epose::epose_tip_view &view) const;
      bool is_epose_v2_service_enabled() const { return m_epose_v2_service_enabled; }
      bool is_epose_v2_service_ready() const { return m_epose_v2_service_ready; }
      crypto::hash get_epose_v2_local_identity_id() const { return m_epose_v2_identity_id; }
@@ -1104,6 +1114,9 @@ namespace cryptonote
          const qwertycoin::epose::consensus_parameters_v2 &parameters);
      bool epose_v2_endpoint_hash_is_canonical(
          const crypto::hash &descriptor_hash) const;
+     bool epose_v2_endpoint_hash_is_canonical(
+         const crypto::hash &descriptor_hash,
+         const qwertycoin::epose::epose_tip_view &view) const;
      bool relay_local_epose_v2_endpoint(
          const qwertycoin::epose::consensus_parameters_v2 &parameters,
          const qwertycoin::epose::endpoint_descriptor_v2 &endpoint,
@@ -1197,25 +1210,37 @@ namespace cryptonote
      std::future<std::pair<
          qwertycoin::epose::service_producer_status_v2,
          qwertycoin::epose::service_enrollment_v2>> m_epose_v2_producer_future;
-     struct epose_v2_receipt_job_result
+     // One in-flight receipt attempt. The network exchange runs on the shared
+     // receipt executor; verification, encoding and submission run on the core
+     // idle thread when the job is harvested.
+     struct epose_v2_receipt_payload
      {
-       bool accepted = false;
-       crypto::hash slot{};
-       blobdata envelope;
        qwertycoin::epose::receipt_attempt_context_v2 context{};
-       qwertycoin::epose::receipt_attempt_stage_v2 stage =
-           qwertycoin::epose::receipt_attempt_stage_v2::none;
-       qwertycoin::epose::receipt_failure_reason_v2 reason =
-           qwertycoin::epose::receipt_failure_reason_v2::none;
+       qwertycoin::epose::consensus_parameters_v2 parameters{};
+       qwertycoin::epose::service_challenge_v2 challenge{};
+       qwertycoin::epose::receipt_context_v2 receipt_context{};
+       blobdata anchor_blob;
+       std::shared_ptr<epose_receipt_request_v2> request;
      };
-     std::future<epose_v2_receipt_job_result> m_epose_v2_receipt_future;
-     epose_v2_receipt_job_result m_epose_v2_active_receipt_job{};
-     std::atomic<bool> m_epose_v2_receipt_cancel{false};
+     using epose_v2_receipt_scheduler =
+         epose_receipt_scheduler_v2<epose_v2_receipt_payload>;
+     using epose_v2_receipt_job = epose_v2_receipt_scheduler::job;
+     // Records one attempt's terminal. track_retries is false only from
+     // stop(), which must not touch the idle thread's retry tracker.
+     void finish_epose_v2_receipt_attempt(const epose_v2_receipt_job &finished,
+         qwertycoin::epose::receipt_attempt_outcome_v2 outcome,
+         qwertycoin::epose::receipt_attempt_stage_v2 stage,
+         qwertycoin::epose::receipt_failure_reason_v2 reason,
+         bool local_accepted, bool relayed, bool track_retries);
+     bool complete_epose_v2_receipt_job(const epose_v2_receipt_job &finished,
+         bool track_retries);
+     // Jobs, per-peer gate and round-start time, shared by the idle thread and
+     // stop() under the scheduler's lock.
+     epose_v2_receipt_scheduler m_epose_v2_receipt_scheduler;
      uint64_t m_epose_v2_receipt_epoch = std::numeric_limits<uint64_t>::max();
      qwertycoin::epose::receipt_retry_tracker_v2
          m_epose_v2_receipt_retries{};
      qwertycoin::epose::receipt_diagnostics_v2 m_epose_v2_receipt_diagnostics{};
-     std::chrono::steady_clock::time_point m_epose_v2_last_receipt_attempt{};
      uint64_t m_epose_v2_last_diagnostic_summary_height =
          std::numeric_limits<uint64_t>::max();
      uint64_t m_epose_v2_last_diagnostic_summary_epoch =

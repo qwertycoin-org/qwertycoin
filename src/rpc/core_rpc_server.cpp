@@ -103,6 +103,16 @@ namespace
     entry.qualified = std::find(qualified_nodes.begin(), qualified_nodes.end(), identity.service_public_key) != qualified_nodes.end();
     return entry;
   }
+
+  template <class Response>
+  std::shared_ptr<const qwertycoin::epose::epose_tip_view> epose_tip_view_or_busy(
+      const cryptonote::core &core, Response &res)
+  {
+    auto view = core.get_blockchain_storage().get_epose_tip_view();
+    if (!view)
+      res.status = CORE_RPC_STATUS_BUSY;
+    return view;
+  }
 }
 
 #define DEFAULT_PAYMENT_DIFFICULTY 1000
@@ -632,20 +642,23 @@ namespace cryptonote
   bool core_rpc_server::on_get_epose_info(const COMMAND_RPC_GET_EPOSE_INFO::request& req, COMMAND_RPC_GET_EPOSE_INFO::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_epose_info);
-    const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t epoch = blockchain.get_epose_current_epoch();
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+    const qwertycoin::epose::epose_view_reader_scope reader;
+    const auto view = epose_tip_view_or_busy(m_core, res);
+    if (!view)
+      return true;
+    const uint64_t epoch = view->epoch;
+    const auto &service_nodes = view->descriptors;
+    const auto &qualified_nodes = view->qualified_nodes;
 
-    res.enabled = blockchain.is_epose_enabled();
+    res.enabled = view->enabled;
     res.protocol_version = qwertycoin::epose::EPOSE_PROTOCOL_VERSION_V2;
     res.current_epoch = epoch;
-    res.epoch_start_height = blockchain.get_epose_epoch_start_height(epoch);
-    res.epoch_end_height = blockchain.get_epose_epoch_end_height(epoch);
+    res.epoch_start_height = view->epoch_start_height(epoch);
+    res.epoch_end_height = view->epoch_end_height(epoch);
     res.service_node_count = service_nodes.size();
     res.qualified_count = qualified_nodes.size();
-    res.attestation_count = blockchain.get_epose_attestation_count();
-    res.state_hash = epee::string_tools::pod_to_hex(blockchain.get_epose_state_hash());
+    res.attestation_count = view->receipt_count;
+    res.state_hash = epee::string_tools::pod_to_hex(view->state_hash);
     res.service_reward_bps = qwertycoin::epose::EPOSE_SERVICE_REWARD_BPS_V2;
     res.local_service_node = m_core.is_epose_v2_service_enabled();
     res.local_service_node_key_loaded = m_core.is_epose_v2_service_ready();
@@ -703,6 +716,7 @@ namespace cryptonote
       res.status = "RPC authentication is required for EPoSE diagnostics";
       return true;
     }
+    const qwertycoin::epose::epose_view_reader_scope reader;
     qwertycoin::epose::receipt_diagnostics_snapshot_v2 operations{};
     qwertycoin::epose::qualification_diagnostics_v2 qualification{};
     if (!m_core.get_epose_v2_diagnostics(
@@ -727,6 +741,15 @@ namespace cryptonote
     res.relay_capacity_rejections = operations.relay_capacity_rejections;
     res.relay_template_selected_receipts =
         operations.relay_template_selected_receipts;
+    res.relay_admissions = operations.relay_admissions;
+    res.relay_duplicates_short_circuited = operations.relay_duplicates_short_circuited;
+    res.relay_verifications = operations.relay_verifications;
+    res.relay_cache_hits = operations.relay_cache_hits;
+    res.relay_cache_invalidations = operations.relay_cache_invalidations;
+    res.relay_prune_runs = operations.relay_prune_runs;
+    res.relay_prune_rechecked_receipts = operations.relay_prune_rechecked_receipts;
+    res.relay_verification_microseconds = operations.relay_verification_microseconds;
+    res.relay_pool_lock_microseconds = operations.relay_pool_lock_microseconds;
     for (const auto &entry : operations.rounds)
     {
       epose_diagnostic_round_entry converted{};
@@ -834,10 +857,13 @@ namespace cryptonote
   bool core_rpc_server::on_get_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_service_nodes);
-    const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t epoch = blockchain.get_epose_current_epoch();
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
+    const qwertycoin::epose::epose_view_reader_scope reader;
+    const auto view = epose_tip_view_or_busy(m_core, res);
+    if (!view)
+      return true;
+    const uint64_t epoch = view->epoch;
+    const auto &qualified_nodes = view->qualified_nodes;
+    const auto &service_nodes = view->descriptors;
     const uint64_t limit = req.limit == 0 ? 100 : std::min<uint64_t>(req.limit, EPOSE_RPC_SERVICE_NODE_LIMIT);
 
     res.total_count = service_nodes.size();
@@ -856,10 +882,13 @@ namespace cryptonote
   bool core_rpc_server::on_get_service_node_status(const COMMAND_RPC_GET_SERVICE_NODE_STATUS::request& req, COMMAND_RPC_GET_SERVICE_NODE_STATUS::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_service_node_status);
-    const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t epoch = blockchain.get_epose_current_epoch();
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
+    const qwertycoin::epose::epose_view_reader_scope reader;
+    const auto view = epose_tip_view_or_busy(m_core, res);
+    if (!view)
+      return true;
+    const uint64_t epoch = view->epoch;
+    const auto &qualified_nodes = view->qualified_nodes;
+    const auto &service_nodes = view->descriptors;
 
     res.found = false;
     for (const auto &identity : service_nodes)
@@ -878,8 +907,11 @@ namespace cryptonote
   bool core_rpc_server::on_get_service_node_registration_payload(const COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::request& req, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_PAYLOAD::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_service_node_registration_payload);
-    const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t epoch = blockchain.get_epose_current_epoch();
+    const qwertycoin::epose::epose_view_reader_scope reader;
+    const auto view = epose_tip_view_or_busy(m_core, res);
+    if (!view)
+      return true;
+    const uint64_t epoch = view->epoch;
     res.ready = false;
     res.registration_epoch = epoch;
     res.error_details = "Legacy v1 registration construction is retired; the EPoSE-v2 daemon producer enrolls automatically (see docs/epose/SERVICE_NODE.md)";
@@ -898,11 +930,14 @@ namespace cryptonote
   bool core_rpc_server::on_get_epose_epoch(const COMMAND_RPC_GET_EPOSE_EPOCH::request& req, COMMAND_RPC_GET_EPOSE_EPOCH::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_epose_epoch);
-    const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t current_epoch = blockchain.get_epose_current_epoch();
+    const qwertycoin::epose::epose_view_reader_scope reader;
+    const auto view = epose_tip_view_or_busy(m_core, res);
+    if (!view)
+      return true;
+    const uint64_t current_epoch = view->epoch;
     const uint64_t epoch = req.epoch == 0 ? current_epoch : req.epoch;
-    const auto service_nodes = blockchain.get_epose_identity_descriptors_v2(epoch);
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(epoch);
+    const auto service_nodes = view->descriptors_for_epoch(epoch);
+    const auto qualified_nodes = view->qualified_service_nodes(epoch);
 
     uint64_t active_count = 0;
     for (const auto &identity : service_nodes)
@@ -910,8 +945,8 @@ namespace cryptonote
         ++active_count;
 
     res.epoch = epoch;
-    res.start_height = blockchain.get_epose_epoch_start_height(epoch);
-    res.end_height = blockchain.get_epose_epoch_end_height(epoch);
+    res.start_height = view->epoch_start_height(epoch);
+    res.end_height = view->epoch_end_height(epoch);
     res.active_count = active_count;
     res.qualified_count = qualified_nodes.size();
     res.status = CORE_RPC_STATUS_OK;
@@ -954,8 +989,9 @@ namespace cryptonote
     res.tip_hash.clear();
     res.synchronized = false;
 
+    const qwertycoin::epose::epose_view_reader_scope reader;
+    const auto view = m_core.get_blockchain_storage().get_epose_tip_view();
     qwertycoin::epose::endpoint_descriptor_v2 descriptor{};
-    qwertycoin::epose::consensus_parameters_v2 parameters{};
     crypto::hash required_hash{};
     const crypto::hash *required = nullptr;
     if (!req.descriptor_hash.empty())
@@ -968,13 +1004,14 @@ namespace cryptonote
       }
       required = &required_hash;
     }
-    res.ready = m_core.get_epose_v2_endpoint_descriptor(descriptor, required)
-        && m_core.get_blockchain_storage().get_epose_consensus_parameters_v2(parameters);
+    res.ready = view && view->v2
+        && m_core.get_epose_v2_endpoint_descriptor(descriptor, required, *view);
     if (!res.ready)
     {
       res.status = CORE_RPC_STATUS_BUSY;
       return true;
     }
+    const qwertycoin::epose::consensus_parameters_v2 &parameters = view->parameters;
     res.version = descriptor.version;
     res.service_public_key = epee::string_tools::pod_to_hex(descriptor.service_public_key);
     res.transport = static_cast<uint8_t>(descriptor.transport);
@@ -994,12 +1031,12 @@ namespace cryptonote
         && descriptor.service_public_key == m_core.get_epose_v2_local_service_public_key();
     if (local_descriptor)
     {
-      crypto::hash top_hash{};
-      m_core.get_blockchain_top(res.tip_height, top_hash);
+      // Top block height and hash, as get_blockchain_top() reports them.
+      res.tip_height = view->height == 0 ? 0 : view->height - 1;
       res.telemetry_available = true;
       res.telemetry_version = EPOSE_RPC_TELEMETRY_VERSION;
       res.software_version = QWERTYCOIN_VERSION_FULL;
-      res.tip_hash = epee::string_tools::pod_to_hex(top_hash);
+      res.tip_hash = epee::string_tools::pod_to_hex(view->tip_hash);
       res.synchronized = check_core_ready();
     }
     res.status = CORE_RPC_STATUS_OK;
@@ -1039,6 +1076,7 @@ namespace cryptonote
       res.status = "REJECTED";
       return true;
     }
+    const qwertycoin::epose::epose_view_reader_scope reader;
     qwertycoin::epose::canonical_service_response_v2 response{};
     if (!m_core.answer_epose_v2_service_challenge(challenge, response))
     {
@@ -1054,12 +1092,15 @@ namespace cryptonote
   bool core_rpc_server::on_get_service_rewards(const COMMAND_RPC_GET_SERVICE_REWARDS::request& req, COMMAND_RPC_GET_SERVICE_REWARDS::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_service_rewards);
-    const Blockchain &blockchain = m_core.get_blockchain_storage();
-    const uint64_t height = req.height == 0 ? m_core.get_current_blockchain_height() : req.height;
+    const qwertycoin::epose::epose_view_reader_scope reader;
+    const auto view = epose_tip_view_or_busy(m_core, res);
+    if (!view)
+      return true;
+    const uint64_t height = req.height == 0 ? view->height : req.height;
     uint64_t reward_source_epoch = 0;
     const bool v2_context_available =
-        blockchain.get_epose_reward_source_epoch_v2(height, reward_source_epoch);
-    const auto qualified_nodes = blockchain.get_epose_qualified_service_nodes(reward_source_epoch);
+        view->reward_source_epoch(height, reward_source_epoch);
+    const auto qualified_nodes = view->qualified_service_nodes(reward_source_epoch);
 
     // The old endpoint's payee algorithm is v1 and must not predict a v2
     // payment. A replacement preview will call the same coordinator reward
