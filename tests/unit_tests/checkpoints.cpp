@@ -47,7 +47,7 @@ namespace
     const char* cumulative_difficulty;
   };
 
-  constexpr std::array<expected_checkpoint, 57> expected_mainnet_checkpoints{{
+  constexpr std::array<expected_checkpoint, 62> expected_mainnet_checkpoints{{
     {0,    "4f95857586e2c66063c277370eda99cd75897d773af09f0c3cd1e22f7e87db39", "0x1"},
     {719,  "69cf9a283099298d1ea9c71b14b0f1d73c7ca81c87e4a2303c1ea91ff8c5b68d", "0xde51cae4"},
     {1439, "019b6a911b0fd41f6e83740f1c4c3fc83f5299339b62cb532b48c97b1e2c35f1", "0x3705926df"},
@@ -105,6 +105,11 @@ namespace
     {38159, "ed5542d9245a29fdc7893208cafbea22d66971333cc6f151486fe7296a149b9e", "0x371d37e8414"},
     {38879, "a6798b18d8cfe3663683999f095391f7beb8b1660a6b659e5c37830f862c1cda", "0x37bbc7b38cf"},
     {39599, "600fe37480ad24ffece86c62a5d920c77c488a25f4224c41fe31dbbcbf0d43e0", "0x3889f716982"},
+    {40319, "4eb7402bd8f65f18f47af0e01b3ddb6c59a579810167c34d4ed8fdb4f81b7b57", "0x392d576be25"},
+    {41039, "8d328cc39078c82ee745a1e96e35a0f7b83e263259e6d086121bd2df84555bdd", "0x3a23ce41f1a"},
+    {41759, "a50c623d6a747c118821c576f70c2cb745ccd865c0cb6f30cc81c2c1f9a8a2e0", "0x3b172ed68bf"},
+    {42479, "89e7d5d80e040e7b38bbf6e900c08ef75f99dbbe1293a3ae6f6591a2955ed1d1", "0x3c1ea29363c"},
+    {43199, "ad3014a9ad21bfce01a453ce7bca4cc5794073a546a9d4f1712783deee27bbec", "0x3d00e5e9cc5"},
   }};
 }
 
