@@ -223,6 +223,7 @@ namespace epose
     if (found == entries_.end())
       return;
     found->in_flight = false;
+    found->busy = 0;
     if (found->failures != std::numeric_limits<uint32_t>::max())
       ++found->failures;
     uint64_t delay = base_backoff_ms_;
@@ -234,6 +235,107 @@ namespace epose
         ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
   }
 
+  void receipt_retry_tracker_v2::released(const crypto::hash &slot)
+  {
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    if (found != entries_.end())
+    {
+      found->in_flight = false;
+      found->busy = 0;
+    }
+  }
+
+  void receipt_retry_tracker_v2::busy(
+      const crypto::hash &slot, const uint64_t now_ms, const uint64_t limit_ms)
+  {
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&slot](const entry &value) { return value.slot == slot; });
+    if (found == entries_.end())
+      return;
+    found->in_flight = false;
+    if (found->busy != std::numeric_limits<uint32_t>::max())
+      ++found->busy;
+    const uint64_t cap = std::max<uint64_t>(1, std::min(max_backoff_ms_, limit_ms));
+    uint64_t delay = std::min(base_backoff_ms_, cap);
+    for (uint32_t attempt = 1; attempt < found->busy && delay < cap; ++attempt)
+      delay = delay > cap / 2 ? cap : delay * 2;
+    found->next_attempt_ms = now_ms > std::numeric_limits<uint64_t>::max() - delay
+        ? std::numeric_limits<uint64_t>::max() : now_ms + delay;
+  }
+
+  receipt_retry_action_v2 receipt_retry_action_for_v2(
+      const receipt_failure_reason_v2 reason, const bool track_retries)
+  {
+    if (!track_retries)
+      return receipt_retry_action_v2::none;
+    switch (reason)
+    {
+      case receipt_failure_reason_v2::none:
+        return receipt_retry_action_v2::submitted;
+      case receipt_failure_reason_v2::lease_exhausted:
+        return receipt_retry_action_v2::released;
+      case receipt_failure_reason_v2::dns_slot_busy:
+        return receipt_retry_action_v2::busy;
+      default:
+        return receipt_retry_action_v2::failed;
+    }
+  }
+
+  receipt_retry_action_v2 apply_receipt_outcome_v2(
+      receipt_retry_tracker_v2 &retries, const bool track_retries,
+      const crypto::hash &slot, const receipt_failure_reason_v2 reason,
+      const uint64_t now_ms, const uint64_t busy_limit_ms,
+      const std::string &envelope)
+  {
+    const auto action = receipt_retry_action_for_v2(reason, track_retries);
+    switch (action)
+    {
+      case receipt_retry_action_v2::none:
+        break;
+      case receipt_retry_action_v2::submitted:
+        retries.submitted(slot, now_ms, envelope);
+        break;
+      case receipt_retry_action_v2::released:
+        retries.released(slot);
+        break;
+      case receipt_retry_action_v2::busy:
+        retries.busy(slot, now_ms, busy_limit_ms);
+        break;
+      case receipt_retry_action_v2::failed:
+        retries.failed(slot, now_ms);
+        break;
+    }
+    return action;
+  }
+
+  receipt_job_terminal_v2 receipt_job_terminal_for_v2(
+      const receipt_job_end_v2 end, const receipt_step_result_v2 &attempt,
+      const bool past_deadline)
+  {
+    using outcome = receipt_attempt_outcome_v2;
+    using stage = receipt_attempt_stage_v2;
+    using reason = receipt_failure_reason_v2;
+    switch (end)
+    {
+      case receipt_job_end_v2::attempt_failed:
+        return {attempt.reason == reason::cancelled
+                    ? outcome::cancelled : outcome::failure,
+            attempt.stage, attempt.reason};
+      case receipt_job_end_v2::submission_rejected:
+        return past_deadline
+            ? receipt_job_terminal_v2{outcome::expired,
+                  stage::local_submission, reason::deadline_expired}
+            : receipt_job_terminal_v2{outcome::failure,
+                  stage::local_submission, reason::local_submission_rejected};
+      case receipt_job_end_v2::submitted:
+        return {outcome::success, stage::local_submission, reason::none};
+      case receipt_job_end_v2::harvested_expired:
+        return {outcome::expired, stage::none, reason::deadline_expired};
+    }
+    return {outcome::failure, stage::none, reason::internal_execution_failure};
+  }
+
   void receipt_retry_tracker_v2::submitted(
       const crypto::hash &slot, const uint64_t now_ms,
       const std::string &envelope)
@@ -243,6 +345,7 @@ namespace epose
     if (found == entries_.end())
       return;
     found->in_flight = false;
+    found->busy = 0;
     if (!envelope.empty())
     {
       found->envelope = envelope;
@@ -301,7 +404,7 @@ namespace epose
     if (found == entries_.end())
       return {};
     return {true, found->next_attempt_ms, found->failures, found->in_flight,
-        !found->envelope.empty(), found->transport_attempts};
+        !found->envelope.empty(), found->transport_attempts, found->busy};
   }
 
   size_t receipt_retry_tracker_v2::size() const
@@ -730,6 +833,29 @@ namespace epose
     }
     enrollment.records = {std::move(lifecycle_record), std::move(admission_record)};
     return service_producer_status_v2::accepted;
+  }
+
+  local_enrollment_v2 read_local_enrollment_v2(
+      const epose_tip_view *view, const crypto::hash &identity_id,
+      const uint64_t target_epoch)
+  {
+    local_enrollment_v2 out{};
+    if (view == nullptr || !view->state)
+      return out;
+    out.known = true;
+    for (const identity_descriptor_v2 &descriptor
+        : view->state->lifecycle().descriptors_for_epoch(target_epoch))
+    {
+      if (descriptor.identity_id == identity_id)
+      {
+        out.enrolled = true;
+        out.descriptor = descriptor;
+        break;
+      }
+    }
+    out.admitted =
+        view->state->membership().has_admission(identity_id, target_epoch);
+    return out;
   }
 } // namespace epose
 } // namespace qwertycoin

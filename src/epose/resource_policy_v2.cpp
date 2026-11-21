@@ -758,6 +758,27 @@ namespace epose
     return true;
   }
 
+  bool deadline_relay_queue_v2::take(
+      const crypto::hash &id, relay_item_v2 &item, size_t &index)
+  {
+    const auto found = std::find_if(items_.begin(), items_.end(), [&](const relay_item_v2 &stored) {
+      return stored.id == id;
+    });
+    if (found == items_.end())
+      return false;
+    item = *found;
+    index = static_cast<size_t>(found - items_.begin());
+    bytes_ -= found->bytes;
+    items_.erase(found);
+    return true;
+  }
+
+  void deadline_relay_queue_v2::restore(size_t index, const relay_item_v2 &item)
+  {
+    items_.insert(items_.begin() + std::min(index, items_.size()), item);
+    bytes_ += item.bytes;
+  }
+
   size_t deadline_relay_queue_v2::size() const { return items_.size(); }
   size_t deadline_relay_queue_v2::bytes() const { return bytes_; }
   size_t deadline_relay_queue_v2::size(relay_class_v2 record_class) const

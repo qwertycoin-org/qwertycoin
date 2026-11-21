@@ -8,10 +8,12 @@
 #include <cstdint>
 #include <map>
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "crypto/crypto.h"
 #include "epose/memory_usage_v2.h"
+#include "epose/shared_chunk_vector_v2.h"
 #include "crypto/hash.h"
 #include "cryptonote_config.h"
 #include "epose/verification_v2.h"
@@ -199,13 +201,38 @@ namespace epose
         const admission_policy_v2 &admission_policy,
         const committee_policy_v2 &policy);
 
+  private:
+    struct stored_lease
+    {
+      admission_lease_v2 lease;
+      uint64_t inclusion_height = 0;
+    };
+
+    struct stored_receipt
+    {
+      uint64_t epoch = 0;
+      uint64_t round = 0;
+      uint8_t service_kind = 0;
+      crypto::public_key subject_public_key{};
+      crypto::public_key verifier_public_key{};
+      crypto::hash receipt_hash{};
+      uint64_t inclusion_height = 0;
+    };
+
+    using lease_sequence = shared_chunk_vector_v2<stored_lease, 64>;
+    using receipt_sequence = shared_chunk_vector_v2<stored_receipt, 256>;
+
+  public:
     struct lease_change
     {
       size_t index = 0;
       admission_lease_v2 lease{};
       uint64_t inclusion_height = 0;
+      // The sealed chunk the lease lived in, null if it was in the tail.
+      lease_sequence::chunk_ptr previous_chunk;
     };
-    // Lengths undo appends; replacements own only the previous fixed-size lease.
+    // Lengths undo appends; replacements own the previous lease and, when it
+    // was sealed, keep its previous chunk alive.
     // Strictly LIFO and process-local, like lifecycle_registry_v2::undo_journal.
     struct undo_journal
     {
@@ -275,23 +302,6 @@ namespace epose
     crypto::hash state_hash() const;
 
   private:
-    struct stored_lease
-    {
-      admission_lease_v2 lease;
-      uint64_t inclusion_height = 0;
-    };
-
-    struct stored_receipt
-    {
-      uint64_t epoch = 0;
-      uint64_t round = 0;
-      uint8_t service_kind = 0;
-      crypto::public_key subject_public_key{};
-      crypto::public_key verifier_public_key{};
-      crypto::hash receipt_hash{};
-      uint64_t inclusion_height = 0;
-    };
-
     cryptonote::network_type nettype_;
     crypto::hash genesis_hash_{};
     crypto::hash parameter_set_hash_{};
@@ -299,10 +309,11 @@ namespace epose
     admission_policy_v2 admission_policy_{};
     committee_policy_v2 policy_{};
     bool valid_ = false;
-    std::vector<stored_lease> leases_;
-    std::map<uint64_t, membership_snapshot_v2> snapshots_;
-    std::vector<stored_receipt> receipts_;
-    std::map<uint64_t, qualification_set_v2> qualifications_;
+    lease_sequence leases_;
+    // Values are immutable once inserted and shared between copies.
+    std::map<uint64_t, std::shared_ptr<const membership_snapshot_v2>> snapshots_;
+    receipt_sequence receipts_;
+    std::map<uint64_t, std::shared_ptr<const qualification_set_v2>> qualifications_;
 
     pipeline_status_v2 freeze_membership_impl(
         uint64_t epoch,

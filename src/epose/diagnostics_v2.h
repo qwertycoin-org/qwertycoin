@@ -36,7 +36,10 @@ namespace epose
     receipt_encoding,
     envelope_encoding,
     local_submission,
-    canonical_inclusion
+    canonical_inclusion,
+    network_send,
+    network_recv,
+    local_lease // Local admission limit, never a transport outcome.
   };
 
   enum class receipt_failure_reason_v2 : uint8_t
@@ -65,8 +68,26 @@ namespace epose
     cancelled,
     deadline_expired,
     internal_execution_failure,
-    address_prohibited // Local dialing policy, never serialized into consensus records.
+    address_prohibited, // Local dialing policy, never serialized into consensus records.
+    connect_timeout,
+    send_timeout,
+    recv_timeout,
+    dns_timeout,
+    lease_exhausted, // Local admission limit, never a transport timeout.
+    // The sole resolver slot was held by another lookup and no resolution of
+    // this host from the same service epoch was cached. Local, never a peer
+    // fault.
+    dns_slot_busy,
+    // The peer delivered its response below the receive progress floor, or
+    // not within the total receive bound derived from it.
+    recv_too_slow,
+    // Every connect attempt failed, none refused, at least one unreachable
+    // (host, network or an address family the local stack cannot use).
+    connect_unreachable
   };
+  // Move with every reason appended above.
+  constexpr receipt_failure_reason_v2 receipt_failure_reason_v2_last =
+      receipt_failure_reason_v2::connect_unreachable;
 
   enum class receipt_attempt_outcome_v2 : uint8_t
   {
@@ -82,7 +103,9 @@ namespace epose
     not_committee_member,
     already_canonical,
     retry_backoff,
-    no_active_round
+    no_active_round,
+    start_jitter,
+    peer_gate // 30 s per-peer attempt gate, distinct from retry_backoff.
   };
 
   const char *to_string(receipt_attempt_stage_v2 value);
@@ -149,6 +172,40 @@ namespace epose
     uint64_t suppressed_log_count = 0;
   };
 
+  // Lifetime count of non-success terminals per (stage, reason); unlike
+  // receipt_failure_counter_v2 it is not keyed or pruned by round.
+  struct receipt_failure_total_v2
+  {
+    receipt_attempt_stage_v2 stage = receipt_attempt_stage_v2::none;
+    receipt_failure_reason_v2 reason = receipt_failure_reason_v2::none;
+    uint64_t count = 0;
+  };
+
+  // Connect attempts of one address family. Each attempt ends as exactly one
+  // of connected, refused, unreachable, timed_out, failed or abandoned
+  // (cancelled); prohibited counts candidates skipped without dialing.
+  struct receipt_dial_family_counters_v2
+  {
+    uint64_t attempts = 0;
+    uint64_t connected = 0;
+    uint64_t refused = 0;
+    uint64_t unreachable = 0;
+    uint64_t timed_out = 0;
+    uint64_t failed = 0;
+    uint64_t abandoned = 0;
+    uint64_t prohibited = 0;
+
+    void add(const receipt_dial_family_counters_v2 &other);
+  };
+
+  struct receipt_dial_counters_v2
+  {
+    receipt_dial_family_counters_v2 ipv4{};
+    receipt_dial_family_counters_v2 ipv6{};
+
+    void add(const receipt_dial_counters_v2 &other);
+  };
+
   struct receipt_round_counters_v2
   {
     uint64_t epoch = 0;
@@ -184,10 +241,23 @@ namespace epose
     uint64_t relay_canonical_receipts = 0;
     uint64_t relay_capacity_rejections = 0;
     uint64_t relay_template_selected_receipts = 0;
+    // Relay admission and prune cost.
+    uint64_t relay_admissions = 0;
+    uint64_t relay_duplicates_short_circuited = 0;
+    uint64_t relay_verifications = 0;
+    uint64_t relay_cache_hits = 0;
+    uint64_t relay_cache_invalidations = 0;
+    uint64_t relay_prune_runs = 0;
+    uint64_t relay_prune_rechecked_receipts = 0;
+    uint64_t relay_verification_microseconds = 0;
+    uint64_t relay_pool_lock_microseconds = 0;
     std::vector<receipt_round_counters_v2> rounds;
     std::vector<receipt_failure_counter_v2> failures;
+    std::vector<receipt_failure_total_v2> failure_totals;
     std::vector<receipt_skip_counter_v2> skips;
     std::vector<receipt_attempt_terminal_v2> recent_attempts;
+    // Lifetime connect attempts per address family over every finished job.
+    receipt_dial_counters_v2 dial{};
   };
 
   struct receipt_diagnostic_effect_v2
@@ -221,8 +291,10 @@ namespace epose
   const char *qualification_unmet_rule_v2(
       const qualification_diagnostics_v2 &qualification);
 
-  // The current producer is serial, but the collector is synchronized because
-  // the unrestricted administrative RPC may read it concurrently.
+  // The producer runs up to EPOSE_V2_RECEIPT_PARALLEL_JOBS receipt jobs at
+  // once, but records start and terminal events from the core thread only.
+  // The collector is synchronized because the unrestricted administrative RPC
+  // may read it concurrently.
   class receipt_diagnostics_v2
   {
   public:
@@ -241,6 +313,8 @@ namespace epose
         uint64_t epoch, uint64_t round, const crypto::hash &slot);
     void transport_retry(uint64_t epoch, uint64_t round, bool relayed);
     void skipped(receipt_scheduler_skip_v2 reason);
+    // Adds one finished job's connect attempts to the lifetime totals.
+    void dialed(const receipt_dial_counters_v2 &counters);
     receipt_diagnostics_snapshot_v2 snapshot() const;
 
   private:
@@ -272,7 +346,9 @@ namespace epose
     receipt_round_counters_v2 discarded_round_{};
     std::vector<receipt_failure_counter_v2> failures_;
     receipt_failure_counter_v2 discarded_failure_{};
+    std::vector<receipt_failure_total_v2> failure_totals_;
     std::vector<receipt_skip_counter_v2> skips_;
+    receipt_dial_counters_v2 dial_{};
     std::deque<receipt_attempt_terminal_v2> recent_attempts_;
     std::vector<uint64_t> active_attempt_ids_;
     std::vector<slot_state> slots_;

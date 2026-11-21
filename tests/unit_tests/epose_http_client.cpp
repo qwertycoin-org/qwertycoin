@@ -2,15 +2,30 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <atomic>
+#include <limits>
+#include <mutex>
+#include <set>
 #include <thread>
+#ifdef __linux__
+#include <dirent.h>
+#endif
 #include <boost/asio/buffers_iterator.hpp>
+#include <boost/asio/post.hpp>
+#include <boost/asio/read.hpp>
 #include <boost/asio/read_until.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/streambuf.hpp>
+#include <boost/asio/write.hpp>
 
+#include "crypto/hash.h"
+#include "cryptonote_config.h"
 #include "cryptonote_core/epose_http_client.h"
+#include "epose/compiled_profile_v2.h"
+#include "epose/membership_v2.h"
 #include "rpc/core_rpc_server_commands_defs.h"
-#include "storages/http_abstract_invoke.h"
+#include "storages/portable_storage_template_helper.h"
 #include "string_tools.h"
 
 namespace
@@ -19,6 +34,11 @@ namespace
   using namespace cryptonote;
   using boost::asio::ip::make_address;
   using boost::asio::ip::tcp;
+  using steady = std::chrono::steady_clock;
+  using ms = std::chrono::milliseconds;
+  using address_list = std::vector<boost::asio::ip::address>;
+
+  constexpr uint64_t T_MS = uint64_t(DIFFICULTY_TARGET_V2) * 1000;
 
   template<class Resolve>
   auto async_answers(Resolve resolve)
@@ -34,31 +54,74 @@ namespace
     };
   }
 
-  // Complete held test lookups and drain cancelled timers even after ASSERT
-  // returns early. Declare before leases so cleanup runs after they are released.
-  struct resolver_cleanup
+  // A resolver completion the test holds back, simulating libc staying
+  // blocked after cancel. deliver() completes it on the client's worker.
+  struct held_lookup
   {
-    boost::asio::io_context *executor = nullptr;
+    std::mutex mutex;
+    boost::asio::io_context *io = nullptr;
     epose_network_v2::resolve_handler late;
-    void track(boost::asio::io_context &io, epose_network_v2::resolve_handler complete)
+
+    void hold(boost::asio::io_context &context, epose_network_v2::resolve_handler complete)
     {
-      executor = &io;
+      std::lock_guard<std::mutex> lock(mutex);
+      io = &context;
       late = std::move(complete);
     }
-    ~resolver_cleanup()
+    bool held()
     {
-      if (!executor) return;
-      epose_http_client lease;
-      EXPECT_TRUE(lease.available());
-      if (!lease.available()) return;
-      if (late)
-        boost::asio::post(*executor, [complete = std::move(late)] {
-          complete(boost::asio::error::operation_aborted, {});
-        });
-      executor->restart();
-      executor->poll();
+      std::lock_guard<std::mutex> lock(mutex);
+      return io && late;
+    }
+    void deliver(boost::system::error_code error, address_list answers)
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      if (!io || !late)
+        return;
+      boost::asio::post(*io, [complete = std::move(late), error, answers] { complete(error, answers); });
+      late = {};
     }
   };
+
+  // Declare after the client: delivers a still-held lookup while the client's
+  // worker is alive, so the late completion never outlives its executor.
+  struct deliver_on_exit
+  {
+    held_lookup &lookup;
+    ~deliver_on_exit() { lookup.deliver(boost::asio::error::operation_aborted, {}); }
+  };
+
+  struct hang_counts
+  {
+    std::atomic<unsigned> started{0};
+    std::atomic<unsigned> cancelled{0};
+  };
+
+  // A connect that never completes on its own (dead peer, SYN black hole).
+  epose_network_v2::cancel_operation hang(hang_counts &counts, epose_network_v2::connect_handler complete)
+  {
+    ++counts.started;
+    const auto held = std::make_shared<epose_network_v2::connect_handler>(std::move(complete));
+    return [&counts, held] {
+      ++counts.cancelled;
+      *held = {};
+    };
+  }
+
+  epose_network_v2::cancel_operation refuse()
+  {
+    throw boost::system::system_error(boost::asio::error::connection_refused);
+  }
+
+  epose_stage_deadlines_v2 caps(ms connect, ms send = ms(EPOSE_V2_SEND_TIMEOUT_MS),
+      ms recv_idle = ms(EPOSE_V2_RECV_IDLE_TIMEOUT_MS))
+  {
+    epose_stage_deadlines_v2 out{};
+    out.connect = connect;
+    out.send = send;
+    out.recv_idle = recv_idle;
+    return out;
+  }
 
   consensus_parameters_v2 parameters()
   {
@@ -66,6 +129,24 @@ namespace
     out.nettype = TESTNET;
     out.genesis_hash = crypto::cn_fast_hash("genesis", 7);
     out.parameter_set_hash = crypto::cn_fast_hash("parameters", 10);
+    return out;
+  }
+
+  crypto::public_key key(unsigned i)
+  {
+    const crypto::hash h = crypto::cn_fast_hash(&i, sizeof(i));
+    crypto::public_key out{};
+    static_assert(sizeof(out) == sizeof(h), "key size");
+    memcpy(&out, &h, sizeof(out));
+    return out;
+  }
+
+  service_challenge_v2 challenge()
+  {
+    service_challenge_v2 out{};
+    out.epoch = 46;
+    out.round = 1;
+    out.nonce = crypto::cn_fast_hash("nonce", 5);
     return out;
   }
 
@@ -96,6 +177,12 @@ namespace
     return hash_endpoint_descriptor_v2(p.nettype, p.genesis_hash, p.parameter_set_hash, descriptor);
   }
 
+  std::string http_ok(const std::string &body)
+  {
+    return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+        + std::to_string(body.size()) + "\r\nConnection: close\r\n\r\n" + body;
+  }
+
   std::string discovery_json(const endpoint_descriptor_v2 &d)
   {
     COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response out{};
@@ -117,90 +204,429 @@ namespace
     return json;
   }
 
-  // A real loopback HTTP server. Only the test connector redirects to it;
-  // production still checks the public DNS answer and pins that exact endpoint.
-  class discovery_server
+  crypto::signature service_signature()
   {
+    crypto::signature out{};
+    memset(&out, 0x5a, sizeof(out));
+    return out;
+  }
+
+  std::string service_json(const std::string &block_blob_hex = "00ff")
+  {
+    COMMAND_RPC_EPOSE_SERVICE_CHALLENGE_V2::response out{};
+    out.status = CORE_RPC_STATUS_OK;
+    out.block_blob = block_blob_hex;
+    out.subject_signature = epee::string_tools::pod_to_hex(service_signature());
+    std::string json;
+    EXPECT_TRUE(epee::serialization::store_t_to_json(out, json));
+    return json;
+  }
+
+  // A real loopback HTTP server. Only test connect hooks redirect to it;
+  // production still checks the public answer and pins that exact endpoint.
+  class http_fixture
+  {
+  public:
+    enum class mode
+    {
+      reply,      // read the whole request, send reply, close
+      silent,     // read the whole request, never answer
+      never_read, // accept with a small receive buffer, never read
+      trickle     // read the whole request, send reply in timed chunks
+    };
+
+    struct trickle_plan
+    {
+      size_t chunk = 64 * 1024;
+      ms gap{0};
+      size_t stall_after = 0; // stop sending (and hold the socket) here; 0 = never
+      // After the chunk that reaches pause_at, wait `pause` instead of `gap`
+      // once, then go on; 0 = never.
+      size_t pause_at = 0;
+      ms pause{0};
+    };
+
+  private:
     boost::asio::io_context io;
-    tcp::acceptor acceptor{io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0)};
+    tcp::acceptor acceptor{io};
     std::thread worker;
-    std::string reply;
+    const mode behaviour;
+    const std::string reply;
+    const trickle_plan plan;
     std::atomic<unsigned> requests{0};
-    std::atomic<bool> request_valid{false};
-    std::string expected_hash;
+    std::atomic<unsigned> accepts{0};
+    std::atomic<unsigned> drops{0}; // closed by the peer before a whole request
+    std::mutex mutex;
+    std::string last;
+    std::vector<std::shared_ptr<tcp::socket>> held; // fixture thread only
+
+    void serve(const std::shared_ptr<tcp::socket> &socket)
+    {
+      if (behaviour == mode::never_read)
+      {
+        held.push_back(socket);
+        return;
+      }
+      const auto data = std::make_shared<boost::asio::streambuf>();
+      boost::asio::async_read_until(*socket, *data, "\r\n\r\n",
+          [this, socket, data](const boost::system::error_code &error, size_t header_size) {
+        if (error)
+        {
+          ++drops;
+          return;
+        }
+        const std::string buffered(boost::asio::buffers_begin(data->data()),
+            boost::asio::buffers_end(data->data()));
+        size_t length = 0;
+        const auto length_pos = buffered.find("Content-Length: ");
+        if (length_pos != std::string::npos && length_pos < header_size)
+          length = std::stoul(buffered.substr(length_pos + 16));
+        const auto finish = [this, socket, data](const boost::system::error_code &error, size_t) {
+          if (error) return;
+          {
+            std::lock_guard<std::mutex> lock(mutex);
+            last.assign(boost::asio::buffers_begin(data->data()), boost::asio::buffers_end(data->data()));
+          }
+          ++requests;
+          if (behaviour == mode::silent)
+          {
+            held.push_back(socket);
+            return;
+          }
+          const auto out = std::make_shared<std::string>(reply);
+          if (behaviour == mode::trickle)
+          {
+            send_chunks(socket, out, 0);
+            return;
+          }
+          boost::asio::async_write(*socket, boost::asio::buffer(*out),
+              [socket, out](const boost::system::error_code &, size_t) {});
+        };
+        if (data->size() >= header_size + length)
+          finish({}, 0);
+        else
+          boost::asio::async_read(*socket, *data,
+              boost::asio::transfer_exactly(header_size + length - data->size()), finish);
+      });
+    }
+
+    void send_chunks(const std::shared_ptr<tcp::socket> &socket,
+        const std::shared_ptr<std::string> &out, size_t offset)
+    {
+      const size_t end = plan.stall_after != 0
+          ? std::min(plan.stall_after, out->size()) : out->size();
+      if (offset >= end)
+      {
+        if (end < out->size())
+          held.push_back(socket); // stalled: open, silent
+        return;
+      }
+      const size_t n = std::min(plan.chunk, end - offset);
+      boost::asio::async_write(*socket, boost::asio::buffer(out->data() + offset, n),
+          [this, socket, out, offset, n](const boost::system::error_code &error, size_t) {
+        if (error) return;
+        const auto timer = std::make_shared<boost::asio::steady_timer>(io);
+        const bool pause = plan.pause_at != 0 && offset < plan.pause_at && offset + n >= plan.pause_at;
+        timer->expires_after(pause ? plan.pause : plan.gap);
+        timer->async_wait([this, socket, out, offset, n, timer](const boost::system::error_code &e) {
+          if (e) return;
+          send_chunks(socket, out, offset + n);
+        });
+      });
+    }
 
     void accept()
     {
       const auto socket = std::make_shared<tcp::socket>(io);
       acceptor.async_accept(*socket, [this, socket](const boost::system::error_code &error) {
         if (error) return;
+        ++accepts;
         accept();
-        const auto data = std::make_shared<boost::asio::streambuf>();
-        // Read the first byte so TLS autodetection gets an immediate EOF and
-        // reconnects with HTTP. Both connections must use the pinned address.
-        boost::asio::async_read(*socket, *data, boost::asio::transfer_exactly(1),
-            [this, socket, data](const boost::system::error_code &error, size_t) {
-          if (error || *boost::asio::buffers_begin(data->data()) != 'P') return;
-          boost::asio::async_read_until(*socket, *data, "\r\n\r\n",
-              [this, socket, data](const boost::system::error_code &error, size_t header_size) {
-            if (error) return;
-            const std::string buffered(boost::asio::buffers_begin(data->data()),
-                boost::asio::buffers_end(data->data()));
-            const auto length_pos = buffered.find("Content-Length: ");
-            if (length_pos == std::string::npos) return;
-            const auto length = std::stoul(buffered.substr(length_pos + 16));
-            const auto finish = [this, socket, data](const boost::system::error_code &error, size_t) {
-              if (error) return;
-              const std::string request(boost::asio::buffers_begin(data->data()),
-                  boost::asio::buffers_end(data->data()));
-              request_valid = request.find("POST /get_epose_service_endpoint_v2 HTTP/1.1") == 0
-                  && request.find(expected_hash) != std::string::npos;
-              ++requests;
-              boost::asio::async_write(*socket, boost::asio::buffer(reply),
-                  [socket](const boost::system::error_code &, size_t) {});
-            };
-            if (data->size() >= header_size + length)
-              finish({}, 0);
-            else
-              boost::asio::async_read(*socket, *data,
-                  boost::asio::transfer_exactly(header_size + length - data->size()), finish);
-          });
-        });
+        serve(socket);
       });
     }
 
   public:
-    explicit discovery_server(const endpoint_descriptor_v2 &descriptor)
-      : expected_hash(epee::string_tools::pod_to_hex(commitment(descriptor)))
+    explicit http_fixture(mode m, std::string response = {})
+      : http_fixture(m, std::move(response), trickle_plan())
     {
-      const auto body = discovery_json(descriptor);
-      reply = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-          + std::to_string(body.size()) + "\r\nConnection: close\r\n\r\n" + body;
+    }
+
+    // local: ::1 for an IPv6 peer.
+    http_fixture(mode m, std::string response, boost::asio::ip::address local)
+      : http_fixture(m, std::move(response), trickle_plan(), local)
+    {
+    }
+
+    http_fixture(mode m, std::string response, trickle_plan pacing,
+        boost::asio::ip::address local_address = boost::asio::ip::address_v4::loopback())
+      : behaviour(m), reply(std::move(response)), plan(pacing)
+    {
+      const tcp::endpoint local(local_address, 0);
+      acceptor.open(local.protocol());
+      if (m == mode::never_read)
+        acceptor.set_option(boost::asio::socket_base::receive_buffer_size(4096));
+      acceptor.bind(local);
+      acceptor.listen();
       accept();
       worker = std::thread([this] { io.run(); });
     }
-    ~discovery_server() { io.stop(); worker.join(); }
+    ~http_fixture() { io.stop(); worker.join(); }
     tcp::endpoint endpoint() const { return acceptor.local_endpoint(); }
     unsigned request_count() const { return requests.load(); }
-    bool valid_request() const { return request_valid.load(); }
+    unsigned accept_count() const { return accepts.load(); }
+    unsigned drop_count() const { return drops.load(); }
+    std::string last_request()
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      return last;
+    }
   };
 
-  epose_network_v2 server_network(discovery_server &server, unsigned &resolves, unsigned &connects)
+  // Connect to a fixture instead of the public endpoint the client chose.
+  epose_network_v2::connect_function redirect(const tcp::endpoint &target)
+  {
+    return [target](const tcp::endpoint &, boost::asio::io_context &io, steady::time_point deadline,
+        epose_network_v2::connect_handler complete) {
+      return connect_epose_address(target, io, deadline, std::move(complete));
+    };
+  }
+
+  // A port nobody listens on: the kernel answers SYN with RST.
+  tcp::endpoint closed_port()
+  {
+    boost::asio::io_context io;
+    tcp::acceptor probe(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+    const auto out = probe.local_endpoint();
+    probe.close();
+    return out;
+  }
+
+  // Fill the send queue against a peer that never reads. The receiver may
+  // reopen a small window after the first would_block, so the queue counts as
+  // full only once writes stayed blocked for 500 ms.
+  void fill_send_queue(tcp::socket &socket)
+  {
+    constexpr unsigned stable = 25; // x 20 ms
+    boost::system::error_code ignored;
+    socket.set_option(boost::asio::socket_base::send_buffer_size(4096), ignored);
+    socket.non_blocking(true, ignored);
+    const std::vector<char> junk(64 * 1024, 'x');
+    const auto until = steady::now() + std::chrono::seconds(5);
+    unsigned blocked = 0;
+    while (blocked < stable && steady::now() < until)
+    {
+      boost::system::error_code error;
+      const size_t written = socket.write_some(boost::asio::buffer(junk), error);
+      if (error == boost::asio::error::would_block || error == boost::asio::error::try_again)
+      {
+        ++blocked;
+        std::this_thread::sleep_for(ms(20));
+        continue;
+      }
+      if (error)
+        break;
+      if (written)
+        blocked = 0;
+    }
+    EXPECT_EQ(stable, blocked);
+    socket.non_blocking(false, ignored);
+  }
+
+  epose_network_v2 server_network(http_fixture &server, std::atomic<unsigned> &resolves,
+      std::atomic<unsigned> &connects)
   {
     epose_network_v2 network;
     network.resolve = async_answers([&resolves](const std::string &host, boost::system::error_code &) {
       EXPECT_EQ("directory.example.org", host);
       ++resolves;
       // A second lookup would rebind to loopback. It must never happen.
-      return std::vector<boost::asio::ip::address>{make_address(resolves == 1 ? "8.8.8.8" : "127.0.0.1")};
+      return address_list{make_address(resolves == 1 ? "8.8.8.8" : "127.0.0.1")};
     });
-    network.connect = [&server, &connects](const tcp::endpoint &endpoint, boost::asio::steady_timer &timer) {
+    const auto target = server.endpoint();
+    network.connect = [target, &connects](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+        steady::time_point deadline, epose_network_v2::connect_handler complete) {
       ++connects;
       EXPECT_EQ(make_address("8.8.8.8"), endpoint.address());
       EXPECT_EQ(8197, endpoint.port());
-      return connect_epose_address(server.endpoint(), timer);
+      return connect_epose_address(target, io, deadline, std::move(complete));
     };
     return network;
+  }
+
+  // A peer whose SYN-ACK is slow: connects to target at once but reports the
+  // connection only after hold. honour_cancel = false ignores cancellation
+  // and still delivers the open socket late, like a completion already queued.
+  struct slow_connect_state
+  {
+    explicit slow_connect_state(boost::asio::io_context &io) : timer(io) {}
+    boost::asio::steady_timer timer;
+    epose_network_v2::connect_handler complete;
+    epose_network_v2::cancel_operation cancel_connect;
+    std::unique_ptr<tcp::socket> socket;
+    boost::system::error_code error;
+    bool connected = false;
+    bool elapsed = false;
+
+    void deliver()
+    {
+      if (!connected || !elapsed || !complete)
+        return;
+      auto handler = std::move(complete);
+      complete = {};
+      handler(error, std::move(*socket));
+    }
+  };
+
+  epose_network_v2::cancel_operation slow_connect(const tcp::endpoint &target,
+      boost::asio::io_context &io, steady::time_point deadline, ms hold, bool honour_cancel,
+      epose_network_v2::connect_handler complete)
+  {
+    const auto state = std::make_shared<slow_connect_state>(io);
+    state->complete = std::move(complete);
+    auto cancel_connect = connect_epose_address(target, io, deadline,
+        [state](boost::system::error_code error, tcp::socket socket) {
+      state->error = error;
+      state->socket.reset(new tcp::socket(std::move(socket)));
+      state->connected = true;
+      state->deliver();
+    });
+    state->timer.expires_after(hold);
+    state->timer.async_wait([state](const boost::system::error_code &error) {
+      if (error)
+        return;
+      state->elapsed = true;
+      state->deliver();
+    });
+    if (!honour_cancel)
+      return [] {};
+    state->cancel_connect = std::move(cancel_connect);
+    return [state] {
+      state->complete = {};
+      state->timer.cancel();
+      auto cancel = std::move(state->cancel_connect);
+      state->cancel_connect = {};
+      if (cancel)
+        cancel();
+      boost::system::error_code ignored;
+      if (state->socket)
+        state->socket->close(ignored);
+    };
+  }
+
+  // Concurrent connect attempts of one test, counted on the client's worker.
+  struct attempt_gauge
+  {
+    std::atomic<unsigned> started{0};
+    std::atomic<unsigned> cancelled{0};
+    std::atomic<unsigned> peak{0};
+
+    unsigned open() const { return started.load() - cancelled.load(); }
+
+    // A black-holed attempt that counts itself open until cancelled.
+    epose_network_v2::cancel_operation hang()
+    {
+      ++started;
+      peak = std::max(peak.load(), open());
+      return [this] { ++cancelled; };
+    }
+  };
+
+  // Open descriptors of this process; -1 without /proc.
+  int open_fds()
+  {
+#ifdef __linux__
+    DIR *dir = opendir("/proc/self/fd");
+    if (!dir)
+      return -1;
+    int count = 0;
+    while (readdir(dir))
+      ++count;
+    closedir(dir);
+    return count;
+#else
+    return -1;
+#endif
+  }
+
+  template<class Predicate>
+  bool eventually(Predicate done, ms limit = ms(3000))
+  {
+    const auto until = steady::now() + limit;
+    while (!done())
+    {
+      if (steady::now() >= until)
+        return false;
+      std::this_thread::sleep_for(ms(5));
+    }
+    return true;
+  }
+
+  qwertycoin::epose::receipt_dial_family_counters_v2 both(const receipt_dial_counters_v2 &dial)
+  {
+    auto out = dial.ipv4;
+    out.add(dial.ipv6);
+    return out;
+  }
+
+  // A dialer request for the test thread's own io_context.
+  epose_network_v2::dial_request dial_to(address_list addresses,
+      epose_network_v2::connect_function connect,
+      std::shared_ptr<epose_dial_budget_v2> budget = {}, ms window = ms(5000))
+  {
+    epose_network_v2::dial_request out{};
+    out.addresses = std::move(addresses);
+    out.port = 8198;
+    out.deadline = steady::now() + window;
+    out.attempt_delay = ms(50);
+    out.connect = std::move(connect);
+    out.budget = std::move(budget);
+    out.report = std::make_shared<epose_dial_report_v2>();
+    out.counters = std::make_shared<receipt_dial_counters_v2>();
+    return out;
+  }
+
+  // A connect that fails with error: posted, or at `when` unless cancelled.
+  epose_network_v2::cancel_operation fail_async(boost::asio::io_context &io,
+      boost::system::error_code error, epose_network_v2::connect_handler complete)
+  {
+    boost::asio::post(io, [complete, error, &io] { complete(error, tcp::socket(io)); });
+    return [] {};
+  }
+
+  epose_network_v2::cancel_operation fail_at(boost::asio::io_context &io, steady::time_point when,
+      boost::system::error_code error, epose_network_v2::connect_handler complete)
+  {
+    const auto timer = std::make_shared<boost::asio::steady_timer>(io, when);
+    timer->async_wait([timer, complete, error, &io](const boost::system::error_code &aborted) {
+      if (!aborted)
+        complete(error, tcp::socket(io));
+    });
+    return [timer] { timer->cancel(); };
+  }
+
+  bool same(const receipt_step_result_v2 &result, receipt_attempt_stage_v2 stage,
+      receipt_failure_reason_v2 reason)
+  {
+    return result.stage == stage && result.reason == reason;
+  }
+
+  std::string describe(const receipt_step_result_v2 &result)
+  {
+    return std::string(to_string(result.stage)) + "/" + to_string(result.reason);
+  }
+
+  // A descriptor lookup that is not bound to the challenge's subject.
+  epose_receipt_request_v2 discovery_only(std::vector<std::string> urls)
+  {
+    epose_receipt_request_v2 out{};
+    out.parameters = parameters();
+    out.challenge = challenge();
+    out.discovery = std::move(urls);
+    out.bind_to_challenge = false;
+    out.descriptor_only = true;
+    out.deadlines = caps(ms(1000));
+    return out;
   }
 
   const std::vector<std::string> prohibited_v4{
@@ -213,23 +639,25 @@ namespace
 TEST(epose_http_client, epoch46_third_party_discovery_http)
 {
   const auto expected = signed_descriptor();
-  discovery_server server(expected);
-  unsigned resolves = 0, connects = 0;
-  const auto network = server_network(server, resolves, connects);
-  endpoint_descriptor_v2 actual{};
-  const auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
-      parameters(), commitment(expected), actual, network);
-  EXPECT_EQ(1, server.request_count());
-  EXPECT_TRUE(server.valid_request());
-  ASSERT_TRUE(result.accepted()) << to_string(result.reason);
+  http_fixture server(http_fixture::mode::reply, http_ok(discovery_json(expected)));
+  std::atomic<unsigned> resolves{0}, connects{0};
+  epose_receipt_client_v2 client(server_network(server, resolves, connects));
+  const auto exchange = client.fetch_descriptor("http://directory.example.org:8197",
+      parameters(), commitment(expected)).wait();
+  EXPECT_EQ(1u, server.request_count());
+  const auto request = server.last_request();
+  EXPECT_EQ(0u, request.find("POST /get_epose_service_endpoint_v2 HTTP/1.1\r\n"));
+  EXPECT_NE(std::string::npos, request.find(epee::string_tools::pod_to_hex(commitment(expected))));
+  ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+  const auto &actual = exchange.endpoint;
   EXPECT_EQ(expected.host, actual.host);
   EXPECT_EQ(expected.port, actual.port);
   EXPECT_EQ(expected.signature, actual.signature);
   EXPECT_EQ(commitment(expected), commitment(actual));
   EXPECT_NE("directory.example.org", actual.host);
   EXPECT_NE(8197, actual.port);
-  EXPECT_EQ(1, resolves);
-  EXPECT_EQ(2, connects); // TLS autodetection reconnect uses the same pinned IP.
+  EXPECT_EQ(1u, resolves.load());
+  EXPECT_EQ(1u, connects.load()); // Plain HTTP: one connect to the pinned IP.
 }
 
 TEST(epose_http_client, discovery_rejects_bad_signature_and_commitment)
@@ -240,15 +668,15 @@ TEST(epose_http_client, discovery_rejects_bad_signature_and_commitment)
     auto required = commitment(d);
     if (bad_signature) d.signature = {};
     else required = crypto::null_hash;
-    discovery_server server(d);
-    unsigned resolves = 0, connects = 0;
-    endpoint_descriptor_v2 actual{};
-    const auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
-        parameters(), required, actual, server_network(server, resolves, connects));
+    http_fixture server(http_fixture::mode::reply, http_ok(discovery_json(d)));
+    std::atomic<unsigned> resolves{0}, connects{0};
+    epose_receipt_client_v2 client(server_network(server, resolves, connects));
+    const auto exchange = client.fetch_descriptor("http://directory.example.org:8197",
+        parameters(), required).wait();
     EXPECT_EQ(bad_signature ? receipt_failure_reason_v2::descriptor_invalid
-        : receipt_failure_reason_v2::descriptor_commitment_mismatch, result.reason);
-    EXPECT_TRUE(actual.host.empty());
-    EXPECT_EQ(1, server.request_count());
+        : receipt_failure_reason_v2::descriptor_commitment_mismatch, exchange.result.reason);
+    EXPECT_TRUE(exchange.endpoint.host.empty());
+    EXPECT_EQ(1u, server.request_count());
   }
 }
 
@@ -286,58 +714,59 @@ TEST(epose_http_client, discovery_and_verifier_filter_nonpublic_dns_before_conne
     // All-private, public first, and public last must use the same filtering.
     for (unsigned mixed : {0u, 1u, 2u})
     {
-      unsigned resolves = 0, connects = 0;
+      std::atomic<unsigned> resolves{0}, connects{0};
       epose_network_v2 network;
-      network.resolve = async_answers([&](const std::string &, boost::system::error_code &) {
+      network.resolve = async_answers([&resolves, host, mixed](const std::string &, boost::system::error_code &) {
         ++resolves;
-        std::vector<boost::asio::ip::address> out{make_address(host), make_address("fd00::1")};
+        address_list out{make_address(host), make_address("fd00::1")};
         if (mixed == 1) out.insert(out.begin(), make_address("8.8.8.8"));
         if (mixed == 2) out.push_back(make_address("8.8.8.8"));
         return out;
       });
-      network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+      network.connect = [&connects](const tcp::endpoint &endpoint, boost::asio::io_context &,
+          steady::time_point, epose_network_v2::connect_handler) {
         ++connects;
         EXPECT_EQ(make_address("8.8.8.8"), endpoint.address());
-        throw boost::system::system_error(boost::asio::error::connection_refused);
+        return refuse();
       };
-      endpoint_descriptor_v2 discovered{};
-      auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
-          parameters(), crypto::null_hash, discovered, network);
+      epose_receipt_client_v2 client(network);
+      const auto expected = mixed ? receipt_failure_reason_v2::connection_refused
+          : receipt_failure_reason_v2::address_prohibited;
+      auto result = client.fetch_descriptor("http://directory.example.org:8197",
+          parameters(), crypto::null_hash).wait().result;
       EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
-      EXPECT_EQ(mixed ? receipt_failure_reason_v2::connection_refused
-          : receipt_failure_reason_v2::address_prohibited, result.reason);
-      canonical_service_response_v2 response{};
-      result = request_epose_service_response({}, signed_descriptor("subject.example.org"), parameters(), response, network);
+      EXPECT_EQ(expected, result.reason);
+      result = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+          parameters()).wait().result;
       EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
-      EXPECT_EQ(mixed ? receipt_failure_reason_v2::connection_refused
-          : receipt_failure_reason_v2::address_prohibited, result.reason);
-      EXPECT_EQ(2, resolves);
-      EXPECT_EQ(mixed ? 2u : 0u, connects);
+      EXPECT_EQ(expected, result.reason);
+      EXPECT_EQ(2u, resolves.load());
+      EXPECT_EQ(mixed ? 2u : 0u, connects.load());
     }
   }
 }
 
 TEST(epose_http_client, literal_addresses_cannot_bypass_dial_policy)
 {
+  epose_network_v2 network;
+  network.resolve = async_answers([](const std::string &, boost::system::error_code &) {
+    ADD_FAILURE() << "Literal IP must not be resolved";
+    return address_list{make_address("8.8.8.8")};
+  });
+  network.connect = [](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
+    ADD_FAILURE() << "Prohibited literal must not be connected";
+    return refuse();
+  };
+  epose_receipt_client_v2 client(network);
   for (const char *host : {"127.0.0.1", "192.0.2.1", "::1", "::ffff:10.0.0.1", "64:ff9b::169.254.169.254"})
   {
     SCOPED_TRACE(host);
-    epose_network_v2 network;
-    network.resolve = async_answers([](const std::string &, boost::system::error_code &) {
-      ADD_FAILURE() << "Literal IP must not be resolved";
-      return std::vector<boost::asio::ip::address>{make_address("8.8.8.8")};
-    });
-    network.connect = [](const tcp::endpoint &, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
-      ADD_FAILURE() << "Prohibited literal must not be connected";
-      throw boost::system::system_error(boost::asio::error::connection_refused);
-    };
-    endpoint_descriptor_v2 d{};
-    const auto url_host = make_address(host).is_v6() ? "[" + std::string(host) + "]" : host;
-    const auto fetched = fetch_epose_endpoint_descriptor("http://" + url_host + ":8197", parameters(), {}, d, network);
-    EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, fetched.reason);
-    canonical_service_response_v2 response{};
-    const auto probed = request_epose_service_response({}, signed_descriptor(host), parameters(), response, network);
-    EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, probed.reason);
+    const std::string url_host = make_address(host).is_v6() ? "[" + std::string(host) + "]" : host;
+    EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, client.fetch_descriptor(
+        "http://" + url_host + ":8197", parameters(), {}).wait().result.reason);
+    EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, client.request_service(
+        challenge(), signed_descriptor(host), parameters()).wait().result.reason);
   }
 }
 
@@ -353,24 +782,28 @@ TEST(epose_http_client, cached_and_cold_dns_descriptors_obey_same_dial_policy)
   ASSERT_EQ(resource_status_v2::accepted, cache.admit(p.nettype, p.genesis_hash, p.parameter_set_hash, 1, descriptor));
   endpoint_descriptor_v2 warm{}, cold{};
   ASSERT_TRUE(cache.find(commitment(descriptor), 1, warm));
-  discovery_server server(descriptor);
-  unsigned resolves = 0, connects = 0;
-  ASSERT_TRUE(fetch_epose_endpoint_descriptor("http://directory.example.org:8197", p,
-      commitment(descriptor), cold, server_network(server, resolves, connects)).accepted());
+  {
+    http_fixture server(http_fixture::mode::reply, http_ok(discovery_json(descriptor)));
+    std::atomic<unsigned> resolves{0}, connects{0};
+    epose_receipt_client_v2 discovery(server_network(server, resolves, connects));
+    const auto fetched = discovery.fetch_descriptor("http://directory.example.org:8197", p,
+        commitment(descriptor)).wait();
+    ASSERT_TRUE(fetched.result.accepted()) << describe(fetched.result);
+    cold = fetched.endpoint;
+  }
   epose_network_v2 network;
   network.resolve = async_answers([](const std::string &, boost::system::error_code &) {
-    return std::vector<boost::asio::ip::address>{make_address("169.254.169.254")};
+    return address_list{make_address("169.254.169.254")};
   });
-  network.connect = [](const tcp::endpoint &, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+  network.connect = [](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
     ADD_FAILURE() << "Neither warm nor cold descriptor may connect to metadata service";
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+    return refuse();
   };
+  epose_receipt_client_v2 client(network);
   for (const auto &d : {warm, cold})
-  {
-    canonical_service_response_v2 response{};
     EXPECT_EQ(receipt_failure_reason_v2::address_prohibited,
-        request_epose_service_response({}, d, p, response, network).reason);
-  }
+        client.request_service(challenge(), d, p).wait().result.reason);
   for (const char *host : {"192.0.2.1", "64:ff9b::7f00:1"})
   {
     const auto d = signed_descriptor(host);
@@ -387,53 +820,53 @@ TEST(epose_http_client, dns_failure_and_empty_answer_are_classified)
     epose_network_v2 network;
     network.resolve = async_answers([empty](const std::string &, boost::system::error_code &error) {
       if (!empty) error = boost::asio::error::host_not_found;
-      return std::vector<boost::asio::ip::address>{};
+      return address_list{};
     });
-    endpoint_descriptor_v2 descriptor{};
-    EXPECT_EQ(receipt_failure_reason_v2::dns_resolution_failed,
-        fetch_epose_endpoint_descriptor("http://directory.example.org:8197", parameters(), {}, descriptor, network).reason);
-    canonical_service_response_v2 response{};
-    EXPECT_EQ(receipt_failure_reason_v2::dns_resolution_failed,
-        request_epose_service_response({}, signed_descriptor("subject.example.org"), parameters(), response, network).reason);
+    epose_receipt_client_v2 client(network);
+    EXPECT_EQ(receipt_failure_reason_v2::dns_resolution_failed, client.fetch_descriptor(
+        "http://directory.example.org:8197", parameters(), {}).wait().result.reason);
+    EXPECT_EQ(receipt_failure_reason_v2::dns_resolution_failed, client.request_service(
+        challenge(), signed_descriptor("subject.example.org"), parameters()).wait().result.reason);
   }
 }
 
 TEST(epose_http_client, verifier_connects_only_to_pinned_dns_answer)
 {
-  unsigned resolves = 0, connects = 0;
+  std::atomic<unsigned> resolves{0}, connects{0};
   epose_network_v2 network;
-  network.resolve = async_answers([&](const std::string &, boost::system::error_code &) {
+  network.resolve = async_answers([&resolves](const std::string &, boost::system::error_code &) {
     ++resolves;
-    return std::vector<boost::asio::ip::address>{make_address(resolves == 1 ? "8.8.8.8" : "127.0.0.1")};
+    return address_list{make_address(resolves == 1 ? "8.8.8.8" : "127.0.0.1")};
   });
-  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+  network.connect = [&connects](const tcp::endpoint &endpoint, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
     ++connects;
     EXPECT_EQ(make_address("8.8.8.8"), endpoint.address());
     EXPECT_EQ(8198, endpoint.port());
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+    return refuse();
   };
-  canonical_service_response_v2 response{};
-  const auto result = request_epose_service_response({}, signed_descriptor("subject.example.org"), parameters(), response, network);
+  epose_receipt_client_v2 client(network);
+  const auto result = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+      parameters()).wait().result;
   EXPECT_EQ(receipt_failure_reason_v2::connection_refused, result.reason);
-  EXPECT_EQ(1, resolves);
-  EXPECT_EQ(1, connects);
+  EXPECT_EQ(1u, resolves.load());
+  EXPECT_EQ(1u, connects.load());
 }
 
 TEST(epose_http_client, system_resolver_rejects_localhost_before_connect)
 {
   epose_network_v2 network;
-  network.connect = [](const tcp::endpoint &, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+  network.connect = [](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
     ADD_FAILURE() << "System resolver must not permit loopback";
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+    return refuse();
   };
-  endpoint_descriptor_v2 descriptor{};
-  EXPECT_EQ(receipt_failure_reason_v2::address_prohibited,
-      fetch_epose_endpoint_descriptor("http://localhost:8197", parameters(), {}, descriptor, network).reason);
-  canonical_service_response_v2 response{};
-  EXPECT_EQ(receipt_failure_reason_v2::address_prohibited,
-      request_epose_service_response({}, signed_descriptor("localhost"), parameters(), response, network).reason);
+  epose_receipt_client_v2 client(network);
+  EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, client.fetch_descriptor(
+      "http://localhost:8197", parameters(), {}).wait().result.reason);
+  EXPECT_EQ(receipt_failure_reason_v2::address_prohibited, client.request_service(
+      challenge(), signed_descriptor("localhost"), parameters()).wait().result.reason);
 }
-
 
 TEST(epose_http_client, dns64_public_and_private_answers)
 {
@@ -449,34 +882,35 @@ TEST(epose_http_client, dns64_public_and_private_answers)
       // AAAA only, AAAA then A, and A then AAAA (CT 547 with and without CLAT).
       for (unsigned layout : {0u, 1u, 2u})
       {
-        unsigned resolves = 0;
-        std::vector<boost::asio::ip::address> dialed;
+        std::atomic<unsigned> resolves{0};
+        address_list dialed;
         epose_network_v2 network;
-        network.resolve = async_answers([&](const std::string &, boost::system::error_code &) {
+        network.resolve = async_answers([&resolves, layout, prefix, v4](const std::string &,
+            boost::system::error_code &) {
           ++resolves;
-          std::vector<boost::asio::ip::address> answers{make_address(prefix + v4)};
+          address_list answers{make_address(prefix + v4)};
           if (layout == 1) answers.push_back(make_address(v4));
           if (layout == 2) answers.insert(answers.begin(), make_address(v4));
           return answers;
         });
-        network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+        network.connect = [&dialed](const tcp::endpoint &endpoint, boost::asio::io_context &,
+            steady::time_point, epose_network_v2::connect_handler) {
           dialed.push_back(endpoint.address());
-          throw boost::system::system_error(boost::asio::error::connection_refused);
+          return refuse();
         };
-        endpoint_descriptor_v2 discovered{};
-        const auto fetched = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
-            parameters(), {}, discovered, network);
-        canonical_service_response_v2 response{};
-        const auto probed = request_epose_service_response({}, signed_descriptor("subject.example.org"),
-            parameters(), response, network);
+        epose_receipt_client_v2 client(network);
+        const auto fetched = client.fetch_descriptor("http://directory.example.org:8197",
+            parameters(), {}).wait().result;
+        const auto probed = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+            parameters()).wait().result;
         const auto expected = allowed ? receipt_failure_reason_v2::connection_refused
             : receipt_failure_reason_v2::address_prohibited;
         EXPECT_EQ(expected, fetched.reason);
         EXPECT_EQ(expected, probed.reason);
-        EXPECT_EQ(2u, resolves);
-        std::vector<boost::asio::ip::address> expected_dials;
+        EXPECT_EQ(2u, resolves.load());
+        address_list expected_dials;
         if (allowed)
-          for (unsigned attempt = 0; attempt < 2; ++attempt)
+          for (unsigned attempt = 0; attempt < 2; ++attempt) // discovery, then service
           {
             if (layout) expected_dials.push_back(make_address(v4));
             expected_dials.push_back(make_address(prefix + v4));
@@ -490,240 +924,934 @@ TEST(epose_http_client, dns64_public_and_private_answers)
 TEST(epose_http_client, fallback_to_second_checked_address_completes_http)
 {
   const auto descriptor = signed_descriptor();
-  discovery_server server(descriptor);
+  http_fixture server(http_fixture::mode::reply, http_ok(discovery_json(descriptor)));
   for (const char *second : {"1.1.1.1", "64:ff9b:1::5fd8:ddef", "64:ff9b::5fd8:ddef"})
   {
     SCOPED_TRACE(second);
-    unsigned resolves = 0;
-    std::vector<boost::asio::ip::address> dialed;
-    std::vector<std::chrono::steady_clock::time_point> deadlines;
+    std::atomic<unsigned> resolves{0};
+    address_list dialed;
+    std::vector<steady::time_point> deadlines;
     epose_network_v2 network;
-    network.resolve = async_answers([&](const std::string &, boost::system::error_code &) {
+    network.resolve = async_answers([&resolves, second](const std::string &, boost::system::error_code &) {
       ++resolves;
-      return std::vector<boost::asio::ip::address>{make_address("10.0.0.1"),
+      return address_list{make_address("10.0.0.1"),
           make_address("8.8.8.8"), make_address("fd00::1"), make_address(second)};
     });
-    network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &timeout) {
+    const auto target = server.endpoint();
+    network.connect = [&dialed, &deadlines, second, target](const tcp::endpoint &endpoint,
+        boost::asio::io_context &io, steady::time_point deadline,
+        epose_network_v2::connect_handler complete) -> epose_network_v2::cancel_operation {
       dialed.push_back(endpoint.address());
-      deadlines.push_back(timeout.expiry());
+      deadlines.push_back(deadline);
       EXPECT_EQ(8197, endpoint.port());
       if (endpoint.address() == make_address("8.8.8.8"))
       {
-        // Asynchronous failure exercises the same future path as a real socket.
-        auto result = std::make_shared<boost::promise<tcp::socket>>();
-        auto delay = std::make_shared<boost::asio::steady_timer>(MONERO_GET_EXECUTOR(timeout));
-        delay->expires_after(std::chrono::milliseconds(10));
-        delay->async_wait([result, delay](const boost::system::error_code &) {
-          result->set_exception(boost::system::system_error(boost::asio::error::connection_refused));
+        // Asynchronous failure exercises the same path as a real socket.
+        const auto delay = std::make_shared<boost::asio::steady_timer>(io);
+        delay->expires_after(ms(10));
+        delay->async_wait([delay, complete, &io](const boost::system::error_code &error) {
+          if (error) return;
+          complete(boost::asio::error::connection_refused, tcp::socket(io));
         });
-        return result->get_future();
+        return [delay] { delay->cancel(); };
       }
       EXPECT_EQ(make_address(second), endpoint.address());
-      return connect_epose_address(server.endpoint(), timeout);
+      return connect_epose_address(target, io, deadline, std::move(complete));
     };
-    endpoint_descriptor_v2 actual{};
-    const auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197",
-        parameters(), commitment(descriptor), actual, network);
-    EXPECT_TRUE(result.accepted()) << to_string(result.reason);
-    EXPECT_EQ(commitment(descriptor), commitment(actual));
-    EXPECT_EQ(1u, resolves);
-    const std::vector<boost::asio::ip::address> expected{
-        make_address("8.8.8.8"), make_address(second),
-        make_address("8.8.8.8"), make_address(second)};
-    EXPECT_EQ(expected, dialed); // Also covers TLS autodetection reconnect.
-    ASSERT_EQ(4u, deadlines.size());
+    epose_receipt_client_v2 client(network);
+    const auto exchange = client.fetch_descriptor("http://directory.example.org:8197",
+        parameters(), commitment(descriptor)).wait();
+    EXPECT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+    EXPECT_EQ(commitment(descriptor), commitment(exchange.endpoint));
+    EXPECT_EQ(1u, resolves.load());
+    const address_list expected{make_address("8.8.8.8"), make_address(second)};
+    EXPECT_EQ(expected, dialed);
+    ASSERT_EQ(2u, deadlines.size());
     for (const auto deadline : deadlines) EXPECT_EQ(deadlines.front(), deadline);
   }
   EXPECT_EQ(3u, server.request_count());
-  EXPECT_TRUE(server.valid_request());
 }
 
-TEST(epose_http_client, fallback_preserves_resolver_order_with_ipv4_first)
+TEST(epose_http_client, fallback_interleaves_families_ipv4_first)
 {
   for (bool asynchronous : {false, true})
   {
-    unsigned resolves = 0;
-    std::vector<boost::asio::ip::address> dialed;
+    std::atomic<unsigned> resolves{0};
+    address_list dialed;
     epose_network_v2 network;
-    network.resolve = async_answers([&](const std::string &, boost::system::error_code &) {
+    network.resolve = async_answers([&resolves](const std::string &, boost::system::error_code &) {
       ++resolves;
-      return std::vector<boost::asio::ip::address>{make_address("2606:4700::1111"),
+      return address_list{make_address("2606:4700::1111"),
           make_address("8.8.8.8"), make_address("fd00::1"), make_address("64:ff9b:1::5fd8:ddef"),
           make_address("1.1.1.1"), make_address("127.0.0.1")};
     });
-    network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &timeout) -> boost::unique_future<tcp::socket> {
+    network.connect = [&dialed, asynchronous](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+        steady::time_point, epose_network_v2::connect_handler complete) -> epose_network_v2::cancel_operation {
       dialed.push_back(endpoint.address());
-      const boost::system::system_error error(dialed.size() == 4
-          ? boost::asio::error::connection_refused : boost::asio::error::network_unreachable);
-      if (!asynchronous) throw error;
-      auto result = std::make_shared<boost::promise<tcp::socket>>();
-      boost::asio::post(MONERO_GET_EXECUTOR(timeout), [result, error] { result->set_exception(error); });
-      return result->get_future();
+      const boost::system::error_code error = dialed.size() == 4
+          ? boost::asio::error::connection_refused : boost::asio::error::network_unreachable;
+      if (!asynchronous) throw boost::system::system_error(error);
+      boost::asio::post(io, [complete, error, &io] { complete(error, tcp::socket(io)); });
+      return [] {};
     };
-    canonical_service_response_v2 response{};
-    const auto result = request_epose_service_response({}, signed_descriptor("subject.example.org"),
-        parameters(), response, network);
+    epose_receipt_client_v2 client(network);
+    const auto result = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+        parameters()).wait().result;
+    // Refused (the last attempt) beats the unreachable ones before it.
     EXPECT_EQ(receipt_failure_reason_v2::connection_refused, result.reason);
-    EXPECT_EQ(1u, resolves);
-    const std::vector<boost::asio::ip::address> expected{make_address("8.8.8.8"),
-        make_address("1.1.1.1"), make_address("2606:4700::1111"), make_address("64:ff9b:1::5fd8:ddef")};
+    EXPECT_EQ(1u, resolves.load());
+    const address_list expected{make_address("8.8.8.8"), make_address("2606:4700::1111"),
+        make_address("1.1.1.1"), make_address("64:ff9b:1::5fd8:ddef")};
     EXPECT_EQ(expected, dialed);
   }
 }
 
 TEST(epose_http_client, fallback_stops_at_shared_deadline)
 {
-  unsigned connects = 0;
-  std::chrono::steady_clock::time_point started;
+  hang_counts hung;
   epose_network_v2 network;
   network.resolve = async_answers([](const std::string &, boost::system::error_code &) {
-    return std::vector<boost::asio::ip::address>{make_address("8.8.8.8"), make_address("1.1.1.1")};
+    return address_list{make_address("8.8.8.8"), make_address("1.1.1.1")};
   });
-  network.connect = [&](const tcp::endpoint &, boost::asio::steady_timer &timeout) {
-    ++connects;
-    started = std::chrono::steady_clock::now();
-    auto result = std::make_shared<boost::promise<tcp::socket>>();
-    timeout.async_wait([result](const boost::system::error_code &) {
-      result->set_exception(boost::system::system_error(boost::asio::error::operation_aborted));
-    });
-    return result->get_future();
-  };
-  epose_http_client client;
-  ASSERT_TRUE(prepare_epose_http_client(client, "subject.example.org", 8198, network).accepted());
-  EXPECT_FALSE(client.client().invoke("/", "POST", "{}", std::chrono::milliseconds(30)));
-  const auto elapsed = std::chrono::steady_clock::now() - started;
-  EXPECT_EQ(1u, connects);
-  EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
-  EXPECT_GE(elapsed, std::chrono::milliseconds(25));
+  network.connect = [&hung](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler complete) { return hang(hung, std::move(complete)); };
+  epose_receipt_client_v2 client(network);
+  const auto started = steady::now();
+  const auto result = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+      parameters(), caps(ms(30))).wait().result;
+  const auto elapsed = steady::now() - started;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::connect_timeout)) << describe(result);
+  EXPECT_EQ(1u, hung.started.load());
+  EXPECT_EQ(1u, hung.cancelled.load());
+  EXPECT_GE(elapsed, ms(25));
   EXPECT_LT(elapsed, std::chrono::seconds(1));
+}
+
+TEST(epose_http_client, happy_eyeballs_order_interleaves_families)
+{
+  const auto a = [](const char *text) { return make_address(text); };
+  const address_list resolved{a("2606:4700::1111"), a("8.8.8.8"), a("2606:4700::1001"),
+      a("2001:4860:4860::8888"), a("1.1.1.1")};
+  EXPECT_EQ((address_list{a("8.8.8.8"), a("2606:4700::1111"), a("1.1.1.1"), a("2606:4700::1001"),
+      a("2001:4860:4860::8888")}), epose_happy_eyeballs_order_v2(resolved, false));
+  EXPECT_EQ((address_list{a("2606:4700::1111"), a("8.8.8.8"), a("2606:4700::1001"), a("1.1.1.1"),
+      a("2001:4860:4860::8888")}), epose_happy_eyeballs_order_v2(resolved, true));
+  const address_list v4_only{a("9.9.9.9"), a("8.8.8.8"), a("1.1.1.1")};
+  const address_list v6_only{a("2606:4700::1001"), a("2606:4700::1111")};
+  for (const bool prefer_v6 : {false, true})
+  {
+    EXPECT_EQ(v4_only, epose_happy_eyeballs_order_v2(v4_only, prefer_v6));
+    EXPECT_EQ(v6_only, epose_happy_eyeballs_order_v2(v6_only, prefer_v6));
+    EXPECT_TRUE(epose_happy_eyeballs_order_v2({}, prefer_v6).empty());
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_dead_first_address_falls_over)
+{
+  http_fixture v4(http_fixture::mode::reply, http_ok(service_json()));
+  http_fixture v6(http_fixture::mode::reply, http_ok(service_json()), make_address("::1"));
+  const ms connect_cap(5000);
+  const ms delay(EPOSE_V2_DIAL_ATTEMPT_DELAY_MS);
+  struct layout { const char *dead; const char *live; };
+  // A dead A record before a working AAAA, two A records, two AAAA records.
+  for (const auto &l : {layout{"1.1.1.1", "2606:4700::1111"}, layout{"8.8.8.8", "1.1.1.1"},
+           layout{"2606:4700::1111", "2606:4700::1001"}})
+  {
+    SCOPED_TRACE(l.dead);
+    const auto dead = make_address(l.dead);
+    const auto live = make_address(l.live);
+    hang_counts hung;
+    address_list dialed;
+    epose_network_v2 network;
+    network.resolve = async_answers([dead, live](const std::string &, boost::system::error_code &) {
+      return address_list{dead, live};
+    });
+    const auto v4_target = v4.endpoint();
+    const auto v6_target = v6.endpoint();
+    network.connect = [&hung, &dialed, dead, v4_target, v6_target](const tcp::endpoint &endpoint,
+        boost::asio::io_context &io, steady::time_point deadline,
+        epose_network_v2::connect_handler complete) {
+      dialed.push_back(endpoint.address());
+      if (endpoint.address() == dead)
+        return hang(hung, std::move(complete));
+      return connect_epose_address(endpoint.address().is_v6() ? v6_target : v4_target,
+          io, deadline, std::move(complete));
+    };
+    epose_receipt_client_v2 client(network);
+    const unsigned served_before = v4.request_count() + v6.request_count();
+    const auto started = steady::now();
+    const auto exchange = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+        parameters(), caps(connect_cap)).wait();
+    const auto elapsed = steady::now() - started;
+    ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+    EXPECT_EQ(service_signature(), exchange.response.subject_signature);
+    // The fallback starts after the attempt delay, not after the deadline.
+    EXPECT_GE(elapsed, delay);
+    EXPECT_LT(elapsed, delay + ms(750));
+    EXPECT_EQ((address_list{dead, live}), dialed);
+    EXPECT_EQ(1u, hung.started.load());
+    EXPECT_EQ(1u, hung.cancelled.load()); // the loser is cancelled
+    EXPECT_EQ(served_before + 1, v4.request_count() + v6.request_count());
+    const auto total = both(exchange.dial);
+    EXPECT_EQ(2u, total.attempts);
+    EXPECT_EQ(1u, total.connected);
+    EXPECT_EQ(1u, total.abandoned);
+    EXPECT_EQ(live.is_v6() ? 1u : 0u, exchange.dial.ipv6.connected);
+    EXPECT_EQ(dead.is_v6() ? 1u : 0u, exchange.dial.ipv6.abandoned);
+    EXPECT_EQ(0u, total.refused + total.unreachable + total.timed_out + total.failed);
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_both_live_keeps_one_connection)
+{
+  // The first attempt reaches the v4 fixture at once but reports it only
+  // after 600 ms; the v6 attempt starts after the attempt delay and wins.
+  // The loser's open socket must be closed whether its connect honours the
+  // cancellation or delivers the socket late anyway.
+  const ms hold(600);
+  for (const bool honour_cancel : {true, false})
+  {
+    SCOPED_TRACE(honour_cancel);
+    http_fixture slow(http_fixture::mode::reply, http_ok(service_json()));
+    http_fixture fast(http_fixture::mode::reply, http_ok(service_json()), make_address("::1"));
+    const int fds_before = open_fds();
+    {
+      const auto slow_target = slow.endpoint();
+      const auto fast_target = fast.endpoint();
+      epose_network_v2 network;
+      network.resolve = async_answers([](const std::string &, boost::system::error_code &) {
+        return address_list{make_address("2606:4700::1111"), make_address("8.8.8.8")};
+      });
+      network.connect = [slow_target, fast_target, hold, honour_cancel](const tcp::endpoint &endpoint,
+          boost::asio::io_context &io, steady::time_point deadline,
+          epose_network_v2::connect_handler complete) {
+        if (endpoint.address().is_v4())
+          return slow_connect(slow_target, io, deadline, hold, honour_cancel, std::move(complete));
+        return connect_epose_address(fast_target, io, deadline, std::move(complete));
+      };
+      epose_receipt_client_v2 client(network);
+      const auto started = steady::now();
+      const auto exchange = client.request_service(challenge(),
+          signed_descriptor("subject.example.org"), parameters(), caps(ms(5000))).wait();
+      const auto elapsed = steady::now() - started;
+      ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+      EXPECT_LT(elapsed, hold);
+      EXPECT_EQ(1u, exchange.dial.ipv4.attempts);
+      EXPECT_EQ(1u, exchange.dial.ipv4.abandoned);
+      EXPECT_EQ(0u, exchange.dial.ipv4.connected);
+      EXPECT_EQ(1u, exchange.dial.ipv6.attempts);
+      EXPECT_EQ(1u, exchange.dial.ipv6.connected);
+      // Both connections were really accepted; only the winner sent a request
+      // and the loser was closed by the client.
+      EXPECT_EQ(1u, fast.accept_count());
+      EXPECT_EQ(1u, fast.request_count());
+      EXPECT_EQ(1u, slow.accept_count());
+      EXPECT_EQ(0u, slow.request_count());
+      EXPECT_TRUE(eventually([&slow] { return slow.drop_count() == 1; }));
+      EXPECT_EQ(0u, client.in_flight());
+    }
+    if (fds_before >= 0)
+    {
+      EXPECT_TRUE(eventually([fds_before] { return open_fds() <= fds_before; }))
+          << open_fds() << " > " << fds_before;
+    }
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_most_informative_failure)
+{
+  enum class peer { hang, refuse, unreachable, host_unreachable, timeout };
+  struct scenario
+  {
+    const char *name;
+    std::vector<peer> peers;
+    receipt_failure_reason_v2 reason;
+    bool waits_for_deadline;
+  };
+  const ms cap(600);
+  const ms delay(EPOSE_V2_DIAL_ATTEMPT_DELAY_MS);
+  const std::vector<scenario> scenarios{
+      {"all refused", {peer::refuse, peer::refuse, peer::refuse},
+          receipt_failure_reason_v2::connection_refused, false},
+      {"all blackholed", {peer::hang, peer::hang, peer::hang},
+          receipt_failure_reason_v2::connect_timeout, true},
+      {"all unreachable", {peer::unreachable, peer::host_unreachable, peer::unreachable},
+          receipt_failure_reason_v2::connect_unreachable, false},
+      {"refused beats unreachable", {peer::unreachable, peer::refuse, peer::host_unreachable},
+          receipt_failure_reason_v2::connection_refused, false},
+      {"unreachable beats timeout", {peer::timeout, peer::unreachable, peer::timeout},
+          receipt_failure_reason_v2::connect_unreachable, false},
+      {"refused beats a pending attempt", {peer::hang, peer::refuse},
+          receipt_failure_reason_v2::connection_refused, true},
+      {"unreachable beats a pending attempt", {peer::hang, peer::unreachable},
+          receipt_failure_reason_v2::connect_unreachable, true}};
+  const address_list pool{make_address("8.8.8.8"), make_address("1.1.1.1"), make_address("9.9.9.9")};
+  for (const auto &s : scenarios)
+  {
+    SCOPED_TRACE(s.name);
+    const address_list addresses(pool.begin(), pool.begin() + s.peers.size());
+    attempt_gauge gauge;
+    epose_network_v2 network;
+    network.resolve = async_answers([addresses](const std::string &, boost::system::error_code &) {
+      return addresses;
+    });
+    network.connect = [&gauge, &s, addresses](const tcp::endpoint &endpoint,
+        boost::asio::io_context &io, steady::time_point,
+        epose_network_v2::connect_handler complete) -> epose_network_v2::cancel_operation {
+      const auto at = std::find(addresses.begin(), addresses.end(), endpoint.address());
+      EXPECT_NE(addresses.end(), at);
+      if (at == addresses.end())
+        return refuse();
+      boost::system::error_code error;
+      switch (s.peers[at - addresses.begin()])
+      {
+      case peer::hang: return gauge.hang();
+      case peer::refuse: return redirect(closed_port())(endpoint, io,
+          steady::now() + std::chrono::seconds(5), std::move(complete));
+      case peer::unreachable: error = boost::asio::error::network_unreachable; break;
+      case peer::host_unreachable: error = boost::asio::error::host_unreachable; break;
+      case peer::timeout: error = boost::asio::error::timed_out; break;
+      }
+      return fail_async(io, error, std::move(complete));
+    };
+    epose_receipt_client_v2 client(network);
+    const auto started = steady::now();
+    const auto exchange = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+        parameters(), caps(cap)).wait();
+    const auto elapsed = steady::now() - started;
+    EXPECT_TRUE(same(exchange.result, receipt_attempt_stage_v2::network_connect, s.reason))
+        << describe(exchange.result);
+    if (s.waits_for_deadline)
+      EXPECT_GE(elapsed, cap - ms(10));
+    else
+      EXPECT_LT(elapsed, delay); // a failure starts the next attempt at once
+    EXPECT_LT(elapsed, cap + ms(500));
+    const auto total = both(exchange.dial);
+    EXPECT_EQ(s.peers.size(), total.attempts);
+    EXPECT_EQ(total.attempts, total.connected + total.refused + total.unreachable
+        + total.timed_out + total.failed + total.abandoned);
+    EXPECT_EQ(gauge.started.load(), gauge.cancelled.load());
+    EXPECT_EQ(gauge.started.load(), total.abandoned);
+    EXPECT_EQ(0u, client.in_flight());
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_remembers_winning_family)
+{
+  http_fixture v4(http_fixture::mode::reply, http_ok(service_json()));
+  http_fixture v6(http_fixture::mode::reply, http_ok(service_json()), make_address("::1"));
+  const auto v4_address = make_address("1.1.1.1");
+  const auto v6_address = make_address("2606:4700::1111");
+  std::atomic<bool> v4_dead{true};
+  hang_counts hung;
+  address_list dialed; // worker only, read after wait()
+  epose_network_v2 network;
+  network.resolve = async_answers([v4_address, v6_address](const std::string &, boost::system::error_code &) {
+    return address_list{v4_address, v6_address};
+  });
+  const auto v4_target = v4.endpoint();
+  const auto v6_target = v6.endpoint();
+  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+      steady::time_point deadline, epose_network_v2::connect_handler complete) {
+    dialed.push_back(endpoint.address());
+    const bool is_v6 = endpoint.address().is_v6();
+    if (is_v6 == !v4_dead.load())
+      return hang(hung, std::move(complete));
+    return connect_epose_address(is_v6 ? v6_target : v4_target, io, deadline, std::move(complete));
+  };
+  epose_receipt_client_v2 client(network);
+  const ms delay(EPOSE_V2_DIAL_ATTEMPT_DELAY_MS);
+  const auto run = [&](const address_list &expected_dials, bool waits) {
+    dialed.clear();
+    const auto started = steady::now();
+    const auto exchange = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+        parameters(), caps(ms(5000))).wait();
+    const auto elapsed = steady::now() - started;
+    EXPECT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+    EXPECT_EQ(expected_dials, dialed);
+    if (waits)
+      EXPECT_GE(elapsed, delay);
+    else
+      EXPECT_LT(elapsed, delay);
+  };
+  // Default: IPv4 first. It is dead, IPv6 wins after the attempt delay.
+  run({v4_address, v6_address}, true);
+  // Remembered: IPv6 first, no delay.
+  run({v6_address}, false);
+  run({v6_address}, false);
+  // IPv6 dies: it is still tried first, IPv4 wins and is remembered.
+  v4_dead = false;
+  run({v6_address, v4_address}, true);
+  run({v4_address}, false);
+  // Another host keeps the default.
+  v4_dead = true;
+  dialed.clear();
+  EXPECT_TRUE(client.request_service(challenge(), signed_descriptor("other.example.org"),
+      parameters(), caps(ms(5000))).wait().result.accepted());
+  EXPECT_EQ((address_list{v4_address, v6_address}), dialed);
+  // A single-family answer records nothing.
+  EXPECT_TRUE(client.request_service(challenge(), signed_descriptor("2606:4700::1111"),
+      parameters(), caps(ms(5000))).wait().result.accepted());
+  dialed.clear();
+  run({v4_address, v6_address}, true); // other.example.org's win does not leak here either
+  EXPECT_EQ(hung.started.load(), hung.cancelled.load());
+}
+
+TEST(epose_http_client, happy_eyeballs_socket_bound)
+{
+  // Every attempt is black-holed, so each dial races all its candidates and
+  // holds as many sockets as it may until the deadline.
+  struct bound { size_t capacity; size_t extra; };
+  for (const auto &b : {bound{2, 1}, bound{2, 0},
+           bound{EPOSE_V2_RECEIPT_PARALLEL_JOBS, EPOSE_V2_DIAL_EXTRA_ATTEMPTS}})
+  {
+    SCOPED_TRACE(b.capacity);
+    SCOPED_TRACE(b.extra);
+    attempt_gauge gauge;
+    epose_network_v2 network;
+    network.resolve = async_answers([](const std::string &, boost::system::error_code &) {
+      return address_list{make_address("8.8.8.8"), make_address("2606:4700::1111"),
+          make_address("1.1.1.1"), make_address("2606:4700::1001"), make_address("9.9.9.9")};
+    });
+    network.connect = [&gauge](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+        epose_network_v2::connect_handler) { return gauge.hang(); };
+    epose_receipt_client_v2 client(network, b.capacity, b.extra);
+    std::vector<epose_receipt_job_v2> jobs;
+    for (size_t i = 0; i < b.capacity; ++i)
+      jobs.push_back(client.request_service(challenge(), signed_descriptor("subject.example.org"),
+          parameters(), caps(ms(1300))));
+    // Admission is unchanged: racing does not take job slots.
+    EXPECT_EQ(receipt_failure_reason_v2::lease_exhausted, client.request_service(challenge(),
+        signed_descriptor("subject.example.org"), parameters()).wait().result.reason);
+    for (const auto &job : jobs)
+    {
+      const auto exchange = job.wait();
+      EXPECT_TRUE(same(exchange.result, receipt_attempt_stage_v2::network_connect,
+          receipt_failure_reason_v2::connect_timeout)) << describe(exchange.result);
+      EXPECT_GE(both(exchange.dial).attempts, 1u);
+    }
+    // One socket per job plus at most the extra pool, and the pool is used
+    // up to each dial's cap (five candidates, so up to four extras each).
+    EXPECT_EQ(b.capacity + std::min(b.extra, EPOSE_V2_DIAL_EXTRA_ATTEMPTS_PER_DIAL * b.capacity),
+        gauge.peak.load());
+    EXPECT_EQ(gauge.started.load(), gauge.cancelled.load());
+    EXPECT_EQ(0u, client.in_flight());
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_budget_fifo)
+{
+  epose_dial_budget_v2 budget(1);
+  EXPECT_TRUE(budget.try_acquire());
+  EXPECT_FALSE(budget.try_acquire());
+  std::vector<uint64_t> woken;
+  const auto first = budget.wait([&woken](uint64_t id) { woken.push_back(id); });
+  const auto second = budget.wait([&woken](uint64_t id) { woken.push_back(id); });
+  const auto third = budget.wait([&woken](uint64_t id) { woken.push_back(id); });
+  budget.leave(second);
+  budget.release(); // passes to first
+  EXPECT_EQ(std::vector<uint64_t>{first}, woken);
+  EXPECT_EQ(1u, budget.in_use());
+  EXPECT_FALSE(budget.try_acquire()); // third still queued ahead
+  budget.release(); // passes to third
+  EXPECT_EQ((std::vector<uint64_t>{first, third}), woken);
+  budget.release();
+  EXPECT_EQ(0u, budget.in_use());
+  EXPECT_TRUE(budget.try_acquire());
+  epose_dial_budget_v2 none(0);
+  EXPECT_FALSE(none.try_acquire());
+}
+
+TEST(epose_http_client, happy_eyeballs_waiter_takes_released_unit)
+{
+  // Two dials share one extra unit. A takes it; B queues and gets it as soon
+  // as A is cancelled. Run on the test thread's own io_context.
+  boost::asio::io_context io;
+  const auto budget = std::make_shared<epose_dial_budget_v2>(1);
+  attempt_gauge gauge;
+  std::vector<std::pair<boost::asio::ip::address, steady::time_point>> starts;
+  const auto connect = [&gauge, &starts](const tcp::endpoint &endpoint, boost::asio::io_context &,
+      steady::time_point, epose_network_v2::connect_handler) {
+    starts.emplace_back(endpoint.address(), steady::now());
+    return gauge.hang();
+  };
+  unsigned completions = 0;
+  const auto complete = [&completions](boost::system::error_code, tcp::socket) { ++completions; };
+  const auto a1 = make_address("8.8.8.8"), a2 = make_address("8.8.4.4"), a3 = make_address("8.8.2.2");
+  const auto b1 = make_address("1.1.1.1"), b2 = make_address("1.0.0.1");
+  auto cancel_a = happy_eyeballs_epose_dial_v2(dial_to({a1, a2, a3}, connect, budget), io, complete);
+  auto cancel_b = happy_eyeballs_epose_dial_v2(dial_to({b1, b2}, connect, budget), io, complete);
+  steady::time_point a_cancelled{};
+  boost::asio::steady_timer stop_a(io), stop_b(io);
+  stop_a.expires_after(ms(200));
+  stop_a.async_wait([&](const boost::system::error_code &) {
+    EXPECT_EQ(3u, gauge.open());
+    EXPECT_EQ(1u, budget->in_use());
+    a_cancelled = steady::now();
+    cancel_a();
+  });
+  stop_b.expires_after(ms(400));
+  stop_b.async_wait([&](const boost::system::error_code &) { cancel_b(); });
+  io.run();
+  EXPECT_EQ(0u, completions); // cancellation suppresses the completion
+  ASSERT_EQ(4u, starts.size());
+  EXPECT_EQ(a1, starts[0].first);
+  EXPECT_EQ(b1, starts[1].first);
+  EXPECT_EQ(a2, starts[2].first);
+  EXPECT_EQ(b2, starts[3].first); // a3 never started: A waited behind B
+  EXPECT_GE(starts[3].second, a_cancelled);
+  EXPECT_LT(starts[3].second, a_cancelled + ms(40)); // before B's own delay would rearm
+  EXPECT_EQ(3u, gauge.peak.load());
+  EXPECT_EQ(4u, gauge.cancelled.load());
+  EXPECT_EQ(0u, budget->in_use());
+}
+
+TEST(epose_http_client, happy_eyeballs_dialer_checks_every_candidate)
+{
+  for (const bool any_public : {true, false})
+  {
+    SCOPED_TRACE(any_public);
+    boost::asio::io_context io;
+    address_list dialed;
+    address_list addresses{make_address("127.0.0.1"), make_address("fd00::1"), make_address("10.0.0.1")};
+    if (any_public)
+      addresses.insert(addresses.begin() + 1, make_address("8.8.8.8"));
+    const auto request = dial_to(addresses, [&dialed](const tcp::endpoint &endpoint,
+        boost::asio::io_context &, steady::time_point, epose_network_v2::connect_handler) {
+      dialed.push_back(endpoint.address());
+      return refuse();
+    });
+    const auto report = request.report;
+    const auto counters = request.counters;
+    unsigned completions = 0;
+    boost::system::error_code result;
+    happy_eyeballs_epose_dial_v2(request, io, [&](boost::system::error_code error, tcp::socket) {
+      ++completions;
+      result = error;
+    });
+    io.run();
+    EXPECT_EQ(1u, completions);
+    EXPECT_TRUE(report->prohibited);
+    EXPECT_FALSE(report->connected);
+    EXPECT_EQ(2u, counters->ipv4.prohibited);
+    EXPECT_EQ(1u, counters->ipv6.prohibited);
+    if (any_public)
+    {
+      EXPECT_EQ(address_list{make_address("8.8.8.8")}, dialed);
+      EXPECT_EQ(boost::asio::error::connection_refused, result);
+      EXPECT_EQ(1u, counters->ipv4.refused);
+    }
+    else
+    {
+      EXPECT_TRUE(dialed.empty());
+      EXPECT_EQ(boost::asio::error::access_denied, result);
+    }
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_per_dial_extra_cap)
+{
+  // Peer A has five black-holed addresses and the pool three units. A keeps
+  // 1 + EPOSE_V2_DIAL_EXTRA_ATTEMPTS_PER_DIAL attempts and leaves a unit,
+  // which peer B's dial takes for its second address. Run on the test
+  // thread's own io_context.
+  static_assert(EPOSE_V2_DIAL_EXTRA_ATTEMPTS_PER_DIAL == 2, "the test assumes a cap of 2");
+  boost::asio::io_context io;
+  const auto budget = std::make_shared<epose_dial_budget_v2>(3);
+  attempt_gauge gauge;
+  address_list starts;
+  const auto connect = [&gauge, &starts](const tcp::endpoint &endpoint, boost::asio::io_context &,
+      steady::time_point, epose_network_v2::connect_handler) {
+    starts.push_back(endpoint.address());
+    return gauge.hang();
+  };
+  unsigned completions = 0;
+  const auto complete = [&completions](boost::system::error_code, tcp::socket) { ++completions; };
+  const address_list a{make_address("8.8.8.1"), make_address("8.8.8.2"), make_address("8.8.8.3"),
+      make_address("8.8.8.4"), make_address("8.8.8.5")};
+  const address_list b{make_address("1.1.1.1"), make_address("1.0.0.1")};
+  const auto counters_a = std::make_shared<receipt_dial_counters_v2>();
+  const auto counters_b = std::make_shared<receipt_dial_counters_v2>();
+  const auto request = [&](address_list addresses, std::shared_ptr<receipt_dial_counters_v2> counters) {
+    auto out = dial_to(std::move(addresses), connect, budget);
+    out.counters = std::move(counters);
+    return out;
+  };
+  auto cancel_a = happy_eyeballs_epose_dial_v2(request(a, counters_a), io, complete);
+  epose_network_v2::cancel_operation cancel_b;
+  boost::asio::steady_timer start_b(io), check(io);
+  start_b.expires_after(ms(400)); // A had six attempt delays to take more
+  start_b.async_wait([&](const boost::system::error_code &) {
+    EXPECT_EQ(address_list(a.begin(), a.begin() + 3), starts);
+    EXPECT_EQ(3u, gauge.open());
+    EXPECT_EQ(2u, budget->in_use());
+    cancel_b = happy_eyeballs_epose_dial_v2(request(b, counters_b), io, complete);
+  });
+  check.expires_after(ms(700));
+  check.async_wait([&](const boost::system::error_code &) {
+    EXPECT_EQ((address_list{a[0], a[1], a[2], b[0], b[1]}), starts);
+    EXPECT_EQ(5u, gauge.open());
+    EXPECT_EQ(3u, budget->in_use());
+    cancel_a();
+    if (cancel_b)
+      cancel_b();
+  });
+  io.run();
+  EXPECT_EQ(0u, completions);
+  EXPECT_EQ(3u, counters_a->ipv4.attempts);
+  EXPECT_EQ(3u, counters_a->ipv4.abandoned);
+  EXPECT_EQ(2u, counters_b->ipv4.attempts);
+  EXPECT_EQ(2u, counters_b->ipv4.abandoned);
+  EXPECT_EQ(5u, gauge.peak.load());
+  EXPECT_EQ(5u, gauge.cancelled.load());
+  EXPECT_EQ(0u, budget->in_use());
+}
+
+TEST(epose_http_client, happy_eyeballs_capped_dial_replaces_failed_attempt)
+{
+  // At its cap a dial still replaces a failed attempt at once.
+  boost::asio::io_context io;
+  const auto budget = std::make_shared<epose_dial_budget_v2>(9);
+  attempt_gauge gauge;
+  address_list starts;
+  const auto refused = make_address("8.8.8.3");
+  const auto request = dial_to({make_address("8.8.8.1"), make_address("8.8.8.2"), refused,
+      make_address("8.8.8.4"), make_address("8.8.8.5")},
+      [&](const tcp::endpoint &endpoint, boost::asio::io_context &context,
+          steady::time_point, epose_network_v2::connect_handler complete) {
+    starts.push_back(endpoint.address());
+    if (endpoint.address() != refused)
+      return gauge.hang();
+    // Refused once the dial has sat at its cap for a while.
+    return fail_at(context, steady::now() + ms(200), boost::asio::error::connection_refused,
+        std::move(complete));
+  }, budget);
+  const auto counters = request.counters;
+  auto cancel = happy_eyeballs_epose_dial_v2(request, io, [](boost::system::error_code, tcp::socket) {
+    ADD_FAILURE() << "nothing connects";
+  });
+  boost::asio::steady_timer stop(io);
+  stop.expires_after(ms(400)); // cap reached at about 100 ms, refusal at about 300 ms
+  stop.async_wait([&](const boost::system::error_code &) {
+    EXPECT_EQ(4u, starts.size());
+    EXPECT_EQ(2u, budget->in_use());
+    cancel();
+  });
+  io.run();
+  ASSERT_EQ(4u, starts.size());
+  EXPECT_EQ(make_address("8.8.8.4"), starts[3]);
+  EXPECT_EQ(1u, counters->ipv4.refused);
+  EXPECT_EQ(3u, counters->ipv4.abandoned);
+  EXPECT_EQ(0u, budget->in_use());
+}
+
+TEST(epose_http_client, happy_eyeballs_round_deadline_wins)
+{
+  enum class peer { hang, refuse, times_out };
+  struct scenario
+  {
+    const char *name;
+    std::vector<peer> peers;
+    bool round_bound; // the connect deadline is the round deadline
+    receipt_failure_reason_v2 reason;
+  };
+  const ms cap(400);
+  const std::vector<scenario> scenarios{
+      {"pending attempt at the round deadline", {peer::refuse, peer::hang}, true,
+          receipt_failure_reason_v2::deadline_expired},
+      {"attempt timing out at the round deadline", {peer::refuse, peer::times_out}, true,
+          receipt_failure_reason_v2::deadline_expired},
+      {"pending attempt at a peer deadline", {peer::refuse, peer::hang}, false,
+          receipt_failure_reason_v2::connection_refused},
+      {"attempt timing out at a peer deadline", {peer::refuse, peer::times_out}, false,
+          receipt_failure_reason_v2::connection_refused},
+      {"every attempt failed before the round deadline", {peer::refuse, peer::refuse}, true,
+          receipt_failure_reason_v2::connection_refused}};
+  const address_list pool{make_address("8.8.8.8"), make_address("1.1.1.1")};
+  for (const auto &s : scenarios)
+  {
+    SCOPED_TRACE(s.name);
+    hang_counts hung;
+    epose_network_v2 network;
+    network.resolve = async_answers([pool](const std::string &, boost::system::error_code &) {
+      return pool;
+    });
+    network.connect = [&hung, &s, pool](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+        steady::time_point deadline, epose_network_v2::connect_handler complete)
+        -> epose_network_v2::cancel_operation {
+      const auto at = std::find(pool.begin(), pool.end(), endpoint.address());
+      if (at == pool.end())
+        return refuse();
+      switch (s.peers[at - pool.begin()])
+      {
+      case peer::hang:
+        return hang(hung, std::move(complete));
+      case peer::times_out: // like connect_epose_address
+        return fail_at(io, deadline, boost::asio::error::timed_out, std::move(complete));
+      case peer::refuse:
+        break;
+      }
+      return fail_async(io, boost::asio::error::connection_refused, std::move(complete));
+    };
+    epose_receipt_client_v2 client(network);
+    auto deadlines = caps(s.round_bound ? ms(5000) : cap);
+    const auto started = steady::now();
+    if (s.round_bound)
+      deadlines.round_deadline = started + cap;
+    const auto exchange = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+        parameters(), deadlines).wait();
+    const auto elapsed = steady::now() - started;
+    EXPECT_TRUE(same(exchange.result, receipt_attempt_stage_v2::network_connect, s.reason))
+        << describe(exchange.result);
+    EXPECT_LT(elapsed, cap + ms(500));
+    EXPECT_EQ(hung.started.load(), hung.cancelled.load());
+    EXPECT_EQ(2u, both(exchange.dial).attempts);
+    EXPECT_EQ(0u, client.in_flight());
+  }
+  // The dialer marks a dial the deadline cut short, and only that one.
+  for (const bool late : {true, false})
+  {
+    SCOPED_TRACE(late);
+    boost::asio::io_context io;
+    address_list addresses{make_address("8.8.8.8")};
+    if (late)
+      addresses.push_back(make_address("1.1.1.1"));
+    const auto request = dial_to(addresses, [](const tcp::endpoint &endpoint,
+        boost::asio::io_context &context, steady::time_point deadline,
+        epose_network_v2::connect_handler complete) {
+      if (endpoint.address() == make_address("1.1.1.1"))
+        return fail_at(context, deadline, boost::asio::error::timed_out, std::move(complete));
+      return fail_at(context, steady::now(), boost::asio::error::connection_refused,
+          std::move(complete));
+    }, {}, ms(100));
+    const auto report = request.report;
+    boost::system::error_code result;
+    happy_eyeballs_epose_dial_v2(request, io, [&result](boost::system::error_code error, tcp::socket) {
+      result = error;
+    });
+    io.run();
+    EXPECT_EQ(boost::asio::error::connection_refused, result);
+    EXPECT_EQ(late, report->expired);
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_counts_prohibited_addresses)
+{
+  struct scenario
+  {
+    const char *name;
+    std::string host;
+    address_list answer;
+    receipt_failure_reason_v2 reason;
+    uint64_t v4_prohibited;
+    uint64_t v6_prohibited;
+    uint64_t attempts;
+  };
+  const std::vector<scenario> scenarios{
+      {"mixed answer", "subject.example.org", {make_address("127.0.0.1"), make_address("8.8.8.8"),
+          make_address("fd00::1"), make_address("10.0.0.1")},
+          receipt_failure_reason_v2::connection_refused, 2, 1, 1},
+      {"nothing public", "subject.example.org", {make_address("127.0.0.1"), make_address("fd00::1")},
+          receipt_failure_reason_v2::address_prohibited, 1, 1, 0},
+      {"prohibited literal", "10.0.0.1", {},
+          receipt_failure_reason_v2::address_prohibited, 1, 0, 0},
+      {"prohibited IPv6 literal", "::1", {},
+          receipt_failure_reason_v2::address_prohibited, 0, 1, 0}};
+  for (const auto &s : scenarios)
+  {
+    SCOPED_TRACE(s.name);
+    epose_network_v2 network;
+    const auto answer = s.answer;
+    network.resolve = async_answers([answer](const std::string &, boost::system::error_code &) {
+      return answer;
+    });
+    network.connect = [](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+        steady::time_point, epose_network_v2::connect_handler complete) -> epose_network_v2::cancel_operation {
+      EXPECT_TRUE(public_epose_dial_address(endpoint.address()));
+      return fail_async(io, boost::asio::error::connection_refused, std::move(complete));
+    };
+    epose_receipt_client_v2 client(network);
+    const auto exchange = client.request_service(challenge(), signed_descriptor(s.host),
+        parameters(), caps(ms(2000))).wait();
+    EXPECT_TRUE(same(exchange.result, receipt_attempt_stage_v2::network_connect, s.reason))
+        << describe(exchange.result);
+    EXPECT_EQ(s.v4_prohibited, exchange.dial.ipv4.prohibited);
+    EXPECT_EQ(s.v6_prohibited, exchange.dial.ipv6.prohibited);
+    EXPECT_EQ(s.attempts, both(exchange.dial).attempts);
+  }
+}
+
+TEST(epose_http_client, happy_eyeballs_preference_eviction)
+{
+  // Bound 2. IPv4 is dead and IPv6 wins for every host, so a host whose
+  // preference is remembered dials IPv6 alone, and a forgotten one dials
+  // IPv4 first again.
+  http_fixture v6(http_fixture::mode::reply, http_ok(service_json()), make_address("::1"));
+  const auto v4_address = make_address("1.1.1.1");
+  const auto v6_address = make_address("2606:4700::1111");
+  hang_counts hung;
+  address_list dialed; // worker only, read after wait()
+  epose_network_v2 network;
+  network.resolve = async_answers([v4_address, v6_address](const std::string &, boost::system::error_code &) {
+    return address_list{v4_address, v6_address};
+  });
+  const auto v6_target = v6.endpoint();
+  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+      steady::time_point deadline, epose_network_v2::connect_handler complete) {
+    dialed.push_back(endpoint.address());
+    if (!endpoint.address().is_v6())
+      return hang(hung, std::move(complete));
+    return connect_epose_address(v6_target, io, deadline, std::move(complete));
+  };
+  epose_receipt_client_v2 client(network, EPOSE_V2_RECEIPT_PARALLEL_JOBS,
+      EPOSE_V2_DIAL_EXTRA_ATTEMPTS, 2);
+  const address_list forgotten{v4_address, v6_address};
+  const address_list remembered{v6_address};
+  const auto run = [&](const char *host, const address_list &expected) {
+    SCOPED_TRACE(host);
+    dialed.clear();
+    const auto exchange = client.request_service(challenge(), signed_descriptor(host),
+        parameters(), caps(ms(5000))).wait();
+    EXPECT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+    EXPECT_EQ(expected, dialed);
+  };
+  run("a.example.org", forgotten);
+  run("b.example.org", forgotten);
+  run("a.example.org", remembered); // a and b fill the bound
+  run("c.example.org", forgotten);  // evicts b, recorded before a's refresh
+  run("a.example.org", remembered);
+  run("b.example.org", forgotten);  // evicts c
+  run("c.example.org", forgotten);  // evicts a
+  run("b.example.org", remembered);
+  run("a.example.org", forgotten);
+  EXPECT_EQ(hung.started.load(), hung.cancelled.load());
 }
 
 TEST(epose_http_client, unresolved_lookup_is_bounded_and_does_not_queue_replacements)
 {
-  resolver_cleanup cleanup;
-  auto &late = cleanup.late;
-  auto &executor = cleanup.executor;
-  unsigned resolves = 0, cancels = 0, connects = 0;
+  held_lookup lookup;
+  std::atomic<unsigned> resolves{0}, cancels{0}, connects{0};
   epose_network_v2 network;
   network.resolve = [&](const std::string &, boost::asio::io_context &io,
       epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
-    executor = &io;
-    ++resolves;
-    late = std::move(complete); // Simulate libc remaining blocked after cancel.
-    return [&cancels] { ++cancels; };
+    if (++resolves == 1)
+    {
+      lookup.hold(io, std::move(complete)); // libc stays blocked after cancel
+      return [&cancels] { ++cancels; };
+    }
+    boost::asio::post(io, [complete] { complete({}, {make_address("8.8.8.8")}); });
+    return [] {};
   };
-  network.connect = [&](const tcp::endpoint &, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+  network.connect = [&connects](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
     ++connects;
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+    return refuse();
   };
-  std::chrono::steady_clock::duration elapsed{};
-  for (unsigned i = 0; i < 3; ++i)
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{lookup};
+  auto started = steady::now();
+  auto result = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+      parameters(), caps(ms(30))).wait().result;
+  EXPECT_GE(steady::now() - started, ms(25));
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::dns_timeout)) << describe(result);
+  // The stuck lookup still holds the slot. Replacements neither queue nor
+  // spend their connect cap: they fail at once as a local outcome.
+  for (unsigned i = 0; i < 2; ++i)
   {
-    epose_http_client client;
-    ASSERT_TRUE(prepare_epose_http_client(client, "subject.example.org", 8198, network).accepted());
-    const auto started = std::chrono::steady_clock::now();
-    EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(30)));
-    const auto attempt_elapsed = std::chrono::steady_clock::now() - started;
-    EXPECT_GE(attempt_elapsed, std::chrono::milliseconds(25));
-    elapsed += attempt_elapsed;
-    EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
+    started = steady::now();
+    result = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+        parameters(), caps(ms(30))).wait().result;
+    EXPECT_LT(steady::now() - started, ms(25));
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+        receipt_failure_reason_v2::dns_slot_busy)) << describe(result);
   }
-  EXPECT_GE(elapsed, std::chrono::milliseconds(25));
-  EXPECT_LT(elapsed, std::chrono::seconds(2));
-  EXPECT_EQ(1u, resolves);
-  EXPECT_EQ(1u, cancels);
-  EXPECT_EQ(0u, connects);
-  // The original lease and its injected functions are gone. Completion only
-  // releases admission; it must not dial or change the finished result.
-  ASSERT_TRUE(bool(late));
-  ASSERT_NE(nullptr, executor);
-  boost::asio::post(*executor, [late] { late({}, {make_address("8.8.8.8")}); });
-  epose_http_client drain;
-  ASSERT_TRUE(drain.available());
-  executor->restart();
-  executor->poll();
-  EXPECT_EQ(0u, connects);
+  EXPECT_EQ(1u, resolves.load());
+  EXPECT_EQ(1u, cancels.load());
+  EXPECT_EQ(0u, connects.load());
+  // The finished jobs are gone. The late answer only frees the resolver slot;
+  // it must not dial. The next lookup then runs normally.
+  ASSERT_TRUE(lookup.held());
+  lookup.deliver({}, {make_address("8.8.8.8")});
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, client.request_service(challenge(),
+      signed_descriptor("subject.example.org"), parameters(), caps(ms(1000))).wait().result.reason);
+  EXPECT_EQ(2u, resolves.load());
+  EXPECT_EQ(1u, connects.load());
 }
 
 TEST(epose_http_client, late_completion_after_return_is_ignored_and_capacity_recovers)
 {
-  resolver_cleanup cleanup;
-  auto &late = cleanup.late;
-  auto &executor = cleanup.executor;
-  {
-    epose_network_v2 network;
-    network.resolve = [&](const std::string &, boost::asio::io_context &io,
-        epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
-      executor = &io;
-      late = std::move(complete);
-      return [] {};
-    };
-    epose_http_client client;
-    ASSERT_TRUE(prepare_epose_http_client(client, "subject.example.org", 8198, network).accepted());
-    EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(20)));
-    EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
-  }
-  ASSERT_NE(nullptr, executor);
-  boost::asio::post(*executor, [late] { late({}, {make_address("127.0.0.1")}); });
-  // A fresh request drains the late completion and can resolve normally.
+  held_lookup lookup;
+  std::atomic<unsigned> resolves{0}, connects{0};
   epose_network_v2 network;
-  unsigned resolves = 0, connects = 0;
-  network.resolve = async_answers([&](const std::string &, boost::system::error_code &) {
-    ++resolves;
-    return std::vector<boost::asio::ip::address>{make_address("8.8.8.8")};
-  });
-  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+  network.resolve = [&](const std::string &, boost::asio::io_context &io,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    if (++resolves == 1)
+    {
+      lookup.hold(io, std::move(complete));
+      return [] {};
+    }
+    boost::asio::post(io, [complete] { complete({}, {make_address("8.8.8.8")}); });
+    return [] {};
+  };
+  network.connect = [&connects](const tcp::endpoint &endpoint, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
     ++connects;
     EXPECT_EQ(make_address("8.8.8.8"), endpoint.address());
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+    return refuse();
   };
-  canonical_service_response_v2 response{};
-  EXPECT_EQ(receipt_failure_reason_v2::connection_refused,
-      request_epose_service_response({}, signed_descriptor("subject.example.org"), parameters(), response, network).reason);
-  EXPECT_EQ(1u, resolves);
-  EXPECT_EQ(1u, connects);
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{lookup};
+  EXPECT_EQ(receipt_failure_reason_v2::dns_timeout, client.request_service(challenge(),
+      signed_descriptor("subject.example.org"), parameters(), caps(ms(20))).wait().result.reason);
+  ASSERT_TRUE(lookup.held());
+  lookup.deliver({}, {make_address("127.0.0.1")});
+  // A fresh request runs after the late completion and resolves normally.
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, client.request_service(challenge(),
+      signed_descriptor("subject.example.org"), parameters()).wait().result.reason);
+  EXPECT_EQ(2u, resolves.load());
+  EXPECT_EQ(1u, connects.load());
 }
 
 TEST(epose_http_client, dns_and_connect_share_deadline_and_executor)
 {
   boost::asio::io_context *executor = nullptr;
-  std::chrono::steady_clock::time_point deadline;
-  unsigned connects = 0;
+  steady::time_point dialed_deadline, resolving;
+  std::atomic<unsigned> connects{0};
+  hang_counts hung;
   epose_network_v2 network;
-  network.resolve = [&](const std::string &, boost::asio::io_context &io,
+  network.resolve = [&executor, &resolving](const std::string &, boost::asio::io_context &io,
       epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
     executor = &io;
-    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(80);
+    resolving = steady::now();
     const auto delay = std::make_shared<boost::asio::steady_timer>(io);
-    delay->expires_after(std::chrono::milliseconds(30));
+    delay->expires_after(ms(30));
     delay->async_wait([delay, complete](const boost::system::error_code &error) {
       complete(error, {make_address("8.8.8.8"), make_address("1.1.1.1")});
     });
     return [delay] { delay->cancel(); };
   };
-  network.connect = [&](const tcp::endpoint &, boost::asio::steady_timer &timeout) {
+  network.connect = [&](const tcp::endpoint &, boost::asio::io_context &io, steady::time_point deadline,
+      epose_network_v2::connect_handler complete) {
     ++connects;
-#if BOOST_VERSION >= 107000
-    EXPECT_EQ(executor, &timeout.get_executor().context());
-#else
-    EXPECT_EQ(executor, &timeout.get_io_context());
-#endif
-    EXPECT_LE(timeout.expiry(), deadline);
-    EXPECT_LT(timeout.expiry() - std::chrono::steady_clock::now(), std::chrono::milliseconds(60));
-    const auto result = std::make_shared<boost::promise<tcp::socket>>();
-    timeout.async_wait([result](const boost::system::error_code &) {
-      result->set_exception(boost::system::system_error(boost::asio::error::timed_out));
-    });
-    return result->get_future();
+    EXPECT_EQ(executor, &io);
+    dialed_deadline = deadline;
+    EXPECT_LT(deadline - steady::now(), ms(60));
+    return hang(hung, std::move(complete));
   };
-  epose_http_client client;
-  ASSERT_TRUE(prepare_epose_http_client(client, "subject.example.org", 8198, network).accepted());
-  const auto started = std::chrono::steady_clock::now();
-  EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(80)));
-  EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
-  EXPECT_EQ(1u, connects);
-  const auto elapsed = std::chrono::steady_clock::now() - started;
-  EXPECT_GE(elapsed, std::chrono::milliseconds(75));
+  epose_receipt_client_v2 client(network);
+  const auto started = steady::now();
+  const auto result = client.request_service(challenge(), signed_descriptor("subject.example.org"),
+      parameters(), caps(ms(80))).wait().result;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::connect_timeout)) << describe(result);
+  EXPECT_EQ(1u, connects.load());
+  // One connect deadline, fixed when the job starts, covers DNS and connect.
+  EXPECT_GE(dialed_deadline, started + ms(80));
+  EXPECT_LE(dialed_deadline, resolving + ms(80));
+  const auto elapsed = steady::now() - started;
+  EXPECT_GE(elapsed, ms(75));
   EXPECT_LT(elapsed, std::chrono::seconds(1));
 }
 
@@ -737,191 +1865,1281 @@ TEST(epose_http_client, public_literals_bypass_resolver)
       ADD_FAILURE() << "literal IP must not resolve";
       return [] {};
     };
-    unsigned connects = 0;
-    network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &) -> boost::unique_future<tcp::socket> {
+    std::atomic<unsigned> connects{0};
+    network.connect = [&connects, host](const tcp::endpoint &endpoint, boost::asio::io_context &,
+        steady::time_point, epose_network_v2::connect_handler) {
       ++connects;
       EXPECT_EQ(make_address(host), endpoint.address());
-      throw boost::system::system_error(boost::asio::error::connection_refused);
+      return refuse();
     };
-    canonical_service_response_v2 response{};
+    epose_receipt_client_v2 client(network);
     EXPECT_EQ(receipt_failure_reason_v2::connection_refused,
-        request_epose_service_response({}, signed_descriptor(host), parameters(), response, network).reason);
-    EXPECT_EQ(1u, connects);
+        client.request_service(challenge(), signed_descriptor(host), parameters()).wait().result.reason);
+    EXPECT_EQ(1u, connects.load());
   }
 }
 
 TEST(epose_http_client, dns_deadline_classified_for_discovery_and_service)
 {
-  resolver_cleanup cleanup;
-  unsigned cancels = 0;
+  std::atomic<unsigned> cancels{0};
   epose_network_v2 network;
-  network.resolve = [&](const std::string &, boost::asio::io_context &io,
+  network.resolve = [&cancels](const std::string &, boost::asio::io_context &io,
       epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
-    cleanup.track(io, complete);
-    // Never finishes until cancelled. Exercise the real five-second budget in
-    // both public callers, including late delivery of operation_aborted.
+    // Never finishes until cancelled. Exercise the real connect cap in both
+    // public callers, including late delivery of operation_aborted.
     return [&io, complete, &cancels] {
       ++cancels;
       boost::asio::post(io, [complete] { complete(boost::asio::error::operation_aborted, {}); });
     };
   };
-  endpoint_descriptor_v2 descriptor{};
-  auto started = std::chrono::steady_clock::now();
-  auto result = fetch_epose_endpoint_descriptor("http://directory.example.org:8197", parameters(), {}, descriptor, network);
-  EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
-  EXPECT_EQ(receipt_failure_reason_v2::transport_timeout, result.reason);
-  EXPECT_EQ(1u, cancels);
-  EXPECT_GE(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(4900));
+  epose_receipt_client_v2 client(network);
+  const ms cap(EPOSE_V2_CONNECT_TIMEOUT_MS);
+  auto started = steady::now();
+  auto result = client.fetch_descriptor("http://directory.example.org:8197", parameters(), {}).wait().result;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::dns_timeout)) << describe(result);
+  EXPECT_NE(receipt_failure_reason_v2::transport_timeout, result.reason);
+  EXPECT_EQ(1u, cancels.load());
+  EXPECT_GE(steady::now() - started, cap - ms(50));
   // Keep generous scheduler/CI load headroom while still proving that the
   // resolver deadline returns instead of waiting indefinitely.
-  EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::seconds(20));
-  canonical_service_response_v2 response{};
-  started = std::chrono::steady_clock::now();
-  result = request_epose_service_response({}, signed_descriptor("subject.example.org"), parameters(), response, network);
-  EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
-  EXPECT_EQ(receipt_failure_reason_v2::transport_timeout, result.reason);
-  EXPECT_EQ(2u, cancels);
-  EXPECT_GE(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(4900));
-  EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::seconds(20));
+  EXPECT_LT(steady::now() - started, std::chrono::seconds(20));
+  started = steady::now();
+  result = client.request_service(challenge(), signed_descriptor("subject.example.org"), parameters()).wait().result;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::dns_timeout)) << describe(result);
+  EXPECT_NE(receipt_failure_reason_v2::transport_timeout, result.reason);
+  EXPECT_EQ(2u, cancels.load());
+  EXPECT_GE(steady::now() - started, cap - ms(50));
+  EXPECT_LT(steady::now() - started, std::chrono::seconds(20));
 }
 
-TEST(epose_http_client, concurrent_client_lease_fails_without_waiting)
+TEST(epose_http_client, stuck_lookup_fails_only_its_own_peer)
 {
-  epose_http_client held;
-  ASSERT_TRUE(held.available());
-  std::thread contender([] {
-    epose_http_client other;
-    EXPECT_FALSE(other.available());
-    const auto result = prepare_epose_http_client(other, "subject.example.org", 8198);
-    EXPECT_EQ(receipt_failure_reason_v2::transport_timeout, result.reason);
-    EXPECT_EQ(receipt_attempt_stage_v2::network_connect, result.stage);
-  });
-  contender.join();
-}
-
-TEST(epose_http_client, busy_resolver_waits_for_capacity_within_own_deadline)
-{
-  resolver_cleanup cleanup;
-  unsigned resolves = 0, cancels = 0, connects = 0;
+  // One hostname whose lookup hangs, hostname peers resolved earlier in this
+  // epoch, a hostname never resolved, a stale-epoch resolution and literals.
+  http_fixture server(http_fixture::mode::reply, http_ok(service_json()));
+  held_lookup lookup;
+  std::atomic<unsigned> resolves{0}, cancels{0};
+  std::mutex dialed_mutex;
+  std::vector<boost::asio::ip::address> dialed;
   epose_network_v2 network;
   network.resolve = [&](const std::string &host, boost::asio::io_context &io,
       epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
     ++resolves;
-    if (resolves == 1)
+    if (host == "hung.example.org")
     {
-      EXPECT_EQ("slow.example.org", host);
-      cleanup.track(io, std::move(complete));
-      return [&] { ++cancels; };
+      lookup.hold(io, std::move(complete));
+      return [&cancels] { ++cancels; };
     }
-    EXPECT_EQ("healthy.example.org", host);
-    EXPECT_EQ(2u, resolves);
-    boost::asio::post(io, [complete] { complete({}, {make_address("1.1.1.1")}); });
+    const auto answer = host == "alpha.example.org" ? "1.1.1.1"
+        : host == "beta.example.org" ? "9.9.9.9" : "8.8.8.8";
+    boost::asio::post(io, [complete, answer] { complete({}, {make_address(answer)}); });
     return [] {};
   };
-  std::chrono::steady_clock::time_point started;
-  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::steady_timer &timeout)
-      -> boost::unique_future<tcp::socket> {
-    ++connects;
-    EXPECT_EQ(make_address("1.1.1.1"), endpoint.address());
-    EXPECT_EQ(8198, endpoint.port());
-    // Admission must consume the original budget, not start a fresh one.
-    EXPECT_LT(timeout.expiry() - std::chrono::steady_clock::now(), std::chrono::milliseconds(175));
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+  const auto target = server.endpoint();
+  network.connect = [&, target](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+      steady::time_point deadline, epose_network_v2::connect_handler complete) {
+    {
+      std::lock_guard<std::mutex> lock(dialed_mutex);
+      dialed.push_back(endpoint.address());
+    }
+    return connect_epose_address(target, io, deadline, std::move(complete));
   };
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{lookup};
+  auto epoch45 = challenge();
+  epoch45.epoch = 45;
+
+  // Prior resolutions: gamma only in epoch 45 (evicted by the epoch-46 ones),
+  // then alpha and beta in epoch 46.
+  ASSERT_TRUE(client.request_service(epoch45, signed_descriptor("gamma.example.org"), parameters(),
+      caps(ms(1000))).wait().result.accepted());
+  for (const char *host : {"alpha.example.org", "beta.example.org"})
+    ASSERT_TRUE(client.request_service(challenge(), signed_descriptor(host), parameters(),
+        caps(ms(1000))).wait().result.accepted()) << host;
+  EXPECT_EQ(3u, resolves.load());
+
+  const ms hung_cap(300);
+  const auto started = steady::now();
+  auto hung = client.request_service(challenge(), signed_descriptor("hung.example.org"),
+      parameters(), caps(hung_cap));
+  std::vector<epose_receipt_job_v2> remembered;
+  for (const char *host : {"alpha.example.org", "beta.example.org"})
+    remembered.push_back(client.request_service(challenge(), signed_descriptor(host),
+        parameters(), caps(ms(1000))));
+  std::vector<epose_receipt_job_v2> literals;
+  for (const char *host : {"8.8.4.4", "2606:4700::1111"})
+    literals.push_back(client.request_service(challenge(), signed_descriptor(host),
+        parameters(), caps(ms(1000))));
+  auto unknown = client.request_service(challenge(), signed_descriptor("delta.example.org"),
+      parameters(), caps(ms(1000)));
+  auto stale = client.request_service(challenge(), signed_descriptor("gamma.example.org"),
+      parameters(), caps(ms(1000)));
+
+  for (const auto &job : remembered)
   {
-    epose_http_client client;
-    ASSERT_TRUE(prepare_epose_http_client(client, "slow.example.org", 8198, network).accepted());
-    EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(20)));
-    EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
+    const auto exchange = job.wait();
+    EXPECT_TRUE(exchange.result.accepted()) << describe(exchange.result);
   }
-  ASSERT_NE(nullptr, cleanup.executor);
-  ASSERT_TRUE(bool(cleanup.late));
-  epose_http_client client;
-  ASSERT_TRUE(prepare_epose_http_client(client, "healthy.example.org", 8198, network).accepted());
-  boost::asio::steady_timer release(*cleanup.executor);
-  release.expires_after(std::chrono::milliseconds(40));
-  release.async_wait([complete = cleanup.late](const boost::system::error_code &error) {
-    if (!error) complete({}, {make_address("127.0.0.1")});
-  });
-  started = std::chrono::steady_clock::now();
-  EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(200)));
-  const auto elapsed = std::chrono::steady_clock::now() - started;
-  EXPECT_EQ(boost::asio::error::connection_refused, client.client().get_last_error());
-  EXPECT_GE(elapsed, std::chrono::milliseconds(35));
-  EXPECT_LT(elapsed, std::chrono::seconds(1));
-  EXPECT_EQ(2u, resolves);
-  EXPECT_EQ(1u, cancels);
-  EXPECT_EQ(1u, connects);
+  for (const auto &job : literals)
+  {
+    const auto exchange = job.wait();
+    EXPECT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+  }
+  // No remembered resolution (or only one from another epoch): a local
+  // dns_slot_busy at once, never a peer dns_timeout.
+  for (auto *job : {&unknown, &stale})
+  {
+    const auto result = job->wait().result;
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+        receipt_failure_reason_v2::dns_slot_busy)) << describe(result);
+  }
+  EXPECT_LT(steady::now() - started, hung_cap);
+  EXPECT_FALSE(hung.ready());
+  EXPECT_EQ(4u, resolves.load()); // nothing queued behind the stuck lookup
+
+  // Only the hung peer fails, on its own connect cap, as dns_timeout.
+  const auto result = hung.wait().result;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::dns_timeout)) << describe(result);
+  EXPECT_GE(steady::now() - started, hung_cap - ms(10));
+  EXPECT_EQ(1u, cancels.load());
+  {
+    std::lock_guard<std::mutex> lock(dialed_mutex);
+    // 3 priming dials, then alpha and beta from memory and the 2 literals.
+    ASSERT_EQ(7u, dialed.size());
+    std::vector<boost::asio::ip::address> later(dialed.begin() + 3, dialed.end());
+    std::sort(later.begin(), later.end());
+    std::vector<boost::asio::ip::address> expected{make_address("1.1.1.1"), make_address("9.9.9.9"),
+        make_address("8.8.4.4"), make_address("2606:4700::1111")};
+    std::sort(expected.begin(), expected.end());
+    EXPECT_EQ(expected, later);
+  }
+
+  // A late answer refreshes the memory; the slot is free for the next lookup.
+  lookup.deliver({}, {make_address("4.4.4.4")});
+  EXPECT_TRUE(client.request_service(challenge(), signed_descriptor("delta.example.org"),
+      parameters(), caps(ms(1000))).wait().result.accepted());
+  EXPECT_EQ(5u, resolves.load());
+  EXPECT_EQ(0u, client.in_flight());
 }
 
-TEST(epose_http_client, nested_client_lease_fails_and_owner_recovers)
+TEST(epose_http_client, late_answer_is_remembered_for_its_epoch)
 {
-  {
-    epose_http_client held;
-    ASSERT_TRUE(held.available());
-    {
-      epose_http_client nested;
-      EXPECT_FALSE(nested.available());
-      EXPECT_EQ(receipt_failure_reason_v2::transport_timeout,
-          prepare_epose_http_client(nested, "subject.example.org", 8198).reason);
-    }
-    EXPECT_TRUE(held.available());
-    epose_http_client nested_again;
-    EXPECT_FALSE(nested_again.available());
-  }
-  epose_http_client next;
-  EXPECT_TRUE(next.available());
+  held_lookup lookup;
+  std::atomic<unsigned> resolves{0};
+  std::atomic<unsigned> connects{0};
+  epose_network_v2 network;
+  network.resolve = [&](const std::string &, boost::asio::io_context &io,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    ++resolves;
+    lookup.hold(io, std::move(complete));
+    return [] {};
+  };
+  network.connect = [&connects](const tcp::endpoint &endpoint, boost::asio::io_context &,
+      steady::time_point, epose_network_v2::connect_handler) {
+    ++connects;
+    EXPECT_EQ(make_address("1.1.1.1"), endpoint.address());
+    return refuse();
+  };
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{lookup};
+  EXPECT_EQ(receipt_failure_reason_v2::dns_timeout, client.request_service(challenge(),
+      signed_descriptor("slow.example.org"), parameters(), caps(ms(20))).wait().result.reason);
+  ASSERT_TRUE(lookup.held());
+  // Busy and nothing remembered yet.
+  EXPECT_EQ(receipt_failure_reason_v2::dns_slot_busy, client.request_service(challenge(),
+      signed_descriptor("slow.example.org"), parameters(), caps(ms(200))).wait().result.reason);
+  lookup.deliver({}, {make_address("1.1.1.1")});
+  // The slot is free again: a fresh lookup holds it, and the late answer from
+  // the first lookup lets the same host dial meanwhile.
+  auto holder = client.request_service(challenge(), signed_descriptor("other.example.org"),
+      parameters(), caps(ms(5000)));
+  const auto deadline = steady::now() + std::chrono::seconds(2);
+  while (resolves.load() < 2 && steady::now() < deadline)
+    std::this_thread::sleep_for(ms(1));
+  ASSERT_EQ(2u, resolves.load());
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, client.request_service(challenge(),
+      signed_descriptor("slow.example.org"), parameters(), caps(ms(200))).wait().result.reason);
+  EXPECT_EQ(1u, connects.load());
+  holder.cancel();
+  EXPECT_EQ(receipt_failure_reason_v2::cancelled, holder.wait().result.reason);
+}
+
+TEST(epose_http_client, literal_peers_run_while_dns_slot_is_stuck)
+{
+  held_lookup lookup;
+  std::atomic<unsigned> resolves{0};
+  epose_network_v2 network;
+  network.resolve = [&](const std::string &, boost::asio::io_context &io,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    ++resolves;
+    lookup.hold(io, std::move(complete));
+    return [] {};
+  };
+  network.connect = [](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) { return refuse(); };
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{lookup};
+  auto stuck = client.request_service(challenge(), signed_descriptor("stuck.example.org"),
+      parameters(), caps(ms(5000)));
+  const auto started = steady::now();
+  const auto waiting = client.request_service(challenge(), signed_descriptor("queued.example.org"),
+      parameters(), caps(ms(5000))).wait().result;
+  EXPECT_TRUE(same(waiting, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::dns_slot_busy)) << describe(waiting);
+  for (const char *host : {"8.8.8.8", "1.1.1.1", "2606:4700::1111"})
+    EXPECT_EQ(receipt_failure_reason_v2::connection_refused, client.request_service(challenge(),
+        signed_descriptor(host), parameters(), caps(ms(5000))).wait().result.reason) << host;
+  EXPECT_LT(steady::now() - started, std::chrono::seconds(1));
+  EXPECT_FALSE(stuck.ready());
+  EXPECT_EQ(1u, resolves.load()); // the second hostname never queues on the resolver
+  stuck.cancel();
+  EXPECT_EQ(receipt_failure_reason_v2::cancelled, stuck.wait().result.reason);
+  EXPECT_EQ(1u, resolves.load());
 }
 
 TEST(epose_http_client, synchronous_resolver_completion_releases_capacity)
 {
-  unsigned resolves = 0, connects = 0, cancels = 0;
+  std::atomic<unsigned> resolves{0}, connects{0}, cancels{0};
   epose_network_v2 network;
   network.resolve = [&](const std::string &, boost::asio::io_context &,
       epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
     ++resolves;
     complete({}, {make_address("8.8.8.8")});
-    return [&] { ++cancels; };
+    return [&cancels] { ++cancels; };
   };
-  network.connect = [&](const tcp::endpoint &, boost::asio::steady_timer &)
-      -> boost::unique_future<tcp::socket> {
+  network.connect = [&connects](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
     ++connects;
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+    return refuse();
   };
+  epose_receipt_client_v2 client(network);
   for (unsigned i = 0; i < 2; ++i)
-  {
-    epose_http_client client;
-    ASSERT_TRUE(prepare_epose_http_client(client, "healthy.example.org", 8198, network).accepted());
-    EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(100)));
-    EXPECT_EQ(boost::asio::error::connection_refused, client.client().get_last_error());
-  }
-  EXPECT_EQ(2u, resolves);
-  EXPECT_EQ(2u, connects);
-  EXPECT_EQ(0u, cancels);
+    EXPECT_EQ(receipt_failure_reason_v2::connection_refused, client.request_service(challenge(),
+        signed_descriptor("healthy.example.org"), parameters(), caps(ms(100))).wait().result.reason);
+  EXPECT_EQ(2u, resolves.load());
+  EXPECT_EQ(2u, connects.load());
+  EXPECT_EQ(0u, cancels.load());
 }
 
 TEST(epose_http_client, resolver_success_after_deadline_before_timer_is_rejected)
 {
-  resolver_cleanup cleanup;
   epose_network_v2 network;
-  network.resolve = [&](const std::string &, boost::asio::io_context &io,
+  network.resolve = [](const std::string &, boost::asio::io_context &io,
       epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
-    cleanup.track(io, complete);
     boost::asio::post(io, [complete] {
       // Occupy the executor across the deadline, then complete before the
       // ready timeout handler gets its turn.
-      std::this_thread::sleep_for(std::chrono::milliseconds(60));
+      std::this_thread::sleep_for(ms(60));
       complete({}, {make_address("8.8.8.8")});
     });
     return [] {};
   };
-  network.connect = [](const tcp::endpoint &, boost::asio::steady_timer &)
-      -> boost::unique_future<tcp::socket> {
+  network.connect = [](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler) {
     ADD_FAILURE() << "expired lookup must not connect";
-    throw boost::system::system_error(boost::asio::error::connection_refused);
+    return refuse();
   };
-  epose_http_client client;
-  ASSERT_TRUE(prepare_epose_http_client(client, "slow.example.org", 8198, network).accepted());
-  EXPECT_FALSE(client.client().connect(std::chrono::milliseconds(20)));
-  EXPECT_EQ(boost::asio::error::timed_out, client.client().get_last_error());
+  epose_receipt_client_v2 client(network);
+  const auto result = client.request_service(challenge(), signed_descriptor("slow.example.org"),
+      parameters(), caps(ms(20))).wait().result;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::dns_timeout)) << describe(result);
+}
+
+TEST(epose_http_client, parallel_jobs_match_mainnet_committee_size)
+{
+  crypto::hash genesis{};
+  ASSERT_TRUE(epee::string_tools::hex_to_pod(MAINNET_FINAL_GENESIS_HASH_V2, genesis));
+  consensus_parameters_v2 compiled{};
+  ASSERT_TRUE(compiled_consensus_parameters_v2(MAINNET, genesis, compiled));
+  EXPECT_EQ(compiled.committee.committee_size, EPOSE_V2_RECEIPT_PARALLEL_JOBS);
+  EXPECT_EQ(EPOSE_VERIFIER_COMMITTEE_SIZE, EPOSE_V2_RECEIPT_PARALLEL_JOBS);
+  epose_receipt_client_v2 client;
+  EXPECT_EQ(EPOSE_V2_RECEIPT_PARALLEL_JOBS, client.capacity());
+  EXPECT_EQ(0u, client.in_flight());
+  EXPECT_EQ(EPOSE_V2_RECEIPT_PARALLEL_JOBS, epose_receipt_client_v2::shared().capacity());
+}
+
+TEST(epose_http_client, round_budget_and_stage_deadlines)
+{
+  EXPECT_EQ(0u, epose_receipt_round_budget_ms_v2(11, 10));
+  EXPECT_EQ(T_MS, epose_receipt_round_budget_ms_v2(10, 10));
+  EXPECT_EQ(3 * T_MS, epose_receipt_round_budget_ms_v2(10, 12));
+  EXPECT_EQ(std::numeric_limits<uint64_t>::max(),
+      epose_receipt_round_budget_ms_v2(0, std::numeric_limits<uint64_t>::max()));
+  EXPECT_EQ(std::numeric_limits<uint64_t>::max(),
+      epose_receipt_round_budget_ms_v2(1, std::numeric_limits<uint64_t>::max()));
+
+  epose_stage_deadlines_v2 d{};
+  EXPECT_EQ(ms(EPOSE_V2_CONNECT_TIMEOUT_MS), d.connect);
+  EXPECT_EQ(ms(EPOSE_V2_SEND_TIMEOUT_MS), d.send);
+  EXPECT_EQ(ms(EPOSE_V2_RECV_IDLE_TIMEOUT_MS), d.recv_idle);
+  EXPECT_EQ(EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S, d.recv_min_rate);
+  EXPECT_EQ(ms(EPOSE_V2_RECV_RATE_WINDOW_MS), d.recv_rate_window);
+  auto before = steady::now();
+  d.round_deadline = before + std::chrono::seconds(10);
+  auto at = d.stage(ms(100));
+  EXPECT_GE(at, before + ms(100));
+  EXPECT_LE(at, steady::now() + ms(100));
+  // Clipped to the round deadline.
+  d.round_deadline = steady::now() + ms(50);
+  EXPECT_EQ(d.round_deadline, d.stage(ms(1000)));
+  d.round_deadline = steady::now() - ms(1);
+  EXPECT_EQ(d.round_deadline, d.stage(ms(1000)));
+  // The default round deadline never clips.
+  d = {};
+  before = steady::now();
+  at = d.stage(ms(100));
+  EXPECT_GE(at, before + ms(100));
+  EXPECT_LE(at, steady::now() + ms(100));
+}
+
+TEST(epose_http_client, jitter_window_follows_round_timing)
+{
+  EXPECT_EQ(0u, epose_receipt_jitter_window_ms_v2(5, 4));
+  EXPECT_EQ(T_MS / 100, epose_receipt_jitter_window_ms_v2(10, 10));
+  EXPECT_EQ(50 * T_MS / 100, epose_receipt_jitter_window_ms_v2(1, 50));
+  EXPECT_EQ(T_MS, epose_receipt_jitter_window_ms_v2(1, 100));
+  EXPECT_EQ(T_MS, epose_receipt_jitter_window_ms_v2(0, 1000000));
+  EXPECT_EQ(T_MS, epose_receipt_jitter_window_ms_v2(0, std::numeric_limits<uint64_t>::max()));
+
+  crypto::hash genesis{};
+  ASSERT_TRUE(epee::string_tools::hex_to_pod(MAINNET_FINAL_GENESIS_HASH_V2, genesis));
+  consensus_parameters_v2 compiled{};
+  ASSERT_TRUE(compiled_consensus_parameters_v2(MAINNET, genesis, compiled));
+  const uint64_t stages = EPOSE_V2_CONNECT_TIMEOUT_MS + EPOSE_V2_SEND_TIMEOUT_MS + EPOSE_V2_RECV_IDLE_TIMEOUT_MS;
+  ASSERT_GT(compiled.committee.round_count, 0u);
+  for (uint64_t round = 0; round < compiled.committee.round_count; ++round)
+  {
+    SCOPED_TRACE(round);
+    uint64_t first = 0, last = 0;
+    ASSERT_TRUE(receipt_inclusion_window_v2(compiled.timing, compiled.committee, 2, round, first, last));
+    const uint64_t window = epose_receipt_jitter_window_ms_v2(first, last);
+    const uint64_t budget = epose_receipt_round_budget_ms_v2(first, last);
+    EXPECT_GT(window, 0u);
+    EXPECT_LE(window, T_MS);
+    EXPECT_LE(window * 100, budget); // at most 1% of the round
+    EXPECT_LT(window + stages, budget);
+  }
+}
+
+TEST(epose_http_client, jitter_offset_is_deterministic_bounded_and_per_peer)
+{
+  const auto local = key(0);
+  const uint64_t window = epose_receipt_jitter_window_ms_v2(1, 200);
+  ASSERT_EQ(T_MS, window);
+  EXPECT_EQ(0u, epose_receipt_start_offset_ms_v2(local, key(1), 46, 1, 0));
+  EXPECT_EQ(0u, epose_receipt_start_offset_ms_v2(local, key(1), 46, 1, 1));
+
+  std::set<uint64_t> offsets;
+  uint64_t low = window, high = 0;
+  for (unsigned i = 1; i <= 256; ++i)
+  {
+    const auto peer = key(i);
+    const uint64_t offset = epose_receipt_start_offset_ms_v2(local, peer, 46, 1, window);
+    EXPECT_EQ(offset, epose_receipt_start_offset_ms_v2(local, peer, 46, 1, window));
+    EXPECT_LT(offset, window);
+    offsets.insert(offset);
+    low = std::min(low, offset);
+    high = std::max(high, offset);
+
+    // Documented formula.
+    std::string data("QWC_EPOSE_RECEIPT_JITTER_V2");
+    data.append(reinterpret_cast<const char *>(&local), sizeof(local));
+    data.append(reinterpret_cast<const char *>(&peer), sizeof(peer));
+    for (const uint64_t value : {uint64_t(46), uint64_t(1)})
+      for (int b = 0; b < 8; ++b)
+        data.push_back(static_cast<char>((value >> (8 * b)) & 0xff));
+    const crypto::hash digest = crypto::cn_fast_hash(data.data(), data.size());
+    uint64_t prefix = 0;
+    for (int b = 0; b < 8; ++b)
+      prefix |= uint64_t(static_cast<uint8_t>(digest.data[b])) << (8 * b);
+    EXPECT_EQ(prefix % window, offset);
+  }
+  // Different peers get different offsets, spread across the window.
+  EXPECT_GE(offsets.size(), 250u);
+  EXPECT_LT(low, window / 10);
+  EXPECT_GT(high, window * 9 / 10);
+  // The start also changes per round, per epoch and per local identity.
+  const auto base = epose_receipt_start_offset_ms_v2(local, key(1), 46, 1, window);
+  EXPECT_NE(base, epose_receipt_start_offset_ms_v2(local, key(1), 46, 2, window));
+  EXPECT_NE(base, epose_receipt_start_offset_ms_v2(local, key(1), 47, 1, window));
+  EXPECT_NE(base, epose_receipt_start_offset_ms_v2(key(999), key(1), 46, 1, window));
+}
+
+TEST(epose_http_client, dead_peer_does_not_delay_live_peers)
+{
+  http_fixture server(http_fixture::mode::reply, http_ok(service_json()));
+  const ms connect_cap(1000);
+  // Production capacity (dead + N - 1 live) and N live peers beside the dead one.
+  for (const size_t capacity : {EPOSE_V2_RECEIPT_PARALLEL_JOBS, EPOSE_V2_RECEIPT_PARALLEL_JOBS + 1})
+  {
+    SCOPED_TRACE(capacity);
+    hang_counts hung;
+    const auto dead_address = make_address("8.8.4.4");
+    const auto target = server.endpoint();
+    const unsigned served_before = server.request_count();
+    epose_network_v2 network;
+    network.connect = [&hung, dead_address, target](const tcp::endpoint &endpoint,
+        boost::asio::io_context &io, steady::time_point deadline,
+        epose_network_v2::connect_handler complete) {
+      if (endpoint.address() == dead_address)
+        return hang(hung, std::move(complete));
+      return connect_epose_address(target, io, deadline, std::move(complete));
+    };
+    epose_receipt_client_v2 client(network, capacity);
+    const auto started = steady::now();
+    auto dead = client.request_service(challenge(), signed_descriptor("8.8.4.4"), parameters(), caps(connect_cap));
+    std::vector<epose_receipt_job_v2> live;
+    for (size_t i = 0; i + 1 < capacity; ++i)
+      live.push_back(client.request_service(challenge(),
+          signed_descriptor("1.1.1." + std::to_string(i + 1)), parameters(), caps(connect_cap)));
+    for (const auto &job : live)
+    {
+      const auto exchange = job.wait();
+      ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+      EXPECT_EQ(std::string("\x00\xff", 2), exchange.response.block_blob);
+      EXPECT_EQ(service_signature(), exchange.response.subject_signature);
+    }
+    const auto live_elapsed = steady::now() - started;
+    EXPECT_LT(live_elapsed, connect_cap);
+    EXPECT_FALSE(dead.ready());
+    const auto result = dead.wait().result;
+    const auto total = steady::now() - started;
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+        receipt_failure_reason_v2::connect_timeout)) << describe(result);
+    EXPECT_GE(total, connect_cap - ms(50));
+    EXPECT_LT(total, 2 * connect_cap); // not N x timeout
+    EXPECT_EQ(capacity - 1, server.request_count() - served_before);
+    EXPECT_EQ(1u, hung.cancelled.load());
+    EXPECT_EQ(0u, client.in_flight());
+  }
+  const auto request = server.last_request();
+  EXPECT_EQ(0u, request.find("POST /epose_service_challenge_v2 HTTP/1.1\r\n"));
+  EXPECT_NE(std::string::npos, request.find(epee::string_tools::pod_to_hex(challenge().nonce)));
+}
+
+TEST(epose_http_client, classifies_connection_refused)
+{
+  epose_network_v2 network;
+  network.connect = redirect(closed_port());
+  epose_receipt_client_v2 client(network);
+  const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"), parameters()).wait().result;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::connection_refused)) << describe(result);
+}
+
+TEST(epose_http_client, classifies_connect_timeout)
+{
+  hang_counts hung;
+  epose_network_v2 network;
+  network.connect = [&hung](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+      epose_network_v2::connect_handler complete) { return hang(hung, std::move(complete)); };
+  epose_receipt_client_v2 client(network);
+  const auto started = steady::now();
+  const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+      parameters(), caps(ms(200))).wait().result;
+  const auto elapsed = steady::now() - started;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::connect_timeout)) << describe(result);
+  EXPECT_NE(receipt_failure_reason_v2::transport_timeout, result.reason);
+  EXPECT_GE(elapsed, ms(190));
+  EXPECT_LT(elapsed, std::chrono::seconds(2));
+  EXPECT_EQ(1u, hung.cancelled.load());
+}
+
+TEST(epose_http_client, classifies_send_timeout)
+{
+  http_fixture server(http_fixture::mode::never_read);
+  const auto target = server.endpoint();
+  epose_network_v2 network;
+  network.connect = [target](const tcp::endpoint &, boost::asio::io_context &io, steady::time_point deadline,
+      epose_network_v2::connect_handler complete) {
+    return connect_epose_address(target, io, deadline,
+        [complete](boost::system::error_code error, tcp::socket socket) {
+      if (!error)
+        fill_send_queue(socket);
+      complete(error, std::move(socket));
+    });
+  };
+  epose_receipt_client_v2 client(network);
+  const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+      parameters(), caps(ms(5000), ms(200))).wait().result;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_send,
+      receipt_failure_reason_v2::send_timeout)) << describe(result);
+  EXPECT_NE(receipt_failure_reason_v2::transport_timeout, result.reason);
+}
+
+TEST(epose_http_client, classifies_recv_timeout)
+{
+  http_fixture server(http_fixture::mode::silent);
+  epose_network_v2 network;
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network);
+  const auto started = steady::now();
+  const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+      parameters(), caps(ms(1000), ms(1000), ms(200))).wait().result;
+  const auto elapsed = steady::now() - started;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_recv,
+      receipt_failure_reason_v2::recv_timeout)) << describe(result);
+  EXPECT_NE(receipt_failure_reason_v2::transport_timeout, result.reason);
+  EXPECT_EQ(1u, server.request_count());
+  EXPECT_GE(elapsed, ms(190));
+  EXPECT_LT(elapsed, std::chrono::seconds(2));
+}
+
+namespace
+{
+  // An HTTP service reply whose block blob is `blob_bytes` long.
+  std::string service_reply_of(size_t blob_bytes)
+  {
+    std::string hex;
+    hex.reserve(2 * blob_bytes);
+    for (size_t i = 0; i < blob_bytes; ++i)
+      hex += "ab";
+    return http_ok(service_json(hex));
+  }
+
+  // A full-size service response: a 2 MiB block as 4 MiB of hex.
+  std::string full_size_service_reply()
+  {
+    return service_reply_of(2 * 1024 * 1024);
+  }
+}
+
+TEST(epose_http_client, slow_peer_delivers_full_response)
+{
+  const std::string reply = full_size_service_reply();
+  ASSERT_GT(reply.size(), size_t(4 * 1024 * 1024));
+  http_fixture::trickle_plan plan;
+  plan.chunk = reply.size() / 16 + 1;
+  plan.gap = ms(60); // each gap well inside the idle bound
+  http_fixture server(http_fixture::mode::trickle, reply, plan);
+  epose_network_v2 network;
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network);
+  const ms idle(250);
+  auto deadlines = caps(ms(1000), ms(1000), idle);
+  const auto started = steady::now();
+  deadlines.round_deadline = started + std::chrono::seconds(20);
+  const auto exchange = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+      parameters(), deadlines).wait();
+  const auto elapsed = steady::now() - started;
+  ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+  EXPECT_EQ(size_t(2 * 1024 * 1024), exchange.response.block_blob.size());
+  // Longer in total than the idle bound: recv is not a fixed total cap.
+  EXPECT_GT(elapsed, 3 * idle);
+  EXPECT_LT(elapsed, std::chrono::seconds(20));
+}
+
+TEST(epose_http_client, stalled_peer_fails_recv_timeout_after_progress)
+{
+  const std::string reply = full_size_service_reply();
+  http_fixture::trickle_plan plan;
+  plan.chunk = reply.size() / 16 + 1;
+  plan.gap = ms(60);
+  plan.stall_after = reply.size() / 2;
+  http_fixture server(http_fixture::mode::trickle, reply, plan);
+  epose_network_v2 network;
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network);
+  const ms idle(250);
+  auto deadlines = caps(ms(1000), ms(1000), idle);
+  const auto started = steady::now();
+  deadlines.round_deadline = started + std::chrono::seconds(20);
+  const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+      parameters(), deadlines).wait().result;
+  const auto elapsed = steady::now() - started;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_recv,
+      receipt_failure_reason_v2::recv_timeout)) << describe(result);
+  // About 8 chunks x 60 ms of progress, then the idle bound.
+  EXPECT_GT(elapsed, idle + ms(300));
+  EXPECT_LT(elapsed, std::chrono::seconds(10));
+}
+
+TEST(epose_http_client, classifies_bad_responses)
+{
+  struct reply_case
+  {
+    std::string reply;
+    receipt_attempt_stage_v2 stage;
+    receipt_failure_reason_v2 reason;
+  };
+  const std::vector<reply_case> cases{
+      {"garbage\r\n\r\n", receipt_attempt_stage_v2::response_decode,
+          receipt_failure_reason_v2::response_malformed},
+      {"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+          receipt_attempt_stage_v2::response_decode, receipt_failure_reason_v2::response_malformed},
+      {"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\nxy",
+          receipt_attempt_stage_v2::response_decode, receipt_failure_reason_v2::response_malformed},
+      {http_ok("nope!"), receipt_attempt_stage_v2::response_decode,
+          receipt_failure_reason_v2::response_malformed},
+      {"HTTP/1.1 200 OK\r\nContent-Length: 999999999\r\n\r\n",
+          receipt_attempt_stage_v2::response_decode, receipt_failure_reason_v2::response_oversized},
+      {"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n",
+          receipt_attempt_stage_v2::http_exchange, receipt_failure_reason_v2::http_status_unsuccessful},
+      {"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nshort",
+          receipt_attempt_stage_v2::network_recv, receipt_failure_reason_v2::transport_failure},
+      {http_ok(service_json()), receipt_attempt_stage_v2::none, receipt_failure_reason_v2::none}};
+  for (const auto &c : cases)
+  {
+    SCOPED_TRACE(c.reply.substr(0, 40));
+    http_fixture server(http_fixture::mode::reply, c.reply);
+    epose_network_v2 network;
+    network.connect = redirect(server.endpoint());
+    epose_receipt_client_v2 client(network);
+    const auto exchange = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+        parameters(), caps(ms(1000), ms(1000), ms(1000))).wait();
+    EXPECT_TRUE(same(exchange.result, c.stage, c.reason)) << describe(exchange.result);
+    if (!exchange.result.accepted())
+      EXPECT_TRUE(exchange.response.block_blob.empty());
+    EXPECT_EQ(1u, server.request_count());
+  }
+}
+
+TEST(epose_http_client, round_deadline_clips_every_stage)
+{
+  {
+    hang_counts hung;
+    epose_network_v2 network;
+    network.connect = [&hung](const tcp::endpoint &, boost::asio::io_context &, steady::time_point,
+        epose_network_v2::connect_handler complete) { return hang(hung, std::move(complete)); };
+    epose_receipt_client_v2 client(network);
+    auto deadlines = caps(ms(5000));
+    const auto started = steady::now();
+    deadlines.round_deadline = started + ms(100);
+    const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+        parameters(), deadlines).wait().result;
+    const auto elapsed = steady::now() - started;
+    // The round ran out, not the peer's connect cap.
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+        receipt_failure_reason_v2::deadline_expired)) << describe(result);
+    EXPECT_GE(elapsed, ms(95));
+    EXPECT_LT(elapsed, std::chrono::seconds(2));
+
+    deadlines.round_deadline = steady::now() - ms(1);
+    const auto expired = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+        parameters(), deadlines).wait().result;
+    EXPECT_TRUE(same(expired, receipt_attempt_stage_v2::network_connect,
+        receipt_failure_reason_v2::deadline_expired)) << describe(expired);
+    EXPECT_EQ(1u, hung.started.load());
+  }
+  {
+    http_fixture server(http_fixture::mode::silent);
+    epose_network_v2 network;
+    network.connect = redirect(server.endpoint());
+    epose_receipt_client_v2 client(network);
+    auto deadlines = caps(ms(5000), ms(5000), ms(5000));
+    const auto started = steady::now();
+    deadlines.round_deadline = started + ms(300);
+    const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+        parameters(), deadlines).wait().result;
+    const auto elapsed = steady::now() - started;
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_recv,
+        receipt_failure_reason_v2::deadline_expired)) << describe(result);
+    EXPECT_GE(elapsed, ms(290));
+    EXPECT_LT(elapsed, std::chrono::seconds(2));
+  }
+}
+
+TEST(epose_http_client, lease_exhaustion_is_a_local_failure)
+{
+  hang_counts hung;
+  std::atomic<unsigned> refused{0};
+  epose_network_v2 network;
+  network.connect = [&hung, &refused](const tcp::endpoint &endpoint, boost::asio::io_context &,
+      steady::time_point, epose_network_v2::connect_handler complete) -> epose_network_v2::cancel_operation {
+    if (endpoint.address() == make_address("8.8.4.4"))
+      return hang(hung, std::move(complete));
+    ++refused;
+    return refuse();
+  };
+  {
+    epose_receipt_client_v2 client(network, 1);
+    auto held = client.request_service(challenge(), signed_descriptor("8.8.4.4"),
+        parameters(), caps(ms(10000)));
+    EXPECT_EQ(1u, client.in_flight());
+    const auto started = steady::now();
+    auto rejected = client.request_service(challenge(), signed_descriptor("8.8.8.8"), parameters());
+    EXPECT_TRUE(rejected.ready()); // never waits for a slot
+    const auto result = rejected.wait().result;
+    EXPECT_LT(steady::now() - started, ms(100));
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::local_lease,
+        receipt_failure_reason_v2::lease_exhausted)) << describe(result);
+    EXPECT_NE(receipt_failure_reason_v2::transport_timeout, result.reason);
+    EXPECT_NE(receipt_failure_reason_v2::connect_timeout, result.reason);
+    EXPECT_NE(receipt_attempt_stage_v2::network_connect, result.stage);
+    EXPECT_EQ(0u, refused.load());
+    EXPECT_EQ("lease_exhausted", std::string(to_string(result.reason)));
+    EXPECT_EQ("local_lease", std::string(to_string(result.stage)));
+
+    held.cancel();
+    const auto cancelled = held.wait().result;
+    EXPECT_TRUE(same(cancelled, receipt_attempt_stage_v2::none,
+        receipt_failure_reason_v2::cancelled)) << describe(cancelled);
+    EXPECT_EQ(0u, client.in_flight());
+    // The slot is back.
+    EXPECT_EQ(receipt_failure_reason_v2::connection_refused, client.request_service(challenge(),
+        signed_descriptor("8.8.8.8"), parameters()).wait().result.reason);
+    EXPECT_EQ(1u, refused.load());
+  }
+  // Production capacity: N jobs run, job N + 1 is a local lease failure, and
+  // destroying the client cancels the jobs still in flight.
+  std::vector<epose_receipt_job_v2> jobs;
+  {
+    epose_receipt_client_v2 client(network);
+    for (size_t i = 0; i < EPOSE_V2_RECEIPT_PARALLEL_JOBS; ++i)
+      jobs.push_back(client.request_service(challenge(), signed_descriptor("8.8.4.4"),
+          parameters(), caps(ms(10000))));
+    EXPECT_EQ(EPOSE_V2_RECEIPT_PARALLEL_JOBS, client.in_flight());
+    const auto extra = client.request_service(challenge(), signed_descriptor("8.8.8.8"), parameters()).wait().result;
+    EXPECT_TRUE(same(extra, receipt_attempt_stage_v2::local_lease,
+        receipt_failure_reason_v2::lease_exhausted)) << describe(extra);
+    EXPECT_NE(receipt_failure_reason_v2::transport_timeout, extra.reason);
+  }
+  for (const auto &job : jobs)
+    EXPECT_EQ(receipt_failure_reason_v2::cancelled, job.wait().result.reason);
+  EXPECT_EQ(1u, refused.load());
+}
+
+TEST(epose_http_client, recv_total_bound_arithmetic)
+{
+  constexpr uint64_t max = std::numeric_limits<uint64_t>::max();
+  EXPECT_EQ(1000u, epose_receipt_recv_total_ms_v2(32768, 0, 32768));
+  EXPECT_EQ(1250u, epose_receipt_recv_total_ms_v2(32768, 250, 32768));
+  EXPECT_EQ(334u, epose_receipt_recv_total_ms_v2(1, 0, 3)); // rounded up
+  EXPECT_EQ(0u, epose_receipt_recv_total_ms_v2(0, 0, 3));
+  EXPECT_EQ(max, epose_receipt_recv_total_ms_v2(1, 0, 0)); // floor disabled
+  EXPECT_EQ(max, epose_receipt_recv_total_ms_v2(max, 0, 1));
+  EXPECT_EQ(max, epose_receipt_recv_total_ms_v2(1000, max, 1000));
+  EXPECT_EQ(max / 1000 * 1000, epose_receipt_recv_total_ms_v2(max / 1000, 0, 1));
+
+  // The largest service exchange at the floor, plus a descriptor lookup and
+  // both connects and sends, stays under 2.5% of every compiled mainnet round.
+  const uint64_t service = epose_receipt_recv_total_ms_v2(EPOSE_V2_MAX_SERVICE_RECV_BYTES,
+      EPOSE_V2_RECV_IDLE_TIMEOUT_MS, EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S);
+  const uint64_t descriptor = epose_receipt_recv_total_ms_v2(EPOSE_V2_MAX_DESCRIPTOR_RECV_BYTES,
+      EPOSE_V2_RECV_IDLE_TIMEOUT_MS, EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S);
+  EXPECT_EQ(518500u, service);
+  EXPECT_EQ(6500u, descriptor);
+  crypto::hash genesis{};
+  ASSERT_TRUE(epee::string_tools::hex_to_pod(MAINNET_FINAL_GENESIS_HASH_V2, genesis));
+  consensus_parameters_v2 compiled{};
+  ASSERT_TRUE(compiled_consensus_parameters_v2(MAINNET, genesis, compiled));
+  ASSERT_GT(compiled.committee.round_count, 0u);
+  for (uint64_t round = 0; round < compiled.committee.round_count; ++round)
+  {
+    SCOPED_TRACE(round);
+    uint64_t first = 0, last = 0;
+    ASSERT_TRUE(receipt_inclusion_window_v2(compiled.timing, compiled.committee, 2, round, first, last));
+    const uint64_t budget = epose_receipt_round_budget_ms_v2(first, last);
+    EXPECT_LE(EPOSE_V2_CONNECT_TIMEOUT_MS + EPOSE_V2_SEND_TIMEOUT_MS + descriptor
+        + EPOSE_V2_CONNECT_TIMEOUT_MS + EPOSE_V2_SEND_TIMEOUT_MS + service, budget / 40);
+  }
+}
+
+namespace
+{
+  // One byte per tick: never idle long enough for the inactivity bound.
+  http_fixture::trickle_plan byte_per_tick()
+  {
+    http_fixture::trickle_plan plan;
+    plan.chunk = 1;
+    plan.gap = ms(20);
+    return plan;
+  }
+
+  epose_stage_deadlines_v2 floor_caps(uint64_t rate, ms window, steady::time_point round_deadline)
+  {
+    auto out = caps(ms(1000), ms(1000), ms(1000));
+    out.recv_min_rate = rate;
+    out.recv_rate_window = window;
+    out.round_deadline = round_deadline;
+    return out;
+  }
+}
+
+TEST(epose_http_client, byte_per_tick_trickler_is_cut_off)
+{
+  const std::string reply = http_ok(service_json());
+  ASSERT_GT(reply.size(), 200u); // > 4 s at one byte per 20 ms
+  http_fixture server(http_fixture::mode::trickle, reply, byte_per_tick());
+  epose_network_v2 network;
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network, 1);
+  const auto started = steady::now();
+  const auto round_deadline = started + std::chrono::seconds(30);
+  const ms window(250);
+  auto job = client.request_service(challenge(), signed_descriptor("8.8.8.8"), parameters(),
+      floor_caps(EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S, window, round_deadline));
+  EXPECT_EQ(1u, client.in_flight());
+  const auto result = job.wait().result;
+  const auto elapsed = steady::now() - started;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_recv,
+      receipt_failure_reason_v2::recv_too_slow)) << describe(result);
+  EXPECT_GE(elapsed, window);
+  EXPECT_LT(elapsed, std::chrono::seconds(3)); // the inactivity bound never fired
+  EXPECT_EQ(0u, client.in_flight());
+  // The single slot is free again well before the round deadline.
+  const auto next = client.request_service(challenge(), signed_descriptor("8.8.8.8"), parameters(),
+      floor_caps(EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S, window, round_deadline)).wait().result;
+  EXPECT_NE(receipt_failure_reason_v2::lease_exhausted, next.reason) << describe(next);
+}
+
+TEST(epose_http_client, trickler_hits_total_receive_bound)
+{
+  // Without the window check the total bound still ends the receive: the
+  // declared Content-Length at the floor, plus the idle slack.
+  const std::string reply = http_ok(service_json());
+  http_fixture::trickle_plan plan;
+  plan.chunk = 1;
+  plan.gap = ms(10);
+  http_fixture server(http_fixture::mode::trickle, reply, plan);
+  epose_network_v2 network;
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network);
+  constexpr uint64_t rate = 200; // bytes per second
+  const ms idle(500);
+  const auto bound = ms(epose_receipt_recv_total_ms_v2(reply.size(), idle.count(), rate));
+  ASSERT_GT(plan.gap * reply.size(), bound + ms(500)); // the reply cannot finish in time
+  const auto started = steady::now();
+  auto deadlines = floor_caps(rate, ms(0), started + std::chrono::seconds(30));
+  deadlines.recv_idle = idle;
+  const auto result = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+      parameters(), deadlines).wait().result;
+  const auto elapsed = steady::now() - started;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_recv,
+      receipt_failure_reason_v2::recv_too_slow)) << describe(result);
+  EXPECT_GE(elapsed, bound - ms(50));
+  EXPECT_LT(elapsed, bound + ms(500));
+  EXPECT_EQ(0u, client.in_flight());
+}
+
+TEST(epose_http_client, tricklers_cannot_starve_an_honest_subject)
+{
+  const std::string reply = http_ok(service_json());
+  http_fixture trickler(http_fixture::mode::trickle, reply, byte_per_tick());
+  http_fixture honest(http_fixture::mode::reply, reply);
+  const auto slow = trickler.endpoint();
+  const auto fast = honest.endpoint();
+  const auto honest_address = make_address("1.1.1.1");
+  epose_network_v2 network;
+  network.connect = [slow, fast, honest_address](const tcp::endpoint &endpoint,
+      boost::asio::io_context &io, steady::time_point deadline,
+      epose_network_v2::connect_handler complete) {
+    return connect_epose_address(endpoint.address() == honest_address ? fast : slow,
+        io, deadline, std::move(complete));
+  };
+  constexpr size_t N = 3;
+  epose_receipt_client_v2 client(network, N);
+  const auto started = steady::now();
+  const auto round_deadline = started + std::chrono::seconds(30);
+  const auto deadlines = floor_caps(EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S, ms(250), round_deadline);
+  std::vector<epose_receipt_job_v2> tricklers;
+  for (size_t i = 0; i < N; ++i)
+    tricklers.push_back(client.request_service(challenge(),
+        signed_descriptor("8.8.4." + std::to_string(i + 1)), parameters(), deadlines));
+  // Every lease is held by a trickler.
+  const auto refused = client.request_service(challenge(), signed_descriptor("1.1.1.1"),
+      parameters(), deadlines).wait().result;
+  EXPECT_TRUE(same(refused, receipt_attempt_stage_v2::local_lease,
+      receipt_failure_reason_v2::lease_exhausted)) << describe(refused);
+  // The scheduler's retry: the honest subject gets a lease once the floor
+  // cuts the tricklers off, long before the round deadline.
+  epose_receipt_exchange_v2 exchange{};
+  while (steady::now() < round_deadline)
+  {
+    exchange = client.request_service(challenge(), signed_descriptor("1.1.1.1"),
+        parameters(), deadlines).wait();
+    if (exchange.result.reason != receipt_failure_reason_v2::lease_exhausted)
+      break;
+    std::this_thread::sleep_for(ms(10));
+  }
+  ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+  EXPECT_EQ(std::string("\x00\xff", 2), exchange.response.block_blob);
+  EXPECT_LT(steady::now() - started, std::chrono::seconds(3));
+  for (const auto &job : tricklers)
+  {
+    const auto result = job.wait().result;
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_recv,
+        receipt_failure_reason_v2::recv_too_slow)) << describe(result);
+  }
+  EXPECT_EQ(1u, honest.request_count());
+  EXPECT_EQ(0u, client.in_flight());
+}
+
+TEST(epose_http_client, slow_full_size_response_above_floor_succeeds)
+{
+  const std::string reply = full_size_service_reply();
+  ASSERT_GT(reply.size(), size_t(4 * 1024 * 1024));
+  http_fixture::trickle_plan plan;
+  plan.chunk = 64 * 1024;
+  plan.gap = ms(30); // about 2 MiB/s, 4x the floor below
+  http_fixture server(http_fixture::mode::trickle, reply, plan);
+  epose_network_v2 network;
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network);
+  const auto started = steady::now();
+  auto deadlines = floor_caps(512 * 1024, ms(250), started + std::chrono::seconds(30));
+  const auto exchange = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+      parameters(), deadlines).wait();
+  const auto elapsed = steady::now() - started;
+  ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+  EXPECT_EQ(size_t(2 * 1024 * 1024), exchange.response.block_blob.size());
+  // Many windows long: the floor is a rate, not a total cap.
+  EXPECT_GT(elapsed, 4 * deadlines.recv_rate_window);
+}
+
+TEST(epose_http_client, trickling_discovery_url_falls_through_to_the_next)
+{
+  const auto expected = signed_descriptor();
+  const std::string reply = http_ok(discovery_json(expected));
+  http_fixture trickler(http_fixture::mode::trickle, reply, byte_per_tick());
+  http_fixture honest(http_fixture::mode::reply, reply);
+  const auto slow = trickler.endpoint();
+  const auto fast = honest.endpoint();
+  epose_network_v2 network;
+  network.connect = [slow, fast](const tcp::endpoint &endpoint, boost::asio::io_context &io,
+      steady::time_point deadline, epose_network_v2::connect_handler complete) {
+    return connect_epose_address(endpoint.port() == 8197 ? slow : fast, io, deadline,
+        std::move(complete));
+  };
+  epose_receipt_client_v2 client(network);
+  auto request = discovery_only({"http://8.8.8.8:8197", "http://8.8.4.4:8199"});
+  request.challenge.endpoint_descriptor_hash = commitment(expected);
+  const auto started = steady::now();
+  request.deadlines = floor_caps(EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S, ms(250),
+      started + std::chrono::seconds(30));
+  const auto exchange = client.submit(request).wait();
+  ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+  EXPECT_EQ(commitment(expected), commitment(exchange.endpoint));
+  EXPECT_EQ(1u, trickler.request_count());
+  EXPECT_EQ(1u, honest.request_count());
+  EXPECT_LT(steady::now() - started, std::chrono::seconds(3));
+}
+
+TEST(epose_http_client, concurrent_jobs_for_one_host_cost_one_lookup)
+{
+  // The first round of an epoch: many subjects on one host, nothing cached.
+  held_lookup lookup;
+  std::atomic<unsigned> resolves{0}, cancels{0}, connects{0};
+  epose_network_v2 network;
+  network.resolve = [&](const std::string &host, boost::asio::io_context &io,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    EXPECT_EQ("shared.example.org", host);
+    ++resolves;
+    lookup.hold(io, std::move(complete));
+    return [&cancels] { ++cancels; };
+  };
+  network.connect = [&connects](const tcp::endpoint &endpoint, boost::asio::io_context &,
+      steady::time_point, epose_network_v2::connect_handler) {
+    ++connects;
+    EXPECT_EQ(make_address("8.8.8.8"), endpoint.address());
+    return refuse();
+  };
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{lookup};
+  std::vector<epose_receipt_job_v2> jobs;
+  // Service challenges and discovery lookups of the same host.
+  for (size_t i = 0; i < EPOSE_V2_RECEIPT_PARALLEL_JOBS; ++i)
+    jobs.push_back(i % 3 == 2
+        ? client.fetch_descriptor("http://shared.example.org:8197", parameters(), crypto::hash{},
+            caps(ms(5000)))
+        : client.request_service(challenge(), signed_descriptor("shared.example.org"),
+            parameters(), caps(ms(5000))));
+  ASSERT_GE(jobs.size(), 3u);
+  const auto until = steady::now() + std::chrono::seconds(2);
+  while (!lookup.held() && steady::now() < until)
+    std::this_thread::sleep_for(ms(1));
+  ASSERT_TRUE(lookup.held());
+  std::this_thread::sleep_for(ms(50));
+  for (const auto &job : jobs)
+    EXPECT_FALSE(job.ready()); // attached, not dns_slot_busy
+  lookup.deliver({}, {make_address("8.8.8.8")});
+  for (const auto &job : jobs)
+    EXPECT_EQ(receipt_failure_reason_v2::connection_refused, job.wait().result.reason);
+  EXPECT_EQ(1u, resolves.load());
+  EXPECT_EQ(0u, cancels.load());
+  EXPECT_EQ(EPOSE_V2_RECEIPT_PARALLEL_JOBS, connects.load());
+}
+
+namespace
+{
+  // Every lookup is held; connects are refused and counted.
+  struct held_network
+  {
+    held_lookup lookup;
+    std::atomic<unsigned> resolves{0}, cancels{0}, connects{0};
+
+    epose_network_v2 hooks()
+    {
+      epose_network_v2 network;
+      network.resolve = [this](const std::string &, boost::asio::io_context &io,
+          epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+        ++resolves;
+        lookup.hold(io, std::move(complete));
+        return [this] { ++cancels; };
+      };
+      network.connect = [this](const tcp::endpoint &, boost::asio::io_context &,
+          steady::time_point, epose_network_v2::connect_handler) {
+        ++connects;
+        return refuse();
+      };
+      return network;
+    }
+
+    void wait_held()
+    {
+      const auto until = steady::now() + std::chrono::seconds(2);
+      while (!lookup.held() && steady::now() < until)
+        std::this_thread::sleep_for(ms(1));
+      ASSERT_TRUE(lookup.held());
+    }
+  };
+}
+
+TEST(epose_http_client, last_waiter_cancels_shared_lookup)
+{
+  // The owner gives up first, the waiter gives up first, or both give up.
+  struct timing { ms owner, waiter; bool both_give_up; };
+  for (const auto &t : {timing{ms(50), ms(5000), false}, timing{ms(5000), ms(50), false},
+           timing{ms(40), ms(80), true}})
+  {
+    SCOPED_TRACE(t.owner.count());
+    held_network net;
+    epose_receipt_client_v2 client(net.hooks());
+    deliver_on_exit cleanup{net.lookup};
+    const auto descriptor = signed_descriptor("shared.example.org");
+    auto owner = client.request_service(challenge(), descriptor, parameters(), caps(t.owner));
+    net.wait_held();
+    auto waiter = client.request_service(challenge(), descriptor, parameters(), caps(t.waiter));
+    auto &first = t.owner < t.waiter ? owner : waiter;
+    auto &second = t.owner < t.waiter ? waiter : owner;
+    EXPECT_TRUE(same(first.wait().result, receipt_attempt_stage_v2::network_connect,
+        receipt_failure_reason_v2::dns_timeout)) << describe(first.wait().result);
+    if (!t.both_give_up)
+    {
+      // The other job still waits: the lookup stays alive for it.
+      EXPECT_FALSE(second.ready());
+      EXPECT_EQ(0u, net.cancels.load());
+      net.lookup.deliver({}, {make_address("8.8.8.8")});
+      EXPECT_EQ(receipt_failure_reason_v2::connection_refused, second.wait().result.reason);
+      EXPECT_EQ(1u, net.connects.load());
+    }
+    else
+    {
+      EXPECT_EQ(receipt_failure_reason_v2::dns_timeout, second.wait().result.reason);
+      EXPECT_EQ(1u, net.cancels.load());
+      // A cancelled lookup takes no new waiters, even for its own host.
+      EXPECT_EQ(receipt_failure_reason_v2::dns_slot_busy, client.request_service(challenge(),
+          descriptor, parameters(), caps(ms(5000))).wait().result.reason);
+      EXPECT_EQ(0u, net.connects.load());
+    }
+    EXPECT_EQ(1u, net.resolves.load());
+  }
+}
+
+TEST(epose_http_client, resolutions_from_earlier_epochs_are_evicted)
+{
+  std::atomic<unsigned> resolves{0};
+  held_lookup lookup;
+  std::mutex dialed_mutex;
+  std::vector<boost::asio::ip::address> dialed;
+  epose_network_v2 network;
+  network.resolve = [&](const std::string &host, boost::asio::io_context &io,
+      epose_network_v2::resolve_handler complete) -> epose_network_v2::cancel_resolve {
+    ++resolves;
+    if (host == "held.example.org")
+    {
+      lookup.hold(io, std::move(complete));
+      return [] {};
+    }
+    const auto answer = host == "old.example.org" ? "1.1.1.1"
+        : host == "new.example.org" ? "9.9.9.9" : "8.8.8.8";
+    boost::asio::post(io, [complete, answer] { complete({}, {make_address(answer)}); });
+    return [] {};
+  };
+  network.connect = [&](const tcp::endpoint &endpoint, boost::asio::io_context &,
+      steady::time_point, epose_network_v2::connect_handler) {
+    {
+      std::lock_guard<std::mutex> lock(dialed_mutex);
+      dialed.push_back(endpoint.address());
+    }
+    return refuse();
+  };
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{lookup};
+  auto epoch47 = challenge();
+  epoch47.epoch = 47;
+  const auto refused = [&](const service_challenge_v2 &c, const char *host) {
+    return client.request_service(c, signed_descriptor(host), parameters(),
+        caps(ms(1000))).wait().result.reason;
+  };
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, refused(challenge(), "old.example.org"));
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, refused(epoch47, "new.example.org"));
+  // A late request of epoch 46 resolves, but its answer is never remembered.
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, refused(challenge(), "late.example.org"));
+  EXPECT_EQ(3u, resolves.load());
+
+  auto holder = client.request_service(epoch47, signed_descriptor("held.example.org"),
+      parameters(), caps(ms(5000)));
+  const auto until = steady::now() + std::chrono::seconds(2);
+  while (!lookup.held() && steady::now() < until)
+    std::this_thread::sleep_for(ms(1));
+  ASSERT_TRUE(lookup.held());
+  // Epoch 47 dials from memory; the epoch-46 entries are gone.
+  EXPECT_EQ(receipt_failure_reason_v2::connection_refused, refused(epoch47, "new.example.org"));
+  EXPECT_EQ(receipt_failure_reason_v2::dns_slot_busy, refused(challenge(), "old.example.org"));
+  EXPECT_EQ(receipt_failure_reason_v2::dns_slot_busy, refused(challenge(), "late.example.org"));
+  EXPECT_EQ(4u, resolves.load());
+  {
+    std::lock_guard<std::mutex> lock(dialed_mutex);
+    const std::vector<boost::asio::ip::address> expected{make_address("1.1.1.1"),
+        make_address("9.9.9.9"), make_address("8.8.8.8"), make_address("9.9.9.9")};
+    EXPECT_EQ(expected, dialed);
+  }
+  holder.cancel();
+  EXPECT_EQ(receipt_failure_reason_v2::cancelled, holder.wait().result.reason);
+}
+
+TEST(epose_http_client, busy_resolver_slot_never_hides_a_real_discovery_failure)
+{
+  held_network net;
+  epose_receipt_client_v2 client(net.hooks());
+  deliver_on_exit cleanup{net.lookup};
+  // Another host's lookup holds the slot.
+  auto holder = client.request_service(challenge(), signed_descriptor("held.example.org"),
+      parameters(), caps(ms(10000)));
+  net.wait_held();
+  using urls = std::vector<std::string>;
+  for (const auto &discovery : {urls{"http://8.8.4.4:8197", "http://other.example.org:8197"},
+           urls{"http://other.example.org:8197", "http://8.8.4.4:8197"}})
+  {
+    SCOPED_TRACE(discovery.front());
+    const auto result = client.submit(discovery_only(discovery)).wait().result;
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_connect,
+        receipt_failure_reason_v2::connection_refused)) << describe(result);
+  }
+  EXPECT_EQ(2u, net.connects.load());
+  EXPECT_EQ(1u, net.resolves.load());
+  holder.cancel();
+  EXPECT_EQ(receipt_failure_reason_v2::cancelled, holder.wait().result.reason);
+}
+
+TEST(epose_http_client, production_floor_values)
+{
+  EXPECT_EQ(8u * 1024, EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S);
+  EXPECT_EQ(2000u, EPOSE_V2_RECV_RATE_WINDOW_MS);
+  EXPECT_EQ(4000u, EPOSE_V2_RECV_IDLE_TIMEOUT_MS);
+  // Four verifiers fetching at once need 262.1 kbit/s; fifteen fit in 1 Mbit/s.
+  EXPECT_LE(4 * EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S * 8, 263u * 1000);
+  EXPECT_LE(15 * EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S * 8, 1000u * 1000);
+}
+
+TEST(epose_http_client, stall_under_the_idle_bound_mid_body_succeeds)
+{
+  // An honest peer stalls 3 s mid-body (a TCP retransmission backoff), under
+  // the 4 s idle bound, then resumes; at the production floor and a 4x higher
+  // one. The reads after the stall see more than one span of history.
+  struct pacing { uint64_t floor; size_t chunk; ms gap; };
+  for (const auto &p : {pacing{EPOSE_V2_RECV_MIN_RATE_BYTES_PER_S, 4 * 1024, ms(62)},   // 64 KiB/s
+           pacing{32 * 1024, 8 * 1024, ms(31)}})                                       // 256 KiB/s
+  {
+    SCOPED_TRACE(p.floor);
+    const size_t per_second = p.chunk * 1000 / static_cast<size_t>(p.gap.count());
+    const std::string reply = service_reply_of(per_second * 9 / 4); // 4.5 s of hex
+    http_fixture::trickle_plan plan;
+    plan.chunk = p.chunk;
+    plan.gap = p.gap;
+    plan.pause_at = reply.size() * 7 / 9; // after 3.5 s
+    plan.pause = ms(3000);
+    http_fixture server(http_fixture::mode::trickle, reply, plan);
+    epose_network_v2 network;
+    network.connect = redirect(server.endpoint());
+    epose_receipt_client_v2 client(network);
+    epose_stage_deadlines_v2 deadlines{};
+    ASSERT_EQ(ms(2000), deadlines.recv_rate_window);
+    ASSERT_EQ(ms(4000), deadlines.recv_idle);
+    ASSERT_LT(plan.pause, deadlines.recv_idle);
+    deadlines.recv_min_rate = p.floor;
+    const auto started = steady::now();
+    deadlines.round_deadline = started + std::chrono::seconds(60);
+    const auto exchange = client.request_service(challenge(), signed_descriptor("8.8.8.8"),
+        parameters(), deadlines).wait();
+    const auto elapsed = steady::now() - started;
+    ASSERT_TRUE(exchange.result.accepted()) << describe(exchange.result);
+    EXPECT_EQ(per_second * 9 / 4, exchange.response.block_blob.size());
+    EXPECT_GT(elapsed, deadlines.recv_idle + deadlines.recv_rate_window);
+    EXPECT_LT(elapsed, std::chrono::seconds(20));
+    EXPECT_EQ(0u, client.in_flight());
+  }
+}
+
+TEST(epose_http_client, trickler_is_cut_off_after_one_production_span)
+{
+  // Production deadlines and a full-size Content-Length, so only the floor
+  // span (not the total bound) can end the receive.
+  const std::string reply = full_size_service_reply();
+  http_fixture::trickle_plan plan;
+  plan.chunk = 1;
+  plan.gap = ms(50);
+  http_fixture server(http_fixture::mode::trickle, reply, plan);
+  epose_network_v2 network;
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network, 1);
+  epose_stage_deadlines_v2 deadlines{};
+  const auto span = deadlines.recv_idle + deadlines.recv_rate_window;
+  const auto started = steady::now();
+  deadlines.round_deadline = started + std::chrono::seconds(120);
+  auto job = client.request_service(challenge(), signed_descriptor("8.8.8.8"), parameters(),
+      deadlines);
+  EXPECT_EQ(1u, client.in_flight());
+  const auto result = job.wait().result;
+  const auto elapsed = steady::now() - started;
+  EXPECT_TRUE(same(result, receipt_attempt_stage_v2::network_recv,
+      receipt_failure_reason_v2::recv_too_slow)) << describe(result);
+  EXPECT_GE(elapsed, span);
+  EXPECT_LT(elapsed, span + std::chrono::seconds(2));
+  EXPECT_EQ(0u, client.in_flight());
+}
+
+TEST(epose_http_client, busy_resolver_slot_never_hides_a_real_unavailable_descriptor)
+{
+  COMMAND_RPC_GET_EPOSE_SERVICE_ENDPOINT_V2::response not_ready{};
+  not_ready.status = CORE_RPC_STATUS_OK;
+  not_ready.ready = false;
+  std::string json;
+  ASSERT_TRUE(epee::serialization::store_t_to_json(not_ready, json));
+  http_fixture server(http_fixture::mode::reply, http_ok(json));
+  held_network net;
+  auto network = net.hooks();
+  network.connect = redirect(server.endpoint());
+  epose_receipt_client_v2 client(network);
+  deliver_on_exit cleanup{net.lookup};
+  // Another host's lookup holds the slot.
+  auto holder = client.request_service(challenge(), signed_descriptor("held.example.org"),
+      parameters(), caps(ms(10000)));
+  net.wait_held();
+  using urls = std::vector<std::string>;
+  for (const auto &discovery : {urls{"http://8.8.4.4:8197", "http://other.example.org:8197"},
+           urls{"http://other.example.org:8197", "http://8.8.4.4:8197"}})
+  {
+    SCOPED_TRACE(discovery.front());
+    const auto result = client.submit(discovery_only(discovery)).wait().result;
+    EXPECT_TRUE(same(result, receipt_attempt_stage_v2::descriptor_lookup,
+        receipt_failure_reason_v2::descriptor_unavailable)) << describe(result);
+  }
+  EXPECT_EQ(2u, server.request_count());
+  EXPECT_EQ(1u, net.resolves.load());
+  // Only busy: the busy slot is reported. Nothing usable: unavailable.
+  EXPECT_EQ(receipt_failure_reason_v2::dns_slot_busy,
+      client.submit(discovery_only({"http://other.example.org:8197"})).wait().result.reason);
+  const auto none = client.submit(discovery_only({"not a url"})).wait().result;
+  EXPECT_TRUE(same(none, receipt_attempt_stage_v2::descriptor_lookup,
+      receipt_failure_reason_v2::descriptor_unavailable)) << describe(none);
+  holder.cancel();
+  EXPECT_EQ(receipt_failure_reason_v2::cancelled, holder.wait().result.reason);
 }

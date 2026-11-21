@@ -5,6 +5,8 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "epose/record_codec_v2.h"
 #include "epose/relay_pool_v2.h"
@@ -377,6 +379,58 @@ TEST(epose_semantic_batch_v2, journal_restores_replaced_lease_and_nested_lifecyc
   ASSERT_EQ(1u, state.membership().snapshot(4)->members.size());
   EXPECT_EQ(original.service.public_key,
       state.membership().snapshot(4)->members.front().service_public_key);
+}
+
+// Copies share sealed lease chunks and lifecycle histories. Neither a later
+// change nor its rollback may reach a copy.
+TEST(epose_semantic_batch_v2, copies_isolated_from_later_changes)
+{
+  contexts source;
+  auto state = make_state();
+  std::vector<identity> members;
+  semantic_apply_summary_v2 summary{};
+  for (size_t i = 0; i < 70; ++i)
+  {
+    members.push_back(make_identity(("shared-" + std::to_string(i)).c_str()));
+    ASSERT_EQ(semantic_status_v2::accepted,
+        state.apply_transaction({registration_record(members.back())},
+            {1500, false, nullptr}, source, summary));
+    ASSERT_EQ(semantic_status_v2::accepted,
+        state.apply_transaction({admission_record(members.back(), source, 4, 2160)},
+            {2200, false, nullptr}, source, summary));
+  }
+  ASSERT_EQ(70u, state.membership().memory_usage().leases);
+  const crypto::hash before = state.state_hash();
+  const semantic_state_v2 earlier(state);
+
+  const identity &original = members.front();
+  identity recovered = original;
+  recovered.service = make_keys();
+  recovered.descriptor.service_public_key = recovered.service.public_key;
+  recovered.descriptor.effective_epoch = 4;
+  recovered.descriptor.sequence = 1;
+  auto undo = state.checkpoint();
+  ASSERT_EQ(semantic_status_v2::accepted, state.apply_transaction(
+      {lifecycle_record(lifecycle_action_v2::recover_service_key, original.descriptor, recovered),
+          admission_record(recovered, source, 4, 2160)},
+      {2201, false, nullptr}, source, summary, &undo));
+  ASSERT_EQ(1u, undo.membership.replaced_leases.size());
+  ASSERT_EQ(1u, undo.lifecycle.record_sizes.size());
+  const crypto::hash changed = state.state_hash();
+  ASSERT_NE(before, changed);
+  EXPECT_EQ(before, earlier.state_hash());
+  const semantic_state_v2 between(state);
+
+  state.rollback(undo);
+  EXPECT_EQ(before, state.state_hash());
+  EXPECT_EQ(before, earlier.state_hash());
+  EXPECT_EQ(changed, between.state_hash());
+  ASSERT_NE(nullptr, between.lifecycle().descriptor_for_epoch(original.descriptor.identity_id, 4));
+  EXPECT_EQ(recovered.service.public_key, between.lifecycle()
+      .descriptor_for_epoch(original.descriptor.identity_id, 4)->service_public_key);
+  ASSERT_NE(nullptr, state.lifecycle().descriptor_for_epoch(original.descriptor.identity_id, 4));
+  EXPECT_EQ(original.service.public_key, state.lifecycle()
+      .descriptor_for_epoch(original.descriptor.identity_id, 4)->service_public_key);
 }
 
 TEST(epose_semantic_batch_v2, journal_reverses_multiple_changes_to_a_new_identity)

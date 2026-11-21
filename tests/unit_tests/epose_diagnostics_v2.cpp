@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <limits>
 #include <set>
 #include <string>
 #include <utility>
@@ -68,7 +69,15 @@ TEST(epose_diagnostics_v2, reason_codes_are_stable_unique_and_machine_readable)
       receipt_failure_reason_v2::cancelled,
       receipt_failure_reason_v2::deadline_expired,
       receipt_failure_reason_v2::internal_execution_failure,
-      receipt_failure_reason_v2::address_prohibited};
+      receipt_failure_reason_v2::address_prohibited,
+      receipt_failure_reason_v2::connect_timeout,
+      receipt_failure_reason_v2::send_timeout,
+      receipt_failure_reason_v2::recv_timeout,
+      receipt_failure_reason_v2::dns_timeout,
+      receipt_failure_reason_v2::lease_exhausted,
+      receipt_failure_reason_v2::dns_slot_busy,
+      receipt_failure_reason_v2::recv_too_slow,
+      receipt_failure_reason_v2::connect_unreachable};
   std::set<std::string> names;
   for (const auto reason : reasons)
   {
@@ -78,6 +87,126 @@ TEST(epose_diagnostics_v2, reason_codes_are_stable_unique_and_machine_readable)
     EXPECT_TRUE(names.insert(name).second) << name;
   }
   EXPECT_EQ(reasons.size(), names.size());
+}
+
+TEST(epose_diagnostics_v2, stage_and_skip_names_are_unique)
+{
+  const std::vector<receipt_attempt_stage_v2> stages{
+      receipt_attempt_stage_v2::descriptor_lookup,
+      receipt_attempt_stage_v2::descriptor_validation,
+      receipt_attempt_stage_v2::network_connect,
+      receipt_attempt_stage_v2::http_exchange,
+      receipt_attempt_stage_v2::response_decode,
+      receipt_attempt_stage_v2::response_validation,
+      receipt_attempt_stage_v2::receipt_encoding,
+      receipt_attempt_stage_v2::envelope_encoding,
+      receipt_attempt_stage_v2::local_submission,
+      receipt_attempt_stage_v2::canonical_inclusion,
+      receipt_attempt_stage_v2::network_send,
+      receipt_attempt_stage_v2::network_recv,
+      receipt_attempt_stage_v2::local_lease};
+  std::set<std::string> names;
+  for (const auto stage : stages)
+  {
+    const std::string name = to_string(stage);
+    EXPECT_NE("unknown", name);
+    EXPECT_TRUE(names.insert(name).second) << name;
+  }
+  EXPECT_STREQ("start_jitter", to_string(receipt_scheduler_skip_v2::start_jitter));
+  const std::vector<receipt_scheduler_skip_v2> skips{
+      receipt_scheduler_skip_v2::not_local_member,
+      receipt_scheduler_skip_v2::not_committee_member,
+      receipt_scheduler_skip_v2::already_canonical,
+      receipt_scheduler_skip_v2::retry_backoff,
+      receipt_scheduler_skip_v2::no_active_round,
+      receipt_scheduler_skip_v2::start_jitter,
+      receipt_scheduler_skip_v2::peer_gate};
+  std::set<std::string> skip_names;
+  for (const auto skip : skips)
+  {
+    const std::string name = to_string(skip);
+    EXPECT_NE("unknown", name);
+    EXPECT_TRUE(skip_names.insert(name).second) << name;
+  }
+  EXPECT_STREQ("peer_gate", to_string(receipt_scheduler_skip_v2::peer_gate));
+}
+
+TEST(epose_diagnostics_v2, failure_totals_count_each_stage_and_reason)
+{
+  receipt_diagnostics_v2 diagnostics;
+  const auto record = [&diagnostics](uint64_t round, receipt_attempt_outcome_v2 outcome,
+      receipt_attempt_stage_v2 stage, receipt_failure_reason_v2 reason) {
+    auto value = context();
+    value.attempt_id = diagnostics.next_attempt_id();
+    value.round = round;
+    ASSERT_TRUE(diagnostics.started(value));
+    receipt_attempt_terminal_v2 terminal{};
+    terminal.context = value;
+    terminal.outcome = outcome;
+    terminal.stage = stage;
+    terminal.reason = reason;
+    EXPECT_TRUE(diagnostics.terminal(terminal, 1).terminal_recorded);
+  };
+  record(0, receipt_attempt_outcome_v2::failure, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::connect_timeout);
+  record(1, receipt_attempt_outcome_v2::failure, receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::connect_timeout);
+  record(1, receipt_attempt_outcome_v2::failure, receipt_attempt_stage_v2::network_recv,
+      receipt_failure_reason_v2::recv_timeout);
+  record(1, receipt_attempt_outcome_v2::failure, receipt_attempt_stage_v2::local_lease,
+      receipt_failure_reason_v2::lease_exhausted);
+  record(1, receipt_attempt_outcome_v2::success, receipt_attempt_stage_v2::local_submission,
+      receipt_failure_reason_v2::none);
+  const auto snapshot = diagnostics.snapshot();
+  const auto count = [&snapshot](receipt_attempt_stage_v2 stage, receipt_failure_reason_v2 reason) {
+    for (const auto &entry : snapshot.failure_totals)
+      if (entry.stage == stage && entry.reason == reason)
+        return entry.count;
+    return uint64_t(0);
+  };
+  EXPECT_EQ(3u, snapshot.failure_totals.size());
+  EXPECT_EQ(2u, count(receipt_attempt_stage_v2::network_connect,
+      receipt_failure_reason_v2::connect_timeout));
+  EXPECT_EQ(1u, count(receipt_attempt_stage_v2::network_recv,
+      receipt_failure_reason_v2::recv_timeout));
+  EXPECT_EQ(1u, count(receipt_attempt_stage_v2::local_lease,
+      receipt_failure_reason_v2::lease_exhausted));
+  EXPECT_EQ(0u, count(receipt_attempt_stage_v2::local_lease,
+      receipt_failure_reason_v2::transport_timeout));
+}
+
+TEST(epose_diagnostics_v2, dial_counters_sum_and_saturate)
+{
+  receipt_diagnostics_v2 diagnostics;
+  receipt_dial_counters_v2 dial{};
+  dial.ipv4.attempts = 2;
+  dial.ipv4.abandoned = 1;
+  dial.ipv4.prohibited = 3;
+  dial.ipv6.attempts = 1;
+  dial.ipv6.connected = 1;
+  diagnostics.dialed(dial);
+  dial.ipv4.refused = 1;
+  dial.ipv6.unreachable = 1;
+  dial.ipv6.timed_out = 1;
+  dial.ipv6.failed = 1;
+  diagnostics.dialed(dial);
+  auto snapshot = diagnostics.snapshot();
+  EXPECT_EQ(4u, snapshot.dial.ipv4.attempts);
+  EXPECT_EQ(2u, snapshot.dial.ipv4.abandoned);
+  EXPECT_EQ(6u, snapshot.dial.ipv4.prohibited);
+  EXPECT_EQ(1u, snapshot.dial.ipv4.refused);
+  EXPECT_EQ(0u, snapshot.dial.ipv4.connected);
+  EXPECT_EQ(2u, snapshot.dial.ipv6.attempts);
+  EXPECT_EQ(2u, snapshot.dial.ipv6.connected);
+  EXPECT_EQ(1u, snapshot.dial.ipv6.unreachable);
+  EXPECT_EQ(1u, snapshot.dial.ipv6.timed_out);
+  EXPECT_EQ(1u, snapshot.dial.ipv6.failed);
+  receipt_dial_counters_v2 huge{};
+  huge.ipv6.attempts = std::numeric_limits<uint64_t>::max();
+  diagnostics.dialed(huge);
+  snapshot = diagnostics.snapshot();
+  EXPECT_EQ(std::numeric_limits<uint64_t>::max(), snapshot.dial.ipv6.attempts);
+  EXPECT_EQ(4u, snapshot.dial.ipv4.attempts);
 }
 
 TEST(epose_diagnostics_v2, every_injected_failure_survives_the_step_runner)

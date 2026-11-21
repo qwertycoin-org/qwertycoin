@@ -313,8 +313,10 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   m_epose_state.reset();
   m_epose_block_snapshots.clear();
   m_epose_v2.reset();
+  m_epose_v2_inconsistent = false;
   m_epose_v2_parameters = {};
   m_epose_v2_relay_pool.reset();
+  m_epose_v2_relay_state.reset();
   m_epose_v2_relay_policy = {};
   if (m_hardfork == nullptr)
   {
@@ -593,6 +595,7 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
       rx_set_main_seedhash(seedhash.data, tools::get_max_concurrency());
   }
 
+  publish_epose_tip_view();
   return true;
 }
 //------------------------------------------------------------------
@@ -700,6 +703,10 @@ void Blockchain::pop_blocks(uint64_t nblocks)
     LOG_ERROR("Error when popping blocks after processing " << i << " blocks: " << e.what());
     if (stop_batch)
       m_db->batch_abort();
+    // The coordinator disconnected blocks the aborted batch restored.
+    if (m_epose_v2)
+      m_epose_v2_inconsistent = true;
+    publish_epose_tip_view();
     return;
   }
 
@@ -804,6 +811,7 @@ block Blockchain::pop_block_from_blockchain()
     m_tx_pool.validate(new_hf_version);
   }
 
+  publish_epose_tip_view();
   return popped_block;
 }
 //------------------------------------------------------------------
@@ -828,15 +836,12 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
         m_epose_v2_parameters));
     CHECK_AND_ASSERT_MES(m_epose_v2->valid(), false,
         "Failed to reset EPoSE-v2 coordinator");
+    // Cleared in place: a concurrent relay admission may hold the pool.
     if (m_epose_v2_relay_pool)
-      m_epose_v2_relay_pool.reset(new qwertycoin::epose::relay_record_pool_v2(
-          m_epose_v2_parameters.timing,
-          m_epose_v2_parameters.committee,
-          m_epose_v2_parameters.limits.envelope,
-          m_epose_v2_relay_policy.queue,
-          m_epose_v2_relay_policy.mining_template,
-          m_epose_v2_relay_policy.receipt_slot_dedup_height));
+      m_epose_v2_relay_pool->clear();
+    m_epose_v2_relay_state.reset();
   }
+  publish_epose_tip_view();
 
   db_wtxn_guard wtxn_guard(m_db);
   block_verification_context bvc = {};
@@ -1012,9 +1017,10 @@ Blockchain::submit_epose_relay_envelopes_v2(
     const std::vector<blobdata> &envelopes,
     std::vector<blobdata> &accepted)
 {
-  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  // The chain lock is taken only inside capture(). The pool pointer is set at
+  // init() and never replaced.
   accepted.clear();
-  if (!m_epose_v2 || !m_epose_v2_relay_pool)
+  if (!m_epose_v2_relay_pool)
     return envelopes.empty()
         ? qwertycoin::epose::relay_ingress_status_v2::accepted
         : qwertycoin::epose::relay_ingress_status_v2::invalid_configuration;
@@ -1059,21 +1065,164 @@ Blockchain::submit_epose_relay_envelopes_v2(
   private:
     const Blockchain &chain_;
     const qwertycoin::epose::consensus_parameters_v2 &parameters_;
-  } contexts(*this, m_epose_v2_parameters);
+  };
 
-  return qwertycoin::epose::admit_relay_envelopes_v2(
-      envelopes, m_db->height(), m_epose_v2_parameters.limits.envelope,
-      m_epose_v2_relay_policy, m_epose_v2->state(), contexts,
-      *m_epose_v2_relay_pool, accepted);
+  class relay_chain_view final : public qwertycoin::epose::relay_chain_view_v2
+  {
+  public:
+    explicit relay_chain_view(Blockchain &chain) : chain_(chain) {}
+
+    bool capture(
+        qwertycoin::epose::relay_record_pool_v2 &pool,
+        const qwertycoin::epose::relay_context_requests_v2 &requests,
+        qwertycoin::epose::relay_tip_snapshot_v2 &snapshot) override
+    {
+      CRITICAL_REGION_LOCAL(chain_.m_blockchain_lock);
+      if (!chain_.m_epose_v2)
+        return false;
+      if (chain_.m_epose_v2_inconsistent)
+      {
+        state_unknown_ = true;
+        return false;
+      }
+      const relay_context_source contexts(chain_, chain_.m_epose_v2_parameters);
+      const crypto::hash tip = chain_.m_db->top_block_hash();
+      const uint64_t height = chain_.m_db->height();
+      if (!chain_.m_epose_v2_relay_state
+          || chain_.m_epose_v2_relay_state_tip != tip
+          || chain_.m_epose_v2_relay_state_height != height)
+      {
+        chain_.m_epose_v2_relay_state =
+            std::make_shared<const qwertycoin::epose::semantic_state_v2>(
+                chain_.m_epose_v2->state());
+        chain_.m_epose_v2_relay_state_tip = tip;
+        chain_.m_epose_v2_relay_state_height = height;
+      }
+      snapshot.generation =
+          pool.sync_tip(tip, height, chain_.m_epose_v2->state(), contexts);
+      snapshot.height = height;
+      snapshot.state = chain_.m_epose_v2_relay_state;
+      requests.capture(contexts, snapshot.contexts);
+      return true;
+    }
+
+    bool state_unknown() const { return state_unknown_; }
+
+  private:
+    Blockchain &chain_;
+    bool state_unknown_ = false;
+  } chain(*this);
+
+  const auto status = qwertycoin::epose::admit_relay_envelopes_v2(
+      envelopes, m_epose_v2_parameters.limits.envelope,
+      m_epose_v2_relay_policy, chain, *m_epose_v2_relay_pool, accepted);
+  // A failed capture ends admission, so state_unknown() names the cause of
+  // that invalid_configuration. A state inconsistent with the database is
+  // local: the envelopes were not judged, and their sender is not at fault.
+  if (status == qwertycoin::epose::relay_ingress_status_v2::invalid_configuration
+      && chain.state_unknown())
+    return qwertycoin::epose::relay_ingress_status_v2::context_unavailable;
+  return status;
 }
 //------------------------------------------------------------------
 qwertycoin::epose::relay_pool_diagnostics_v2
 Blockchain::get_epose_relay_pool_diagnostics_v2() const
 {
-  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  // No lock: the snapshot the pool published when its mutex was last released.
   return m_epose_v2_relay_pool
-      ? m_epose_v2_relay_pool->diagnostics()
+      ? m_epose_v2_relay_pool->published_diagnostics()
       : qwertycoin::epose::relay_pool_diagnostics_v2{};
+}
+//------------------------------------------------------------------
+void Blockchain::note_epose_relay_tip_changed()
+{
+  if (m_epose_v2_relay_pool)
+    m_epose_v2_relay_pool->note_tip_changed();
+  m_epose_v2_relay_state.reset();
+}
+//------------------------------------------------------------------
+const qwertycoin::epose::semantic_state_v2 *Blockchain::epose_v2_state() const
+{
+  return m_epose_v2 && !m_epose_v2_inconsistent ? &m_epose_v2->state() : nullptr;
+}
+//------------------------------------------------------------------
+std::shared_ptr<const qwertycoin::epose::epose_tip_view>
+Blockchain::get_epose_tip_view() const
+{
+  return m_epose_tip_view.load();
+}
+//------------------------------------------------------------------
+bool Blockchain::get_block_blob_by_hash_unlocked(
+    const crypto::hash &hash, cryptonote::blobdata &blob) const
+{
+  blob.clear();
+  try
+  {
+    blob = m_db->get_block_blob(hash);
+    return true;
+  }
+  catch (const BLOCK_DNE &)
+  {
+  }
+  catch (const std::exception &e)
+  {
+    MERROR("Failed to read block blob without the chain lock: " << e.what());
+  }
+  return false;
+}
+//------------------------------------------------------------------
+void Blockchain::publish_epose_tip_view()
+{
+  if (!m_db)
+    return;
+  if (!restore_epose_state())
+  {
+    m_epose_tip_view.reset();
+    return;
+  }
+  try
+  {
+    const uint64_t height = m_db->height();
+    const crypto::hash tip =
+        height == 0 ? crypto::null_hash : m_db->top_block_hash();
+    // Shared with relay admission, which reuses the copy for the same tip.
+    std::shared_ptr<const qwertycoin::epose::semantic_state_v2> state;
+    if (m_epose_v2)
+    {
+      if (!m_epose_v2_relay_state
+          || m_epose_v2_relay_state_tip != tip
+          || m_epose_v2_relay_state_height != height)
+      {
+        m_epose_v2_relay_state =
+            std::make_shared<const qwertycoin::epose::semantic_state_v2>(
+                m_epose_v2->state());
+        m_epose_v2_relay_state_tip = tip;
+        m_epose_v2_relay_state_height = height;
+      }
+      state = m_epose_v2_relay_state;
+    }
+    // Reuse the state hash connect_block committed with the tip block.
+    epose_state_commitment_v2 committed{};
+    const bool have_committed_hash = m_epose_v2 && height > 0
+        && m_db->get_epose_state_commitment_v2(height - 1, committed)
+        && committed.block_hash == tip;
+    m_epose_tip_view.publish(qwertycoin::epose::build_epose_tip_view(
+        tip, height,
+        height > 0 && is_epose_enabled_for_height(height - 1),
+        m_epose_v2 ? &m_epose_v2_parameters : nullptr,
+        std::move(state),
+        [this](const uint64_t anchor_height, crypto::hash &hash)
+        {
+          hash = get_block_id_by_height(anchor_height);
+          return hash != crypto::null_hash;
+        },
+        have_committed_hash ? &committed.state_hash : nullptr));
+  }
+  catch (const std::exception &e)
+  {
+    MERROR("Failed to publish the EPoSE tip view: " << e.what());
+    m_epose_tip_view.reset();
+  }
 }
 //------------------------------------------------------------------
 std::vector<qwertycoin::epose::service_node_identity> Blockchain::get_epose_service_nodes() const
@@ -1097,8 +1246,9 @@ std::vector<crypto::public_key> Blockchain::get_epose_qualified_service_nodes(ui
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
   if (m_epose_v2)
   {
-    const auto *qualification =
-        m_epose_v2->state().membership().qualification(epoch);
+    const auto *state = epose_v2_state();
+    const auto *qualification = state == nullptr
+        ? nullptr : state->membership().qualification(epoch);
     return qualification == nullptr
         ? std::vector<crypto::public_key>{}
         : qualification->qualified_nodes;
@@ -1112,8 +1262,9 @@ std::vector<qwertycoin::epose::identity_descriptor_v2>
 Blockchain::get_epose_identity_descriptors_v2(uint64_t epoch) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  return m_epose_v2
-      ? m_epose_v2->state().lifecycle().descriptors_for_epoch(epoch)
+  const auto *state = epose_v2_state();
+  return state != nullptr
+      ? state->lifecycle().descriptors_for_epoch(epoch)
       : std::vector<qwertycoin::epose::identity_descriptor_v2>{};
 }
 //------------------------------------------------------------------
@@ -1121,9 +1272,10 @@ bool Blockchain::get_epose_membership_snapshot_v2(
     uint64_t epoch, qwertycoin::epose::membership_snapshot_v2 &snapshot) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  if (!m_epose_v2)
+  const auto *state = epose_v2_state();
+  if (state == nullptr)
     return false;
-  const auto *stored = m_epose_v2->state().membership().snapshot(epoch);
+  const auto *stored = state->membership().snapshot(epoch);
   if (stored == nullptr)
     return false;
   snapshot = *stored;
@@ -1134,9 +1286,10 @@ bool Blockchain::get_epose_qualification_v2(
     uint64_t epoch, qwertycoin::epose::qualification_set_v2 &qualification) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  if (!m_epose_v2)
+  const auto *state = epose_v2_state();
+  if (state == nullptr)
     return false;
-  const auto *stored = m_epose_v2->state().membership().qualification(epoch);
+  const auto *stored = state->membership().qualification(epoch);
   if (stored == nullptr)
     return false;
   qualification = *stored;
@@ -1158,7 +1311,8 @@ bool Blockchain::has_epose_admission_v2(
     const crypto::hash &identity_id, uint64_t target_epoch) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  return m_epose_v2 && m_epose_v2->state().membership().has_admission(
+  const auto *state = epose_v2_state();
+  return state != nullptr && state->membership().has_admission(
       identity_id, target_epoch);
 }
 //------------------------------------------------------------------
@@ -1169,8 +1323,9 @@ Blockchain::get_epose_committee_v2(
     const crypto::hash &round_anchor_hash) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  return m_epose_v2
-      ? m_epose_v2->state().membership().committee(
+  const auto *state = epose_v2_state();
+  return state != nullptr
+      ? state->membership().committee(
             epoch, round, subject_public_key, round_anchor_hash)
       : std::vector<qwertycoin::epose::verifier_assignment_v2>{};
 }
@@ -1181,7 +1336,8 @@ bool Blockchain::has_epose_receipt_slot_v2(
     const crypto::public_key &verifier_public_key) const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  return m_epose_v2 && m_epose_v2->state().membership().has_receipt_slot(
+  const auto *state = epose_v2_state();
+  return state != nullptr && state->membership().has_receipt_slot(
       epoch, round, subject_public_key, verifier_public_key);
 }
 
@@ -1192,9 +1348,10 @@ bool Blockchain::get_epose_receipt_coverage_v2(
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
   coverage.clear();
-  if (!m_epose_v2)
+  const auto *state = epose_v2_state();
+  if (state == nullptr)
     return false;
-  coverage = m_epose_v2->state().membership().receipt_coverage(
+  coverage = state->membership().receipt_coverage(
       epoch, subject_public_key);
   return true;
 }
@@ -1203,7 +1360,10 @@ uint64_t Blockchain::get_epose_attestation_count() const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
   if (m_epose_v2)
-    return m_epose_v2->state().membership().receipt_count();
+  {
+    const auto *state = epose_v2_state();
+    return state == nullptr ? 0 : state->membership().receipt_count();
+  }
   if (!m_epose_state)
     return 0;
   return m_epose_state->attestations().size();
@@ -1213,7 +1373,10 @@ crypto::hash Blockchain::get_epose_state_hash() const
 {
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
   if (m_epose_v2)
-    return m_epose_v2->state().state_hash();
+  {
+    const auto *state = epose_v2_state();
+    return state == nullptr ? crypto::null_hash : state->state_hash();
+  }
   if (!m_epose_state)
     return crypto::null_hash;
   return m_epose_state->state_hash();
@@ -1285,7 +1448,7 @@ bool Blockchain::plan_epose_reward_v2(
     qwertycoin::epose::coordinator_reward_plan_v2 &plan) const
 {
   plan = {};
-  if (!m_epose_v2)
+  if (!m_epose_v2 || m_epose_v2_inconsistent)
     return false;
 
   class template_context_source final
@@ -1484,7 +1647,8 @@ bool Blockchain::select_epose_template_records_v2(
   records.clear();
   if (!m_epose_v2_relay_pool)
     return true;
-  m_epose_v2_relay_pool->prune_expired(height);
+  if (epose_v2_state() == nullptr)
+    return false;
 
   class template_record_context_source final
       : public qwertycoin::epose::canonical_context_source_v2
@@ -1525,8 +1689,9 @@ bool Blockchain::select_epose_template_records_v2(
     const qwertycoin::epose::consensus_parameters_v2 &parameters_;
   } contexts(*this, m_epose_v2_parameters);
 
-  m_epose_v2_relay_pool->prune_unusable_receipts(
-      height, m_epose_v2->state(), contexts);
+  // Tip guard: the incremental prune runs once per tip, not per template.
+  m_epose_v2_relay_pool->sync_tip(
+      m_db->top_block_hash(), height, m_epose_v2->state(), contexts);
   std::vector<qwertycoin::epose::relay_record_selection_v2> selected;
   if (m_epose_v2_relay_pool->select_for_template(height, selected, &m_epose_v2->state())
       != qwertycoin::epose::relay_record_status_v2::accepted)
@@ -1566,12 +1731,15 @@ bool Blockchain::apply_epose_block(
     epose_state_commitment_v2 &commitment,
     std::vector<qwertycoin::epose::envelope_record_v2> &confirmed_records)
 {
+  note_epose_relay_tip_changed();
   commitment = {};
   confirmed_records.clear();
   if (!is_epose_enabled_for_height(height))
     return true;
   if (!m_epose_v2)
     return m_nettype == FAKECHAIN;
+  if (!restore_epose_state())
+    return false;
 
   class blockchain_context_source final
       : public qwertycoin::epose::canonical_context_source_v2
@@ -1666,25 +1834,34 @@ bool Blockchain::apply_epose_block(
 //------------------------------------------------------------------
 void Blockchain::rollback_epose_block(uint64_t popped_height)
 {
-  if (!m_epose_v2)
+  note_epose_relay_tip_changed();
+  // An inconsistent coordinator is replayed from the database instead.
+  if (!m_epose_v2 || m_epose_v2_inconsistent)
     return;
   const qwertycoin::epose::block_transition_status_v2 status =
       m_epose_v2->disconnect_tip(popped_height);
   if (status == qwertycoin::epose::block_transition_status_v2::deep_replay_required)
   {
+    // rebuild_epose_state() marks the coordinator inconsistent on failure.
     if (!rebuild_epose_state())
       MERROR("Failed to replay hardened EPoSE-v2 state after deep rollback at height " << popped_height);
   }
   else if (status != qwertycoin::epose::block_transition_status_v2::accepted)
+  {
     MERROR("Failed to disconnect hardened EPoSE-v2 state at height " << popped_height);
+    m_epose_v2_inconsistent = true;
+  }
 }
 //------------------------------------------------------------------
 bool Blockchain::rebuild_epose_state()
 {
+  note_epose_relay_tip_changed();
   if (!m_db)
     return false;
   if (!m_epose_v2)
     return m_nettype == FAKECHAIN;
+  // Cleared only by a replay that reached the database tip.
+  m_epose_v2_inconsistent = true;
 
   class replay_context_source final
       : public qwertycoin::epose::canonical_context_source_v2
@@ -1843,9 +2020,40 @@ bool Blockchain::rebuild_epose_state()
   }
 
   m_epose_v2 = std::move(rebuilt);
+  m_epose_v2_inconsistent = false;
   MINFO("Replayed and verified hardened EPoSE-v2 state through "
       << chain_height << " canonical blocks");
   return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::restore_epose_state()
+{
+  if (!m_epose_v2 || !m_epose_v2_inconsistent)
+    return true;
+  bool restored = false;
+  try
+  {
+    restored = rebuild_epose_state();
+  }
+  catch (const std::exception &e)
+  {
+    MERROR("EPoSE-v2 replay threw: " << e.what());
+  }
+  if (restored)
+    MWARNING("EPoSE-v2 state recovered by a replay of the canonical chain");
+  else
+  {
+    m_epose_v2_replay_failed_at = std::chrono::steady_clock::now();
+    MERROR("EPoSE-v2 state is inconsistent with the database; replay failed, retrying at the next tip change or block template");
+  }
+  return restored;
+}
+//------------------------------------------------------------------
+void Blockchain::set_epose_template_heal_interval(
+    std::chrono::steady_clock::duration interval)
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  m_epose_v2_template_heal_interval = interval;
 }
 //------------------------------------------------------------------
 crypto::hash Blockchain::get_pending_block_id_by_height(uint64_t height) const
@@ -2542,6 +2750,13 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   m_tx_pool.lock();
   const auto unlock_guard = epee::misc_utils::create_scope_leave_handler([&]() { m_tx_pool.unlock(); });
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  // A node that must mine the next block itself gets no tip change to heal
+  // on. Replay here too, at most once per interval after a failed replay,
+  // since a replay starts from height 0 under the chain lock.
+  if (m_epose_v2 && m_epose_v2_inconsistent
+      && std::chrono::steady_clock::now() - m_epose_v2_replay_failed_at
+          >= m_epose_v2_template_heal_interval)
+    publish_epose_tip_view();
   if (m_epose_v2 && from_block && *from_block != get_tail_id())
   {
     MERROR("EPoSE-v2 block templates for alternative parents require branch-specific state replay");
@@ -5563,6 +5778,11 @@ leave:
           bl, txs, blockchain_height, base_reward, fee_summary,
           epose_commitment, confirmed_epose_records))
   {
+    // apply may have replayed the coordinator before it rejected the block.
+    // connect_block fails atomically, so the state matches the unchanged
+    // tip; publish it now instead of at the next tip change.
+    if (m_epose_v2 && !m_epose_v2_inconsistent && !m_epose_tip_view.load())
+      publish_epose_tip_view();
     bvc.m_verifivation_failed = true;
     return_txs_to_pool();
     return false;
@@ -5655,6 +5875,7 @@ leave:
   m_tx_pool.on_blockchain_inc(new_height, id);
   get_difficulty_for_next_block(); // just to cache it
   invalidate_block_template_cache();
+  publish_epose_tip_view();
 
   const uint8_t new_hf_version = get_current_hard_fork_version();
   if (new_hf_version != hf_version)
@@ -5990,10 +6211,16 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
   // LMDB rolls the complete batch back while the in-memory coordinator has
   // already advanced through each earlier block. Rebuild only after the
   // abort completed so memory and the canonical database converge again.
-  if (success && batch_aborted && m_epose_v2 && !rebuild_epose_state())
+  if (success && batch_aborted)
   {
-    MERROR("Failed to replay EPoSE-v2 state after database batch abort");
-    success = false;
+    if (m_epose_v2)
+      m_epose_v2_inconsistent = true;
+    publish_epose_tip_view();
+    if (m_epose_v2 && m_epose_v2_inconsistent)
+    {
+      MERROR("Failed to replay EPoSE-v2 state after database batch abort");
+      success = false;
+    }
   }
 
   if (success && m_sync_counter > 0)
