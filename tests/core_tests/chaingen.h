@@ -31,6 +31,7 @@
 #pragma once
 
 #include <functional>
+#include <stdexcept>
 #include <vector>
 #include <iostream>
 #include <stdint.h>
@@ -330,6 +331,16 @@ struct output_index {
     return comm;
   }
 
+  crypto::public_key public_key() const {
+    cryptonote::tx_out output;
+    output.amount = amount;
+    output.target = out;
+    crypto::public_key key;
+    if (!cryptonote::get_output_public_key(output, key))
+      throw std::runtime_error("output has no public key");
+    return key;
+  }
+
   const std::string toString() const {
     std::stringstream ss;
 
@@ -420,6 +431,9 @@ std::vector<cryptonote::tx_destination_entry> build_dsts(const var_addr_t& to1, 
 std::vector<cryptonote::tx_destination_entry> build_dsts(std::initializer_list<dest_wrapper_t> inps);
 uint64_t sum_amount(const std::vector<cryptonote::tx_destination_entry>& destinations);
 uint64_t sum_amount(const std::vector<cryptonote::tx_source_entry>& sources);
+uint64_t common_miner_output_amount(const cryptonote::block* blocks, size_t count, uint64_t upper_bound = UINT64_MAX);
+size_t find_output_index_by_amount(const cryptonote::transaction& tx, uint64_t amount);
+constexpr size_t RCT_TEST_MINER_BLOCKS = 16;
 
 bool construct_miner_tx_manually(size_t height, uint64_t already_generated_coins,
                                  const cryptonote::account_public_address& miner_address, cryptonote::transaction& tx,
@@ -1089,4 +1103,4 @@ inline bool do_replay_file(const std::string& filename)
 #define CHECK_EQ(v1, v2) CHECK_AND_ASSERT_MES(v1 == v2, false, "[" << perr_context << "] failed: \"" << QUOTEME(v1) << " == " << QUOTEME(v2) << "\", " << v1 << " != " << v2)
 #define CHECK_NOT_EQ(v1, v2) CHECK_AND_ASSERT_MES(!(v1 == v2), false, "[" << perr_context << "] failed: \"" << QUOTEME(v1) << " != " << QUOTEME(v2) << "\", " << v1 << " == " << v2)
 #define MK_COINS(amount) (UINT64_C(amount) * COIN)
-#define TESTS_DEFAULT_FEE ((uint64_t)20000000000) // 2 * pow(10, 10)
+#define TESTS_DEFAULT_FEE ((uint64_t)100000000)

@@ -1907,4 +1907,5 @@ TEST(parsing, strtoul)
   ul = std::strtoul(p, const_cast<char**>(&endp), 10);
   EXPECT_EQ(ERANGE, errno);
   EXPECT_EQ(ULLONG_MAX, ul);
+  errno = 0;
 }

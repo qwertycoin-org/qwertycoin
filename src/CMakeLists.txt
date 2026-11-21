@@ -83,6 +83,7 @@ monero_add_library(version SOURCES ${PROJECT_BINARY_DIR}/version.cpp DEPENDS gen
 
 add_subdirectory(common)
 add_subdirectory(crypto)
+add_subdirectory(vm)
 add_subdirectory(ringct)
 add_subdirectory(checkpoints)
 add_subdirectory(cryptonote_basic)

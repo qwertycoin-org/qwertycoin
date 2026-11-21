@@ -26,6 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <cerrno>
 #include "gtest/gtest.h"
 #include "net/http_auth.h"
 #include "net/http_client.h"
@@ -838,6 +839,17 @@ TEST(HTTP, Parse_Header_Line)
   EXPECT_FALSE(http::detail::parse_header_line("Bad Header", name, value));
   EXPECT_FALSE(http::detail::parse_header_line("Host example.com", name, value));
   EXPECT_FALSE(http::detail::parse_header_line("GET / HTTP/1.1", name, value));
+}
+
+TEST(HTTP, Server_Parses_With_Stale_Errno)
+{
+  const int previous_errno = errno;
+  errno = ERANGE;
+  EXPECT_NO_THROW({
+    const auto capture = feed_http_request("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
+    EXPECT_EQ(1u, capture.requests.size());
+  });
+  errno = previous_errno;
 }
 
 TEST(HTTP, Server_Parses_Content_Length_First_Header)

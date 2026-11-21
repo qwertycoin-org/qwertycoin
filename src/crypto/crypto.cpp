@@ -41,6 +41,7 @@
 #include "common/varint.h"
 #include "warnings.h"
 #include "crypto.h"
+#include "ed25519_order.h"
 #include "hash.h"
 
 #include "cryptonote_config.h"
@@ -175,6 +176,21 @@ namespace crypto {
   bool crypto_ops::check_key(const public_key &key) {
     ge_p3 point;
     return ge_frombytes_vartime(&point, &key) == 0;
+  }
+
+  bool check_prime_order_key(const public_key &key, bool require_canonical) {
+    static const unsigned char identity[32] = {1};
+    ge_p3 point;
+    if (ge_frombytes_vartime(&point, reinterpret_cast<const unsigned char*>(&key)) != 0)
+      return false;
+    unsigned char encoded[32];
+    ge_p3_tobytes(encoded, &point);
+    if (require_canonical && (memcmp(encoded, &key, sizeof(key)) != 0 || memcmp(encoded, identity, sizeof(identity)) == 0))
+      return false;
+    ge_p2 multiplied;
+    ge_scalarmult(&multiplied, ed25519_order, &point);
+    ge_tobytes(encoded, &multiplied);
+    return memcmp(encoded, identity, sizeof(identity)) == 0;
   }
 
   bool crypto_ops::secret_key_to_public_key(const secret_key &sec, public_key &pub) {

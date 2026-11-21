@@ -64,6 +64,10 @@ bool gen_rct_tx_validation_base::generate_with_full(std::vector<test_event_entry
     events.push_back(blocks[n]);
     prev_block = blocks + n;
   }
+  const uint64_t miner_output_amount = common_miner_output_amount(blocks, 4);
+  CHECK_AND_ASSERT_MES(miner_output_amount != 0, false, "No common miner output amount");
+  const uint64_t spend_output_amount = common_miner_output_amount(blocks, 4, miner_output_amount);
+  CHECK_AND_ASSERT_MES(spend_output_amount != 0, false, "No second common miner output amount");
 
   // rewind
   cryptonote::block blk_r, blk_last;
@@ -95,28 +99,30 @@ bool gen_rct_tx_validation_base::generate_with_full(std::vector<test_event_entry
     sources.resize(1);
     tx_source_entry& src = sources.back();
 
-    const size_t index_in_tx = 5;
-    src.amount = 30000000000000;
-    for (int m = 0; m < 4; ++m) {
+    src.amount = miner_output_amount;
+    for (size_t m = 0; m < 4; ++m) {
+      size_t index_in_tx = find_output_index_by_amount(blocks[m].miner_tx, src.amount);
+      CHECK_AND_ASSERT_MES(index_in_tx < blocks[m].miner_tx.vout.size(), false, "Expected amount not found");
       crypto::public_key output_public_key;
       cryptonote::get_output_public_key(blocks[m].miner_tx.vout[index_in_tx], output_public_key);
       src.push_output(m, output_public_key, src.amount);
+      if (m == n)
+        src.real_output_in_tx_index = index_in_tx;
     }
     src.real_out_tx_key = cryptonote::get_tx_pub_key_from_extra(blocks[n].miner_tx);
     src.real_output = n;
-    src.real_output_in_tx_index = index_in_tx;
     src.mask = rct::identity();
     src.rct = false;
 
     //fill outputs entry
     tx_destination_entry td;
     td.addr = miner_accounts[n].get_keys().m_account_address;
-    td.amount = 7390000000000;
+    td.amount = 1000000000;
     std::vector<tx_destination_entry> destinations;
     destinations.push_back(td);
     destinations.push_back(td);
     destinations.push_back(td);
-    destinations.push_back(td); // 30 -> 7.39 * 4
+    destinations.push_back(td);
 
     crypto::secret_key tx_key;
     std::vector<crypto::secret_key> additional_tx_keys;
@@ -181,7 +187,7 @@ bool gen_rct_tx_validation_base::generate_with_full(std::vector<test_event_entry
     src.real_output = 0;
     if (out_idx[out_idx_idx]) {
       // rct
-      src.amount = 7390000000000;
+      src.amount = 1000000000;
       src.real_out_tx_key = get_tx_pub_key_from_extra(rct_txes[rct_idx/4]);
       src.real_output_in_tx_index = rct_idx&3;
       src.mask = rct_tx_masks[rct_idx];
@@ -200,13 +206,16 @@ bool gen_rct_tx_validation_base::generate_with_full(std::vector<test_event_entry
     else
     {
       // pre rct
-      src.amount = 5000000000000;
+      src.amount = spend_output_amount;
       src.real_out_tx_key = cryptonote::get_tx_pub_key_from_extra(blocks[pre_rct_idx].miner_tx);
-      src.real_output_in_tx_index = 4;
       src.mask = rct::identity();
       src.rct = false;
       for (int m = 0; m <= mixin; ++m) {
-        src.push_output(m, boost::get<txout_to_key>(blocks[pre_rct_idx].miner_tx.vout[4].target).key, src.amount);
+        size_t index_in_tx = find_output_index_by_amount(blocks[pre_rct_idx].miner_tx, src.amount);
+        CHECK_AND_ASSERT_MES(index_in_tx < blocks[pre_rct_idx].miner_tx.vout.size(), false, "Expected amount not found");
+        if (m == 0)
+          src.real_output_in_tx_index = index_in_tx;
+        src.push_output(m, boost::get<txout_to_key>(blocks[pre_rct_idx].miner_tx.vout[index_in_tx].target).key, src.amount);
         ++pre_rct_idx;
       }
     }
@@ -388,7 +397,7 @@ bool gen_rct_tx_rct_non_zero_vin_amount::generate(std::vector<test_event_entry>&
   const int out_idx[] = {1, -1};
   const uint64_t amount_paid = 10000;
   return generate_with(events, out_idx, mixin, amount_paid, false,
-    NULL, [](transaction &tx) {boost::get<txin_to_key>(tx.vin[0]).amount = 5000000000000;}); // one that we know exists
+    NULL, [](transaction &tx) {boost::get<txin_to_key>(tx.vin[0]).amount = MK_COINS(50);});
 }
 
 bool gen_rct_tx_non_zero_vout_amount::generate(std::vector<test_event_entry>& events) const
@@ -397,7 +406,7 @@ bool gen_rct_tx_non_zero_vout_amount::generate(std::vector<test_event_entry>& ev
   const int out_idx[] = {1, -1};
   const uint64_t amount_paid = 10000;
   return generate_with(events, out_idx, mixin, amount_paid, false,
-    NULL, [](transaction &tx) {tx.vout[0].amount = 5000000000000;}); // one that we know exists
+    NULL, [](transaction &tx) {tx.vout[0].amount = MK_COINS(50);});
 }
 
 bool gen_rct_tx_pre_rct_duplicate_key_image::generate(std::vector<test_event_entry>& events) const
@@ -578,10 +587,10 @@ bool gen_rct_tx_rct_has_no_view_tag_before_hf_view_tags::generate(std::vector<te
 
 bool gen_rct_tx_rct_has_no_view_tag_from_hf_view_tags::generate(std::vector<test_event_entry>& events) const
 {
-  const int mixin = 10;
+  const int mixin = 15;
   const int out_idx[] = {1, -1};
   const uint64_t amount_paid = 10000;
-  const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 3 };
+  const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 4 };
   bool use_view_tags = false;
   bool valid = false;
   return generate_with_full(events, out_idx, mixin, amount_paid, CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE, HF_VERSION_VIEW_TAGS+1, rct_config, use_view_tags, valid, NULL, NULL);

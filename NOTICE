@@ -1,0 +1,8 @@
+Qwertycoin
+Copyright (c) 2026, The Qwertycoin developers
+
+This product includes software developed by The Beam Team
+(https://github.com/BeamMW/beam), licensed under the Apache License,
+Version 2.0. The vendored and modified sources are in src/vm/bvm2; the
+license text is in src/vm/bvm2/LICENSE-APACHE and the pinned upstream
+commit and list of modifications are in src/vm/bvm2/README.

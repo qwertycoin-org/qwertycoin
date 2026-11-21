@@ -84,6 +84,7 @@ jobs:
       CONFIRMATION: ${{ inputs.confirmation }}
       EXISTING_TAG_POLICY: ${{ inputs.existing_tag_policy }}
       GH_TOKEN: ${{ github.token }}
+      RELEASE_REPOSITORY: qwertycoin-org/qwertycoin
       BASE_DIGEST: sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
     steps:
       - name: Checkout trusted packaging controls
@@ -126,7 +127,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")
+          release=$(gh api "repos/${RELEASE_REPOSITORY}/releases/tags/${RELEASE_TAG}")
           jq -e --arg tag "$RELEASE_TAG" --arg revision "$EXPECTED_REVISION" \
             '.tag_name == $tag and .target_commitish == $revision and .draft == false' \
             <<<"$release" >/dev/null
@@ -141,7 +142,7 @@ jobs:
           for name in "qwertycoin-${RELEASE_TAG}-linux-x86_64.tar.gz" SHA256SUMS; do
             asset_id=$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .id' <<<"$release")
             gh api -H 'Accept: application/octet-stream' \
-              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"public-release/$name"
+              "repos/${RELEASE_REPOSITORY}/releases/assets/${asset_id}" >"public-release/$name"
           done
           echo "release_prerelease=$(jq -r .prerelease <<<"$release")" >> "$GITHUB_OUTPUT"
       - name: Inspect checksum-bound archive provenance

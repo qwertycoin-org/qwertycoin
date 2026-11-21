@@ -217,6 +217,8 @@ namespace crypto {
     return crypto_ops::check_key(key);
   }
 
+  bool check_prime_order_key(const public_key &key, bool require_canonical = true);
+
   /* Checks a private key and computes the corresponding public key.
    */
   inline bool secret_key_to_public_key(const secret_key &sec, public_key &pub) {

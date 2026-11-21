@@ -88,7 +88,8 @@ bool gen_rct2_tx_validation_base::generate_with(std::vector<test_event_entry>& e
   std::vector<transaction> rct_txes;
   cryptonote::block blk_txes;
   std::vector<crypto::hash> starting_rct_tx_hashes;
-  static const uint64_t input_amounts_available[] = {5000000000000, 30000000000000, 100000000000, 80000000000};
+  const uint64_t needed_amount = common_miner_output_amount(blocks, mixin + 1);
+  CHECK_AND_ASSERT_MES(needed_amount != 0, false, "No common miner output amount");
   for (size_t n = 0; n < n_txes; ++n)
   {
     std::vector<tx_source_entry> sources;
@@ -96,15 +97,11 @@ bool gen_rct2_tx_validation_base::generate_with(std::vector<test_event_entry>& e
     sources.resize(1);
     tx_source_entry& src = sources.back();
 
-    const uint64_t needed_amount = input_amounts_available[n];
-    src.amount = input_amounts_available[n];
+    src.amount = needed_amount;
     size_t real_index_in_tx = 0;
     for (size_t m = 0; m <= mixin; ++m) {
-      size_t index_in_tx = 0;
-      for (size_t i = 0; i < blocks[m].miner_tx.vout.size(); ++i)
-        if (blocks[m].miner_tx.vout[i].amount == needed_amount)
-          index_in_tx = i;
-      CHECK_AND_ASSERT_MES(blocks[m].miner_tx.vout[index_in_tx].amount == needed_amount, false, "Expected amount not found");
+      size_t index_in_tx = find_output_index_by_amount(blocks[m].miner_tx, needed_amount);
+      CHECK_AND_ASSERT_MES(index_in_tx < blocks[m].miner_tx.vout.size(), false, "Expected amount not found");
       src.push_output(m, boost::get<txout_to_key>(blocks[m].miner_tx.vout[index_in_tx].target).key, src.amount);
       if (m == n)
         real_index_in_tx = index_in_tx;
@@ -136,7 +133,7 @@ bool gen_rct2_tx_validation_base::generate_with(std::vector<test_event_entry>& e
     std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
     subaddresses[miner_accounts[n].get_keys().m_account_address.m_spend_public_key] = {0,0};
     rct_txes.resize(rct_txes.size() + 1);
-    bool r = construct_tx_and_get_tx_key(miner_accounts[n].get_keys(), subaddresses, sources, destinations, boost::none, std::vector<uint8_t>(), rct_txes.back(), tx_key, additional_tx_keys, true, rct_config[n]);
+    bool r = construct_tx_and_get_tx_key(miner_accounts[n].get_keys(), subaddresses, sources, destinations, boost::none, std::vector<uint8_t>(), rct_txes.back(), tx_key, additional_tx_keys, true, rct_config[n], hf_version >= HF_VERSION_VIEW_TAGS);
     CHECK_AND_ASSERT_MES(r, false, "failed to construct transaction");
 
     if (post_tx && !post_tx(rct_txes.back(), n))

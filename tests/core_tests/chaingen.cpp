@@ -61,6 +61,33 @@ using namespace epee;
 using namespace crypto;
 using namespace cryptonote;
 
+uint64_t common_miner_output_amount(const cryptonote::block* blocks, size_t count, uint64_t upper_bound)
+{
+  if (count == 0)
+    return 0;
+  uint64_t amount = 0;
+  for (const auto& output : blocks[0].miner_tx.vout)
+  {
+    if (output.amount <= amount || output.amount >= upper_bound)
+      continue;
+    bool found = true;
+    for (size_t i = 1; i < count && found; ++i)
+      found = std::any_of(blocks[i].miner_tx.vout.begin(), blocks[i].miner_tx.vout.end(),
+        [&](const cryptonote::tx_out& candidate) { return candidate.amount == output.amount; });
+    if (found)
+      amount = output.amount;
+  }
+  return amount;
+}
+
+size_t find_output_index_by_amount(const cryptonote::transaction& tx, uint64_t amount)
+{
+  size_t index = 0;
+  while (index < tx.vout.size() && tx.vout[index].amount != amount)
+    ++index;
+  return index;
+}
+
 namespace
 {
   /**
@@ -453,17 +480,16 @@ bool init_output_indices(map_output_idx_t& outs, std::map<uint64_t, std::vector<
                 const tx_out &out = tx.vout[j];
 
                 output_index oi(out.target, out.amount, boost::get<txin_gen>(*blk.miner_tx.vin.begin()).height, i, j, &blk, vtx[i]);
-                oi.set_rct(tx.version == 2);
+                oi.set_rct(tx.version == 2 && i != 0);
                 oi.unlock_time = tx.unlock_time;
                 oi.is_coin_base = i == 0;
 
-                if (2 == out.target.which()) { // out_to_key
+                if (out.target.type() == typeid(txout_to_key) || out.target.type() == typeid(txout_to_tagged_key)) {
                     outs[out.amount].push_back(oi);
                     size_t tx_global_idx = outs[out.amount].size() - 1;
                     outs[out.amount][tx_global_idx].idx = tx_global_idx;
                     // Is out to me?
-                    crypto::public_key output_public_key;
-                    cryptonote::get_output_public_key(out, output_public_key);
+                    crypto::public_key output_public_key = outs[out.amount][tx_global_idx].public_key();
                     if (is_out_to_acc(from.get_keys(), output_public_key, get_tx_pub_key_from_extra(tx), get_additional_tx_pub_keys_from_extra(tx), j)) {
                         outs_mine[out.amount].push_back(tx_global_idx);
                     }
@@ -484,7 +510,7 @@ bool init_spent_output_indices(map_output_idx_t& outs, map_output_t& outs_mine, 
             // construct key image for this output
             crypto::key_image img;
             keypair in_ephemeral;
-            crypto::public_key out_key = boost::get<txout_to_key>(oi.out).key;
+            crypto::public_key out_key = oi.public_key();
             std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
             subaddresses[from.get_keys().m_account_address.m_spend_public_key] = {0,0};
             generate_key_image_helper(from.get_keys(), subaddresses, out_key, get_tx_pub_key_from_extra(*oi.p_tx), get_additional_tx_pub_keys_from_extra(*oi.p_tx), oi.out_no, in_ephemeral, img, hw::get_device(("default")));
@@ -536,8 +562,7 @@ bool fill_output_entries(std::vector<output_index>& out_indices, size_t sender_o
     if (append)
     {
       rct::key comm = oi.commitment();
-      const txout_to_key& otk = boost::get<txout_to_key>(oi.out);
-      output_entries.push_back(tx_source_entry::output_entry(oi.idx, rct::ctkey({rct::pk2rct(otk.key), comm})));
+      output_entries.push_back(tx_source_entry::output_entry(oi.idx, rct::ctkey({rct::pk2rct(oi.public_key()), comm})));
     }
   }
 
@@ -718,7 +743,7 @@ void block_tracker::get_fake_outs(size_t num_outs, uint64_t amount, uint64_t glo
     auto & oi = vct[oi_idx];
     if (oi.idx == global_index)
       continue;
-    if (oi.out.type() != typeid(cryptonote::txout_to_key))
+    if (oi.out.type() != typeid(cryptonote::txout_to_key) && oi.out.type() != typeid(cryptonote::txout_to_tagged_key))
       continue;
     if (oi.unlock_time > cur_height)
       continue;
@@ -726,8 +751,7 @@ void block_tracker::get_fake_outs(size_t num_outs, uint64_t amount, uint64_t glo
       continue;
 
     rct::key comm = oi.commitment();
-    auto out = boost::get<txout_to_key>(oi.out);
-    auto item = std::make_tuple(oi.idx, out.key, comm);
+    auto item = std::make_tuple(oi.idx, oi.public_key(), comm);
     outs.push_back(item);
     used.insert(oi_idx);
   }
@@ -743,12 +767,10 @@ std::string block_tracker::dump_data()
 
     for (const auto & oi : vct)
     {
-      auto out = boost::get<txout_to_key>(oi.out);
-
       ss << "    idx: " << oi.idx
       << ", rct: " << oi.rct
       << ", qwc: " << oi.amount
-      << ", key: " << dump_keys(out.key.data)
+      << ", key: " << dump_keys(oi.public_key().data)
       << ", msk: " << dump_keys(oi.comm.bytes)
       << ", txid: " << dump_keys(oi.p_tx->hash.data)
       << '\n';

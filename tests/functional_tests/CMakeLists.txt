@@ -76,6 +76,6 @@ if (REQUESTS_OUTPUT STREQUAL "OK")
     NAME    check_missing_rpc_methods
     COMMAND ${PYTHON3_FOUND} "${CMAKE_CURRENT_SOURCE_DIR}/check_missing_rpc_methods.py" "${CMAKE_SOURCE_DIR}")
 else()
-  message(WARNING "functional_tests_rpc and check_missing_rpc_methods skipped, needs the 'requests', 'psutil', 'monotonic', 'zmq', and 'deepdiff' python modules")
+  message(WARNING "functional_tests_rpc and check_missing_rpc_methods skipped; needs the 'requests', 'psutil', 'monotonic', 'zmq', and 'deepdiff' python modules")
   set(CTEST_CUSTOM_TESTS_IGNORE ${CTEST_CUSTOM_TESTS_IGNORE} functional_tests_rpc check_missing_rpc_methods)
 endif()
