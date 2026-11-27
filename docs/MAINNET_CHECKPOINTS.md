@@ -78,6 +78,13 @@ latest checkpoint.
 | 46079 | Epoch 63 end | `aac3582824fa1882188bed971080b2073cb0fb112847557d281362d9aaea3713` | `0x401143e6801` |
 | 46799 | Epoch 64 end | `5fd2107f9eac0a752340b183e9e83a074941cf0158082e92b66a1af8de2362c0` | `0x40a8db37752` |
 | 47519 | Epoch 65 end | `c6e9f1c85a81920a823a81d581d299ef03329e85a13bc4c61d3d582fb6fc0ab5` | `0x413ea487e5a` |
+| 48239 | Epoch 66 end | `a178da2bd6f44868af604aff86e62ea9156d075adca9217b62fb06328ffda669` | `0x41c89ebc34a` |
+| 48959 | Epoch 67 end | `6893730e4bbd4affd2eb64dc3de25cd279b8d40f0bfad63d69b404c22771fb08` | `0x4260aec65dd` |
+| 49679 | Epoch 68 end | `a0cd15ced4583375433b2b4b1ec361c2268dac6e2dc207d1da8fcbd1cd12f4c8` | `0x42f7dc75e4f` |
+| 50399 | Epoch 69 end | `0b09152c2c051f0fda4b2f802a1a860e0a1ab6eeec44d1a2cca991fd6976cf0c` | `0x437b766483c` |
+| 51119 | Epoch 70 end | `14aa1478f732867821d4d0dbaa04b326c98bfbae93c33597255564bf059a92e3` | `0x43ec9bc623f` |
+| 51839 | Epoch 71 end | `8a938acd7c777b06f50cb55f28fe1e2b214a28064144e45019f7e4babeccf829` | `0x444e6c774ab` |
+| 52559 | Epoch 72 end | `f9e657c868238c2186498d99acb7f9861a7dfae660340f19efa12ff8af4f9303` | `0x44b82bb0809` |
 
 Each post-genesis `Epoch N end` entry is the end of a completed 720-block
 EPoSE epoch. The table is intentionally append-only: existing height, hash, and
